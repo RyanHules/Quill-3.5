@@ -3029,6 +3029,18 @@ textarea {
   font-size: 0.82em;
   font-variant-numeric: tabular-nums;
 }
+/* Olórin narrative summary, rendered as a sub-line under the
+   checkbox row when book.summary is populated.  Spans all 4 grid
+   columns; indented to align with the book name so the
+   checkbox+abbrev gutter on the left remains scannable. */
+.book-filter-row .bf-summary {
+  grid-column: 3 / span 2;
+  color: #aaa;
+  font-size: 0.8em;
+  line-height: 1.35;
+  font-style: italic;
+  margin-top: 0.15rem;
+}
 
 .book-filter-footer {
   display: flex;

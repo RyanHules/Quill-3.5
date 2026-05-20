@@ -194,11 +194,21 @@
         const checked = active.has(b.abbreviation) ? 'checked' : '';
         const year = (b.publication_date || '').slice(0, 4);
         const edition = b.edition || '';
+        // Olórin-style narrative summary, sourced from the book
+        // table's `summary` column (populated by
+        // _book_summaries_data.py in the DB project). Rendered as
+        // an indented sub-line under the checkbox so the user knows
+        // what each book is about before checking the box.
+        const summary = (b.summary || '').trim();
+        const summaryHtml = summary
+          ? `<div class="bf-summary">${escapeHtml(summary)}</div>`
+          : '';
         html += `<label class="book-filter-row">`
           + `<input type="checkbox" value="${escapeHtml(b.abbreviation)}" ${checked}>`
           + `<span class="bf-abbr">${escapeHtml(b.abbreviation)}</span>`
           + `<span class="bf-name">${escapeHtml(b.name)}</span>`
           + `<span class="bf-meta">${escapeHtml(edition)}${year ? ' · ' + year : ''}</span>`
+          + summaryHtml
           + `</label>`;
       }
       html += `</div>`;

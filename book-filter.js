@@ -66,7 +66,7 @@
     try {
       books = window.DB.query(
         "SELECT name, abbreviation, publication_date, edition, " +
-        "book_type, publisher FROM book " +
+        "book_type, publisher, summary FROM book " +
         "ORDER BY CASE edition WHEN '3.5' THEN 0 ELSE 1 END, " +
         "         publication_date ASC, name ASC"
       );
