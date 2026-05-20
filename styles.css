@@ -2959,6 +2959,17 @@ textarea {
   font-weight: 600;
 }
 
+/* Substitution-level per-row block in the lookup modal. One block
+   per level (1 / 3 / 7 etc.) listing the special tag + the
+   description of the replacement feature. Indented + lightly
+   separated to read as a stacked list. */
+.lookup-sublvl {
+  margin: 0.2rem 0 0.2rem 0.5rem;
+  padding: 0.2rem 0.4rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  line-height: 1.4;
+}
+
 .book-filter-list {
   flex: 1;
   overflow-y: auto;

@@ -534,11 +534,16 @@
       ['Trained only',['trained_only']],
     ],
     skill_use:   [['Skill', ['skill']]],
-    skill_trick: [['Type',  ['type']], ['Prereq', ['prerequisites']]],
+    skill_trick: [['Category', ['category']], ['Type', ['type']],
+                  ['Prereq', ['prerequisites']]],
     poison:      [['Type', ['type']], ['DC', ['save_dc']], ['Price', ['price']]],
     acf:         [['Class', ['class', 'class_name']], ['Level', ['level']],
-                  ['Replaces', ['replaces']]],
-    subst_level: [['Class', ['class', 'class_name']], ['Level', ['level']]],
+                  ['Replaces', ['replaces']],
+                  ['Prereq', ['prerequisite']]],
+    subst_level: [['Class', ['class', 'class_name', 'base_class']],
+                  ['Level', ['level']],
+                  ['Replaces', ['replaces']],
+                  ['Prereq', ['prerequisite', 'requirements']]],
     organization:[['Type', ['type']]],
     ravage_affliction: [['Type', ['type']]],
     condition:   [['Category', ['category']]],
@@ -559,7 +564,54 @@
     if (type === 'skill')       return renderSkillExtra(d);
     if (type === 'mystery')     return renderMysteryExtra(d);
     if (type === 'rule')        return renderRuleExtra(d);
+    if (type === 'acf' || type === 'subst_level'
+        || type === 'skill_trick') {
+      return renderBenefitExtra(d);
+    }
     return '';
+  }
+
+  // Reused for ACF / substitution-level / skill-trick — all three
+  // entry types carry their actual mechanics in the `benefit` field
+  // (with optional `normal` / `special`), exactly like feats. Before
+  // 2026-05-20 the lookup modal had no renderer for any of these,
+  // which left the panel showing a flavor-only `description` with
+  // no rules text — the Decisive Strike (PHB2 ACF) and the 42
+  // Complete Scoundrel skill tricks all surfaced this way despite
+  // having complete benefit text in the DB. Identical to
+  // renderFeatExtra; kept as a separate function so future fields
+  // diverging per-type don't entangle.
+  //
+  // For substitution-level entries: MoI-style entries store their
+  // mechanics inside a nested `levels` array of `{level, special,
+  // description}` rows (the alt-class-feature for each substitution
+  // level: e.g. Aasimar Incarnate replaces L1 + L3 + L7). PlH-style
+  // entries store a single replacement at the top level in
+  // benefit/replaces. Render both shapes so the modal surfaces the
+  // mechanics either way.
+  function renderBenefitExtra(d) {
+    const lines = [];
+    if (d.benefit) lines.push(`<b>Benefit:</b> ${escapeHtml(d.benefit)}`);
+    if (d.normal)  lines.push(`<b>Normal:</b> ${escapeHtml(d.normal)}`);
+    if (d.special) lines.push(`<b>Special:</b> ${escapeHtml(d.special)}`);
+    if (Array.isArray(d.levels) && d.levels.length) {
+      // MoI-style per-level breakdown. Each row: {level, special,
+      // description}.  Render as a stacked list so the player can
+      // see exactly what changes at each substitution level.
+      const blocks = d.levels.map(lvl => {
+        const sp = lvl.special
+          ? ` <span style="opacity:.85">(${escapeHtml(lvl.special)})</span>`
+          : '';
+        const desc = lvl.description
+          ? `<br>${escapeHtml(lvl.description)}`
+          : '';
+        return `<div class="lookup-sublvl">` +
+               `<b>L${escapeHtml(String(lvl.level))}:</b>${sp}${desc}</div>`;
+      });
+      lines.push(`<b>Substitution levels:</b>` + blocks.join(''));
+    }
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
 
   function renderFeatExtra(d) {
