@@ -984,6 +984,10 @@
         {
           "skill": "Survival",
           "ranks": 5
+        },
+        {
+          "skill": "Knowledge (Durthan Area)",
+          "ranks": 2
         }
       ],
       "skillBonusesApplied": [
