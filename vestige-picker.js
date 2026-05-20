@@ -46,7 +46,7 @@
     );
     vestigeIndex.clear();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'vestige'})) continue;
       const key = (r.name || '').toLowerCase();
       if (vestigeIndex.has(key)) continue;
       let abilities = [];

@@ -49,6 +49,8 @@
   "hp-nonlethal": "",
   "ac-natural": "0",
   "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
   "con-to-ac": false,
   "con-to-ac-type": "Untyped",
   "int-to-ac": false,
@@ -135,8 +137,8 @@
   "armor-speed": "",
   "armor-weight": "",
   "armor-special": "Force effect, applies to incorporeal",
-  "shield-name": "Shield",
-  "shield-ac-bonus": "4",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
   "shield-weight": "",
   "shield-check-pen": "0",
   "shield-spell-fail": "0",
@@ -850,7 +852,7 @@
       "compType": "item_familiar",
       "compName": "",
       "ifamItemName": "Jar of Infinite Haboob",
-      "ifamItemPrice": 5000,
+      "ifamItemPrice": 0,
       "ifamItemWeight": 15,
       "ifamItemNotes": "Haboob at will (Use-activated)",
       "ifamAlignment": "",
@@ -873,10 +875,6 @@
         {
           "skill": "Survival",
           "ranks": 5
-        },
-        {
-          "skill": "Knowledge (Durthan Area)",
-          "ranks": 2
         }
       ],
       "skillBonusesApplied": [
@@ -932,13 +930,14 @@
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [
-        "Touchstone"
+        "Touchstone",
+        "Iron Will",
+        "Improved Counterspell"
       ],
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 2,
@@ -950,8 +949,7 @@
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 3,
@@ -965,21 +963,19 @@
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 4,
       "class_taken": "Durthan",
       "hp_rolled": 3,
-      "ability_boost": null,
+      "ability_boost": "CHA",
       "skills_purchased": {},
       "feats_taken": [],
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 5,
@@ -991,8 +987,7 @@
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 6,
@@ -1001,13 +996,12 @@
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [
-        "Improved Counterspell"
+        "Spell Penetration"
       ],
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     },
     {
       "level": 7,
@@ -1019,11 +1013,10 @@
       "spells_learned": [],
       "spells_unlearned": [],
       "choices": {},
-      "notes": "",
-      "_reconstructed": true
+      "notes": ""
     }
   ],
-  "history_reconstructed": true,
+  "history_reconstructed": false,
   "_book_filter": [
     "BoED",
     "CAdv",

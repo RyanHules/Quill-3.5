@@ -210,9 +210,11 @@ const Feats = (function () {
       };
     }
     const bits = [];
-    bits.push(`<b>${escapeHtml(row.name)}</b>` +
-      ` <span style="opacity:.7">(${escapeHtml(row.source || "?")}` +
-      `${row.version && row.version !== "3.5" ? ", " + escapeHtml(row.version) : ""})</span>`);
+    // Title line: bold name, source attribution, VersionBadge for
+    // non-3.5 (replaces the old inline "(source, 3.0)" parenthetical).
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
+    bits.push(`<b>${escapeHtml(row.name)}</b>${verBadge}` +
+      ` <span style="opacity:.7">(${escapeHtml(row.source || "?")})</span>`);
     if (row.types_csv)     bits.push(`<b>Type:</b> ${escapeHtml(row.types_csv)}`);
     if (row.prerequisites) bits.push(`<b>Prereq:</b> ${escapeHtml(row.prerequisites)}`);
     if (row.benefit)       bits.push(`<b>Benefit:</b> ${escapeHtml(row.benefit)}`);
@@ -221,7 +223,17 @@ const Feats = (function () {
     if (row.description && !row.benefit) {
       bits.push(`<b>Description:</b> ${escapeHtml(row.description)}`);
     }
-    return { html: bits.join("<br>"), entryId: row.id };
+    let html = bits.join("<br>");
+    // Homebrew add-on: Item Familiar campaign rules (Progressive Bond
+    // Track, Augmentation Budget, Jianghu free-feat doctrine). Each
+    // sub-rule is independently togglable via the HomebrewFilter UI.
+    // The hook returns '' when no rule is enabled, so this is a
+    // zero-cost path for the default RAW user.
+    if (window.HomebrewItemFamiliar) {
+      const hbHtml = HomebrewItemFamiliar.appendRulesHtml(row.name);
+      if (hbHtml) html += hbHtml;
+    }
+    return { html, entryId: row.id };
   }
 
   function escapeHtml(s) {

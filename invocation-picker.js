@@ -42,7 +42,7 @@
     const gradeSet = new Set();
     const subSet = new Set();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'invocation'})) continue;
       const key = (r.name || '').toLowerCase();
       if (invocationIndex.has(key)) continue;
       invocationIndex.set(key, r);

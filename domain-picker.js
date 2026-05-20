@@ -45,7 +45,7 @@
     // implementations took the first hit wholesale, which left
     // Sha'ir / cleric panels showing deities-only with no spell list.
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'domain'})) continue;
       const key = (r.name || '').toLowerCase();
       let spells = null, deities = null;
       try { spells = r.spells_json ? JSON.parse(r.spells_json) : null; }

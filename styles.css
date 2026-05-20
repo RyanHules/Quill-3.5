@@ -2392,6 +2392,45 @@ textarea {
   vertical-align: baseline;
 }
 
+/* Edition / version badge. Surfaces "3.0" pills on entries from 3.0
+   supplements (FRCS, MoF, Planar Handbook, MotP, etc.) so a player
+   doesn't accidentally rely on a 3.0 spell variant whose mechanics
+   differ from 3.5 canon. 3.5 is the default and gets no badge by
+   default; alwaysHtml() can opt in to render the 3.5 pill when
+   visual parity is desired. */
+.version-badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.4rem;
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  vertical-align: baseline;
+  line-height: 1.3;
+  cursor: help;
+}
+.version-badge--30 {
+  background: rgba(255, 165, 80, 0.12);
+  color: #ffb060;
+}
+.version-badge--35 {
+  background: rgba(180, 180, 200, 0.08);
+  color: #9aa;
+}
+.version-badge--other {
+  background: rgba(140, 200, 255, 0.10);
+  color: #a8d4ff;
+}
+/* When prepended to a picker's info panel via VersionBadge.attach,
+   the badge starts the line — drop the left margin so it lines up
+   flush with the panel edge. */
+.version-badge.version-badge--leading {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
 /* The popover that opens when the badge is clicked. Position is set
    inline by errata-badge.js — these rules just style the card. */
 .errata-popover {
@@ -2733,6 +2772,192 @@ textarea {
   border-bottom: 1px solid #3a3a3a;
 }
 .book-filter-status-active { color: #c8a14a; }
+
+/* "3.0 edition material" 3-state radio group. Lives between the
+   presets and the status line; styled as a fieldset with one labeled
+   row per radio + an inline hint.  Each row stacks (label, hint)
+   vertically so the explanatory text wraps cleanly under each option. */
+.book-filter-hide30 {
+  padding: 0.4rem 0.8rem 0.5rem;
+  border: 0;
+  border-top: 1px solid #3a3a3a;
+  border-bottom: 1px solid #3a3a3a;
+  background: rgba(255, 165, 80, 0.04);
+  font-size: 0.85em;
+}
+.book-filter-hide30 legend {
+  padding: 0 0.4em;
+  font-weight: 600;
+  color: #d9a575;
+  font-size: 0.95em;
+}
+.book-filter-hide30-group label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.5rem;
+  row-gap: 0.1rem;
+  padding: 0.35rem 0;
+  cursor: pointer;
+  align-items: start;
+}
+.book-filter-hide30-group input[type=radio] {
+  grid-row: 1 / span 2;
+  margin-top: 0.25rem;
+}
+.book-filter-hide30-group .hbm-label {
+  color: #e0e0e0;
+  font-weight: normal;
+}
+.book-filter-hide30-group .hbm-hint {
+  grid-column: 2 / span 1;
+  color: #aaa;
+  font-size: 0.92em;
+  line-height: 1.4;
+}
+
+/* HomebrewFilter modal — reuses .book-filter-modal panel chrome. */
+.homebrew-filter-trigger-btn {
+  position: relative;
+}
+.hbf-count {
+  display: inline-block;
+  min-width: 1.1em;
+  padding: 0 0.25em;
+  margin-left: 0.15em;
+  border-radius: 8px;
+  background: #7a4b2c;
+  color: #fff;
+  font-size: 0.65em;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.hbf-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid #2c2c2c;
+  cursor: pointer;
+}
+.hbf-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.hbf-row input[type=checkbox] {
+  margin-top: 0.2rem;
+}
+.hbf-rowtext {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.hbf-rowtitle {
+  font-weight: 600;
+  color: #e0e0e0;
+}
+.hbf-desc {
+  color: #aaa;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+.hbf-info-tag {
+  display: inline-block;
+  padding: 0 0.4em;
+  margin-left: 0.3em;
+  border-radius: 6px;
+  background: rgba(140, 200, 255, 0.10);
+  color: #a8d4ff;
+  font-size: 0.7em;
+  font-weight: 500;
+  vertical-align: middle;
+  cursor: help;
+}
+.hbf-src {
+  margin-left: 0.4em;
+  font-size: 0.7em;
+  font-weight: normal;
+  color: #888;
+  cursor: help;
+}
+
+/* Homebrew rule blocks — used inside feat rules panels, class
+   features panels, and item info panels to inject campaign-specific
+   text below the RAW description. Visually marked so a reader can
+   tell at a glance that the content is homebrew, not RAW. */
+.hb-block {
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(122, 75, 44, 0.08);
+  border-left: 3px solid #c8884a;
+  border-radius: 3px;
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+.hb-block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+.hb-tag {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  background: rgba(200, 136, 74, 0.20);
+  color: #d9a575;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid rgba(200, 136, 74, 0.5);
+  border-radius: 6px;
+}
+.hb-block-title {
+  font-weight: 600;
+  color: #f3d9b0;
+  flex: 1;
+  min-width: 0;
+}
+.hb-src {
+  font-size: 0.78em;
+  color: #aaa;
+  font-style: italic;
+}
+.hb-block-body {
+  color: #ddd;
+}
+.hb-detail {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dotted rgba(200, 136, 74, 0.25);
+  color: #cfc8c0;
+  font-size: 0.92em;
+}
+.hb-table {
+  width: 100%;
+  margin: 0.5rem 0;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.hb-table th, .hb-table td {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(200, 136, 74, 0.18);
+  text-align: left;
+  vertical-align: top;
+}
+.hb-table th {
+  background: rgba(200, 136, 74, 0.10);
+  color: #f3d9b0;
+  font-weight: 600;
+}
+.hb-table td:first-child {
+  white-space: nowrap;
+  width: 1px;
+  color: #d9a575;
+  font-weight: 600;
+}
 
 .book-filter-list {
   flex: 1;

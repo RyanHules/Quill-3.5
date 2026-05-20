@@ -58,7 +58,7 @@
       );
       templateIndex = new Map();
       for (const r of rows) {
-        if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'template'})) continue;
         const key = (r.name || '').toLowerCase();
         if (!templateIndex.has(key)) templateIndex.set(key, r);
       }
@@ -391,6 +391,7 @@
     }
     panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
     if (window.ErrataBadge) ErrataBadge.attach(panel, tpl.template_id);
+    if (window.VersionBadge) VersionBadge.attach(panel, tpl.version);
     panel.style.display = 'block';
   }
 

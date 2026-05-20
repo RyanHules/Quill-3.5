@@ -320,10 +320,15 @@
   function renderHeader(d, type) {
     const pieces = [];
     if (d.source) pieces.push(escapeHtml(d.source));
-    if (d.version && d.version !== '3.5') pieces.push(escapeHtml(d.version));
+    // Visible "3.0" pill via VersionBadge so the edition is impossible
+    // to miss. The header used to inline the version as plain "·
+    // 3.0" text, which blended in too easily — the Dimensional Lock
+    // confusion (2026-05-19) made that clear.
+    const verBadge = (window.VersionBadge ? VersionBadge.html(d.version) : '');
     return `<div class="lookup-detail-head">` +
       `<span class="lookup-detail-type">${escapeHtml(TYPE_LABELS[type] || type)}</span>` +
       (pieces.length ? `<span class="lookup-detail-source">${pieces.join(' · ')}</span>` : '') +
+      verBadge +
       `</div>`;
   }
 
@@ -334,6 +339,22 @@
     const fields = META_FIELDS_BY_TYPE[type] || META_FIELDS_BY_TYPE._default;
     const items = [];
     for (const [label, key] of fields) {
+      // Spells: collapse School / Subschool / Descriptor into the
+      // canonical book-print form "School (Subschool) [Descriptor]"
+      // under a single "School:" label, and skip the bare Subschool
+      // / Descriptor rows that would otherwise duplicate the info.
+      if (type === 'spell' && label === 'School') {
+        if (!d.school) continue;
+        let v = String(d.school);
+        if (d.subschool)  v += ` (${d.subschool})`;
+        if (d.descriptor) v += ` [${d.descriptor}]`;
+        items.push(`<span class="lookup-meta-item">` +
+          `<b>School:</b> ${escapeHtml(v)}</span>`);
+        continue;
+      }
+      if (type === 'spell' && (label === 'Subschool' || label === 'Descriptor')) {
+        continue; // folded into the School line above
+      }
       const v = pickField(d, key);
       if (v == null || v === '' || v === '—') continue;
       items.push(
@@ -1277,7 +1298,10 @@
     // on rows that pass; see ErrataBadge wiring below).
     const scored = [];
     for (const e of entries) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(e.source)) continue;
+      // `e` carries .type / .name / .version / .source from the index
+      // build query — allowsEntry uses all four to support both the
+      // 'all' and 'counterpart' hide-3.0 modes.
+      if (window.BookFilter && !window.BookFilter.allowsEntry(e)) continue;
       const s = score(e, parsed);
       if (s > 0) scored.push({ entry: e, score: s });
     }
@@ -1305,7 +1329,9 @@
       row.innerHTML =
         `<span class="lookup-row-type">${escapeHtml(TYPE_LABELS[e.type] || e.type)}</span>` +
         `<span class="lookup-row-name">${escapeHtml(e.name)}</span>` +
-        `<span class="lookup-row-meta">${escapeHtml(e.source || '')}</span>`;
+        `<span class="lookup-row-meta">${escapeHtml(e.source || '')}` +
+        (window.VersionBadge ? VersionBadge.html(e.version) : '') +
+        `</span>`;
       // Subtle ✦ marker if this entry has applied errata. We use the
       // indicator (non-clickable) here because the whole row is
       // clickable — the popover lives in the expanded detail panel.
@@ -1372,7 +1398,7 @@
     document.addEventListener('book-filter-changed', () => {
       typeCounts.clear();
       for (const e of entries) {
-        if (window.BookFilter && !window.BookFilter.allowsSource(e.source)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry(e)) continue;
         typeCounts.set(e.type, (typeCounts.get(e.type) || 0) + 1);
       }
       renderChips();

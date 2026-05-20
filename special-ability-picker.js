@@ -38,7 +38,7 @@
     trickIndex.clear();
     const catSet = new Set();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'skill_trick'})) continue;
       const key = (r.name || '').toLowerCase();
       if (trickIndex.has(key)) continue;
       trickIndex.set(key, r);

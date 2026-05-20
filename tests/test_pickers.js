@@ -3195,7 +3195,7 @@ test('deity-picker: book-filter + alignment-auto-fill wiring present', () => {
   // Structural guards for the picker. Tested via static grep because
   // the runtime behavior depends on the Character tab DOM + DB.
   const src = readSource('deity-picker.js');
-  assert(/BookFilter\.allowsSource/.test(src),
+  assert(/BookFilter\.(allowsSource|allowsEntry)/.test(src),
     'deity-picker.js: not BookFilter-aware.');
   assert(/['"]book-filter-changed['"]/.test(src),
     'deity-picker.js: does not listen for book-filter-changed.');
@@ -3370,11 +3370,14 @@ test('book-filter: app.js wires collectData + loadData', () => {
     'silently drop the campaign book filter.');
 });
 
-test('book-filter: every picker consults BookFilter.allowsSource in its row loop', () => {
+test('book-filter: every picker consults BookFilter in its row loop', () => {
   // The picker-integration contract: each picker queries `entry` with
   // `e.source` (or just `source`) in the SELECT and skips rows that
   // the BookFilter rejects. Catches the common regression of adding a
-  // new picker without wiring the global filter.
+  // new picker without wiring the global filter. Accepts either
+  // `allowsSource` (legacy, source-only) or `allowsEntry` (preferred,
+  // entry-aware with name+type+version — supports the counterpart
+  // hide-3.0 mode added 2026-05-20).
   const pickers = [
     'feat-picker.js', 'item-picker.js', 'spell-picker.js',
     'race-picker.js', 'template-picker.js', 'class-picker.js',
@@ -3385,7 +3388,9 @@ test('book-filter: every picker consults BookFilter.allowsSource in its row loop
   const missing = [];
   for (const p of pickers) {
     const src = readSource(p);
-    if (!/BookFilter\.allowsSource\s*\(/.test(src)) missing.push(p);
+    if (!/BookFilter\.(allowsSource|allowsEntry)\s*\(/.test(src)) {
+      missing.push(p);
+    }
   }
   assert(missing.length === 0,
     `${missing.length} pickers do not consult BookFilter:\n  ` +
@@ -3414,7 +3419,7 @@ test('book-filter: every picker re-runs on book-filter-changed', () => {
 
 test('book-filter: lookup modal also consults BookFilter', () => {
   const src = readSource('lookup.js');
-  assert(/BookFilter\.allowsSource\s*\(/.test(src),
+  assert(/BookFilter\.(allowsSource|allowsEntry)\s*\(/.test(src),
     'lookup.js does not consult BookFilter — the universal search ' +
     'returns out-of-scope entries.');
   assert(/['"]book-filter-changed['"]/.test(src),
@@ -3475,6 +3480,55 @@ test('book-filter: state round-trips through collectData/loadData', () => {
   BF.loadData({});  // no _book_filter key — should leave MIC intact
   assert(BF.getActiveAbbrevs().has('MIC'),
     'loadData on an object without _book_filter must not wipe state');
+
+  // Hide-3.0 3-state migration (added 2026-05-20). The legacy
+  // `_hide_30: true` boolean maps forward to mode='all'; the new
+  // `_hide_30_mode` field overrides the legacy boolean when both
+  // are present.
+  BF.setHide30Mode('off');
+  assert(BF.getHide30Mode() === 'off', 'default hide-30 mode is off');
+  BF.loadData({ _hide_30: true });
+  assert(BF.getHide30Mode() === 'all',
+    'legacy _hide_30: true must migrate to mode=all, ' +
+    `got ${BF.getHide30Mode()}`);
+  BF.loadData({ _hide_30_mode: 'counterpart' });
+  assert(BF.getHide30Mode() === 'counterpart',
+    'mode=counterpart should round-trip');
+  // Save format: mode-aware, omits when off.
+  BF.setHide30Mode('off');
+  const off = BF.collectData();
+  assert(!('_hide_30_mode' in off),
+    `mode=off should not write _hide_30_mode, got ${JSON.stringify(off)}`);
+  BF.setHide30Mode('counterpart');
+  const cp = BF.collectData();
+  assert(cp._hide_30_mode === 'counterpart',
+    `mode=counterpart should serialize, got ${JSON.stringify(cp)}`);
+  // Legacy boolean accessors continue to work — false ↔ 'off', true ↔ 'all'.
+  BF.setHide30(true);
+  assert(BF.getHide30Mode() === 'all',
+    'setHide30(true) must map to mode=all (legacy boolean compat)');
+  BF.setHide30(false);
+  assert(BF.getHide30Mode() === 'off',
+    'setHide30(false) must map to mode=off');
+
+  // Counterpart-aware allowsEntry. Without a DB the counterpart index
+  // is empty, so 'counterpart' mode never filters anything out (fails
+  // open — same posture as unknown-source handling). Only 'all' mode
+  // and the explicit source-edition check can drop rows here.
+  BF.setHide30Mode('counterpart');
+  assert(BF.allowsEntry({ source: 'Magic of Faerun', version: '3.0',
+    name: 'Dimensional Lock', type: 'spell' }) === true,
+    'with no counterpart index loaded, counterpart mode must fail open');
+  // In 'all' mode, an entry with version='3.0' is dropped regardless
+  // of counterpart status.
+  BF.setHide30Mode('all');
+  assert(BF.allowsEntry({ source: 'Magic of Faerun', version: '3.0',
+    name: 'Dimensional Lock', type: 'spell' }) === false,
+    'mode=all must drop a 3.0 entry');
+  // A 3.5 entry is never dropped by hide-3.0 regardless of mode.
+  assert(BF.allowsEntry({ source: 'Player\'s Handbook', version: '3.5',
+    name: 'Magic Missile', type: 'spell' }) === true,
+    'mode=all must not drop a 3.5 entry');
 });
 
 test('book-filter: SQL query against entry table is filter-shape compatible', (db) => {

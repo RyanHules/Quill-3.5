@@ -118,7 +118,7 @@
       datalist.innerHTML = '';
       let kept = 0;
       for (const r of deities) {
-        if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'deity'})) continue;
         const key = r.name.toLowerCase();
         if (deityIndex.has(key)) continue;  // first hit wins (3.5 preferred)
         deityIndex.set(key, { id: r.deity_id, name: r.name });
@@ -350,6 +350,7 @@
     }
     infoPanel.innerHTML = html;
     if (window.ErrataBadge) ErrataBadge.attach(infoPanel, row.deity_id || row.id);
+    if (window.VersionBadge) VersionBadge.attach(infoPanel, row.version || d.version);
     // Note: display state is owned by the ⓘ toggle button, NOT by
     // this render path. Filling content while closed is fine — the
     // user sees fresh content the next time they click open.

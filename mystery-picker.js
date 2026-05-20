@@ -53,7 +53,7 @@
     mysteryIndex.clear();
     const pathSet = new Set();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'mystery'})) continue;
       const key = (r.name || '').toLowerCase();
       if (mysteryIndex.has(key)) continue;
       mysteryIndex.set(key, r);

@@ -95,7 +95,7 @@
     typeIndex = new Map();
     for (const r of rows) {
       if (!r.name) continue;
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'feat'})) continue;
       const key = r.name.toLowerCase();
       const display = titleCase(r.name);
       if (!featIndex.has(key)) {
@@ -276,8 +276,10 @@
       if (!full) { info.style.display = 'none'; info.innerHTML = ''; return; }
 
       const bits = [];
-      bits.push(`<b>${escapeHtml(entry.displayName)}</b>` +
-        ` <span style="opacity:.7">(${escapeHtml(full.version || '?')})</span>`);
+      // Title line: bold name + source attribution. Edition pill
+      // (3.0 / non-3.5) attaches at the panel root via attach() below.
+      const srcSuffix = full.source ? ` <span style="opacity:.7; font-size:0.9em">— ${escapeHtml(full.source)}</span>` : '';
+      bits.push(`<b>${escapeHtml(entry.displayName)}</b>${srcSuffix}`);
       if (full.types_csv) {
         const types = String(full.types_csv).split(/\s*,\s*/)
           .map(t => normalizeType(t)).filter(Boolean).join(', ');
@@ -322,6 +324,7 @@
       }
       info.innerHTML = bits.join('<br>');
       if (window.ErrataBadge) ErrataBadge.attach(info, entry.primary.feat_id);
+      if (window.VersionBadge) VersionBadge.attach(info, full.version);
       info.style.display = 'block';
     }
     featInput.addEventListener('input', updateInfo);

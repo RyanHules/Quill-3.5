@@ -39,7 +39,7 @@
     maneuverIndex = new Map();
     byDiscipline = new Map();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'maneuver'})) continue;
       const key = (r.name || '').toLowerCase();
       if (maneuverIndex.has(key)) continue;
       let classes = null;

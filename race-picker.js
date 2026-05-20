@@ -75,7 +75,7 @@
       datalist.innerHTML = '';
       let kept = 0;
       for (const r of races) {
-        if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'race'})) continue;
         const opt = document.createElement('option');
         // Show version in the dropdown for disambiguation
         opt.value = r.version === '3.5' ? r.name : `${r.name} (${r.version})`;
@@ -332,6 +332,9 @@
     // the input). Prepend the errata badge so the ✦ sits at the top
     // of the panel, above the property bits.
     if (window.ErrataBadge) ErrataBadge.attach(panel, race.race_id, { position: 'prepend', applied: false });
+    // Edition pill — only renders if the entry is non-3.5 so the
+    // common case stays uncluttered.
+    if (window.VersionBadge) VersionBadge.attach(panel, race.version);
     panel.style.display = bits.length ? 'block' : 'none';
   }
 

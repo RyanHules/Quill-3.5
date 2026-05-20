@@ -505,7 +505,7 @@
       // ORDER BY in spellsFor puts 3.5 rows first. Apply tag + book filters.
       for (const s of currentSpells) {
         if (tagSet && !tagSet.has(s.spell_id)) continue;
-        if (window.BookFilter && !window.BookFilter.allowsSource(s.source)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry({...s, type: 'spell'})) continue;
         const k = s.name.toLowerCase();
         if (currentByName.has(k)) continue;
         currentByName.set(k, s);
@@ -605,8 +605,13 @@
       // Pull the full record for richer info if we only got a stub.
       const full = (s.description !== undefined) ? s : spellByName(s.name);
       const bits = [];
-      bits.push(`<b>${escapeHtml(full.name)}</b>` +
-        ` <span style="opacity:.7">(${escapeHtml(full.version || '?')})</span>`);
+      // Title line: bold name + VersionBadge (3.0 pill only renders
+      // for non-3.5 entries) + source attribution. Replaces the old
+      // inline "(3.5)" tag, which blended in and led to the
+      // Dimensional Lock confusion (2026-05-19).
+      const verBadge = (window.VersionBadge ? VersionBadge.html(full.version) : '');
+      const srcSuffix = full.source ? ` <span style="opacity:.7; font-size:0.9em">— ${escapeHtml(full.source)}</span>` : '';
+      bits.push(`<b>${escapeHtml(full.name)}</b>${verBadge}${srcSuffix}`);
       // Show every class/level mapping (e.g. "Sor/Wiz 3, Fire 3").
       // The picker's class+level filter is just one slice; the
       // info panel should give the player the full picture.
@@ -615,9 +620,14 @@
         bits.push(`<b>Level:</b> ${escapeHtml(classLevels.join(', '))}`);
       }
       if (full.school) {
-        const subAndDesc = [full.subschool, full.descriptor].filter(Boolean).join(', ');
-        bits.push(`<b>School:</b> ${escapeHtml(full.school)}` +
-          (subAndDesc ? ` (${escapeHtml(subAndDesc)})` : ''));
+        // Canonical 3.5 book form: "School (Subschool) [Descriptor]" —
+        // subschool in parens, descriptor in brackets. Matches how
+        // every printed sourcebook lays out the spell header line, and
+        // matches the universal lookup modal's rendering.
+        let schoolLine = escapeHtml(full.school);
+        if (full.subschool) schoolLine += ` (${escapeHtml(full.subschool)})`;
+        if (full.descriptor) schoolLine += ` [${escapeHtml(full.descriptor)}]`;
+        bits.push(`<b>School:</b> ${schoolLine}`);
       }
       if (full.components)    bits.push(`<b>Components:</b> ${escapeHtml(full.components)}`);
       if (full.casting_time)  bits.push(`<b>Cast:</b> ${escapeHtml(full.casting_time)}`);
@@ -1093,7 +1103,7 @@
     const dl = document.createElement('datalist');
     dl.id = 'spell-options';
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'spell'})) continue;
       const key = String(r.name || '').toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);

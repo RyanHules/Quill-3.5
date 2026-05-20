@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260519x';
+    window.CACHE_VERSION = '20260520c';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -715,7 +715,12 @@
       'domain-picker.js', 'maneuver-picker.js', 'power-picker.js',
       'mystery-picker.js', 'soulmeld-picker.js', 'vestige-picker.js',
       'invocation-picker.js', 'special-ability-picker.js',
-      'errata-badge.js', 'lookup.js', 'book-filter-ui.js',
+      'errata-badge.js', 'version-badge.js',
+      // -- Homebrew filter loads BEFORE individual homebrew rule
+      // modules so they can self-register at module-load time.
+      'homebrew-filter.js',
+      'homebrew/item_familiar.js',
+      'lookup.js', 'book-filter-ui.js', 'homebrew-filter-ui.js',
       // -- Play-feel test suite (browser-side). Self-gates on
       // `?playfeel=1` in the URL; otherwise this is a near-zero-cost
       // no-op. See tests/playfeel-suite.js for the scenario list.

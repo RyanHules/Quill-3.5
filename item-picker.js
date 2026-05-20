@@ -71,7 +71,7 @@
     // duplicate-named items).
     const rows = DB.query(
       "SELECT e.id AS item_id, e.name, e.version, e.source, " +
-      "       e.item_type AS type " +
+      "       e.item_type AS type, e.type AS entry_type " +
       "FROM entry e " +
       "LEFT JOIN book b ON b.name = e.source " +
       "WHERE e.type IN ('item', 'weapon', 'armor', 'gear') " +
@@ -83,7 +83,14 @@
     typeIndex = new Map();
     for (const r of rows) {
       if (!r.name) continue;
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      // r.type in this query is the user-facing item subtype
+      // ("Wondrous", "Slot: Head", etc.) aliased from e.item_type;
+      // the entry-table type lives in r.entry_type ('item' / 'weapon'
+      // / 'armor' / 'gear'). Pass entry_type to allowsEntry so the
+      // counterpart match keys correctly.
+      if (window.BookFilter && !window.BookFilter.allowsEntry(
+        { source: r.source, version: r.version, name: r.name,
+          type: r.entry_type })) continue;
       const key = r.name.toLowerCase();
       if (!itemIndex.has(key)) {
         itemIndex.set(key, {
@@ -344,8 +351,11 @@
       const full = fullItemRow(entry.primaryRow.item_id);
       if (!full) return;
       const bits = [];
-      bits.push(`<b>${escapeHtml(entry.displayName)}</b>` +
-        ` <span style="opacity:.7">(${escapeHtml(full.version || '?')})</span>`);
+      // Title line: bold name + source attribution. The VersionBadge
+      // (3.0 pill) is attached at the panel root via attach() below
+      // — replaces the old low-opacity "(3.5)" suffix.
+      const srcSuffix = full.source ? ` <span style="opacity:.7; font-size:0.9em">— ${escapeHtml(full.source)}</span>` : '';
+      bits.push(`<b>${escapeHtml(entry.displayName)}</b>${srcSuffix}`);
       if (full.type)         bits.push(`<b>Type:</b> ${escapeHtml(full.type)}`);
       if (full.body_slot)    bits.push(`<b>Slot:</b> ${escapeHtml(full.body_slot)}`);
       if (full.aura)         bits.push(`<b>Aura:</b> ${escapeHtml(full.aura)}`);
@@ -362,6 +372,7 @@
       }
       info.innerHTML = bits.join('<br>');
       if (window.ErrataBadge) ErrataBadge.attach(info, entry.primaryRow.item_id);
+      if (window.VersionBadge) VersionBadge.attach(info, full.version);
       info.style.display = 'block';
       // Pass the full row (not just item_type) so classifyItem can use
       // entry_kind + category for the new armor/shield/weapon routing.

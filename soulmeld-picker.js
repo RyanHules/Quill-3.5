@@ -57,7 +57,7 @@
     );
     soulmeldIndex.clear();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'soulmeld'})) continue;
       const key = (r.name || '').toLowerCase();
       if (soulmeldIndex.has(key)) continue;
       const parsed = parseDescription(r.description || '');

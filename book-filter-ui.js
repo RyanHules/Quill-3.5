@@ -87,6 +87,39 @@
           <button type="button" data-preset="35">All 3.5 books</button>
           <button type="button" data-preset="clear">Clear (no filter)</button>
         </div>
+        <fieldset class="book-filter-hide30 book-filter-hide30-group">
+          <legend>3.0 edition material</legend>
+          <label>
+            <input type="radio" name="hide30-mode" value="off">
+            <span class="hbm-label"><b>Show all 3.0 entries</b></span>
+            <span class="hbm-hint">
+              Default — every 3.0 entry visible, marked with a
+              <span class="version-badge version-badge--30">3.0</span> pill.
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="hide30-mode" value="counterpart">
+            <span class="hbm-label"><b>Hide 3.0 entries with a 3.5 counterpart</b></span>
+            <span class="hbm-hint">
+              Hides a 3.0 row only when a 3.5 row of the same name +
+              type exists (so the 3.5 version wins by default). 3.0-only
+              content stays visible — FR / MotP / MoF entries that
+              never got a 3.5 reprint. Catches the Dimensional Lock
+              case (MoF 3.0 row hidden when PHB 3.5 row is canonical).
+              A few same-name-different-mechanic spells (Tortoise
+              Shell, Cocoon, Aura of Glory, Celebration) are also
+              hidden — flip to "Show all" if you need them.
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="hide30-mode" value="all">
+            <span class="hbm-label"><b>Hide all 3.0 entries</b></span>
+            <span class="hbm-hint">
+              Strict — every entry whose book is edition 3.0 is hidden.
+              Stacks with the per-book filter above.
+            </span>
+          </label>
+        </fieldset>
         <div class="book-filter-status" id="book-filter-status"></div>
         <div class="book-filter-list" id="book-filter-list"></div>
         <div class="book-filter-footer">
@@ -228,6 +261,9 @@
 
   function applySelection() {
     const listEl = modalEl.querySelector('#book-filter-list');
+    // The per-book list lives inside #book-filter-list. The hide-3.0
+    // checkbox is OUTSIDE that list (it's a sibling label) so we
+    // intentionally scope the abbrev-collection query to the list.
     const cbs = listEl.querySelectorAll('input[type=checkbox]:checked');
     const total = listEl.querySelectorAll('input[type=checkbox]').length;
     const set = new Set();
@@ -236,6 +272,11 @@
     // so downstream code doesn't waste cycles checking memberships.
     if (set.size === total) set.clear();
     window.BookFilter.setActiveAbbrevs(set);
+    // Hide-3.0 mode is independent of the abbrev filter — a 3-state
+    // radio group (off / counterpart / all).
+    const selected = modalEl.querySelector(
+      'input[name="hide30-mode"]:checked');
+    if (selected) window.BookFilter.setHide30Mode(selected.value);
     close();
   }
 
@@ -250,6 +291,16 @@
   function open() {
     ensureModal();
     modalEl.style.display = '';
+    // Sync the hide-3.0 radio with whatever BookFilter currently has
+    // — covers the case where a save-load just changed the mode.
+    if (window.BookFilter) {
+      const mode = window.BookFilter.getHide30Mode
+        ? window.BookFilter.getHide30Mode()
+        : (window.BookFilter.getHide30() ? 'all' : 'off');
+      const radio = modalEl.querySelector(
+        `input[name="hide30-mode"][value="${mode}"]`);
+      if (radio) radio.checked = true;
+    }
     renderList();
     document.addEventListener('keydown', onKeydown);
   }

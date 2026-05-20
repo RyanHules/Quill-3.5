@@ -774,7 +774,8 @@
     // 3.0 reprints when both exist under the same display name.
     function rebuildClassIndex() {
       const rows = DB.query(
-        "SELECT e.id AS class_id, e.name AS class, e.version, e.source, "
+        "SELECT e.id AS class_id, e.name AS class, e.type AS entry_type, "
+        + "e.version, e.source, "
         + "json_extract(e.data, '$.bab_progression')  AS bab_progression, "
         + "json_extract(e.data, '$.fort_progression') AS fort_progression, "
         + "json_extract(e.data, '$.ref_progression')  AS ref_progression, "
@@ -789,7 +790,12 @@
       );
       classIndex = new Map();
       for (const r of rows) {
-        if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+        // r.class is the entry name (aliased above) and r.entry_type is
+        // either 'class' or 'prc'. Pass both so allowsEntry's
+        // counterpart match keys correctly per entry type.
+        if (window.BookFilter && !window.BookFilter.allowsEntry(
+          { source: r.source, version: r.version, name: r.class,
+            type: r.entry_type })) continue;
         const key = (r.class || '').toLowerCase();
         if (!classIndex.has(key)) classIndex.set(key, []);
         classIndex.get(key).push(r);
@@ -2858,6 +2864,7 @@
 
     panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
     if (window.ErrataBadge) ErrataBadge.attach(panel, cls.class_id);
+    if (window.VersionBadge) VersionBadge.attach(panel, cls.version);
     // Append the collapsible Variants section (ACFs + Sub Levels)
     // below the main summary. Skipped silently if ClassVariants
     // didn't load (e.g. script order issue) or the class has no

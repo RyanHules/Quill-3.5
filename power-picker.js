@@ -44,7 +44,7 @@
     powerIndex.clear();
     byClass.clear();
     for (const r of rows) {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) continue;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'power'})) continue;
       const key = (r.name || '').toLowerCase();
       if (powerIndex.has(key)) continue;
       let levelMap = null;

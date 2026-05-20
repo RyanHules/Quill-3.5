@@ -75,7 +75,7 @@ const ClassVariants = (function () {
       + "         name COLLATE NOCASE"
     );
     return rows.filter(r => {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) return false;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'acf'})) return false;
       return matchesClass(className, r.class_field);
     });
   }
@@ -104,7 +104,7 @@ const ClassVariants = (function () {
       + "         name COLLATE NOCASE"
     );
     return rows.filter(r => {
-      if (window.BookFilter && !window.BookFilter.allowsSource(r.source)) return false;
+      if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'subst_level'})) return false;
       return matchesClass(className, r.class_field) ||
              matchesClass(className, r.base_class_field);
     });
