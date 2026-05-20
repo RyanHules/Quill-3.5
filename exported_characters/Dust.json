@@ -16,7 +16,7 @@
   "char-hair": "None",
   "char-skin": "Light Brown",
   "char-campaign": "",
-  "char-xp": "21275",
+  "char-xp": "27275",
   "char-speed": "30 (L), 10 (B)",
   "damage-reduction": "",
   "str-score": "14",
@@ -38,7 +38,7 @@
   "wis-score": "10",
   "wis-race": "",
   "wis-template": "",
-  "wis-temp": "",
+  "wis-temp": "7",
   "cha-score": "17",
   "cha-race": "2",
   "cha-template": "",
@@ -1029,7 +1029,10 @@
     "caster:known-full:Sha'ir:0",
     "caster:known-full:Sha'ir:1",
     "caster:known-full:Sha'ir:2",
-    "caster:known-full:Sha'ir:3"
+    "caster:known-full:Sha'ir:3",
+    "caster:prepared-full:Sha'ir:0",
+    "caster:prepared-full:Sha'ir:2",
+    "caster:prepared-full:Sha'ir:3"
   ],
   "history": [
     {

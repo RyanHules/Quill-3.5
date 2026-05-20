@@ -20,7 +20,7 @@
   // Cache-bust the DB blob — Chrome/Firefox aggressively cache the
   // 14 MB file otherwise, so a rebuilt DB on disk doesn't reach the
   // page until a hard refresh. Bump this when dnd35.db changes.
-  const DB_VERSION = '20260520f';
+  const DB_VERSION = '20260520g';
   const DB_PATH = BASE + 'data/dnd35.db?v=' + DB_VERSION;
   const SQLJS_WASM_PATH = BASE + 'vendor/sql-wasm.wasm';
 
