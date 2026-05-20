@@ -529,7 +529,148 @@
           ? `${n} ${clsLabel} ${lvlLabel} spell${n === 1 ? '' : 's'}${suffix}`
           : `(no ${clsLabel} ${lvlLabel} spells${suffix})`;
       renderResults();
+      refreshTagCounts();
       updateInfoPanel();
+    }
+
+    // Recompute the tag dropdown's per-tag counts based on the current
+    // class + level + spell-name filter set (deliberately ignoring the
+    // tag dropdown itself — otherwise picking a tag would zero out
+    // every other option's count, which is the opposite of useful).
+    // Lets the user see at a glance "if I switch to Wizard L3, 14
+    // spells have the fire tag, 6 have ice, 22 have evocation...".
+    //
+    // Implementation: walks the candidate spells (computed by
+    // refreshSpellList's class/level path OR the global pool when no
+    // class/level filter is set), intersects each tag's id-set with
+    // the candidate ids, and rewrites the option labels in place.
+    // Cheap: ~100 tags × O(|tag-set| ∩ |candidates|) — runs in <1ms
+    // for the typical Wizard-L3 case.
+    function refreshTagCounts() {
+      const cls = normalizeClass(classInput.value);
+      const lvlFilter = parseLevelFilter(levelInput.value);
+      const typedRaw = spellInput.value.trim();
+      const typed = typedRaw.toLowerCase();
+      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || typed
+                       || (window.BookFilter && window.BookFilter.isActive());
+
+      // No filter at all → restore the global counts the dropdown was
+      // built with. Skip the per-tag re-count work entirely.
+      if (!haveFilter) {
+        for (const opt of tagSelect.querySelectorAll('option')) {
+          if (!opt.value) continue;
+          const n = spellTagCounts.get(opt.value) || 0;
+          opt.textContent = `${opt.value} (${n})`;
+        }
+        return;
+      }
+
+      // Build the spell-id set the user is currently browsing —
+      // class + level + name + book filter, BUT NOT the tag filter.
+      // We reuse refreshSpellList's candidate-fetch branches; the
+      // only difference is that we don't apply the tag filter to the
+      // results and we DO apply the typed-name filter.
+      const baseIds = computeCandidateIds(
+        { ignoreTag: true, applyName: true });
+
+      // Update each option's text label with the new count.
+      for (const opt of tagSelect.querySelectorAll('option')) {
+        if (!opt.value) continue;
+        const idSet = spellTagIndex.get(opt.value);
+        if (!idSet) {
+          opt.textContent = `${opt.value} (0)`;
+          continue;
+        }
+        // Iterate over the smaller side for the intersection — tag
+        // sets are typically smaller (~50-500 spells) than the
+        // class+level base set (~100-3500).
+        let n = 0;
+        const [smaller, larger] = idSet.size <= baseIds.size
+          ? [idSet, baseIds] : [baseIds, idSet];
+        for (const id of smaller) if (larger.has(id)) n++;
+        opt.textContent = `${opt.value} (${n})`;
+      }
+    }
+
+    // Shared helper: returns the set of spell ids matching the
+    // current filters with optional knobs.  Used by both
+    // refreshSpellList (full filter) and refreshTagCounts (skips the
+    // tag filter so the dropdown can show counts for OTHER tags).
+    function computeCandidateIds(opts) {
+      const ignoreTag = opts && opts.ignoreTag;
+      const applyName = opts && opts.applyName;
+      const cls = normalizeClass(classInput.value);
+      const lvlFilter = parseLevelFilter(levelInput.value);
+      const tag = ignoreTag ? '' : tagSelect.value;
+      const tagSet = tag ? spellTagIndex.get(tag) : null;
+      const typedRaw = spellInput.value.trim();
+      const typed = applyName ? typedRaw.toLowerCase() : '';
+
+      let candidates = [];
+      if (cls && canonical.has(cls) && lvlFilter && lvlFilter.min === lvlFilter.max) {
+        candidates = spellsFor(cls, lvlFilter.min);
+      } else if (cls && canonical.has(cls)) {
+        const lo = lvlFilter ? lvlFilter.min : 0;
+        const hi = lvlFilter ? lvlFilter.max : 9;
+        const seenIds = new Set();
+        for (let l = lo; l <= hi; l++) {
+          for (const s of spellsFor(cls, l)) {
+            if (seenIds.has(s.spell_id)) continue;
+            seenIds.add(s.spell_id);
+            candidates.push(s);
+          }
+        }
+      } else if (lvlFilter) {
+        candidates = DB.query(
+          "SELECT DISTINCT e.id AS spell_id, e.name, e.source, " +
+          "       e.version, b.publication_date " +
+          "FROM entry e JOIN spell_class_level scl ON e.id = scl.entry_id " +
+          "LEFT JOIN book b ON b.name = e.source " +
+          "WHERE e.type = 'spell' AND scl.level BETWEEN ? AND ? " +
+          "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+          "         b.publication_date DESC, e.name COLLATE NOCASE",
+          [lvlFilter.min, lvlFilter.max]
+        );
+      } else if (tagSet && !ignoreTag) {
+        const ids = Array.from(tagSet);
+        if (ids.length) {
+          const placeholders = ids.map(() => '?').join(',');
+          candidates = DB.query(
+            "SELECT e.id AS spell_id, e.name, e.source, " +
+            "       e.version, b.publication_date " +
+            "FROM entry e LEFT JOIN book b ON b.name = e.source " +
+            `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
+            "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+            "         b.publication_date DESC, e.name COLLATE NOCASE",
+            ids
+          );
+        }
+      } else if (typed && ignoreTag) {
+        // Tag-count case with only a name filter: scan all spells.
+        // The global spell-options datalist isn't a usable spell-id
+        // source, so query the DB.  Cap to a reasonable result count
+        // — the user is going to keep typing anyway.
+        candidates = DB.query(
+          "SELECT e.id AS spell_id, e.name, e.source, e.version " +
+          "FROM entry e WHERE e.type = 'spell' " +
+          "  AND LOWER(e.name) LIKE ? LIMIT 2000",
+          [`%${typed}%`]
+        );
+      }
+
+      const baseIds = new Set();
+      const seen = new Set();
+      for (const s of candidates) {
+        if (tagSet && !tagSet.has(s.spell_id)) continue;
+        if (window.BookFilter && !window.BookFilter.allowsEntry(
+              { ...s, type: 'spell' })) continue;
+        if (typed && !s.name.toLowerCase().includes(typed)) continue;
+        // Dedupe — multi-class spells appear once per class.
+        if (seen.has(s.spell_id)) continue;
+        seen.add(s.spell_id);
+        baseIds.add(s.spell_id);
+      }
+      return baseIds;
     }
 
     // Render the current matches as a clickable result list below the
@@ -652,7 +793,17 @@
     tagSelect.addEventListener('change', refreshSpellList);
     spellInput.addEventListener('input', updateInfoPanel);
     spellInput.addEventListener('input', renderResults);
+    // Tag-count refresh on every spell-name keystroke — lets the user
+    // see "as I narrow by name, how many of those still have each tag".
+    spellInput.addEventListener('input', refreshTagCounts);
     spellInput.addEventListener('change', updateInfoPanel);
+    // Book-filter changes affect the candidate set — re-count tags.
+    document.addEventListener('book-filter-changed', refreshTagCounts);
+
+    // Initial paint: ensure the dropdown shows global counts and
+    // (when filters are pre-populated from a save load) the
+    // class/level-narrowed counts on first render.
+    refreshTagCounts();
 
     // Result-chip clicks: fill the spell input + show the info panel.
     // Event-delegated so chips re-rendered on every refreshSpellList

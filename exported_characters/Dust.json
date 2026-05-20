@@ -44,7 +44,7 @@
   "cha-template": "",
   "cha-temp": "",
   "hp-total": "51",
-  "hp-current": "",
+  "hp-current": "33",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "0",
@@ -89,7 +89,7 @@
     },
     {
       "name": "Masterwork Shortsword (Med Dagger)",
-      "bonus": "BAB+S+1",
+      "bonus": "BAB+S+2",
       "damage": "d4+S",
       "crit": "19-20/x2",
       "range": "",
@@ -108,7 +108,7 @@
     {
       "className": "Durthan",
       "level": 3,
-      "classId": 16013,
+      "classId": 16037,
       "version": "3.5",
       "source": "Unapproachable East",
       "advancesTypes": [
@@ -122,7 +122,7 @@
     {
       "className": "Sand Shaper",
       "level": 1,
-      "classId": 13007,
+      "classId": 13031,
       "version": "3.5",
       "source": "Sandstorm"
     }
@@ -361,12 +361,38 @@
         "Arcane Mark",
         "Mending"
       ],
-      "preparedList-0": [],
+      "preparedList-0": [
+        {
+          "baseName": "Prestidigitation",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Prestidigitation",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Message",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "known-1": "5",
       "perDay-1": "4",
       "bonus-1": "2",
       "extra-1": "",
-      "used-1": "0",
+      "used-1": "4",
       "knownList-1": [
         "Mage Armor",
         "Nerveskitter",
@@ -409,7 +435,43 @@
           "source": "Sand Shaper — Desert Insight"
         }
       ],
-      "preparedList-1": [],
+      "preparedList-1": [
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Grease",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Mage Armor",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Mage Armor",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": true
+        }
+      ],
       "domain-1": "",
       "specialist-1": "",
       "known-2": "3",
@@ -457,7 +519,33 @@
           "source": "Sand Shaper — Desert Insight"
         }
       ],
-      "preparedList-2": [],
+      "preparedList-2": [
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "silence",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "silence",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "domain-2": "",
       "specialist-2": "",
       "known-3": "2",
@@ -519,7 +607,28 @@
           "source": "Sand Shaper — Desert Insight"
         }
       ],
-      "preparedList-3": [],
+      "preparedList-3": [
+        {
+          "baseName": "Dispel Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Haboob",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Haboob",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "whispering sand",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "domain-3": "",
       "specialist-3": "",
       "known-4": "",
@@ -630,7 +739,6 @@
   ],
   "specialAbilities": [
     "Sand Shape (Sp):\nYou can magically sculpt the soil of the waste into any solid object you can imagine, provided you have access to a sufficient quantity of the appropriate soil and you can successfully make a caster level check. The DC is determined by the size and complexity of the item.\nEach attempt to create an item requires a number of minutes equal to the DC. You can take 10 on this check. Created items persist for 10 minutes per sand shaper level, and can only be solid objects; you cannot use this ability to create liquids, gases, or living matter. The objects created have no magical properties, though they radiate faint transmutation magic.\nYou can maintain a number of objects equal to your sand shaper level. If you create an additional item, the item that has been in existence the longest reverts back to sand. Items you create otherwise persist for the duration of this use of the ability, regardless of their distance from you. If you use alchemical shapesand to create an item, you do not count that item against your limit, in addition to the other benefits provided by shapesand.\nAll items created in this fashion have hardness 5 and hit points according to their size: Fine 1; Diminutive 2; Tiny 3; Small 5; Medium 8; Large 10; Huge 15; Gargantuan 20; Colossal 25.\nDCs:\nItem Size             DC\n1 cu. ft. or less      –5\n1.1–2.0 cu. ft.        0\n2.1–4.0 cu. ft.        5\n4.1–8.0 cu. ft.        10\n8.1–12.0 cu. ft.      15\n12.1–16.0 cu. ft.    20\n16.1–24.0 cu. ft.    25\n24.1–30.0 cu. ft.    30\nItem Complexity   Modifier\nFine details           +2\nFunctioning tool   +2\nFunctioning armor/weapon +5\nMultiple parts        +5\nMasterwork version +10\nMoving parts         +10",
-    "Skill Trick - Collector of Stories\n+5 to Knowledge checks to identify monsters",
     "[Sha'ir 1] Summon gen familiar",
     "[Sha'ir 3] Recognize genie works",
     "[Durthan 1] Place magic",
@@ -640,7 +748,8 @@
     "Humanoid (Extraplanar): Native to the Elemental Plane of Earth. Gain extraplanar subtype when not on their home plane.",
     "Small size: +1 to AC, +1 on attack rolls, +4 on Hide checks. Smaller weapons; carrying limits 3/4 of a Medium creature.",
     "Breath Weapon (Su): 15-foot cone of rock shards and pebbles dealing 1d8 bludgeoning damage; Reflex DC 10 + 1/2 HD + Con mod for half. 1/day at 1st level, +1 use per 4 levels.",
-    "Casts spells with the earth descriptor at +1 caster level."
+    "Casts spells with the earth descriptor at +1 caster level.",
+    "Collector of Stories · Mental skill trick\nWhen you attempt a trained Knowledge check to identify a creature or learn its special powers or vulnerabilities, you gain a +5 competence bonus on the check."
   ],
   "languages": "Common, Terran, Ignan",
   "companions": [
@@ -808,7 +917,7 @@
       ],
       "compAttacks": [
         {
-          "weapon": "Bite",
+          "weapon": "Bite (Incorporeal Touch)",
           "bonus": "BAB+D",
           "damage": "d6",
           "crit": "x2"
@@ -823,12 +932,12 @@
         {
           "name": "Listen",
           "ranks": "5",
-          "misc": "1"
+          "misc": "3"
         },
         {
           "name": "Spot",
           "ranks": "5",
-          "misc": "1"
+          "misc": "3"
         }
       ],
       "compFeats": [
@@ -1039,6 +1148,7 @@
     "Une",
     "XPH"
   ],
+  "_homebrew": null,
   "skills": [
     {
       "type": "skill",
