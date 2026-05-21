@@ -65,13 +65,76 @@
     return 0;
   }
 
+  // Parse the headline gp cost of an item from its price/cost string.
+  // Returns a number (gp) or null if the value can't be resolved — null
+  // means "unknown", and excludes the item from any cost-filter query
+  // so the user doesn't have to wade through "—" / "varies" rows.
+  //
+  // Shape catalog (from sweep across all 4,258 item rows):
+  //   simple   3,432 — "2,500 gp", "+50 gp"
+  //   compound   102 — "500 gp (least) / 2,000 gp (lesser) / 6,000 gp (greater)"
+  //   no-gp      416 — "—", "varies", "2 sp", or other rare units
+  //   plus        32 — "+1,000 gp per upgrade"
+  //   none       110 — no price/cost at all
+  //
+  // Strategy: take the FIRST "N gp" match (handles compound tiers
+  // and "+N gp" prefixes uniformly). For sp/cp/pp-only entries
+  // (mundane sub-gp gear) convert to fractional gp. Everything else
+  // returns null so the filter ignores it.
+  function parseGpCost(s) {
+    if (s == null) return null;
+    const t = String(s).trim().toLowerCase();
+    if (!t || t === '—' || t === '-' || t.startsWith('varies')) return null;
+    // Strip commas so 2,500 parses as 2500. Keep the "+" sign for
+    // bonus-only prices like "+50 gp" — treat as the additive amount.
+    const cleaned = t.replace(/,/g, '');
+    // First "N gp" or "N.N gp" match wins. The leading "+?" matches
+    // bonus-only prices uniformly.
+    const gp = cleaned.match(/\+?(\d+(?:\.\d+)?)\s*gp\b/);
+    if (gp) return parseFloat(gp[1]);
+    // Fall back to sp / cp / pp for mundane sub-gp gear.
+    //   1 gp = 10 sp = 100 cp; 1 pp = 10 gp.
+    const pp = cleaned.match(/\+?(\d+(?:\.\d+)?)\s*pp\b/);
+    if (pp) return parseFloat(pp[1]) * 10;
+    const sp = cleaned.match(/\+?(\d+(?:\.\d+)?)\s*sp\b/);
+    if (sp) return parseFloat(sp[1]) / 10;
+    const cp = cleaned.match(/\+?(\d+(?:\.\d+)?)\s*cp\b/);
+    if (cp) return parseFloat(cp[1]) / 100;
+    return null;
+  }
+
+  // Parse the cost-filter input — same syntax as spell-picker's level
+  // filter. Returns {min, max} (both inclusive, in gp), or null for
+  // no constraint. Commas in the number are allowed (mirrors how
+  // prices are naturally written) — "<=1,500" === "<=1500".
+  function parseCostFilter(raw) {
+    const s = String(raw || '').trim().replace(/,/g, '').replace(/\s+/g, '');
+    if (!s) return null;
+    const m = s.match(/^(<=|>=|<|>|≤|≥|=)?\s*(\d+(?:\.\d+)?)$/);
+    if (!m) return null;
+    const op = m[1] || '=';
+    const n = parseFloat(m[2]);
+    if (isNaN(n)) return null;
+    switch (op) {
+      case '<':  return { min: 0, max: n - 0.001 };
+      case '<=': case '≤': return { min: 0, max: n };
+      case '>':  return { min: n + 0.001, max: Infinity };
+      case '>=': case '≥': return { min: n, max: Infinity };
+      case '=':  default:  return { min: n, max: n };
+    }
+  }
+
   function buildIndex() {
     // Query the unified `entry` table. Tiebreak: 3.5 > 3.0, then by
     // newest publication date (so the most recent printing wins for
-    // duplicate-named items).
+    // duplicate-named items). Pulls price + cost so we can index a
+    // per-item gp value for the cost filter (parsed once at build
+    // time so per-keystroke filter refreshes don't re-parse strings).
     const rows = DB.query(
       "SELECT e.id AS item_id, e.name, e.version, e.source, " +
-      "       e.item_type AS type, e.type AS entry_type " +
+      "       e.item_type AS type, e.type AS entry_type, " +
+      "       e.price AS price_str, " +
+      "       json_extract(e.data, '$.cost') AS cost_str " +
       "FROM entry e " +
       "LEFT JOIN book b ON b.name = e.source " +
       "WHERE e.type IN ('item', 'weapon', 'armor', 'gear') " +
@@ -93,9 +156,15 @@
           type: r.entry_type })) continue;
       const key = r.name.toLowerCase();
       if (!itemIndex.has(key)) {
+        // Parse the gp cost ONCE at index time. price wins over cost
+        // (price = retail/market for magic items; cost = craft cost
+        // for mundane gear). Either falls back to null for "—" /
+        // "varies" / unparseable shapes.
+        const costGp = parseGpCost(r.price_str) ?? parseGpCost(r.cost_str);
         itemIndex.set(key, {
           displayName: titleCase(r.name),
           primaryRow: r,
+          costGp,
         });
       }
       if (r.type) {
@@ -149,7 +218,7 @@
     }
   }
 
-  function refreshDatalist(datalist, chosenType, chosenTag) {
+  function refreshDatalist(datalist, chosenType, chosenTag, costFilter) {
     datalist.innerHTML = '';
     const tagSet = chosenTag ? tagIndex.get(chosenTag) : null;
     let n = 0;
@@ -158,6 +227,14 @@
       if (!entry) continue;
       if (chosenType && entry.primaryRow.type !== chosenType) continue;
       if (tagSet && !tagSet.has(entry.primaryRow.item_id)) continue;
+      // Cost filter: excludes items with no parseable price (treat
+      // null as "out of range" rather than "matches anything", so
+      // "<=1000 gp" doesn't sweep in every "—"-priced row).
+      if (costFilter) {
+        const c = entry.costGp;
+        if (c == null) continue;
+        if (c < costFilter.min || c > costFilter.max) continue;
+      }
       const opt = document.createElement('option');
       opt.value = display;
       // No opt.label — Firefox renders it as visible suggestion text.
@@ -217,6 +294,13 @@
             ).join('')}
           </select>
         </div>
+        <div class="field field-sm" style="width:6.5rem"
+             title="Cost in gp. Plain number = exact match; &lt;N / &lt;=N / &gt;N / &gt;=N to filter by range (commas ok). Items with no listed price are excluded by any cost filter.">
+          <label>Cost (gp)</label>
+          <input type="text" id="item-lookup-cost" value=""
+                 placeholder="&le;5000"
+                 autocomplete="off">
+        </div>
         <button type="button" id="item-add-gear" class="btn-add"
                 title="Add to Possessions list (mundane gear / weapons / consumables)"
                 style="height:2rem">+ Gear</button>
@@ -257,12 +341,33 @@
     const addWeapon     = document.getElementById('item-add-weapon');
     const info          = document.getElementById('item-info');
     const datalist      = document.getElementById('item-options');
+    const costInput     = document.getElementById('item-lookup-cost');
 
     function applyFilters() {
-      const n = refreshDatalist(datalist, typeSel.value, tagSel.value);
+      const costFilter = parseCostFilter(costInput.value);
+      const n = refreshDatalist(datalist, typeSel.value, tagSel.value,
+                                costFilter);
       const parts = [];
       if (typeSel.value) parts.push(typeSel.value);
       if (tagSel.value)  parts.push(`tag:${tagSel.value}`);
+      if (costFilter) {
+        // Compact label: "≤5,000 gp", "≥1 gp", "100-500 gp", "500 gp".
+        const fmt = (v) => v === Infinity ? '∞'
+          : Math.abs(v - Math.round(v)) < 0.01
+            ? Math.round(v).toLocaleString()
+            : v.toFixed(2).replace(/\.?0+$/, '');
+        let label;
+        if (costFilter.min === 0 && costFilter.max !== Infinity) {
+          label = `≤${fmt(costFilter.max)} gp`;
+        } else if (costFilter.max === Infinity) {
+          label = `≥${fmt(costFilter.min)} gp`;
+        } else if (Math.abs(costFilter.min - costFilter.max) < 0.001) {
+          label = `${fmt(costFilter.min)} gp`;
+        } else {
+          label = `${fmt(costFilter.min)}-${fmt(costFilter.max)} gp`;
+        }
+        parts.push(label);
+      }
       itemInput.placeholder = parts.length
         ? `${n} ${parts.join(' + ')} item${n === 1 ? '' : 's'}`
         : 'e.g. Cloak of Resistance';
@@ -270,6 +375,7 @@
     applyFilters();
     typeSel.addEventListener('change', applyFilters);
     tagSel.addEventListener('change', applyFilters);
+    costInput.addEventListener('input', applyFilters);
 
     document.addEventListener('book-filter-changed', () => {
       buildIndex();
