@@ -218,9 +218,34 @@
     }
   }
 
-  function refreshDatalist(datalist, chosenType, chosenTag, costFilter) {
+  // Build a combined Set<item_id> from multi-tag selection + mode.
+  //   AND = intersection of per-tag sets (items carrying ALL tags)
+  //   OR  = union (items carrying any selected tag)
+  // Returns null when no tags selected.
+  function combinedTagSet(tagNames, mode) {
+    if (!tagNames || !tagNames.length) return null;
+    const sets = tagNames.map(t => tagIndex.get(t)).filter(Boolean);
+    if (!sets.length) return new Set();
+    if (mode === 'or') {
+      const u = new Set();
+      for (const s of sets) for (const id of s) u.add(id);
+      return u;
+    }
+    sets.sort((a, b) => a.size - b.size);
+    const result = new Set();
+    for (const id of sets[0]) {
+      let inAll = true;
+      for (let i = 1; i < sets.length; i++) {
+        if (!sets[i].has(id)) { inAll = false; break; }
+      }
+      if (inAll) result.add(id);
+    }
+    return result;
+  }
+
+  function refreshDatalist(datalist, chosenType, tagNames, tagMode, costFilter) {
     datalist.innerHTML = '';
-    const tagSet = chosenTag ? tagIndex.get(chosenTag) : null;
+    const tagSet = combinedTagSet(tagNames, tagMode);
     const matchedNames = [];
     for (const display of displayNames) {
       const entry = itemIndex.get(display.toLowerCase());
@@ -285,14 +310,9 @@
             ).join('')}
           </select>
         </div>
-        <div class="field" style="flex:1 1 8rem;min-width:7rem">
-          <label>Tag Filter</label>
-          <select id="item-lookup-tag">
-            <option value="">Any tag</option>
-            ${sortedTags.map(([t, c]) =>
-              `<option value="${escapeHtml(t)}">${escapeHtml(t)} (${c})</option>`
-            ).join('')}
-          </select>
+        <div class="field" style="flex:1 1 14rem;min-width:11rem">
+          <label>Tags</label>
+          <div id="item-lookup-tag-host"></div>
         </div>
         <div class="field field-sm" style="width:6.5rem"
              title="Cost in gp. Plain number = exact match; &lt;N / &lt;=N / &gt;N / &gt;=N to filter by range (commas ok). Items with no listed price are excluded by any cost filter.">
@@ -331,7 +351,15 @@
 
     const itemInput     = document.getElementById('item-lookup');
     const typeSel       = document.getElementById('item-lookup-type');
-    const tagSel        = document.getElementById('item-lookup-tag');
+    // Multi-tag chip-input filter (replaces the old single-tag select).
+    const tagHost   = document.getElementById('item-lookup-tag-host');
+    const tagFilter = (typeof TagFilter !== 'undefined' && tagHost)
+      ? TagFilter.attach(tagHost, {
+          tags: sortedTags,
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => applyFilters(),
+        })
+      : null;
     const addGear       = document.getElementById('item-add-gear');
     const addMagic      = document.getElementById('item-add-magic');
     const addArmorAffix = document.getElementById('item-add-armor-affix');
@@ -359,12 +387,17 @@
 
     function applyFilters() {
       const costFilter = parseCostFilter(costInput.value);
-      const names = refreshDatalist(datalist, typeSel.value, tagSel.value,
-                                    costFilter);
+      const selectedTags = tagFilter ? tagFilter.getSelected() : [];
+      const tagMode      = tagFilter ? tagFilter.getMode() : 'and';
+      const names = refreshDatalist(datalist, typeSel.value,
+                                    selectedTags, tagMode, costFilter);
       const n = names.length;
       const parts = [];
       if (typeSel.value) parts.push(typeSel.value);
-      if (tagSel.value)  parts.push(`tag:${tagSel.value}`);
+      if (tagFilter && tagFilter.hasFilter()) {
+        const joiner = tagMode === 'or' ? ' | ' : ' + ';
+        parts.push('tag:' + selectedTags.join(joiner));
+      }
       if (costFilter) {
         // Compact label: "≤5,000 gp", "≥1 gp", "100-500 gp", "500 gp".
         const fmt = (v) => v === Infinity ? '∞'
@@ -390,7 +423,7 @@
     }
     applyFilters();
     typeSel.addEventListener('change', applyFilters);
-    tagSel.addEventListener('change', applyFilters);
+    // (Tag changes are wired via TagFilter's onChange callback above.)
     costInput.addEventListener('input', applyFilters);
     // Re-render chips as the user types — substring filter on names.
     itemInput.addEventListener('input', applyFilters);

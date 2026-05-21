@@ -333,14 +333,9 @@
                  placeholder="0-9 or <=N"
                  title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
         </div>
-        <div class="field" style="flex:1 1 8rem;min-width:7rem">
-          <label>Tag</label>
-          <select class="sp-tag">
-            <option value="">Any tag</option>
-            ${sortedTags.map(([t, c]) =>
-              `<option value="${escapeHtml(t)}">${escapeHtml(t)} (${c})</option>`
-            ).join('')}
-          </select>
+        <div class="field" style="flex:1 1 14rem;min-width:11rem">
+          <label>Tags</label>
+          <div class="sp-tag-host"></div>
         </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Spell</label>
@@ -374,13 +369,23 @@
     `;
     tabsEl.parentElement.insertBefore(wrap, tabsEl);
 
-    wirePicker(panel, wrap, dlId);
+    wirePicker(panel, wrap, dlId, sortedTags);
   }
 
-  function wirePicker(panel, picker, dlId) {
+  function wirePicker(panel, picker, dlId, sortedTags) {
     const classInput = picker.querySelector('.sp-class');
     const levelInput = picker.querySelector('.sp-level');
-    const tagSelect  = picker.querySelector('.sp-tag');
+    // Multi-tag chip-input filter (replaces the old single-tag <select>).
+    // Pool comes from the per-picker `sortedTags` computed at inject
+    // time; TagFilter handles autocomplete + AND/OR + chip-removal UX.
+    const tagHost    = picker.querySelector('.sp-tag-host');
+    const tagFilter  = (typeof TagFilter !== 'undefined' && tagHost)
+      ? TagFilter.attach(tagHost, {
+          tags: sortedTags,  // [[name, count], …]
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refreshSpellList(),
+        })
+      : null;
     const spellInput = picker.querySelector('.sp-spell');
     const info       = picker.querySelector('.sp-info');
     const addKnown   = picker.querySelector('.sp-add-known');
@@ -422,11 +427,37 @@
       }
     }
 
+    // Build a combined Set<spell_id> from multi-tag selection +
+    // AND/OR mode. Returns null when no tags are selected (no filter).
+    // AND = intersect the per-tag id sets; OR = union them.
+    function combinedTagSet() {
+      if (!tagFilter || !tagFilter.hasFilter()) return null;
+      const tags = tagFilter.getSelected();
+      const mode = tagFilter.getMode();
+      const sets = tags.map(t => spellTagIndex.get(t)).filter(Boolean);
+      if (!sets.length) return new Set();  // nothing matches
+      if (mode === 'or') {
+        const u = new Set();
+        for (const s of sets) for (const id of s) u.add(id);
+        return u;
+      }
+      // AND: start with smallest set for fast intersection.
+      sets.sort((a, b) => a.size - b.size);
+      const result = new Set();
+      for (const id of sets[0]) {
+        let inAll = true;
+        for (let i = 1; i < sets.length; i++) {
+          if (!sets[i].has(id)) { inAll = false; break; }
+        }
+        if (inAll) result.add(id);
+      }
+      return result;
+    }
+
     function refreshSpellList() {
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
-      const tag = tagSelect.value;
-      const tagSet = tag ? spellTagIndex.get(tag) : null;
+      const tagSet = combinedTagSet();
       datalist.innerHTML = '';
       currentSpells = [];
       currentByName = new Map();
@@ -546,51 +577,15 @@
     // the candidate ids, and rewrites the option labels in place.
     // Cheap: ~100 tags × O(|tag-set| ∩ |candidates|) — runs in <1ms
     // for the typical Wizard-L3 case.
-    function refreshTagCounts() {
-      const cls = normalizeClass(classInput.value);
-      const lvlFilter = parseLevelFilter(levelInput.value);
-      const typedRaw = spellInput.value.trim();
-      const typed = typedRaw.toLowerCase();
-      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || typed
-                       || (window.BookFilter && window.BookFilter.isActive());
-
-      // No filter at all → restore the global counts the dropdown was
-      // built with. Skip the per-tag re-count work entirely.
-      if (!haveFilter) {
-        for (const opt of tagSelect.querySelectorAll('option')) {
-          if (!opt.value) continue;
-          const n = spellTagCounts.get(opt.value) || 0;
-          opt.textContent = `${opt.value} (${n})`;
-        }
-        return;
-      }
-
-      // Build the spell-id set the user is currently browsing —
-      // class + level + name + book filter, BUT NOT the tag filter.
-      // We reuse refreshSpellList's candidate-fetch branches; the
-      // only difference is that we don't apply the tag filter to the
-      // results and we DO apply the typed-name filter.
-      const baseIds = computeCandidateIds(
-        { ignoreTag: true, applyName: true });
-
-      // Update each option's text label with the new count.
-      for (const opt of tagSelect.querySelectorAll('option')) {
-        if (!opt.value) continue;
-        const idSet = spellTagIndex.get(opt.value);
-        if (!idSet) {
-          opt.textContent = `${opt.value} (0)`;
-          continue;
-        }
-        // Iterate over the smaller side for the intersection — tag
-        // sets are typically smaller (~50-500 spells) than the
-        // class+level base set (~100-3500).
-        let n = 0;
-        const [smaller, larger] = idSet.size <= baseIds.size
-          ? [idSet, baseIds] : [baseIds, idSet];
-        for (const id of smaller) if (larger.has(id)) n++;
-        opt.textContent = `${opt.value} (${n})`;
-      }
-    }
+    // refreshTagCounts is a no-op now — the old single-tag <select>
+    // displayed per-tag counts adjusted for the current class/level
+    // filter. The new TagFilter component shows GLOBAL counts in its
+    // autocomplete; rebuilding the pool on every keystroke would
+    // disrupt the typing experience. Future enhancement: expose a
+    // setCounts() on TagFilter so we can refresh autocomplete counts
+    // contextually without re-rendering. For now, accept slightly
+    // stale (= unfiltered) counts in the autocomplete.
+    function refreshTagCounts() { /* no-op */ }
 
     // Shared helper: returns the set of spell ids matching the
     // current filters with optional knobs.  Used by both
@@ -601,8 +596,7 @@
       const applyName = opts && opts.applyName;
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
-      const tag = ignoreTag ? '' : tagSelect.value;
-      const tagSet = tag ? spellTagIndex.get(tag) : null;
+      const tagSet = ignoreTag ? null : combinedTagSet();
       const typedRaw = spellInput.value.trim();
       const typed = applyName ? typedRaw.toLowerCase() : '';
 
@@ -798,7 +792,7 @@
     classInput.addEventListener('input', refreshSpellList);
     levelInput.addEventListener('input', refreshSpellList);
     levelInput.addEventListener('input', refreshMetamagicRow);
-    tagSelect.addEventListener('change', refreshSpellList);
+    // (Tag changes are now wired via TagFilter's onChange callback above.)
     spellInput.addEventListener('input', updateInfoPanel);
     spellInput.addEventListener('input', renderResults);
     // Tag-count refresh on every spell-name keystroke — lets the user

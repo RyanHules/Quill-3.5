@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260521q';
+    window.CACHE_VERSION = '20260521s';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -712,6 +712,10 @@
       // picker-results.js — shared chip-wall browsing aid for every
       // picker. Must load BEFORE any picker that adopts it.
       'picker-results.js',
+      // tag-filter.js — chip-input multi-tag filter with autocomplete.
+      // Replaces single-tag <select> dropdowns in pickers that
+      // support tag filtering. Must load BEFORE those pickers.
+      'tag-filter.js',
       'race-picker.js', 'deity-picker.js',
       'template-picker.js', 'class-spell-additions.js',
       'class-variants.js', 'class-picker.js', 'metamagic-catalog.js',

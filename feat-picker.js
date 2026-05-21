@@ -130,22 +130,28 @@
       .some(t => t && t.toLowerCase() === chosenType.toLowerCase());
   }
 
-  function matchesTag(entry, chosenTag) {
-    if (!chosenTag) return true;
-    const set = tagIndex.get(chosenTag);
-    if (!set) return false;
-    // Match if ANY versioned row (3.5 or 3.0) has this tag.
-    return entry.allRows.some(r => set.has(r.feat_id));
+  // Match a feat entry against a set of selected tags + combine mode.
+  //   tags: array of tag names (empty = no filter, matches everything)
+  //   mode: 'and' (all must match) | 'or' (any must match)
+  // A feat matches a tag if ANY of its versioned rows (3.5 or 3.0)
+  // carries that tag in the tag table.
+  function matchesTags(entry, tags, mode) {
+    if (!tags || !tags.length) return true;
+    const hasTag = (t) => {
+      const set = tagIndex.get(t);
+      return set && entry.allRows.some(r => set.has(r.feat_id));
+    };
+    return mode === 'or' ? tags.some(hasTag) : tags.every(hasTag);
   }
 
-  function refreshDatalist(datalist, chosenType, chosenTag) {
+  function refreshDatalist(datalist, chosenType, chosenTags, tagMode) {
     datalist.innerHTML = '';
     const matchedNames = [];
     for (const display of displayNames) {
       const entry = featIndex.get(display.toLowerCase());
       if (!entry) continue;
       if (!matchesType(entry, chosenType)) continue;
-      if (!matchesTag(entry, chosenTag)) continue;
+      if (!matchesTags(entry, chosenTags, tagMode)) continue;
       const opt = document.createElement('option');
       opt.value = display;
       // Don't set opt.label — Firefox renders it as visible suggestion
@@ -217,14 +223,9 @@
             ).join('')}
           </select>
         </div>
-        <div class="field" style="flex:1 1 8rem;min-width:7rem">
-          <label>Tag Filter</label>
-          <select id="feat-lookup-tag">
-            <option value="">Any tag</option>
-            ${sortedTags.map(([t, c]) =>
-              `<option value="${t}">${t} (${c})</option>`
-            ).join('')}
-          </select>
+        <div class="field" style="flex:1 1 14rem;min-width:11rem">
+          <label>Tags</label>
+          <div id="feat-lookup-tag-host"></div>
         </div>
         <button type="button" id="feat-lookup-add" class="btn-add"
                 style="height:2rem">+ Add to Feats</button>
@@ -237,7 +238,15 @@
 
     const featInput = document.getElementById('feat-lookup');
     const typeSelect = document.getElementById('feat-lookup-type');
-    const tagSelect = document.getElementById('feat-lookup-tag');
+    // Multi-tag chip-input filter (replaces the old single-tag select).
+    const tagHost   = document.getElementById('feat-lookup-tag-host');
+    const tagFilter = (typeof TagFilter !== 'undefined' && tagHost)
+      ? TagFilter.attach(tagHost, {
+          tags: sortedTags,
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => applyFilters(),
+        })
+      : null;
     const addLookupBtn = document.getElementById('feat-lookup-add');
     const info = document.getElementById('feat-info');
     const datalist = document.getElementById('feat-options');
@@ -264,13 +273,20 @@
     function refreshPlaceholder(n) {
       const parts = [];
       if (typeSelect.value) parts.push(typeSelect.value);
-      if (tagSelect.value)  parts.push(`tag:${tagSelect.value}`);
+      if (tagFilter && tagFilter.hasFilter()) {
+        const tags = tagFilter.getSelected();
+        const joiner = tagFilter.getMode() === 'or' ? ' | ' : ' + ';
+        parts.push('tag:' + tags.join(joiner));
+      }
       featInput.placeholder = parts.length
         ? `${n} ${parts.join(' + ')} feat${n === 1 ? '' : 's'}`
         : 'e.g. Power Attack';
     }
     function applyFilters() {
-      const names = refreshDatalist(datalist, typeSelect.value, tagSelect.value);
+      const selectedTags = tagFilter ? tagFilter.getSelected() : [];
+      const tagMode      = tagFilter ? tagFilter.getMode() : 'and';
+      const names = refreshDatalist(
+        datalist, typeSelect.value, selectedTags, tagMode);
       refreshPlaceholder(names.length);
       if (results) results.render(names, { typedFilter: featInput.value.trim() });
     }
@@ -278,7 +294,7 @@
     applyFilters();
 
     typeSelect.addEventListener('change', applyFilters);
-    tagSelect.addEventListener('change', applyFilters);
+    // (Tag changes are wired via TagFilter's onChange callback above.)
     // Re-render chips when the user types — substring filter on names
     // so the chip wall tracks what they're looking for.
     featInput.addEventListener('input', applyFilters);
