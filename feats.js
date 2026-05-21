@@ -413,6 +413,20 @@ const Feats = (function () {
     );
     realSpec.forEach((a) => addSpecialAbility(a));
     if (!realSpec.length) addSpecialAbility();
+    // Signal "feats changed" so spells.js can re-sync ✨ button
+    // visibility on Known rows and the metamagic-reference panel.
+    // Without this, the load-order bug — Spells.loadData runs BEFORE
+    // Feats.loadData in app.js's loadData() — leaves the ✨ buttons
+    // hidden on every saved character that has metamagic feats: the
+    // buttons were created during Spells.loadData when no feats had
+    // been restored yet, so characterHasAnyMetamagic() returned 0.
+    // A synthetic 'input' event bubbling from a feat row triggers
+    // the listener in spells.js, which calls
+    // refreshAllKnownRowMetamagicVis() + refreshMetamagicReference().
+    const firstFeatEntry = $("#feats-container .feat-entry");
+    if (firstFeatEntry) {
+      firstFeatEntry.dispatchEvent(new Event("input", { bubbles: true }));
+    }
   }
 
   return {
