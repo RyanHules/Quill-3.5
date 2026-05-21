@@ -16,7 +16,7 @@
   "char-hair": "None",
   "char-skin": "Light Brown",
   "char-campaign": "",
-  "char-xp": "27275",
+  "char-xp": "28605",
   "char-speed": "30 (L), 10 (B)",
   "damage-reduction": "",
   "str-score": "14",
@@ -44,7 +44,7 @@
   "cha-template": "",
   "cha-temp": "",
   "hp-total": "59",
-  "hp-current": "41",
+  "hp-current": "59",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "0",
@@ -150,7 +150,7 @@
   "shield-check-pen": "0",
   "shield-spell-fail": "0",
   "shield-special": "",
-  "armor-worn": false,
+  "armor-worn": true,
   "shield-worn": false,
   "armor-touch-ac": false,
   "shield-touch-ac": false,
@@ -177,17 +177,6 @@
       "weight": "1",
       "special": "+1 resistance bonus on saving throws.",
       "slot": "torso",
-      "worn": true,
-      "isProtective": false,
-      "hasAbilityBonuses": false,
-      "acBonuses": [],
-      "hasSkillBonuses": false
-    },
-    {
-      "name": "Hand of the Mage",
-      "weight": "2",
-      "special": "Mummified elf hand worn at neck; wearer uses mage hand at will.",
-      "slot": "neck",
       "worn": true,
       "isProtective": false,
       "hasAbilityBonuses": false,
@@ -258,12 +247,23 @@
       "hasAbilityBonuses": false,
       "acBonuses": [],
       "hasSkillBonuses": false
+    },
+    {
+      "name": "Chronocharm of the Uncaring Archmage",
+      "weight": "",
+      "special": "Once/day, next spell of 3rd level or lower with 1 full round casting time becomes a standard action instead.",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
     }
   ],
   "slotSoulmelds": {},
   "slot-head": "Feathered Hat of Diplomacy +6",
   "slot-eyes": "",
-  "slot-neck": "Hand of the Mage",
+  "slot-neck": "Chronocharm of the Uncaring Archmage",
   "slot-shoulders": "Feathered Cloak of Charisma +2",
   "slot-ring1": "Ring of Protection +2",
   "slot-ring2": "",
@@ -302,12 +302,22 @@
       "name": "Potion of Cure Light Wounds (2)",
       "location": "",
       "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Hand of the Mage",
+      "location": "",
+      "weight": "2"
     }
   ],
   "possessions-notes": "",
   "money-cp": "",
   "money-sp": "",
-  "money-gp": "500",
+  "money-gp": "",
   "money-pp": "",
   "casters": [
     {
@@ -379,7 +389,33 @@
         "Arcane Mark",
         "Mending"
       ],
-      "preparedList-0": [],
+      "preparedList-0": [
+        {
+          "baseName": "Sonic Snap",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Sonic Snap",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Message",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Mage Hand",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Mage Hand",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "known-1": "6",
       "perDay-1": "5",
       "bonus-1": "2",
@@ -428,7 +464,43 @@
         },
         "Feather Fall"
       ],
-      "preparedList-1": [],
+      "preparedList-1": [
+        {
+          "baseName": "Mage Armor",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Mage Armor",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Magic Missile",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Grease",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Grease",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "color spray",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "domain-1": "",
       "specialist-1": "",
       "known-2": "4",
@@ -485,6 +557,26 @@
         },
         {
           "baseName": "Darkvision",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Glitterdust",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scimitar of Sand",
           "metamagic": [],
           "used": false
         }
@@ -558,6 +650,23 @@
             "Fiery Spell"
           ],
           "used": false
+        },
+        {
+          "baseName": "Dispel Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Blink",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scorching Ray",
+          "metamagic": [
+            "Fiery Spell"
+          ],
+          "used": false
         }
       ],
       "domain-3": "",
@@ -589,7 +698,18 @@
           "source": "Sand Shaper — Desert Insight"
         }
       ],
-      "preparedList-4": [],
+      "preparedList-4": [
+        {
+          "baseName": "Globe of Invulnerability, Lesser",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Evard's Black Tentacles",
+          "metamagic": [],
+          "used": false
+        }
+      ],
       "domain-4": "",
       "specialist-4": "",
       "known-5": "",
@@ -660,10 +780,6 @@
     "[Sand Shaper 1] Desert insight",
     "[Sand Shaper 1] dust magic",
     "[Sand Shaper 1] sand shape",
-    "[Sand Shaper 2] Sandform",
-    "[Sand Shaper 1] Desert insight",
-    "[Sand Shaper 1] dust magic",
-    "[Sand Shaper 1] sand shape",
     "[Sand Shaper 2] Sandform"
   ],
   "languages": "Common, Terran, Ignan",
@@ -672,7 +788,7 @@
       "name": "Gen (Earth)",
       "compName": "Chikyuu",
       "compType": "familiar",
-      "compSize": "Medium",
+      "compSize": "Tiny",
       "isFamiliar": true,
       "compMode": "manual",
       "compBaseCreature": "",
@@ -956,7 +1072,9 @@
     "caster:prepared-full:Sha'ir:0",
     "caster:prepared-full:Sha'ir:2",
     "caster:prepared-full:Sha'ir:3",
-    "caster:prepared-full:Sha'ir:1"
+    "caster:prepared-full:Sha'ir:1",
+    "caster:prepared-full:Sha'ir:4",
+    "caster:over-prepared:Sha'ir:2"
   ],
   "history": [
     {
