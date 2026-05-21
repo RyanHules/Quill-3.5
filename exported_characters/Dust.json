@@ -247,6 +247,17 @@
       "hasAbilityBonuses": false,
       "acBonuses": [],
       "hasSkillBonuses": false
+    },
+    {
+      "name": "Metamagic Rod, Empower (Lesser)",
+      "weight": "5",
+      "special": "Wielder can cast up to three spells per day (3rd level or lower) that are empowered as though using the Empower Spell feat without changing the spell slot.",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
     }
   ],
   "slotSoulmelds": {},
@@ -296,7 +307,7 @@
   "possessions-notes": "",
   "money-cp": "",
   "money-sp": "",
-  "money-gp": "",
+  "money-gp": "500",
   "money-pp": "",
   "casters": [
     {
@@ -368,33 +379,7 @@
         "Arcane Mark",
         "Mending"
       ],
-      "preparedList-0": [
-        {
-          "baseName": "Prestidigitation",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Prestidigitation",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Detect Magic",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Detect Magic",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Message",
-          "metamagic": [],
-          "used": false
-        }
-      ],
+      "preparedList-0": [],
       "known-1": "6",
       "perDay-1": "5",
       "bonus-1": "2",
@@ -443,43 +428,7 @@
         },
         "Feather Fall"
       ],
-      "preparedList-1": [
-        {
-          "baseName": "Magic Missile",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Magic Missile",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Grease",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Mage Armor",
-          "metamagic": [],
-          "used": true
-        },
-        {
-          "baseName": "Mage Armor",
-          "metamagic": [],
-          "used": true
-        },
-        {
-          "baseName": "Magic Missile",
-          "metamagic": [],
-          "used": true
-        },
-        {
-          "baseName": "Magic Missile",
-          "metamagic": [],
-          "used": true
-        }
-      ],
+      "preparedList-1": [],
       "domain-1": "",
       "specialist-1": "",
       "known-2": "4",
@@ -530,27 +479,12 @@
       ],
       "preparedList-2": [
         {
-          "baseName": "Scorching Ray",
-          "metamagic": [],
-          "used": true
-        },
-        {
-          "baseName": "Scorching Ray",
+          "baseName": "Darkvision",
           "metamagic": [],
           "used": false
         },
         {
-          "baseName": "Scorching Ray",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "silence",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "silence",
+          "baseName": "Darkvision",
           "metamagic": [],
           "used": false
         }
@@ -619,23 +553,10 @@
       ],
       "preparedList-3": [
         {
-          "baseName": "Dispel Magic",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Haboob",
-          "metamagic": [],
-          "used": true
-        },
-        {
-          "baseName": "Haboob",
-          "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "whispering sand",
-          "metamagic": [],
+          "baseName": "Scorching Ray",
+          "metamagic": [
+            "Fiery Spell"
+          ],
           "used": false
         }
       ],
@@ -957,7 +878,7 @@
       "ifamItemName": "Jar of Infinite Haboob",
       "ifamItemPrice": 0,
       "ifamItemWeight": 15,
-      "ifamItemNotes": "Haboob at will (Use-activated)",
+      "ifamItemNotes": "Haboob at will (Use-activated)\nHeat Haze (Continuous Entropic Field) (20% miss chance, not pierced by true sight/blindsight)",
       "ifamAlignment": "",
       "ifamCarried": true,
       "ifamLost": false,
@@ -1166,6 +1087,7 @@
     "Une",
     "XPH"
   ],
+  "_hide_30_mode": "counterpart",
   "_homebrew": null,
   "skills": [
     {
