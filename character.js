@@ -300,38 +300,33 @@ const Character = (function () {
     // Display: "N → N+1 (X to go)" or "N+1 reached (excess Y)" once
     // the player has enough XP for the next tier.
     //
-    // Item Familiar: "Invest Life Energy" (UA p.170) grants +10% on
-    // current AND future XP. Reflected as an "earn ÷ 1.1 raw"
-    // annotation appended to the to-go display.
+    // The To-Next-Level box sits in a `field field-sm` column — wide
+    // annotations (Item Familiar multiplier suffix + "(≈ N raw)" hint,
+    // previously appended here) overflow and break the row's grid.
+    // Keep the call to ItemFamiliar.getXpMultiplier so the hook stays
+    // available for future consumers; drop the inline notes from the
+    // displayed string (the homebrew rule's still "on" in the model
+    // even though we don't surface it here).
     const xpEl = $("#char-xp");
     const xpProgEl = $("#xp-progress");
-    const ifamXpMult = (typeof ItemFamiliar !== "undefined"
-      && ItemFamiliar.getXpMultiplier) ? ItemFamiliar.getXpMultiplier() : 1.0;
+    if (typeof ItemFamiliar !== "undefined" && ItemFamiliar.getXpMultiplier) {
+      ItemFamiliar.getXpMultiplier();  // call retained for hook visibility
+    }
     if (xpEl && xpProgEl) {
       const xp = int(xpEl.value);
       const charLevel = level;
       const xpFor = (L) => 1000 * L * (L - 1) / 2;
       const nextLvl = charLevel + 1;
       const need = xpFor(nextLvl);
-      const ifamSuffix = ifamXpMult > 1.0
-        ? ` <span style="opacity:0.75;font-size:0.85em" title="Item Familiar Invest Life Energy: +${Math.round((ifamXpMult - 1) * 100)}% on XP earned">(×${ifamXpMult.toFixed(2)} from Item Familiar)</span>`
-        : "";
       if (xp <= 0) {
-        xpProgEl.innerHTML = `${need.toLocaleString()} for L${nextLvl}${ifamSuffix}`;
+        xpProgEl.textContent = `${need.toLocaleString()} for L${nextLvl}`;
       } else if (xp >= need) {
         const excess = xp - need;
-        xpProgEl.innerHTML =
-          `L${nextLvl} reached (+${excess.toLocaleString()} excess)${ifamSuffix}`;
+        xpProgEl.textContent =
+          `L${nextLvl} reached (+${excess.toLocaleString()} excess)`;
       } else {
         const togo = need - xp;
-        // With +10% multiplier, the player only needs to earn
-        // togo/1.1 raw to actually advance. Show both.
-        const rawNeeded = ifamXpMult > 1.0 ? Math.ceil(togo / ifamXpMult) : togo;
-        const rawHint = ifamXpMult > 1.0
-          ? ` (≈ ${rawNeeded.toLocaleString()} raw)`
-          : "";
-        xpProgEl.innerHTML =
-          `${togo.toLocaleString()} to L${nextLvl}${rawHint}${ifamSuffix}`;
+        xpProgEl.textContent = `${togo.toLocaleString()} to L${nextLvl}`;
       }
     }
 

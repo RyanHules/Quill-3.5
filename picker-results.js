@@ -85,6 +85,16 @@
   //                                (default 'match')
   //   pluralNoun                 — explicit plural form; falls back to
   //                                the default English pluralizer
+  //   collapsible                — if true, wraps the chip wall in a
+  //                                <details> block so the user can
+  //                                fold it away. Useful for pickers
+  //                                whose chips are only pertinent at
+  //                                character creation (deity, race).
+  //                                The summary line shows the count.
+  //   collapsedByDefault         — when collapsible, start folded.
+  //                                Defaults to false; deity-picker
+  //                                opts into this so the chips don't
+  //                                eat layout space mid-play.
   function attach(container, opts) {
     opts = opts || {};
     const className = opts.className || 'picker-results';
@@ -92,12 +102,29 @@
     const cap       = opts.cap        || DEFAULT_CAP;
     const noun      = opts.itemNoun   || 'match';
     const nounPlural = opts.pluralNoun || pluralize(noun);
+    const collapsible = !!opts.collapsible;
+    const collapsedByDefault = !!opts.collapsedByDefault;
 
     const div = document.createElement('div');
     div.className = className;
     div.style.cssText =
       'display:none; margin-top:0.5rem; font-size:0.85em;';
     container.appendChild(div);
+
+    // When collapsible, render content INSIDE a <details>/<summary>
+    // so the user gets a native disclosure widget. We track the
+    // open/closed state separately so toggling doesn't blow away on
+    // re-render (the user's intent persists across filter changes).
+    let detailsOpen = !collapsedByDefault;
+    function syncDetailsOpen() {
+      const details = div.querySelector('details');
+      if (details) details.open = detailsOpen;
+    }
+    div.addEventListener('toggle', (ev) => {
+      if (ev.target.tagName === 'DETAILS') {
+        detailsOpen = ev.target.open;
+      }
+    }, true);
 
     // Event-delegated click so chip re-renders don't re-wire handlers.
     div.addEventListener('click', (ev) => {
@@ -158,10 +185,25 @@
       ).join('');
       const wordShown   = nounPlural;
       const wordCounted = filtered.length === 1 ? noun : nounPlural;
-      const header = truncated
-        ? `<div style="opacity:0.7; margin-bottom:0.25rem">Showing ${cap} of ${filtered.length} ${wordShown}${matchSuffix} — narrow further to see more</div>`
-        : `<div style="opacity:0.7; margin-bottom:0.25rem">${filtered.length} ${wordCounted}${matchSuffix}</div>`;
-      div.innerHTML = header + `<div>${chips}</div>`;
+      const headerText = truncated
+        ? `Showing ${cap} of ${filtered.length} ${wordShown}${matchSuffix} — narrow further to see more`
+        : `${filtered.length} ${wordCounted}${matchSuffix}`;
+
+      if (collapsible) {
+        // <details>/<summary> gives the user a native fold widget.
+        // The summary line carries the count so users can see how
+        // many matches are hiding without expanding.
+        const openAttr = detailsOpen ? ' open' : '';
+        div.innerHTML =
+          `<details${openAttr} style="margin:0">` +
+          `<summary style="cursor:pointer; opacity:0.7; ` +
+          `padding:0.15rem 0; user-select:none">${headerText}</summary>` +
+          `<div style="margin-top:0.25rem">${chips}</div>` +
+          `</details>`;
+      } else {
+        const header = `<div style="opacity:0.7; margin-bottom:0.25rem">${headerText}</div>`;
+        div.innerHTML = header + `<div>${chips}</div>`;
+      }
       div.style.display = 'block';
     }
 

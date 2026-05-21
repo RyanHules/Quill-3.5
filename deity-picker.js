@@ -118,9 +118,17 @@
     // re-renders the chip wall narrowed to the picked entry — we want
     // the chip wall to stay full for continued browsing). Spell-picker
     // behavior. onDeityChosen handles alignment + info panel.
+    //
+    // Collapsed by default — the chip wall is only really pertinent
+    // at character creation. Once the player has a deity, they don't
+    // need a 149-row chip wall on every page load. Native <details>
+    // disclosure lets them re-open with one click; the open/closed
+    // state persists across input changes within a session.
     const deityResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {
           itemNoun: 'deity',
+          collapsible: true,
+          collapsedByDefault: true,
           onPick: (name) => {
             deityInput.value = name;
             onDeityChosen(name);
