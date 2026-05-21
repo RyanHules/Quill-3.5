@@ -924,6 +924,15 @@
       return result;
     }
 
+    // Tracks the signature of the LAST-built metamagic row, so a
+    // call that would re-render an identical DOM tree can short-
+    // circuit instead. Without this, focusin → rebuild on every
+    // click into the picker tears down the checkbox the user is
+    // mid-clicking — they see "the tickbox needs a double-click
+    // to register". The first click still toggles the OLD checkbox,
+    // but the rebuild replaces it before the toggle is visible;
+    // the second click sees a fresh checkbox and finally sticks.
+    let _lastMmSig = null;
     function refreshMetamagicRow() {
       const feats = readCharacterMetamagicFeats();
       // Metamagic UI stays visible regardless of the Show Prepared
@@ -947,9 +956,23 @@
         mmWrap.style.display = 'none';
         mmOpts.innerHTML = '';
         mmEff.textContent = '';
+        _lastMmSig = '';
         return;
       }
       mmWrap.style.display = '';
+      // Skip the rebuild if the metamagic-feat list is identical to
+      // last time. Each feat name + variableTarget flag uniquely
+      // determines what the DOM looks like; if the signature matches,
+      // the existing DOM is correct and rebuilding would just eat
+      // mid-flight clicks on the checkboxes.
+      const sig = feats.map(f =>
+        `${f.name}|${(f.meta && f.meta.levelAdjustment === 'variable') ? 'v' : 'f'}`
+      ).join(';');
+      if (sig === _lastMmSig) {
+        recomputeEffective();
+        return;
+      }
+      _lastMmSig = sig;
       // Preserve checkbox/input state across rebuilds so the row stays
       // sticky when the user changes spell level.
       const prevState = collectMetamagicState();
