@@ -245,12 +245,17 @@
     // Shared browsing-chip helper — surfaces the current filter's
     // matches as a click-to-pick chip wall below the picker bar.
     // See picker-results.js for the rendering contract.
+    //
+    // Chip click: set value + show info DIRECTLY, but don't dispatch
+    // 'input' — the input event would re-narrow the chip wall to the
+    // picked entry. Matches spell-picker's behavior (chip wall stays
+    // open after a pick, so the user can scan / re-pick).
     const results = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(wrap, {
           itemNoun: 'feat',
           onPick: (name) => {
             featInput.value = name;
-            featInput.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             featInput.focus();
           },
         })

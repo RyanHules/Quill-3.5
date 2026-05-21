@@ -234,13 +234,15 @@
     const addBtn   = picker.querySelector('.myp-add');
     const datalist = picker.querySelector(`#${dlId}`);
 
-    // Shared browsing-chip helper.
+    // Shared browsing-chip helper. Chip click: set value + show info
+    // DIRECTLY without dispatching 'input' (which would narrow the
+    // chip wall to the picked entry). Spell-picker behavior.
     const results = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(picker, {
           itemNoun: 'mystery',
           onPick: (name) => {
             mysIn.value = name;
-            mysIn.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             mysIn.focus();
           },
         })

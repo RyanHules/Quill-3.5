@@ -67,13 +67,18 @@
         'grid-column: 1 / -1; margin-top: 0.25rem;';
       raceInput.parentElement.parentElement.appendChild(browseWrap);
     }
+    // Chip click: set value + run the auto-fill / info-show flow
+    // DIRECTLY without dispatching 'input' (the input event handler
+    // re-renders the chip wall narrowed to the picked entry — we want
+    // the chip wall to stay full for continued browsing). Spell-picker
+    // behavior. onRaceChosen handles both alignment-token writes and
+    // info-panel render.
     const raceResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {
           itemNoun: 'race',
           onPick: (name) => {
             raceInput.value = name;
-            raceInput.dispatchEvent(new Event('input', { bubbles: true }));
-            raceInput.dispatchEvent(new Event('change', { bubbles: true }));
+            onRaceChosen(name);
             raceInput.focus();
           },
         })

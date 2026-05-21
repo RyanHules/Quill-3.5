@@ -344,12 +344,14 @@
     const costInput     = document.getElementById('item-lookup-cost');
 
     // Shared browsing-chip helper — same pattern as spell-picker.
+    // Chip click: set value + show info DIRECTLY without dispatching
+    // 'input' (which would narrow the chip wall to the picked entry).
     const results = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(wrap, {
           itemNoun: 'item',
           onPick: (name) => {
             itemInput.value = name;
-            itemInput.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             itemInput.focus();
           },
         })

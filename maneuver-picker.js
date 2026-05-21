@@ -286,13 +286,15 @@
     const addR    = picker.querySelector('.mp-add-readied');
     const datalist = picker.querySelector(`#${dlId}`);
 
-    // Shared browsing-chip helper.
+    // Shared browsing-chip helper. Chip click sets value + shows info
+    // DIRECTLY without dispatching 'input' — that would narrow the
+    // chip wall to the picked entry. Spell-picker behavior.
     const results = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(picker, {
           itemNoun: 'maneuver',
           onPick: (name) => {
             manIn.value = name;
-            manIn.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             manIn.focus();
           },
         })

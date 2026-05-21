@@ -356,12 +356,15 @@
     // Shared browsing-chip helper — matches the spell-picker pattern
     // so the user can scan the current filter's matches without
     // having to know the exact power name.
+    //
+    // Chip click: set value + show info DIRECTLY without dispatching
+    // 'input' (which would narrow the chip wall to the picked entry).
     const results = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(picker, {
           itemNoun: 'power',
           onPick: (name) => {
             pwrIn.value = name;
-            pwrIn.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             pwrIn.focus();
           },
         })

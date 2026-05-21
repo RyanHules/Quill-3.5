@@ -125,13 +125,15 @@
     const addBtn  = document.getElementById('sap-lookup-add');
     const datalist = document.getElementById('sap-trick-options');
 
-    // Shared browsing-chip helper.
+    // Shared browsing-chip helper. Chip click: set value + show info
+    // DIRECTLY without dispatching 'input' (which would narrow the
+    // chip wall to the picked entry). Spell-picker behavior.
     const results = (typeof PickerResults !== 'undefined' && wrap)
       ? PickerResults.attach(wrap, {
           itemNoun: 'skill trick',
           onPick: (name) => {
             trickIn.value = name;
-            trickIn.dispatchEvent(new Event('input', { bubbles: true }));
+            updateInfo();
             trickIn.focus();
           },
         })

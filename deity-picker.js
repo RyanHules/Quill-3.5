@@ -113,13 +113,17 @@
         'grid-column: 1 / -1; margin-top: 0.25rem;';
       infoPanel.parentElement.appendChild(browseWrap);
     }
+    // Chip click: set value + run the auto-fill / info-show flow
+    // DIRECTLY without dispatching 'input' (the input event handler
+    // re-renders the chip wall narrowed to the picked entry — we want
+    // the chip wall to stay full for continued browsing). Spell-picker
+    // behavior. onDeityChosen handles alignment + info panel.
     const deityResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {
           itemNoun: 'deity',
           onPick: (name) => {
             deityInput.value = name;
-            deityInput.dispatchEvent(new Event('input', { bubbles: true }));
-            deityInput.dispatchEvent(new Event('change', { bubbles: true }));
+            onDeityChosen(name);
             deityInput.focus();
           },
         })
