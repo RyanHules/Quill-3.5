@@ -234,11 +234,23 @@
     const addBtn   = picker.querySelector('.myp-add');
     const datalist = picker.querySelector(`#${dlId}`);
 
+    // Shared browsing-chip helper.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          itemNoun: 'mystery',
+          onPick: (name) => {
+            mysIn.value = name;
+            mysIn.dispatchEvent(new Event('input', { bubbles: true }));
+            mysIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const path = pathSel.value;
       const prog = progSel.value;
       datalist.innerHTML = '';
-      let n = 0;
+      const names = [];
       for (const m of mysteryIndex.values()) {
         if (path && m.path !== path) continue;
         if (prog && m.progression !== prog) continue;
@@ -246,11 +258,13 @@
         opt.value = m.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
-        n++;
+        names.push(m.name);
       }
+      const n = names.length;
       mysIn.placeholder = n
         ? `${n} myster${n === 1 ? 'y' : 'ies'}`
         : '(no matches)';
+      if (results) results.render(names, { typedFilter: mysIn.value.trim() });
     }
 
     function updateInfo() {
@@ -285,7 +299,8 @@
 
     pathSel.addEventListener('change', () => { refresh(); updateInfo(); });
     progSel.addEventListener('change', () => { refresh(); updateInfo(); });
-    mysIn.addEventListener('input',    updateInfo);
+    // Typing narrows the chip wall via substring filter.
+    mysIn.addEventListener('input',    () => { updateInfo(); refresh(); });
     mysIn.addEventListener('change',   updateInfo);
     addBtn.addEventListener('click',   add);
 

@@ -353,10 +353,25 @@
       return out;
     }
 
+    // Shared browsing-chip helper — matches the spell-picker pattern
+    // so the user can scan the current filter's matches without
+    // having to know the exact power name.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          itemNoun: 'power',
+          onPick: (name) => {
+            pwrIn.value = name;
+            pwrIn.dispatchEvent(new Event('input', { bubbles: true }));
+            pwrIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const list = currentList();
       datalist.innerHTML = '';
       const seen = new Set();
+      const names = [];
       for (const { rec, level } of list) {
         const k = rec.name.toLowerCase();
         if (seen.has(k)) continue;
@@ -365,10 +380,12 @@
         opt.value = rec.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
+        names.push(rec.name);
       }
       pwrIn.placeholder = list.length
         ? `${list.length} power${list.length === 1 ? '' : 's'}`
         : '(no matches)';
+      if (results) results.render(names, { typedFilter: pwrIn.value.trim() });
     }
 
     function updateInfo() {
@@ -441,7 +458,9 @@
 
     classSel.addEventListener('change', () => { refresh(); updateInfo(); });
     lvlIn.addEventListener('input',    () => { refresh(); updateInfo(); });
-    pwrIn.addEventListener('input',    updateInfo);
+    // pwrIn input: refresh BOTH the info panel AND the chip wall —
+    // typing in the power name narrows the chips by substring match.
+    pwrIn.addEventListener('input',    () => { updateInfo(); refresh(); });
     pwrIn.addEventListener('change',   updateInfo);
     addK.addEventListener('click',     appendKnown);
 

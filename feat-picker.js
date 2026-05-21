@@ -140,7 +140,7 @@
 
   function refreshDatalist(datalist, chosenType, chosenTag) {
     datalist.innerHTML = '';
-    let n = 0;
+    const matchedNames = [];
     for (const display of displayNames) {
       const entry = featIndex.get(display.toLowerCase());
       if (!entry) continue;
@@ -154,9 +154,9 @@
       // bug we hit on soulmeld-picker.) Feat-type info is already
       // shown in the info panel below.
       datalist.appendChild(opt);
-      n++;
+      matchedNames.push(display);
     }
-    return n;
+    return matchedNames;
   }
 
   function fullFeatRow(featId) {
@@ -242,6 +242,20 @@
     const info = document.getElementById('feat-info');
     const datalist = document.getElementById('feat-options');
 
+    // Shared browsing-chip helper — surfaces the current filter's
+    // matches as a click-to-pick chip wall below the picker bar.
+    // See picker-results.js for the rendering contract.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(wrap, {
+          itemNoun: 'feat',
+          onPick: (name) => {
+            featInput.value = name;
+            featInput.dispatchEvent(new Event('input', { bubbles: true }));
+            featInput.focus();
+          },
+        })
+      : null;
+
     function refreshPlaceholder(n) {
       const parts = [];
       if (typeSelect.value) parts.push(typeSelect.value);
@@ -251,14 +265,18 @@
         : 'e.g. Power Attack';
     }
     function applyFilters() {
-      const n = refreshDatalist(datalist, typeSelect.value, tagSelect.value);
-      refreshPlaceholder(n);
+      const names = refreshDatalist(datalist, typeSelect.value, tagSelect.value);
+      refreshPlaceholder(names.length);
+      if (results) results.render(names, { typedFilter: featInput.value.trim() });
     }
 
     applyFilters();
 
     typeSelect.addEventListener('change', applyFilters);
     tagSelect.addEventListener('change', applyFilters);
+    // Re-render chips when the user types — substring filter on names
+    // so the chip wall tracks what they're looking for.
+    featInput.addEventListener('input', applyFilters);
 
     // Rebuild the index when the active book set changes so the
     // datalist reflects only in-scope sources.

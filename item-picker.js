@@ -221,7 +221,7 @@
   function refreshDatalist(datalist, chosenType, chosenTag, costFilter) {
     datalist.innerHTML = '';
     const tagSet = chosenTag ? tagIndex.get(chosenTag) : null;
-    let n = 0;
+    const matchedNames = [];
     for (const display of displayNames) {
       const entry = itemIndex.get(display.toLowerCase());
       if (!entry) continue;
@@ -239,9 +239,9 @@
       opt.value = display;
       // No opt.label — Firefox renders it as visible suggestion text.
       datalist.appendChild(opt);
-      n++;
+      matchedNames.push(display);
     }
-    return n;
+    return matchedNames;
   }
 
   function init() {
@@ -343,10 +343,23 @@
     const datalist      = document.getElementById('item-options');
     const costInput     = document.getElementById('item-lookup-cost');
 
+    // Shared browsing-chip helper — same pattern as spell-picker.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(wrap, {
+          itemNoun: 'item',
+          onPick: (name) => {
+            itemInput.value = name;
+            itemInput.dispatchEvent(new Event('input', { bubbles: true }));
+            itemInput.focus();
+          },
+        })
+      : null;
+
     function applyFilters() {
       const costFilter = parseCostFilter(costInput.value);
-      const n = refreshDatalist(datalist, typeSel.value, tagSel.value,
-                                costFilter);
+      const names = refreshDatalist(datalist, typeSel.value, tagSel.value,
+                                    costFilter);
+      const n = names.length;
       const parts = [];
       if (typeSel.value) parts.push(typeSel.value);
       if (tagSel.value)  parts.push(`tag:${tagSel.value}`);
@@ -371,11 +384,14 @@
       itemInput.placeholder = parts.length
         ? `${n} ${parts.join(' + ')} item${n === 1 ? '' : 's'}`
         : 'e.g. Cloak of Resistance';
+      if (results) results.render(names, { typedFilter: itemInput.value.trim() });
     }
     applyFilters();
     typeSel.addEventListener('change', applyFilters);
     tagSel.addEventListener('change', applyFilters);
     costInput.addEventListener('input', applyFilters);
+    // Re-render chips as the user types — substring filter on names.
+    itemInput.addEventListener('input', applyFilters);
 
     document.addEventListener('book-filter-changed', () => {
       buildIndex();

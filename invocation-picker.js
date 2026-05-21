@@ -154,11 +154,23 @@
     const addK     = picker.querySelector('.ip-add-known');
     const datalist = picker.querySelector(`#${dlId}`);
 
+    // Shared browsing-chip helper.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          itemNoun: 'invocation',
+          onPick: (name) => {
+            invoIn.value = name;
+            invoIn.dispatchEvent(new Event('input', { bubbles: true }));
+            invoIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const g = gradeSel.value;
       const s = subSel.value;
       datalist.innerHTML = '';
-      let n = 0;
+      const names = [];
       for (const r of invocationIndex.values()) {
         if (g && r.grade !== g) continue;
         if (s && r.subcategory !== s) continue;
@@ -166,14 +178,16 @@
         opt.value = r.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
-        n++;
+        names.push(r.name);
       }
+      const n = names.length;
       const parts = [];
       if (g) parts.push(g);
       if (s) parts.push(s);
       invoIn.placeholder = parts.length
         ? `${n} ${parts.join(' + ')} invocation${n === 1 ? '' : 's'}`
         : 'e.g. Eldritch Spear';
+      if (results) results.render(names, { typedFilter: invoIn.value.trim() });
     }
 
     function updateInfo() {
@@ -213,7 +227,8 @@
 
     gradeSel.addEventListener('change', refresh);
     subSel  .addEventListener('change', refresh);
-    invoIn  .addEventListener('input',  updateInfo);
+    // Typed-name input refreshes BOTH the info panel and the chip wall.
+    invoIn  .addEventListener('input',  () => { updateInfo(); refresh(); });
     invoIn  .addEventListener('change', updateInfo);
     addK    .addEventListener('click',  addToKnown);
 

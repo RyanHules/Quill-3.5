@@ -55,6 +55,30 @@
       raceInput.parentElement.parentElement.appendChild(infoPanel);
     }
 
+    // 2b. Browsing-chip wall — surfaces the full race list as
+    // clickable chips below the input, so the player can scan rather
+    // than knowing the exact name. Sits in the same row layout as
+    // the info panel so it inherits the grid placement.
+    let browseWrap = document.getElementById('race-browse');
+    if (!browseWrap) {
+      browseWrap = document.createElement('div');
+      browseWrap.id = 'race-browse';
+      browseWrap.style.cssText =
+        'grid-column: 1 / -1; margin-top: 0.25rem;';
+      raceInput.parentElement.parentElement.appendChild(browseWrap);
+    }
+    const raceResults = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(browseWrap, {
+          itemNoun: 'race',
+          onPick: (name) => {
+            raceInput.value = name;
+            raceInput.dispatchEvent(new Event('input', { bubbles: true }));
+            raceInput.dispatchEvent(new Event('change', { bubbles: true }));
+            raceInput.focus();
+          },
+        })
+      : null;
+
     // 3. Populate options from DB.
     // No `race` view any more — query `entry WHERE type='race'`.
     // For duplicate names (e.g. Aasimar in Planar Handbook + FRCS),
@@ -73,6 +97,7 @@
       );
       raceIndex = new Map();
       datalist.innerHTML = '';
+      const browseNames = [];
       let kept = 0;
       for (const r of races) {
         if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'race'})) continue;
@@ -80,8 +105,18 @@
         // Show version in the dropdown for disambiguation
         opt.value = r.version === '3.5' ? r.name : `${r.name} (${r.version})`;
         datalist.appendChild(opt);
+        // The chip wall stores the canonical (3.5-preferred) name so
+        // clicking sets a clean value; 3.0-only races render as
+        // "Race (3.0)" in both datalist and chips for parity.
+        if (!raceIndex.has(r.name.toLowerCase())) {
+          browseNames.push(opt.value);
+        }
         raceIndex.set(r.name.toLowerCase(), r.race_id);
         kept++;
+      }
+      if (raceResults) {
+        raceResults.render(browseNames,
+          { typedFilter: raceInput.value.trim() });
       }
       console.log(`[race-picker] ${kept}/${races.length} races available`);
     }
@@ -91,6 +126,15 @@
     // 4. On input change: try to look up the typed name and auto-fill.
     raceInput.addEventListener('change', () => onRaceChosen(raceInput.value));
     raceInput.addEventListener('input', () => {
+      // Re-narrow the chip wall as the user types so it acts as a
+      // substring search, matching spell-picker's behavior.
+      if (raceResults) {
+        // Re-render from the current datalist options (no DB requery
+        // needed — the populate() pass already filtered by book scope).
+        const browseNames = Array.from(datalist.options).map(o => o.value);
+        raceResults.render(browseNames,
+          { typedFilter: raceInput.value.trim() });
+      }
       // Only auto-fill on exact match (otherwise user is mid-typing)
       const exact = raceIndex.get(raceInput.value.trim().toLowerCase());
       if (exact !== undefined) {

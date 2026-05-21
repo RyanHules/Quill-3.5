@@ -101,6 +101,30 @@
       });
     }
 
+    // 3a. Browse chip wall — surfaces the full deity list as
+    // clickable chips below the info panel, so the user can scan
+    // by alignment / pantheon visually (the chip click sets the
+    // value + opens info).
+    let browseWrap = document.getElementById('deity-browse');
+    if (!browseWrap) {
+      browseWrap = document.createElement('div');
+      browseWrap.id = 'deity-browse';
+      browseWrap.style.cssText =
+        'grid-column: 1 / -1; margin-top: 0.25rem;';
+      infoPanel.parentElement.appendChild(browseWrap);
+    }
+    const deityResults = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(browseWrap, {
+          itemNoun: 'deity',
+          onPick: (name) => {
+            deityInput.value = name;
+            deityInput.dispatchEvent(new Event('input', { bubbles: true }));
+            deityInput.dispatchEvent(new Event('change', { bubbles: true }));
+            deityInput.focus();
+          },
+        })
+      : null;
+
     // 3. Populate options from DB. Same source-recency tiebreak as
     // every other picker (3.5 first, then newest publication date).
     function populate() {
@@ -116,6 +140,7 @@
       );
       deityIndex.clear();
       datalist.innerHTML = '';
+      const browseNames = [];
       let kept = 0;
       for (const r of deities) {
         if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'deity'})) continue;
@@ -127,7 +152,12 @@
         // No opt.label — Firefox renders labels as visible completion
         // text (CLAUDE.md datalist note).
         datalist.appendChild(opt);
+        browseNames.push(r.name);
         kept++;
+      }
+      if (deityResults) {
+        deityResults.render(browseNames,
+          { typedFilter: deityInput.value.trim() });
       }
       console.log(`[deity-picker] ${kept}/${deities.length} deities available`);
     }
@@ -141,6 +171,13 @@
     const onChange = () => onDeityChosen(deityInput.value);
     deityInput.addEventListener('change', onChange);
     deityInput.addEventListener('input', () => {
+      // Re-narrow the chip wall as the user types — substring filter
+      // matches the spell-picker behavior.
+      if (deityResults) {
+        const browseNames = Array.from(datalist.options).map(o => o.value);
+        deityResults.render(browseNames,
+          { typedFilter: deityInput.value.trim() });
+      }
       if (deityIndex.has(deityInput.value.trim().toLowerCase())) {
         onChange();
       } else if (infoPanel && infoPanel.style.display !== 'none') {

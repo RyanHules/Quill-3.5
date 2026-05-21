@@ -115,31 +115,45 @@
       </div>
     `;
     addBtn.parentElement.insertBefore(wrap, addBtn);
-    wirePicker();
+    wirePicker(wrap);
   }
 
-  function wirePicker() {
+  function wirePicker(wrap) {
     const catSel  = document.getElementById('sap-lookup-category');
     const trickIn = document.getElementById('sap-lookup');
     const info    = document.getElementById('sap-info');
     const addBtn  = document.getElementById('sap-lookup-add');
     const datalist = document.getElementById('sap-trick-options');
 
+    // Shared browsing-chip helper.
+    const results = (typeof PickerResults !== 'undefined' && wrap)
+      ? PickerResults.attach(wrap, {
+          itemNoun: 'skill trick',
+          onPick: (name) => {
+            trickIn.value = name;
+            trickIn.dispatchEvent(new Event('input', { bubbles: true }));
+            trickIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const c = catSel.value;
       datalist.innerHTML = '';
-      let n = 0;
+      const names = [];
       for (const r of trickIndex.values()) {
         if (c && r.category !== c) continue;
         const opt = document.createElement('option');
         opt.value = r.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
-        n++;
+        names.push(r.name);
       }
+      const n = names.length;
       trickIn.placeholder = c
         ? `${n} ${c} skill trick${n === 1 ? '' : 's'}`
         : 'e.g. Acrobatic Backstab';
+      if (results) results.render(names, { typedFilter: trickIn.value.trim() });
     }
 
     function updateInfo() {
@@ -182,7 +196,8 @@
     }
 
     catSel .addEventListener('change', refresh);
-    trickIn.addEventListener('input',  updateInfo);
+    // Typed-name input refreshes BOTH the info panel and the chip wall.
+    trickIn.addEventListener('input',  () => { updateInfo(); refresh(); });
     trickIn.addEventListener('change', updateInfo);
     addBtn .addEventListener('click',  addToSpecials);
 

@@ -249,22 +249,36 @@
     const bindBtn = picker.querySelector('.vp-bind');
     const datalist = picker.querySelector(`#${dlId}`);
 
+    // Shared browsing-chip helper.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          itemNoun: 'vestige',
+          onPick: (name) => {
+            vesIn.value = name;
+            vesIn.dispatchEvent(new Event('input', { bubbles: true }));
+            vesIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const lvl = parseInt(lvlIn.value, 10);
       const wantLevel = Number.isFinite(lvl) && lvl > 0;
       datalist.innerHTML = '';
-      let n = 0;
+      const names = [];
       for (const v of vestigeIndex.values()) {
         if (wantLevel && Number(v.vestige_level) !== lvl) continue;
         const opt = document.createElement('option');
         opt.value = v.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
-        n++;
+        names.push(v.name);
       }
+      const n = names.length;
       vesIn.placeholder = n
         ? `${n} vestige${n === 1 ? '' : 's'}`
         : '(no matches)';
+      if (results) results.render(names, { typedFilter: vesIn.value.trim() });
     }
 
     function updateInfo() {
@@ -295,7 +309,8 @@
     }
 
     lvlIn.addEventListener('input',  () => { refresh(); updateInfo(); });
-    vesIn.addEventListener('input',  updateInfo);
+    // Typing narrows the chip wall via substring filter.
+    vesIn.addEventListener('input',  () => { updateInfo(); refresh(); });
     vesIn.addEventListener('change', updateInfo);
     bindBtn.addEventListener('click', bind);
 

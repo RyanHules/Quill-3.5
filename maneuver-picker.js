@@ -286,6 +286,18 @@
     const addR    = picker.querySelector('.mp-add-readied');
     const datalist = picker.querySelector(`#${dlId}`);
 
+    // Shared browsing-chip helper.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          itemNoun: 'maneuver',
+          onPick: (name) => {
+            manIn.value = name;
+            manIn.dispatchEvent(new Event('input', { bubbles: true }));
+            manIn.focus();
+          },
+        })
+      : null;
+
     function refresh() {
       const disc = discSel.value || '';
       const lvl  = parseInt(lvlIn.value, 10);
@@ -295,15 +307,18 @@
       const filtered = list.filter(m =>
         !wantLevel || Number(m.level) === lvl);
       datalist.innerHTML = '';
+      const names = [];
       for (const m of filtered) {
         const opt = document.createElement('option');
         opt.value = m.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
+        names.push(m.name);
       }
       manIn.placeholder = filtered.length
         ? `${filtered.length} maneuver${filtered.length === 1 ? '' : 's'}`
         : '(no matches)';
+      if (results) results.render(names, { typedFilter: manIn.value.trim() });
     }
 
     function updateInfo() {
@@ -352,7 +367,9 @@
 
     discSel.addEventListener('change', () => { refresh(); updateInfo(); });
     lvlIn.addEventListener('input',   () => { refresh(); updateInfo(); });
-    manIn.addEventListener('input',   updateInfo);
+    // Typed-name input also refreshes the chip wall so it narrows
+    // by substring as the user types.
+    manIn.addEventListener('input',   () => { updateInfo(); refresh(); });
     manIn.addEventListener('change',  updateInfo);
     addK.addEventListener('click', appendToKnown);
     addR.addEventListener('click', appendToReadied);

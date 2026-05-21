@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260521j';
+    window.CACHE_VERSION = '20260521l';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -708,7 +708,11 @@
       // book-filter-ui.js loads at the END (after lookup.js) so its
       // header-button insertion can find #lookup-trigger-btn and
       // slot in immediately to its left.
-      'book-filter.js', 'race-picker.js', 'deity-picker.js',
+      'book-filter.js',
+      // picker-results.js — shared chip-wall browsing aid for every
+      // picker. Must load BEFORE any picker that adopts it.
+      'picker-results.js',
+      'race-picker.js', 'deity-picker.js',
       'template-picker.js', 'class-spell-additions.js',
       'class-variants.js', 'class-picker.js', 'metamagic-catalog.js',
       'spell-picker.js', 'feat-picker.js', 'item-picker.js',
