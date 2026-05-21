@@ -1,12 +1,12 @@
 {
   "char-name": "Dust",
   "char-player": "Ryan",
-  "char-class": "Sha'ir 3 / Durthan 3 / Sand Shaper 1",
+  "char-class": "Sha'ir 3 / Durthan 3 / Sand Shaper 2",
   "char-race": "Earth Mephling",
   "char-type": "Humanoid (Extraplanar)",
   "char-alignment": "True Neutral",
   "char-deity": "",
-  "char-level": "7",
+  "char-level": "8",
   "char-size": "Small",
   "char-age": "66",
   "char-gender": "Female",
@@ -39,12 +39,12 @@
   "wis-race": "",
   "wis-template": "",
   "wis-temp": "7",
-  "cha-score": "17",
+  "cha-score": "18",
   "cha-race": "2",
   "cha-template": "",
   "cha-temp": "",
-  "hp-total": "51",
-  "hp-current": "33",
+  "hp-total": "59",
+  "hp-current": "41",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "0",
@@ -68,13 +68,13 @@
   "ref-magic": "0",
   "ref-misc": "1",
   "ref-temp": "0",
-  "will-base": "5",
+  "will-base": "6",
   "will-magic": "0",
   "will-misc": "3",
   "will-temp": "0",
   "save-conditional": "",
   "init-misc": "0",
-  "bab-1": "3",
+  "bab-1": "4",
   "grapple-misc": "0",
   "spell-resistance": "",
   "attacks": [
@@ -101,14 +101,14 @@
     {
       "className": "Sha'ir",
       "level": 3,
-      "classId": 2649,
+      "classId": 2733,
       "version": "3.5",
       "source": "Dragon Compendium, Volume I"
     },
     {
       "className": "Durthan",
       "level": 3,
-      "classId": 16037,
+      "classId": 16196,
       "version": "3.5",
       "source": "Unapproachable East",
       "advancesTypes": [
@@ -121,10 +121,17 @@
     },
     {
       "className": "Sand Shaper",
-      "level": 1,
-      "classId": 13031,
+      "level": 2,
+      "classId": 13190,
       "version": "3.5",
-      "source": "Sandstorm"
+      "source": "Sandstorm",
+      "advancesTypes": [
+        "arcane"
+      ],
+      "advancesLevels": 1,
+      "advancesTargets": [
+        "Sha'ir"
+      ]
     }
   ],
   "_fractionalBaseBonus": true,
@@ -296,7 +303,7 @@
       "type": "spellcasting",
       "name": "Sha'ir",
       "notes": "Sha'ir",
-      "casterLevel": "6",
+      "casterLevel": "7",
       "ability": "CHA",
       "quickenedThisRound": "0",
       "bonusAbility": "",
@@ -388,11 +395,11 @@
           "used": false
         }
       ],
-      "known-1": "5",
-      "perDay-1": "4",
+      "known-1": "6",
+      "perDay-1": "5",
       "bonus-1": "2",
       "extra-1": "",
-      "used-1": "4",
+      "used-1": "0",
       "knownList-1": [
         "Mage Armor",
         "Nerveskitter",
@@ -433,7 +440,8 @@
           "name": "Summon Desert Ally I",
           "freebie": true,
           "source": "Sand Shaper — Desert Insight"
-        }
+        },
+        "Feather Fall"
       ],
       "preparedList-1": [
         {
@@ -474,7 +482,7 @@
       ],
       "domain-1": "",
       "specialist-1": "",
-      "known-2": "3",
+      "known-2": "4",
       "perDay-2": "4",
       "bonus-2": "1",
       "extra-2": "",
@@ -517,7 +525,8 @@
           "name": "Summon Swarm",
           "freebie": true,
           "source": "Sand Shaper — Desert Insight"
-        }
+        },
+        "Glitterdust"
       ],
       "preparedList-2": [
         {
@@ -548,7 +557,7 @@
       ],
       "domain-2": "",
       "specialist-2": "",
-      "known-3": "2",
+      "known-3": "3",
       "perDay-3": "3",
       "bonus-3": "1",
       "extra-3": "",
@@ -605,7 +614,8 @@
           "name": "Wind Wall",
           "freebie": true,
           "source": "Sand Shaper — Desert Insight"
-        }
+        },
+        "Blink"
       ],
       "preparedList-3": [
         {
@@ -632,18 +642,31 @@
       "domain-3": "",
       "specialist-3": "",
       "known-4": "",
-      "perDay-4": "",
+      "perDay-4": "1",
       "bonus-4": "1",
       "extra-4": "",
       "used-4": "0",
       "knownList-4": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Blast of Sand",
-        "Summon Desert Ally IV",
-        "Wall of Sand",
-        "Wither",
-        "Divine:"
+        {
+          "name": "Blast of Sand",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Summon Desert Ally IV",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Wall of Sand",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Wither",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        }
       ],
       "preparedList-4": [],
       "domain-4": "",
@@ -653,34 +676,16 @@
       "bonus-5": "1",
       "extra-5": "",
       "used-5": "0",
-      "knownList-5": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Choking Sands",
-        "Flaywind Burst",
-        "Flesh to Salt",
-        "Summon Desert Ally V",
-        "Transmute Sand to Stone",
-        "Transmute Stone to Sand",
-        "Divine:"
-      ],
+      "knownList-5": [],
       "preparedList-5": [],
       "domain-5": "",
       "specialist-5": "",
       "known-6": "",
       "perDay-6": "",
-      "bonus-6": "",
+      "bonus-6": "1",
       "extra-6": "",
       "used-6": "0",
-      "knownList-6": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Awaken Sand",
-        "Mummify",
-        "Sandstorm",
-        "Summon Desert Ally VI",
-        "Divine:"
-      ],
+      "knownList-6": [],
       "preparedList-6": [],
       "domain-6": "",
       "specialist-6": "",
@@ -689,13 +694,7 @@
       "bonus-7": "",
       "extra-7": "",
       "used-7": "0",
-      "knownList-7": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Mass Flesh to Salt",
-        "Summon Desert Ally VII",
-        "Divine:"
-      ],
+      "knownList-7": [],
       "preparedList-7": [],
       "domain-7": "",
       "specialist-7": "",
@@ -704,13 +703,7 @@
       "bonus-8": "",
       "extra-8": "",
       "used-8": "0",
-      "knownList-8": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Summon Desert All VIII",
-        "Whirlwind",
-        "Divine:"
-      ],
+      "knownList-8": [],
       "preparedList-8": [],
       "domain-8": "",
       "specialist-8": "",
@@ -719,12 +712,7 @@
       "bonus-9": "",
       "extra-9": "",
       "used-9": "0",
-      "knownList-9": [
-        "Arcane:",
-        "Sand Shaper Bonus:",
-        "Summon Desert Ally IX",
-        "Divine:"
-      ],
+      "knownList-9": [],
       "preparedList-9": [],
       "domain-9": "",
       "specialist-9": ""
@@ -732,10 +720,10 @@
   ],
   "feats": [
     "Touchstone (City of the Dead)\n+1 Insight to Cha-based skill checks\n+1 vs SR",
-    "Extend Spell",
     "Improved Counterspell",
     "Iron Will",
-    "Spell Penetration"
+    "Spell Penetration",
+    "Fiery Spell"
   ],
   "specialAbilities": [
     "Sand Shape (Sp):\nYou can magically sculpt the soil of the waste into any solid object you can imagine, provided you have access to a sufficient quantity of the appropriate soil and you can successfully make a caster level check. The DC is determined by the size and complexity of the item.\nEach attempt to create an item requires a number of minutes equal to the DC. You can take 10 on this check. Created items persist for 10 minutes per sand shaper level, and can only be solid objects; you cannot use this ability to create liquids, gases, or living matter. The objects created have no magical properties, though they radiate faint transmutation magic.\nYou can maintain a number of objects equal to your sand shaper level. If you create an additional item, the item that has been in existence the longest reverts back to sand. Items you create otherwise persist for the duration of this use of the ability, regardless of their distance from you. If you use alchemical shapesand to create an item, you do not count that item against your limit, in addition to the other benefits provided by shapesand.\nAll items created in this fashion have hardness 5 and hit points according to their size: Fine 1; Diminutive 2; Tiny 3; Small 5; Medium 8; Large 10; Huge 15; Gargantuan 20; Colossal 25.\nDCs:\nItem Size             DC\n1 cu. ft. or less      –5\n1.1–2.0 cu. ft.        0\n2.1–4.0 cu. ft.        5\n4.1–8.0 cu. ft.        10\n8.1–12.0 cu. ft.      15\n12.1–16.0 cu. ft.    20\n16.1–24.0 cu. ft.    25\n24.1–30.0 cu. ft.    30\nItem Complexity   Modifier\nFine details           +2\nFunctioning tool   +2\nFunctioning armor/weapon +5\nMultiple parts        +5\nMasterwork version +10\nMoving parts         +10",
@@ -743,13 +731,19 @@
     "[Sha'ir 3] Recognize genie works",
     "[Durthan 1] Place magic",
     "[Durthan 3] Telthor companion",
-    "[Sand Shaper 1] Desert insight",
-    "[Sand Shaper 1] dust magic",
     "Humanoid (Extraplanar): Native to the Elemental Plane of Earth. Gain extraplanar subtype when not on their home plane.",
     "Small size: +1 to AC, +1 on attack rolls, +4 on Hide checks. Smaller weapons; carrying limits 3/4 of a Medium creature.",
     "Breath Weapon (Su): 15-foot cone of rock shards and pebbles dealing 1d8 bludgeoning damage; Reflex DC 10 + 1/2 HD + Con mod for half. 1/day at 1st level, +1 use per 4 levels.",
     "Casts spells with the earth descriptor at +1 caster level.",
-    "Collector of Stories · Mental skill trick\nWhen you attempt a trained Knowledge check to identify a creature or learn its special powers or vulnerabilities, you gain a +5 competence bonus on the check."
+    "Collector of Stories · Mental skill trick\nWhen you attempt a trained Knowledge check to identify a creature or learn its special powers or vulnerabilities, you gain a +5 competence bonus on the check.",
+    "[Sand Shaper 1] Desert insight",
+    "[Sand Shaper 1] dust magic",
+    "[Sand Shaper 1] sand shape",
+    "[Sand Shaper 2] Sandform",
+    "[Sand Shaper 1] Desert insight",
+    "[Sand Shaper 1] dust magic",
+    "[Sand Shaper 1] sand shape",
+    "[Sand Shaper 2] Sandform"
   ],
   "languages": "Common, Terran, Ignan",
   "companions": [
@@ -774,7 +768,7 @@
       "comp-wis-boost": "",
       "comp-cha-score": "10",
       "comp-cha-boost": "",
-      "compHpMax": "25",
+      "compHpMax": "29",
       "compHpCur": "25",
       "compSpeed": "20 (L), 60 (F, P)",
       "compInitMisc": "1",
@@ -971,7 +965,7 @@
       "skillRanksInItem": [
         {
           "skill": "Diplomacy",
-          "ranks": 9
+          "ranks": 10
         },
         {
           "skill": "Knowledge(Nature)",
@@ -988,18 +982,22 @@
         {
           "skill": "Knowledge (Durthan Area)",
           "ranks": 2
+        },
+        {
+          "skill": "Bluff",
+          "ranks": 5
         }
       ],
       "skillBonusesApplied": [
         {
           "skill": "Diplomacy",
-          "bonus": 8
+          "bonus": 10
         }
       ],
       "spellSlotsInvested": [
         {
           "class": "Sha'ir",
-          "invested": 3
+          "invested": 4
         }
       ],
       "sapienceUnlocked": true,
@@ -1036,7 +1034,8 @@
     "caster:known-full:Sha'ir:3",
     "caster:prepared-full:Sha'ir:0",
     "caster:prepared-full:Sha'ir:2",
-    "caster:prepared-full:Sha'ir:3"
+    "caster:prepared-full:Sha'ir:3",
+    "caster:prepared-full:Sha'ir:1"
   ],
   "history": [
     {
@@ -1074,7 +1073,7 @@
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [
-        "Extend Spell"
+        "Fiery Spell"
       ],
       "spells_learned": [],
       "spells_unlearned": [],
@@ -1107,8 +1106,8 @@
     },
     {
       "level": 6,
-      "class_taken": "Durthan",
-      "hp_rolled": 3,
+      "class_taken": "Sand Shaper",
+      "hp_rolled": 4,
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [
@@ -1121,9 +1120,21 @@
     },
     {
       "level": 7,
+      "class_taken": "Durthan",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 8,
       "class_taken": "Sand Shaper",
       "hp_rolled": 4,
-      "ability_boost": null,
+      "ability_boost": "CHA",
       "skills_purchased": {},
       "feats_taken": [],
       "spells_learned": [],
@@ -1174,7 +1185,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "5",
       "misc": "0",
       "index": 2
     },
@@ -1215,7 +1226,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "9",
+      "ranks": "10",
       "misc": "3",
       "index": 7,
       "notes": "Spell Retrieval:\nModifiers to Diplomacy Check (Base DC 20):\n+1 per sha'ir level\n+2 for known arcane spell\n-2 per level of spell\n-6 for unknown divine spell\n-1 per +1 lvl from metamagic\n-2 per attempt after a failed check (resets the next day)\n\nDelay:\n-Known Arcane Spell: d4+ spell level rounds\n-Unknown Arcane Spell: d6+ spell level minutes\n-Divine Spell: d6 + spell level hours"

@@ -773,6 +773,14 @@
       if (full.components)    bits.push(`<b>Components:</b> ${escapeHtml(full.components)}`);
       if (full.casting_time)  bits.push(`<b>Cast:</b> ${escapeHtml(full.casting_time)}`);
       if (full.range)         bits.push(`<b>Range:</b> ${escapeHtml(full.range)}`);
+      // Target / Effect / Area — per PHB spell-block convention these
+      // sit between Range and Duration. RAW each spell uses exactly
+      // ONE of the three (mutually exclusive), but render all that are
+      // present so the picker handles legitimate edge cases (e.g.
+      // teleportation circles that print both Target and Effect).
+      if (full.target)        bits.push(`<b>Target:</b> ${escapeHtml(full.target)}`);
+      if (full.effect)        bits.push(`<b>Effect:</b> ${escapeHtml(full.effect)}`);
+      if (full.area)          bits.push(`<b>Area:</b> ${escapeHtml(full.area)}`);
       if (full.duration)      bits.push(`<b>Duration:</b> ${escapeHtml(full.duration)}`);
       if (full.saving_throw)  bits.push(`<b>Save:</b> ${escapeHtml(full.saving_throw)}`);
       if (full.spell_resistance) bits.push(`<b>SR:</b> ${escapeHtml(full.spell_resistance)}`);

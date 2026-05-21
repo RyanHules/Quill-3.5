@@ -582,6 +582,44 @@
     expect(freebies.length, 14, 'M9: 14 freebies (L1-L2 only)');
   });
 
+  regression("M9b: Desert Insight unlocks new freebies when target caster levels up", async () => {
+    // The bug: applyClassSpellAdditions only fired when the granting
+    // class (Sand Shaper) itself was (re-)applied. So if you applied
+    // Sand Shaper while your wizard was still too low to cast L3, then
+    // later leveled the wizard up to unlock L3 — the L3 desert spells
+    // (Control Sand / Haboob / Slipsand etc.) never appeared. Fix:
+    // refreshAllSpellTabs re-fires applyClassSpellAdditions for every
+    // CATALOG-listed class at the end of its pass, so a level-up of
+    // any class triggers the freebie expansion.
+    await newCharacter();
+    setAbilities({ CHA: 14, INT: 14 });
+    // Wizard 4 + Sand Shaper 1 → CL 5 → max castable L3 (since wiz
+    // L5 spells unlock at CL 9). Sand Shaper L1 doesn't advance.
+    // Wiz 4 casts up to L2. So freebies should be L1+L2 only at this
+    // point: 7 + 7 = 14.
+    await applyClass('Wizard', 4);
+    await applyClass('Sand Shaper', 1);
+    let freebies = $$('#spells-content .sc-known-row[data-freebie="1"]');
+    expect(freebies.length, 14, 'M9b: 14 freebies before wizard levels up');
+    // Level the wizard up to 5 → casts L3 spells now. The L3 Desert
+    // Insight spells (Control Sand, Desiccate, Dispel Magic, Dominate
+    // Animal, Haboob, Slipsand, Summon Desert Ally III, Sunstroke,
+    // Tormenting Thirst, Wind Wall = 10 spells) should appear.
+    await applyClass('Wizard', 5);
+    freebies = $$('#spells-content .sc-known-row[data-freebie="1"]');
+    expect(freebies.length, 24,
+      'M9b: 24 freebies after wizard levels up to L3 access (was 14 pre-fix)');
+    // Confirm the L3 row has the expected spell, not just a count.
+    const l3Names = [
+      ...$$('#spells-content .sc-known-list[data-lvl="3"] '
+            + '.sc-known-row[data-freebie="1"] .sc-known-name')
+    ].map(el => (el.value || '').trim().toLowerCase());
+    if (!l3Names.includes('haboob')) {
+      fail('M9b: expected Haboob in L3 freebies after wizard level-up; got ' +
+           JSON.stringify(l3Names));
+    }
+  });
+
   // ---- Save-stability regressions (2026-05-17 sweep) -----------------
   //
   // Each fix in the save-stability sweep gets a regression here that

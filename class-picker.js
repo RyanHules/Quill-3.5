@@ -2420,6 +2420,28 @@
     }
     // Refresh each applied ToB base class's maneuver panel IL.
     refreshAllManeuverTabs();
+
+    // Re-fire class-spell-additions (Sand Shaper's Desert Insight, etc.)
+    // for every applied class that has a CATALOG entry. Needed for the
+    // case where the freebies' target panel's max-castable level moves
+    // UP after the granting class was first applied — e.g. a Sand
+    // Shaper 1 / Wizard 4 player levels the wizard to 5, unlocking L3
+    // spells on the wizard panel. Without this pass the L3 Desert
+    // Insight spells (control sand, haboob, etc.) never get added
+    // because applyClassSpellAdditions only fires on apply / re-apply
+    // of the granting class itself.
+    //
+    // The function is idempotent — applyFeaturesToPanel dedupes by
+    // spell name within each level — so this is safe to call on every
+    // spell-tab refresh. Filtered to CATALOG-listed classes so the
+    // overhead is zero for characters without one of these classes.
+    if (typeof ClassSpellAdditions !== 'undefined') {
+      for (const e of pickedClasses) {
+        if (!e.className) continue;
+        if (!ClassSpellAdditions.getFeatures(e.className).length) continue;
+        applyClassSpellAdditions(e);
+      }
+    }
   }
 
   // Resolve maneuverAdvancesTarget for a freshly-applied or reloaded
