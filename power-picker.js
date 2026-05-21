@@ -23,6 +23,84 @@
   let classNames = [];
   let datalistCounter = 0;
 
+  // Categorize each "class" key in entry.data.level into one of three
+  // buckets so the picker's Class dropdown groups by kind. Without
+  // this, the 35 keys (3 base classes + 6 Psion disciplines + 26
+  // Ardent mantles) sort alphabetically into one flat list — Psychic
+  // Warrior ends up below dozens of mantles, making the dropdown
+  // look like a tags / descriptors list and burying the real classes.
+  //
+  // Sources:
+  //   - Base classes: XPH (Psion/Wilder + Psychic Warrior) + CPsi
+  //     (Lurk + Ardent + Divine Mind + Erudite). Ardent / Divine
+  //     Mind / Erudite don't have direct keys in entry.data.level
+  //     because they manifest via mantles or borrow another class's
+  //     list — see COMPOSITE_POWER_LISTS below for the routing.
+  //   - Psion disciplines: XPH p.17 — the six Psion specializations.
+  //   - Mantles: Complete Psionic — Ardent's mantle list, also
+  //     accessible to Divine Mind via the Divine Mind mantle pool.
+  const POWER_CLASS_CATEGORIES = {
+    classes: new Set([
+      'Psion/Wilder', 'Psychic Warrior', 'Lurk',
+      'Ardent', 'Divine Mind', 'Erudite',
+    ]),
+    disciplines: new Set([
+      'Egoist', 'Kineticist', 'Nomad', 'Seer', 'Shaper', 'Telepath',
+    ]),
+    // Mantles = everything else (computed at index time).
+  };
+
+  function categorizePowerClassKey(key) {
+    if (POWER_CLASS_CATEGORIES.classes.has(key)) return 'classes';
+    if (POWER_CLASS_CATEGORIES.disciplines.has(key)) return 'disciplines';
+    return 'mantles';
+  }
+
+  // Composite power lists — classes whose "list" is a union of other
+  // class/discipline/mantle keys rather than their own tagged entries
+  // in entry.data.level. Mirrors COMPOSITE_LISTS in spell-picker.js
+  // (Sha'ir). When the user picks a composite class, the picker
+  // fans out across the listed keys and dedupes by power name.
+  //
+  // - Ardent (Complete Psionic): picks 2 mantles at L1, +1 per 3
+  //   levels — the full Ardent list is the union of ALL 26 mantles.
+  // - Divine Mind (Complete Psionic): picks 1 mantle from a deity-
+  //   restricted Table 1-4 list, gains a second at L6 and third at
+  //   L12. Practically every mantle is accessible to SOME divine
+  //   mind via SOME deity, so we surface the full pool here and let
+  //   the player narrow by mantle in the picker if they want.
+  // - Erudite (Complete Psionic): "knows" any Psion power via the
+  //   Psion/Wilder list (with the unique-power schools-from-class
+  //   restriction enforced elsewhere). Picker just surfaces the
+  //   Psion list.
+  //
+  // Filled at index time so unknown mantles introduced by future
+  // splats automatically flow into the Ardent / Divine Mind pools.
+  const COMPOSITE_POWER_LISTS = {
+    'Ardent':      { from: 'mantles' },
+    'Divine Mind': { from: 'mantles' },
+    'Erudite':     { from: ['Psion/Wilder'] },
+  };
+
+  // Resolve a class key (possibly composite) into the concrete list
+  // of underlying keys to query. Returns the input key itself for
+  // non-composite classes.
+  function expandPowerClassKey(key) {
+    const spec = COMPOSITE_POWER_LISTS[key];
+    if (!spec) return [key];
+    if (Array.isArray(spec.from)) return spec.from.slice();
+    if (spec.from === 'mantles') {
+      // Every key NOT in classes-or-disciplines is a mantle by
+      // construction (see categorizePowerClassKey).
+      const out = [];
+      for (const k of byClass.keys()) {
+        if (categorizePowerClassKey(k) === 'mantles') out.push(k);
+      }
+      return out;
+    }
+    return [key];
+  }
+
   function rebuildIndex() {
     const rows = DB.query(
       "SELECT id AS power_id, name, source, version, discipline, "
@@ -83,11 +161,45 @@
 
   function init() {
     rebuildIndex();
+    buildGlobalPowerDatalist();
     observePanels();
     // Per-panel pickers read from byClass at refresh time, so simply
     // rebuilding the index here is enough — next time the user touches
-    // a class/level filter the new options will materialize.
-    document.addEventListener('book-filter-changed', rebuildIndex);
+    // a class/level filter the new options will materialize. Also
+    // re-emit the global datalist so the structured-row autocomplete
+    // honors the new filter.
+    document.addEventListener('book-filter-changed', () => {
+      rebuildIndex();
+      buildGlobalPowerDatalist();
+    });
+  }
+
+  // Global #power-options datalist with every power name in the DB.
+  // Used by the structured Known list's row inputs (created in
+  // spells.js::createPsiKnownRow with `list="power-options"`) so the
+  // user gets autocomplete when typing directly into a row instead
+  // of going through the picker bar. Mirrors spell-picker.js's
+  // buildGlobalSpellDatalist; sits at ~430 <option>s, well below the
+  // size threshold where datalists become sluggish.
+  function buildGlobalPowerDatalist() {
+    const prior = document.getElementById('power-options');
+    if (prior) prior.remove();
+    const dl = document.createElement('datalist');
+    dl.id = 'power-options';
+    const seen = new Set();
+    // Iterate the already-built powerIndex so the dedup + book-filter
+    // logic from rebuildIndex carries through without another query.
+    for (const rec of powerIndex.values()) {
+      const key = rec.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const opt = document.createElement('option');
+      opt.value = rec.name;
+      // No `label` — Firefox renders labels as visible suggestion
+      // text in datalists (see CLAUDE.md datalist note).
+      dl.appendChild(opt);
+    }
+    document.body.appendChild(dl);
   }
 
   function observePanels() {
@@ -104,6 +216,51 @@
       if (panel.querySelector('.power-picker')) continue;
       injectPicker(panel);
     }
+  }
+
+  // Render the Class dropdown's <option>s as three <optgroup>s
+  // (Classes / Disciplines / Mantles). Each group is alphabetized
+  // within itself so the user can scan quickly. Empty groups are
+  // skipped — e.g. a campaign with the Complete Psionic book
+  // filtered out won't render the Mantles group at all.
+  //
+  // Composite classes (Ardent / Divine Mind / Erudite) don't appear
+  // as keys in byClass — their lists are built by union over other
+  // keys at query time — so we splice them into the Classes group
+  // manually, gated on at least one of their underlying keys being
+  // present in the current book-filter view.
+  function renderClassOptions() {
+    const grouped = { classes: [], disciplines: [], mantles: [] };
+    for (const name of classNames) {
+      grouped[categorizePowerClassKey(name)].push(name);
+    }
+    // Splice in composite classes IF their underlying pool has any
+    // entries — keeps a Complete-Psionic-disabled campaign from
+    // showing dead-end "Ardent" options.
+    for (const compName of Object.keys(COMPOSITE_POWER_LISTS)) {
+      const expanded = expandPowerClassKey(compName);
+      const reachable = expanded.some(k => byClass.has(k));
+      if (reachable && !grouped.classes.includes(compName)) {
+        grouped.classes.push(compName);
+      }
+    }
+    const labels = {
+      classes:     'Classes',
+      disciplines: 'Psion Disciplines',
+      mantles:     'Ardent / Divine Mind Mantles',
+    };
+    const html = [];
+    for (const k of ['classes', 'disciplines', 'mantles']) {
+      if (!grouped[k].length) continue;
+      html.push(`<optgroup label="${escapeAttr(labels[k])}">`);
+      for (const name of grouped[k].sort()) {
+        html.push(
+          `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`
+        );
+      }
+      html.push('</optgroup>');
+    }
+    return html.join('');
   }
 
   function injectPicker(panel) {
@@ -125,9 +282,7 @@
           <label>Class</label>
           <select class="pp-class">
             <option value="">(any)</option>
-            ${classNames.map(c =>
-              `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`
-            ).join('')}
+            ${renderClassOptions()}
           </select>
         </div>
         <div class="field field-sm" style="width:5rem">
@@ -165,11 +320,23 @@
       const cls = classSel.value;
       const lvl = parseInt(lvlIn.value, 10);
       const wantLevel = Number.isFinite(lvl) && lvl > 0;
-      let items;
       if (cls) {
-        items = (byClass.get(cls) || []).slice();
-        if (wantLevel) items = items.filter(x => x.level === lvl);
-        return items.map(x => ({ rec: x.rec, level: x.level }));
+        // Composite classes (Ardent / Divine Mind / Erudite) fan
+        // out across their underlying keys; native classes just
+        // return their own bucket. Dedup by power id so a single
+        // mantle-shared power doesn't show up twice for Ardent.
+        const keys = expandPowerClassKey(cls);
+        const seen = new Set();
+        const items = [];
+        for (const key of keys) {
+          for (const entry of (byClass.get(key) || [])) {
+            if (wantLevel && entry.level !== lvl) continue;
+            if (seen.has(entry.rec.id)) continue;
+            seen.add(entry.rec.id);
+            items.push({ rec: entry.rec, level: entry.level });
+          }
+        }
+        return items;
       }
       // No class filter: list all powers; if a level was given, pick
       // the minimum level for each power that matches.
@@ -219,7 +386,20 @@
       let lvl;
       if (cls && rec.levelMap[cls] !== undefined) {
         lvl = Number(rec.levelMap[cls]);
-      } else {
+      } else if (cls && COMPOSITE_POWER_LISTS[cls]) {
+        // Composite class (Ardent / Divine Mind / Erudite): the
+        // selected class isn't a key in rec.levelMap, but one of its
+        // underlying keys is. Pick the LOWEST level across all
+        // composite keys the power appears on — matches RAW for
+        // Ardent who picks the lowest mantle-level of a power
+        // available in her mantle list.
+        const keys = expandPowerClassKey(cls);
+        const candidates = keys
+          .filter(k => rec.levelMap[k] !== undefined)
+          .map(k => Number(rec.levelMap[k]));
+        if (candidates.length) lvl = Math.min(...candidates);
+      }
+      if (lvl === undefined) {
         const userLvl = parseInt(lvlIn.value, 10);
         const lvls = Object.values(rec.levelMap || {}).map(Number);
         lvl = Number.isFinite(userLvl) && lvls.includes(userLvl)
@@ -227,18 +407,36 @@
           : (lvls.length ? Math.min(...lvls) : 1);
       }
       if (!Number.isFinite(lvl) || lvl < 1) return;
-      // Add new level row if missing (existing add-level button is
-      // .psi-add-level — click it until we have enough levels).
-      let ta = panel.querySelector(`.psi-power-text[data-lvl="${lvl}"]`);
+      // Ensure the level's Known list exists — click "+ Add Power
+      // Level" until the level is in range. The .psi-add-level
+      // button is the original "+ Add Power Level" control on the
+      // PP-costs/DCs side.
+      let listEl = panel.querySelector(
+        `.psi-known-list[data-lvl="${lvl}"]`);
       let safety = 0;
-      while (!ta && safety++ < 10) {
+      while (!listEl && safety++ < 10) {
         const addBtn = panel.querySelector('.psi-add-level');
         if (!addBtn) break;
         addBtn.click();
-        ta = panel.querySelector(`.psi-power-text[data-lvl="${lvl}"]`);
+        listEl = panel.querySelector(
+          `.psi-known-list[data-lvl="${lvl}"]`);
       }
-      if (!ta) return;
-      appendLine(ta, rec.name);
+      if (!listEl) return;
+      // Dedup: don't append if a row with this power name already
+      // exists at this level (case-insensitive).
+      const wantedName = rec.name.toLowerCase();
+      const existing = [...listEl.querySelectorAll('.psi-known-name')]
+        .some(el => (el.value || '').trim().toLowerCase() === wantedName);
+      if (existing) return;
+      // Prefer the structured-row API if spells.js exposes it;
+      // gracefully degrade to the legacy textarea otherwise (e.g. if
+      // a future caster panel reverts the structural change).
+      if (typeof Spells?.addKnownPower === 'function') {
+        Spells.addKnownPower(listEl, lvl, rec.name);
+      } else {
+        const ta = panel.querySelector(`.psi-power-text[data-lvl="${lvl}"]`);
+        if (ta) appendLine(ta, rec.name);
+      }
     }
 
     classSel.addEventListener('change', () => { refresh(); updateInfo(); });
