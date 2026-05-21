@@ -926,7 +926,18 @@
 
     function refreshMetamagicRow() {
       const feats = readCharacterMetamagicFeats();
-      if (!feats.length) {
+      // When the panel has "Show Prepared" turned off (typical for
+      // spontaneous casters — Sorcerer/Bard/Sha'ir/etc.), there's
+      // nowhere visible for a metamagic-tagged spell to land: + Prepared
+      // would still drop it into the (hidden) prepared list, and the
+      // user would correctly conclude that "the tickboxes don't do
+      // anything". Hide the metamagic row + the + Prepared button
+      // entirely in that case so the picker matches what the panel
+      // actually shows. The Show-Prepared listener below re-fires
+      // this method when the user toggles the column back on.
+      const prepHidden = panel.classList.contains('sc-no-prepared');
+      addPrep.style.display = prepHidden ? 'none' : '';
+      if (!feats.length || prepHidden) {
         mmWrap.style.display = 'none';
         mmOpts.innerHTML = '';
         mmEff.textContent = '';
@@ -1087,6 +1098,14 @@
     document.addEventListener('input', (e) => {
       if (e.target?.closest?.('#feats-container')) refreshMetamagicRow();
     });
+    // When the user flips the panel's Show Prepared toggle on/off, the
+    // picker needs to re-evaluate whether to surface + Prepared and
+    // the metamagic row. Listen on the panel for the toggle's change
+    // event — the toggle is .sc-show-prepared in spells.js.
+    const prepToggle = panel.querySelector('.sc-show-prepared');
+    if (prepToggle) {
+      prepToggle.addEventListener('change', refreshMetamagicRow);
+    }
     // Initial render.
     refreshMetamagicRow();
 
@@ -1122,8 +1141,18 @@
       }
 
       // Metamagic ignored for Known — you learn / scribe the base
-      // spell. Apply at cast/prep time.
+      // spell. Apply at cast/prep time. Surface a one-shot flash if
+      // the user has metamagic ticked + clicks + Known so they don't
+      // assume the tickboxes are broken — common confusion path
+      // (reported 2026-05-21 against the spell picker).
       if (kind === 'known') {
+        const hasTickedMetamagic = mmOpts &&
+          mmOpts.querySelector('.sp-mm-check:checked');
+        if (hasTickedMetamagic) {
+          flash('Metamagic applies at prep / cast time, not when ' +
+                'scribing — added base spell. Use "+ Prepared" to ' +
+                'lock in a metamagic-ed cast.', '#aa8');
+        }
         const target = panel.querySelector(`.sc-known-list[data-lvl="${baseLvl}"]`);
         if (!target) {
           flash(`No level ${baseLvl} list — try Add Spell Level first.`, '#a66');
