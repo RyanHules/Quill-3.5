@@ -35,7 +35,10 @@
 (function () {
   // -- Small helpers (mirrored from the rest of the project) ----------
   function esc(s) {
-    return String(s || "")
+    // Use nullish-check, not falsy: numeric 0 is a meaningful value
+    // (a deliberately-zero price, weight, or invested-slot count) and
+    // would otherwise serialize to empty, wiping the user's input.
+    return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
       .replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
@@ -128,7 +131,7 @@
         </div>
         <div class="field field-sm"><label>Base Price (gp)</label>
           <input type="number" class="ifam-item-price" min="2000"
-                 value="${esc(d.ifamItemPrice || "")}"
+                 value="${esc(d.ifamItemPrice ?? "")}"
                  title="Must be ≥2,000 gp (UA p.170).">
         </div>
         <div class="field field-sm"><label>Weight (lb)</label>
