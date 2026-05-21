@@ -926,18 +926,24 @@
 
     function refreshMetamagicRow() {
       const feats = readCharacterMetamagicFeats();
-      // When the panel has "Show Prepared" turned off (typical for
-      // spontaneous casters — Sorcerer/Bard/Sha'ir/etc.), there's
-      // nowhere visible for a metamagic-tagged spell to land: + Prepared
-      // would still drop it into the (hidden) prepared list, and the
-      // user would correctly conclude that "the tickboxes don't do
-      // anything". Hide the metamagic row + the + Prepared button
-      // entirely in that case so the picker matches what the panel
-      // actually shows. The Show-Prepared listener below re-fires
-      // this method when the user toggles the column back on.
-      const prepHidden = panel.classList.contains('sc-no-prepared');
-      addPrep.style.display = prepHidden ? 'none' : '';
-      if (!feats.length || prepHidden) {
+      // Metamagic UI stays visible regardless of the Show Prepared
+      // toggle — spontaneous casters (Sorcerer / Sha'ir / Bard) DO
+      // apply metamagic, RAW just doesn't pre-allocate it to slots
+      // (decided at cast time). The picker tickboxes are useful as
+      // a slot-cost calculator regardless of the panel's prep mode,
+      // and the + Prepared button is useful for users who want the
+      // prepared list as a planning aid (toggling Show Prepared
+      // back on is a one-click affordance). An earlier iteration
+      // hid the whole metamagic UI when Show Prepared was off —
+      // protected against the "tick → invisible row" footgun, but
+      // OVERCORRECTED — users with metamagic feats then had no way
+      // to apply them at all on spontaneous-caster panels.
+      //
+      // Mitigation for the invisible-row footgun: the + Prepared
+      // click handler (in add() below) now auto-toggles Show
+      // Prepared ON when the user clicks it while the column is
+      // hidden, so the resulting row is always visible.
+      if (!feats.length) {
         mmWrap.style.display = 'none';
         mmOpts.innerHTML = '';
         mmEff.textContent = '';
@@ -1182,6 +1188,25 @@
       // structural restructure (2026-05-19): route through
       // Spells.addPreparedSpell so the resulting row carries its
       // metamagic state for later edit/round-trip.
+      //
+      // Spontaneous casters (Sorcerer / Sha'ir / Bard) typically
+      // have "Show Prepared" toggled OFF — the prepared list is
+      // hidden via CSS (sc-no-prepared). If the user clicks +
+      // Prepared while it's hidden, the new row would land in the
+      // invisible list — they'd see nothing happen and conclude the
+      // tickboxes are broken. Auto-toggle Show Prepared ON when
+      // we're about to add to a hidden list, so the result is
+      // immediately visible. Flash a brief tip so the side-effect
+      // is explicit, not surprising.
+      if (panel.classList.contains('sc-no-prepared')) {
+        const tog = panel.querySelector('.sc-show-prepared');
+        if (tog) {
+          tog.checked = true;
+          tog.dispatchEvent(new Event('change', { bubbles: true }));
+          flash('Auto-opened the Prepared column to show the result.',
+                '#aa8');
+        }
+      }
       const r = effectiveMetamagic(baseLvl);
       const lvl = r.parts.length > 0 ? r.effectiveLevel : baseLvl;
       const listEl = panel.querySelector(`.sc-prepared-list[data-lvl="${lvl}"]`);
