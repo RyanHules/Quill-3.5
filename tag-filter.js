@@ -34,12 +34,23 @@
 (function () {
   'use strict';
 
-  const CHIP_STYLE =
+  // Positive chip — "this tag must match"
+  const CHIP_STYLE_POS =
     'display:inline-flex; align-items:center; gap:0.25rem; ' +
     'padding:0.1rem 0.4rem; margin:0.1rem; ' +
     'background:rgba(106,138,170,0.25); ' +
     'border:1px solid rgba(106,138,170,0.5); border-radius:3px; ' +
     'font-size:0.85em; line-height:1.4;';
+  // Negated chip — "this tag must NOT match". Red-ish to signal
+  // exclusion semantics at a glance.
+  const CHIP_STYLE_NEG =
+    'display:inline-flex; align-items:center; gap:0.25rem; ' +
+    'padding:0.1rem 0.4rem; margin:0.1rem; ' +
+    'background:rgba(170,80,80,0.22); ' +
+    'border:1px solid rgba(190,100,100,0.55); border-radius:3px; ' +
+    'font-size:0.85em; line-height:1.4;';
+  const CHIP_TEXT_STYLE =
+    'cursor:pointer; user-select:none;';
   const CHIP_X_STYLE =
     'background:none; border:none; color:#cde; cursor:pointer; ' +
     'padding:0 0.15rem; font-size:1em; line-height:1;';
@@ -77,7 +88,11 @@
     const tagCounts = new Map();
     for (const [name, count] of tagPool) tagCounts.set(name, count || 0);
 
-    const selected = new Set();
+    // Map: tag-name → { negated: bool }. Insertion order preserved
+    // so chips render left-to-right in the order the user added them.
+    // A "negated" entry means the picker should EXCLUDE matching
+    // entries (e.g. NOT spell-resistance = ignores SR).
+    const selected = new Map();
     let activeIdx = -1;  // highlighted autocomplete row
 
     // -- DOM scaffold ---------------------------------------------------
@@ -136,11 +151,17 @@
     function renderChips() {
       // Wipe existing chips (keep the modeBtn + input).
       chipsEl.innerHTML = '';
-      for (const name of selected) {
+      for (const [name, meta] of selected) {
+        const negated = !!meta.negated;
         const chip = document.createElement('span');
-        chip.style.cssText = CHIP_STYLE;
+        chip.style.cssText = negated ? CHIP_STYLE_NEG : CHIP_STYLE_POS;
         const txt = document.createElement('span');
-        txt.textContent = name;
+        txt.style.cssText = CHIP_TEXT_STYLE;
+        txt.textContent = negated ? `NOT ${name}` : name;
+        txt.title = negated
+          ? `Excluded. Click to include "${name}" instead.`
+          : `Included. Click to exclude "${name}" instead.`;
+        txt.addEventListener('click', () => toggleNegation(name));
         chip.appendChild(txt);
         const x = document.createElement('button');
         x.type = 'button';
@@ -151,9 +172,11 @@
         chip.appendChild(x);
         chipsEl.appendChild(chip);
       }
-      // Mode toggle is visible only when 2+ tags selected — with one
-      // tag the choice doesn't matter.
-      modeBtn.style.display = selected.size >= 2 ? '' : 'none';
+      // AND/OR toggle is only meaningful when 2+ POSITIVE chips are
+      // present — with one positive (or all negative) the choice is
+      // moot. Hide otherwise to keep the UI quiet.
+      const positives = [...selected.values()].filter(m => !m.negated).length;
+      modeBtn.style.display = positives >= 2 ? '' : 'none';
     }
 
     function renderDropdown() {
@@ -202,7 +225,7 @@
     function addTag(name) {
       if (!tagCounts.has(name)) return;     // unknown tag
       if (selected.has(name)) return;        // already added
-      selected.add(name);
+      selected.set(name, { negated: false });
       input.value = '';
       activeIdx = -1;
       renderChips();
@@ -216,6 +239,14 @@
       // If dropdown is open, refresh so the newly-removed tag
       // reappears as a suggestion.
       if (dropdown.style.display === 'block') renderDropdown();
+      onChange();
+    }
+
+    function toggleNegation(name) {
+      const meta = selected.get(name);
+      if (!meta) return;
+      meta.negated = !meta.negated;
+      renderChips();
       onChange();
     }
 
@@ -268,8 +299,8 @@
       } else if (ev.key === 'Backspace' && !input.value && selected.size) {
         // Backspace on empty input removes the most-recently-added
         // chip — standard chip-input UX.
-        const last = [...selected].pop();
-        removeTag(last);
+        const lastKey = [...selected.keys()].pop();
+        removeTag(lastKey);
       } else if (ev.key === ',' || ev.key === 'Tab') {
         // Comma / Tab also commit the highlighted suggestion. Comma
         // is intuitive for chip lists; Tab is the keyboard-equivalent
@@ -295,12 +326,32 @@
     // -- Public API -----------------------------------------------------
 
     return {
-      getSelected: () => [...selected],
+      // Returns positive (non-negated) tag names only — matches the
+      // pre-NOT API for legacy callers. Use getEntries() for the
+      // full picture including negation state.
+      getSelected: () => [...selected.entries()]
+        .filter(([, m]) => !m.negated)
+        .map(([n]) => n),
+      // Returns negated tag names — the "must NOT match" list.
+      getExcluded: () => [...selected.entries()]
+        .filter(([, m]) => m.negated)
+        .map(([n]) => n),
+      // Full state: [{name, negated}, …] in user-added order.
+      getEntries: () => [...selected.entries()]
+        .map(([name, m]) => ({ name, negated: !!m.negated })),
       getMode: () => combineMode,
       hasFilter: () => selected.size > 0,
       setSelected: (names) => {
+        // Accepts either array of strings (legacy) OR array of
+        // {name, negated} objects. Strings default to non-negated.
         selected.clear();
-        for (const n of (names || [])) if (tagCounts.has(n)) selected.add(n);
+        for (const item of (names || [])) {
+          const n = (typeof item === 'string') ? item : item.name;
+          if (!tagCounts.has(n)) continue;
+          selected.set(n, {
+            negated: typeof item === 'object' ? !!item.negated : false,
+          });
+        }
         renderChips();
         onChange();
       },

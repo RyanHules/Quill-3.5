@@ -130,28 +130,39 @@
       .some(t => t && t.toLowerCase() === chosenType.toLowerCase());
   }
 
-  // Match a feat entry against a set of selected tags + combine mode.
-  //   tags: array of tag names (empty = no filter, matches everything)
-  //   mode: 'and' (all must match) | 'or' (any must match)
+  // Match a feat entry against a set of positive tags + negative
+  // (excluded) tags + combine mode.
+  //   positives: array of tag names (matches required per mode)
+  //   negatives: array of tag names (matches are EXCLUDED)
+  //   mode: 'and' (all positives must match) | 'or' (any positive matches)
   // A feat matches a tag if ANY of its versioned rows (3.5 or 3.0)
-  // carries that tag in the tag table.
-  function matchesTags(entry, tags, mode) {
-    if (!tags || !tags.length) return true;
+  // carries that tag. With only negatives selected, all feats pass
+  // the positive check trivially — exclusions then thin the list.
+  function matchesTags(entry, positives, negatives, mode) {
     const hasTag = (t) => {
       const set = tagIndex.get(t);
       return set && entry.allRows.some(r => set.has(r.feat_id));
     };
-    return mode === 'or' ? tags.some(hasTag) : tags.every(hasTag);
+    if (positives && positives.length) {
+      const ok = mode === 'or'
+        ? positives.some(hasTag)
+        : positives.every(hasTag);
+      if (!ok) return false;
+    }
+    if (negatives && negatives.length) {
+      if (negatives.some(hasTag)) return false;
+    }
+    return true;
   }
 
-  function refreshDatalist(datalist, chosenType, chosenTags, tagMode) {
+  function refreshDatalist(datalist, chosenType, positives, negatives, tagMode) {
     datalist.innerHTML = '';
     const matchedNames = [];
     for (const display of displayNames) {
       const entry = featIndex.get(display.toLowerCase());
       if (!entry) continue;
       if (!matchesType(entry, chosenType)) continue;
-      if (!matchesTags(entry, chosenTags, tagMode)) continue;
+      if (!matchesTags(entry, positives, negatives, tagMode)) continue;
       const opt = document.createElement('option');
       opt.value = display;
       // Don't set opt.label — Firefox renders it as visible suggestion
@@ -274,19 +285,24 @@
       const parts = [];
       if (typeSelect.value) parts.push(typeSelect.value);
       if (tagFilter && tagFilter.hasFilter()) {
-        const tags = tagFilter.getSelected();
+        const positives = tagFilter.getSelected();
+        const negatives = tagFilter.getExcluded();
         const joiner = tagFilter.getMode() === 'or' ? ' | ' : ' + ';
-        parts.push('tag:' + tags.join(joiner));
+        const sub = [];
+        if (positives.length) sub.push(positives.join(joiner));
+        for (const n of negatives) sub.push('−' + n);
+        parts.push('tag:' + sub.join(' '));
       }
       featInput.placeholder = parts.length
         ? `${n} ${parts.join(' + ')} feat${n === 1 ? '' : 's'}`
         : 'e.g. Power Attack';
     }
     function applyFilters() {
-      const selectedTags = tagFilter ? tagFilter.getSelected() : [];
-      const tagMode      = tagFilter ? tagFilter.getMode() : 'and';
+      const positives = tagFilter ? tagFilter.getSelected() : [];
+      const negatives = tagFilter ? tagFilter.getExcluded() : [];
+      const tagMode   = tagFilter ? tagFilter.getMode()     : 'and';
       const names = refreshDatalist(
-        datalist, typeSelect.value, selectedTags, tagMode);
+        datalist, typeSelect.value, positives, negatives, tagMode);
       refreshPlaceholder(names.length);
       if (results) results.render(names, { typedFilter: featInput.value.trim() });
     }

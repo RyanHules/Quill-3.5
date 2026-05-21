@@ -218,40 +218,71 @@
     }
   }
 
-  // Build a combined Set<item_id> from multi-tag selection + mode.
-  //   AND = intersection of per-tag sets (items carrying ALL tags)
-  //   OR  = union (items carrying any selected tag)
-  // Returns null when no tags selected.
-  function combinedTagSet(tagNames, mode) {
-    if (!tagNames || !tagNames.length) return null;
-    const sets = tagNames.map(t => tagIndex.get(t)).filter(Boolean);
-    if (!sets.length) return new Set();
-    if (mode === 'or') {
-      const u = new Set();
-      for (const s of sets) for (const id of s) u.add(id);
-      return u;
-    }
-    sets.sort((a, b) => a.size - b.size);
-    const result = new Set();
-    for (const id of sets[0]) {
-      let inAll = true;
-      for (let i = 1; i < sets.length; i++) {
-        if (!sets[i].has(id)) { inAll = false; break; }
+  // Build the tag-filter test from positive + negative selections.
+  // Returns { include, exclude } where:
+  //   include — Set of item_ids that MUST contain this id, or null
+  //             if there are no positive filters (any id passes).
+  //   exclude — Set of item_ids that MUST NOT contain this id (the
+  //             union of every negated tag's id set), or null when
+  //             no negatives.
+  // Returns null when no filter at all. Letting the caller check
+  // both sides explicitly correctly handles untagged items in the
+  // all-negative case (they pass because they're in neither set).
+  function buildTagFilter(positives, negatives, mode) {
+    const havePos = positives && positives.length;
+    const haveNeg = negatives && negatives.length;
+    if (!havePos && !haveNeg) return null;
+
+    let include = null;
+    if (havePos) {
+      const sets = positives.map(t => tagIndex.get(t)).filter(Boolean);
+      if (!sets.length) {
+        // All positives unknown → no item can satisfy them.
+        include = new Set();
+      } else if (mode === 'or') {
+        include = new Set();
+        for (const s of sets) for (const id of s) include.add(id);
+      } else {
+        sets.sort((a, b) => a.size - b.size);
+        include = new Set();
+        for (const id of sets[0]) {
+          let inAll = true;
+          for (let i = 1; i < sets.length; i++) {
+            if (!sets[i].has(id)) { inAll = false; break; }
+          }
+          if (inAll) include.add(id);
+        }
       }
-      if (inAll) result.add(id);
     }
-    return result;
+
+    let exclude = null;
+    if (haveNeg) {
+      const sets = negatives.map(t => tagIndex.get(t)).filter(Boolean);
+      if (sets.length) {
+        exclude = new Set();
+        for (const s of sets) for (const id of s) exclude.add(id);
+      }
+    }
+    return { include, exclude };
   }
 
-  function refreshDatalist(datalist, chosenType, tagNames, tagMode, costFilter) {
+  function refreshDatalist(datalist, chosenType, positives, negatives,
+                           tagMode, costFilter) {
     datalist.innerHTML = '';
-    const tagSet = combinedTagSet(tagNames, tagMode);
+    const tagF = buildTagFilter(positives, negatives, tagMode);
     const matchedNames = [];
     for (const display of displayNames) {
       const entry = itemIndex.get(display.toLowerCase());
       if (!entry) continue;
       if (chosenType && entry.primaryRow.type !== chosenType) continue;
-      if (tagSet && !tagSet.has(entry.primaryRow.item_id)) continue;
+      // Tag filter (positives + negatives + mode). Untagged items
+      // pass the negatives check trivially because they're not in
+      // any tag's id set.
+      if (tagF) {
+        const id = entry.primaryRow.item_id;
+        if (tagF.include && !tagF.include.has(id)) continue;
+        if (tagF.exclude && tagF.exclude.has(id)) continue;
+      }
       // Cost filter: excludes items with no parseable price (treat
       // null as "out of range" rather than "matches anything", so
       // "<=1000 gp" doesn't sweep in every "—"-priced row).
@@ -387,16 +418,21 @@
 
     function applyFilters() {
       const costFilter = parseCostFilter(costInput.value);
-      const selectedTags = tagFilter ? tagFilter.getSelected() : [];
-      const tagMode      = tagFilter ? tagFilter.getMode() : 'and';
+      const positives = tagFilter ? tagFilter.getSelected() : [];
+      const negatives = tagFilter ? tagFilter.getExcluded() : [];
+      const tagMode   = tagFilter ? tagFilter.getMode() : 'and';
       const names = refreshDatalist(datalist, typeSel.value,
-                                    selectedTags, tagMode, costFilter);
+                                    positives, negatives, tagMode,
+                                    costFilter);
       const n = names.length;
       const parts = [];
       if (typeSel.value) parts.push(typeSel.value);
       if (tagFilter && tagFilter.hasFilter()) {
         const joiner = tagMode === 'or' ? ' | ' : ' + ';
-        parts.push('tag:' + selectedTags.join(joiner));
+        const sub = [];
+        if (positives.length) sub.push(positives.join(joiner));
+        for (const t of negatives) sub.push('−' + t);
+        parts.push('tag:' + sub.join(' '));
       }
       if (costFilter) {
         // Compact label: "≤5,000 gp", "≥1 gp", "100-500 gp", "500 gp".

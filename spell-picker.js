@@ -427,37 +427,67 @@
       }
     }
 
-    // Build a combined Set<spell_id> from multi-tag selection +
-    // AND/OR mode. Returns null when no tags are selected (no filter).
-    // AND = intersect the per-tag id sets; OR = union them.
-    function combinedTagSet() {
+    // Build the tag-filter test from positives + negatives + mode.
+    // Returns { include, exclude } where:
+    //   include — Set of spell_ids that satisfy the positive side
+    //             (per AND/OR mode), or null if no positives — in
+    //             which case every spell passes the include check.
+    //   exclude — Set of spell_ids the negatives match (union across
+    //             negated tags), or null when no negatives.
+    // Returns null when no tags are selected at all. Letting the
+    // caller check both sides explicitly correctly handles untagged
+    // spells in the all-negative case (they pass include trivially
+    // and aren't in any tag set, so aren't excluded either).
+    function buildTagFilter() {
       if (!tagFilter || !tagFilter.hasFilter()) return null;
-      const tags = tagFilter.getSelected();
+      const positives = tagFilter.getSelected();
+      const negatives = tagFilter.getExcluded();
       const mode = tagFilter.getMode();
-      const sets = tags.map(t => spellTagIndex.get(t)).filter(Boolean);
-      if (!sets.length) return new Set();  // nothing matches
-      if (mode === 'or') {
-        const u = new Set();
-        for (const s of sets) for (const id of s) u.add(id);
-        return u;
-      }
-      // AND: start with smallest set for fast intersection.
-      sets.sort((a, b) => a.size - b.size);
-      const result = new Set();
-      for (const id of sets[0]) {
-        let inAll = true;
-        for (let i = 1; i < sets.length; i++) {
-          if (!sets[i].has(id)) { inAll = false; break; }
+
+      let include = null;
+      if (positives.length) {
+        const sets = positives.map(t => spellTagIndex.get(t)).filter(Boolean);
+        if (!sets.length) {
+          include = new Set();  // unknown positives → nothing matches
+        } else if (mode === 'or') {
+          include = new Set();
+          for (const s of sets) for (const id of s) include.add(id);
+        } else {
+          sets.sort((a, b) => a.size - b.size);
+          include = new Set();
+          for (const id of sets[0]) {
+            let inAll = true;
+            for (let i = 1; i < sets.length; i++) {
+              if (!sets[i].has(id)) { inAll = false; break; }
+            }
+            if (inAll) include.add(id);
+          }
         }
-        if (inAll) result.add(id);
       }
-      return result;
+      let exclude = null;
+      if (negatives.length) {
+        const sets = negatives.map(t => spellTagIndex.get(t)).filter(Boolean);
+        if (sets.length) {
+          exclude = new Set();
+          for (const s of sets) for (const id of s) exclude.add(id);
+        }
+      }
+      return { include, exclude };
+    }
+
+    // Helper: does a spell id pass the tag filter? Untagged spells
+    // pass any all-negative filter (they aren't in any tag set).
+    function spellPassesTagFilter(tagF, spellId) {
+      if (!tagF) return true;
+      if (tagF.include && !tagF.include.has(spellId)) return false;
+      if (tagF.exclude && tagF.exclude.has(spellId)) return false;
+      return true;
     }
 
     function refreshSpellList() {
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
-      const tagSet = combinedTagSet();
+      const tagF = buildTagFilter();
       datalist.innerHTML = '';
       currentSpells = [];
       currentByName = new Map();
@@ -465,7 +495,7 @@
       // global #spell-options datalist (full DB autocomplete) — matches
       // the UX of the other pickers and lets a user type a spell name
       // directly without first narrowing.
-      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || tagSet;
+      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || tagF;
       if (!haveFilter) {
         spellInput.setAttribute('list', 'spell-options');
         const globalDl = document.getElementById('spell-options');
@@ -514,20 +544,34 @@
           "         b.publication_date DESC, e.name COLLATE NOCASE",
           [lvlFilter.min, lvlFilter.max]
         );
-      } else if (tagSet) {
-        // Tag only — pull every spell with that tag (no level filter).
-        // tagSet is a Set of spell entry IDs, so query by id.
-        const ids = Array.from(tagSet);
-        if (ids.length) {
-          const placeholders = ids.map(() => '?').join(',');
+      } else if (tagF) {
+        // Tag-only path — no class, no level, just tag filter. With
+        // positives, IN(...) over the positive id set is fast. With
+        // only negatives, query every spell + let the per-row filter
+        // do the exclusion (avoids a 4000-placeholder IN clause).
+        if (tagF.include) {
+          const ids = Array.from(tagF.include);
+          if (ids.length) {
+            const placeholders = ids.map(() => '?').join(',');
+            candidates = DB.query(
+              "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
+              "       e.source, b.publication_date " +
+              "FROM entry e LEFT JOIN book b ON b.name = e.source " +
+              `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
+              "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+              "         b.publication_date DESC, e.name COLLATE NOCASE",
+              ids
+            );
+          }
+        } else {
+          // All-negative: query every spell, let the loop exclude.
           candidates = DB.query(
             "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
             "       e.source, b.publication_date " +
             "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-            `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
+            "WHERE e.type = 'spell' " +
             "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-            "         b.publication_date DESC, e.name COLLATE NOCASE",
-            ids
+            "         b.publication_date DESC, e.name COLLATE NOCASE"
           );
         }
       }
@@ -535,7 +579,7 @@
       // Dedupe by case-insensitive name; prefer 3.5 over 3.0 since the
       // ORDER BY in spellsFor puts 3.5 rows first. Apply tag + book filters.
       for (const s of currentSpells) {
-        if (tagSet && !tagSet.has(s.spell_id)) continue;
+        if (!spellPassesTagFilter(tagF, s.spell_id)) continue;
         if (window.BookFilter && !window.BookFilter.allowsEntry({...s, type: 'spell'})) continue;
         const k = s.name.toLowerCase();
         if (currentByName.has(k)) continue;
@@ -546,7 +590,20 @@
         datalist.appendChild(opt);
       }
       const n = currentByName.size;
-      const suffix = tag ? ` (tag:${tag})` : '';
+      // Build a placeholder suffix from the multi-tag filter state.
+      // "tag:evil + mind-affecting" for AND, "tag:fire | cold" for
+      // OR, "tag:fire − undead" for an excluded tag.
+      let suffix = '';
+      if (tagFilter && tagFilter.hasFilter()) {
+        const entries = tagFilter.getEntries();
+        const positives = entries.filter(e => !e.negated);
+        const negatives = entries.filter(e => e.negated);
+        const joiner = tagFilter.getMode() === 'or' ? ' | ' : ' + ';
+        const parts = [positives.map(e => e.name).join(joiner)]
+          .filter(Boolean);
+        for (const e of negatives) parts.push('−' + e.name);
+        if (parts.length) suffix = ` (tag:${parts.join(' ')})`;
+      }
       const lvlLabel = lvlFilter
         ? (lvlFilter.min === lvlFilter.max
             ? `${lvlFilter.min}`
@@ -596,7 +653,7 @@
       const applyName = opts && opts.applyName;
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
-      const tagSet = ignoreTag ? null : combinedTagSet();
+      const tagF = ignoreTag ? null : buildTagFilter();
       const typedRaw = spellInput.value.trim();
       const typed = applyName ? typedRaw.toLowerCase() : '';
 
@@ -625,18 +682,30 @@
           "         b.publication_date DESC, e.name COLLATE NOCASE",
           [lvlFilter.min, lvlFilter.max]
         );
-      } else if (tagSet && !ignoreTag) {
-        const ids = Array.from(tagSet);
-        if (ids.length) {
-          const placeholders = ids.map(() => '?').join(',');
+      } else if (tagF && !ignoreTag) {
+        if (tagF.include) {
+          const ids = Array.from(tagF.include);
+          if (ids.length) {
+            const placeholders = ids.map(() => '?').join(',');
+            candidates = DB.query(
+              "SELECT e.id AS spell_id, e.name, e.source, " +
+              "       e.version, b.publication_date " +
+              "FROM entry e LEFT JOIN book b ON b.name = e.source " +
+              `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
+              "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+              "         b.publication_date DESC, e.name COLLATE NOCASE",
+              ids
+            );
+          }
+        } else {
+          // All-negative — query every spell + let the loop exclude.
           candidates = DB.query(
             "SELECT e.id AS spell_id, e.name, e.source, " +
             "       e.version, b.publication_date " +
             "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-            `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
+            "WHERE e.type = 'spell' " +
             "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-            "         b.publication_date DESC, e.name COLLATE NOCASE",
-            ids
+            "         b.publication_date DESC, e.name COLLATE NOCASE"
           );
         }
       } else if (typed && ignoreTag) {
@@ -655,7 +724,7 @@
       const baseIds = new Set();
       const seen = new Set();
       for (const s of candidates) {
-        if (tagSet && !tagSet.has(s.spell_id)) continue;
+        if (!spellPassesTagFilter(tagF, s.spell_id)) continue;
         if (window.BookFilter && !window.BookFilter.allowsEntry(
               { ...s, type: 'spell' })) continue;
         if (typed && !s.name.toLowerCase().includes(typed)) continue;
