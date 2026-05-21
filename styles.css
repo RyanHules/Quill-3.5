@@ -1639,6 +1639,26 @@ textarea {
   background: rgba(255, 255, 255, 0.05);
   font-weight: bold;
 }
+/* Hidden tail rows in truncated lookup tables — revealed when the
+   parent table gets .lookup-expanded via the expand-more click. */
+.lookup-class-table tr.lookup-row-extra { display: none; }
+.lookup-class-table.lookup-expanded tr.lookup-row-extra { display: table-row; }
+.lookup-expand-more {
+  opacity: 0.65;
+  font-size: 0.85em;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  margin-top: 0.15rem;
+  display: inline-block;
+  border-radius: 3px;
+  user-select: none;
+}
+.lookup-expand-more:hover,
+.lookup-expand-more:focus {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
+  outline: none;
+}
 
 /* === Class-granted Spells Known (freebies) === */
 .sc-known-row.sc-known-freebie {

@@ -697,21 +697,29 @@
       }).join('');
       lines.push(`<b>Class features:</b>${feats}`);
     }
-    // Class table — first few rows, with a "20 levels total" note.
+    // Class table — first 5 rows visible; the rest render hidden so
+    // the "… N more levels" footer can reveal them on click without
+    // re-running the renderer.
     if (Array.isArray(d.class_table) && d.class_table.length) {
-      const rows = d.class_table.slice(0, 5);
+      const VISIBLE = 5;
       const head = `<tr><th>L</th><th>BAB</th><th>Fort</th><th>Ref</th><th>Will</th><th>Special</th></tr>`;
-      const body = rows.map(r => {
+      const body = d.class_table.map((r, i) => {
         const special = truncate(r.special || '—', 80);
-        return `<tr><td>${escapeHtml(String(r.level))}</td>` +
+        const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
+        return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>` +
                `<td>${escapeHtml(String(r.bab || ''))}</td>` +
                `<td>${escapeHtml(String(r.fort || ''))}</td>` +
                `<td>${escapeHtml(String(r.ref || ''))}</td>` +
                `<td>${escapeHtml(String(r.will || ''))}</td>` +
                `<td>${escapeHtml(special)}</td></tr>`;
       }).join('');
-      const more = d.class_table.length > rows.length
-        ? `<div style="opacity:0.6;font-size:0.85em">… ${d.class_table.length - rows.length} more level${d.class_table.length - rows.length === 1 ? '' : 's'}.</div>`
+      const extra = d.class_table.length - VISIBLE;
+      const more = extra > 0
+        ? `<div class="lookup-expand-more" data-action="expand-table" ` +
+          `tabindex="0" role="button" ` +
+          `title="Click to show all ${d.class_table.length} levels">` +
+          `… ${extra} more level${extra === 1 ? '' : 's'} (click to expand)` +
+          `</div>`
         : '';
       lines.push(`<b>Class table:</b>` +
         `<table class="lookup-class-table">${head}${body}</table>${more}`);
@@ -1318,6 +1326,31 @@
         clearRecent();
         render(inputEl.value.trim());
         return;
+      }
+    });
+    // Capture-phase handler so it runs BEFORE the row's bubble-phase
+    // click handler — otherwise expanding-then-collapsing the parent
+    // row would eat the expand interaction.
+    resultsEl.addEventListener('click', (ev) => {
+      const t = ev.target instanceof Element ? ev.target : null;
+      if (!t) return;
+      const expand = t.closest('[data-action="expand-table"]');
+      if (!expand) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const tbl = expand.previousElementSibling;
+      if (tbl && tbl.tagName === 'TABLE') {
+        tbl.classList.add('lookup-expanded');
+      }
+      expand.remove();
+    }, true);
+    resultsEl.addEventListener('keydown', (ev) => {
+      const t = ev.target instanceof Element ? ev.target : null;
+      if (!t) return;
+      if ((ev.key === 'Enter' || ev.key === ' ') &&
+          t.matches('[data-action="expand-table"]')) {
+        ev.preventDefault();
+        t.click();
       }
     });
   }
