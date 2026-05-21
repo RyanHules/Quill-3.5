@@ -84,6 +84,11 @@ const Audit = (function () {
     s.hasAnyClass = s.appliedClasses.length > 0;
     // Spell slots / prepared / known per caster panel.
     s.casters = [];
+    // Item Familiar bonus slots (UA p.171): collect once per audit
+    // pass since the same global pool applies to all panels.
+    const ifamBonuses = (typeof ItemFamiliar !== 'undefined'
+      && ItemFamiliar.getAllSpellSlotBonuses)
+      ? ItemFamiliar.getAllSpellSlotBonuses() : [];
     for (const panel of document.querySelectorAll('[data-caster-type="spellcasting"]')) {
       const notes = panel.querySelector('.caster-notes')?.value?.trim() || '(unnamed)';
       // Combine tab label + notes for class identification (matches
@@ -92,6 +97,15 @@ const Audit = (function () {
       const tabBtn = document.querySelector(`.inner-tab[data-caster-idx="${idx}"]`);
       const label = (tabBtn ? tabBtn.textContent.replace('×', '').trim() : '');
       const identity = (label + ' ' + notes).toLowerCase();
+      // Per-level item-familiar bonuses for this panel — same liberal
+      // substring match spells.js uses for slot display.
+      const ifamBonusesByLevel = {};
+      for (const b of ifamBonuses) {
+        if (identity.includes(b.class.toLowerCase())) {
+          ifamBonusesByLevel[b.bonusLevel] =
+            (ifamBonusesByLevel[b.bonusLevel] || 0) + 1;
+        }
+      }
       const c = { name: notes, identity, levels: [] };
       const table = panel.querySelector('.spell-slots-table');
       const maxLvl = int(table?.dataset.maxLevel || 9);
@@ -100,7 +114,8 @@ const Audit = (function () {
         const bonus    = int(panel.querySelector(`.sc-bonus[data-lvl="${i}"]`)?.value);
         const domain   = int(panel.querySelector(`.sc-domain-slots[data-lvl="${i}"]`)?.value);
         const spec     = int(panel.querySelector(`.sc-specialist-slots[data-lvl="${i}"]`)?.value);
-        const total    = perDay + bonus + domain + spec;
+        const ifam     = ifamBonusesByLevel[i] || 0;
+        const total    = perDay + bonus + domain + spec + ifam;
         const used     = int(panel.querySelector(`.sc-used[data-lvl="${i}"]`)?.value);
         const cap      = int(panel.querySelector(`.sc-known[data-lvl="${i}"]`)?.value);
         // Count Known-list rows but EXCLUDE freebies — class-granted
