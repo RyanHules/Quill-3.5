@@ -523,8 +523,35 @@ const Spells = (function () {
   // Build a synthetic anchor row + open the MetamagicPreparer in edit
   // mode pre-populated from `row`'s data attributes. On save, update
   // the row in place (or relocate to the new effective level).
+  //
+  // Idempotency: ✏ is a TOGGLE — clicking it again on an already-open
+  // edit chip closes the chip + preparer instead of stacking duplicates.
+  // The preparer's own toggle-check (in MetamagicPreparer.open) only
+  // scans inside the anchor it's given, so it never sees the previous
+  // anchor when each call creates a fresh one. Pre-check here against
+  // a per-row marker class instead.
   function openEditMetamagicOnRow(panel, row, lvl) {
     if (!panel || !row || typeof MetamagicPreparer === "undefined") return;
+
+    // If an edit-chip for this row is already open, close it + bail.
+    // The chip is inserted right after the row and carries
+    // sc-known-row-virtual; double-checking the data-edit-row-id
+    // attribute we stamp below guards against finding a chip that
+    // belongs to a different row's edit session.
+    const editBtn = row.querySelector(".sc-prep-edit-mm");
+    const rowId = row.dataset.editRowId || row.dataset.base || "";
+    let next = row.nextSibling;
+    while (next && next.nodeType === 1) {
+      if (next.classList.contains("sc-known-row-virtual")
+          && next.dataset.editRowId === rowId) {
+        next.remove();
+        if (editBtn) editBtn.classList.remove("active");
+        return;
+      }
+      // Only look at the immediate next sibling — don't chase past
+      // sibling rows that aren't ours.
+      break;
+    }
 
     const baseName = row.dataset.base || "";
     const metamagic = JSON.parse(row.dataset.metamagic || "[]");
@@ -557,13 +584,22 @@ const Spells = (function () {
     // Synthetic anchor row (the preparer attaches its picker as a
     // child element of this DOM node). Inserted right under the row
     // being edited, removed when the preparer closes.
+    //
+    // editRowId tags the anchor so a second ✏ click on the same row
+    // finds + collapses this chip instead of stacking a duplicate.
+    // Mirrors the marker stamped on `row` below.
+    if (!row.dataset.editRowId) {
+      row.dataset.editRowId = `prep-${lvl}-${baseName}-${Date.now()}`;
+    }
     const anchor = document.createElement("div");
     anchor.className = "sc-known-row sc-known-row-virtual";
+    anchor.dataset.editRowId = row.dataset.editRowId;
     anchor.style.cssText = "padding:0.3rem;background:rgba(255,255,255,0.02)";
     anchor.innerHTML =
       `<span style="opacity:0.75;font-size:0.9em">Editing: <b>${escapeAttr(baseName)}</b> ` +
       `<span style="opacity:0.6">(base lvl ${baseLevel})</span></span>`;
     row.parentElement.insertBefore(anchor, row.nextSibling);
+    if (editBtn) editBtn.classList.add("active");
 
     MetamagicPreparer.open({
       panel, anchorRow: anchor, baseLevel, spellName: baseName,
@@ -608,6 +644,7 @@ const Spells = (function () {
           updatePreparedCount(panel, effLevel, null);
         }
         anchor.remove();
+        if (editBtn) editBtn.classList.remove("active");
       },
     });
   }
@@ -829,10 +866,68 @@ const Spells = (function () {
   // list. v2 Phase C structural-restructure (2026-05-19): Prepared is no
   // longer a textarea — each spell is its own row with independent
   // metamagic state. The → button on a Known row goes through here.
+  //
+  // v2 Phase D (2026-05-21): consult the spell-picker's metamagic
+  // tickboxes — if the user has any ticked when they click →, apply
+  // them to the new Prepared row at the appropriately-bumped level.
+  // Matches the user's mental model: tick metamagic in the picker,
+  // then click → on a Known spell to prepare it WITH the ticked
+  // metamagic (vs. having to switch to the picker's own +Prepared
+  // button after selecting the spell again).
   function copyKnownToPrepared(panel, lvl, spellName) {
     const name = (spellName || "").trim();
     if (!name) return;
-    addPreparedSpell(panel, lvl, { baseName: name, metamagic: [], used: false });
+    const mm = collectPickerMetamagic(panel, lvl);
+    addPreparedSpell(panel, mm.effectiveLevel, {
+      baseName: name,
+      metamagic: mm.featNames,
+      heightenTarget: mm.heightenTarget,
+      sanctumIn: false,
+      used: false,
+    });
+  }
+
+  // Pull the current metamagic-tickbox state from the panel's spell
+  // picker. Returns `{ effectiveLevel, featNames: [], heightenTarget }`
+  // — when no picker / no ticked metamagic, effectiveLevel is the
+  // base level and featNames is empty (so the call sites get
+  // pre-fix behavior).
+  function collectPickerMetamagic(panel, baseLvl) {
+    const empty = { effectiveLevel: baseLvl, featNames: [], heightenTarget: null };
+    if (!panel) return empty;
+    const picker = panel.querySelector('.spell-picker');
+    if (!picker) return empty;
+    const checks = picker.querySelectorAll('.sp-mm-check:checked');
+    if (!checks.length) return empty;
+    const featNames = [];
+    let sumDelta = 0;
+    let heightenTarget = null;
+    for (const cb of checks) {
+      const featName = cb.dataset.feat;
+      if (!featName) continue;
+      featNames.push(featName);
+      const meta = lookupMetamagicFromDB(featName);
+      if (!meta) continue;
+      if (meta.levelAdjustment === 'variable') {
+        // Heighten Spell pattern — read the per-feat target input.
+        const num = picker.querySelector(
+          `.sp-mm-target[data-feat="${CSS.escape(featName)}"]`);
+        const t = parseInt(num?.value, 10);
+        if (Number.isFinite(t)) heightenTarget = t;
+      } else if (typeof meta.levelAdjustment === 'number'
+                 && !isNaN(meta.levelAdjustment)) {
+        sumDelta += meta.levelAdjustment;
+      }
+    }
+    // Heighten replaces total when higher than the additive sum.
+    let effectiveLevel = baseLvl + sumDelta;
+    if (heightenTarget !== null) {
+      effectiveLevel = Math.max(effectiveLevel, heightenTarget);
+    }
+    // Clamp to valid spell-level range so we don't try to insert a
+    // L11 row that doesn't have a list element.
+    effectiveLevel = Math.max(0, Math.min(9, effectiveLevel));
+    return { effectiveLevel, featNames, heightenTarget };
   }
 
   // ⓘ rules panel — query the DB for the spell by name and render
@@ -1142,7 +1237,7 @@ const Spells = (function () {
           <div class="field field-sm"><label>PP/Day</label><span class="psi-pp-day calc-field">--</span></div>
           <div class="field field-sm"><label>PP Spent</label><input type="number" class="psi-pp-spent" min="0" value="${data.ppSpent || "0"}"></div>
           <div class="field field-sm"><label>PP Remaining</label><span class="psi-pp-remaining calc-field">--</span></div>
-          <div class="field field-sm"><label>Powers Known</label><input type="number" class="psi-powers-known" min="0" value="${data.powersKnown || ""}"></div>
+          <div class="field field-sm"><label>Powers Known <span class="psi-known-count"></span></label><input type="number" class="psi-powers-known" min="0" value="${data.powersKnown || ""}"></div>
           <div class="field field-sm"><label>Max Power Level</label><input type="number" class="psi-max-level" min="1" max="9" value="${data.maxLevel || ""}"></div>
         </div>
         <div class="spellcasting-2col">
@@ -1172,16 +1267,183 @@ const Spells = (function () {
     panel.querySelector(".psi-add-level").addEventListener("click", () => {
       addPsionicsLevel(panel);
     });
+    // Refresh the Powers Known counter when the cap input changes
+    // (so the over-cap red flash + "/N" suffix update live).
+    const cap = panel.querySelector(".psi-powers-known");
+    if (cap) cap.addEventListener("input", () =>
+      updatePsionicsKnownCount(panel));
   }
   function appendPsiPowerDiv(container, i, active) {
     const div = document.createElement("div");
     div.className = `spell-list-content${active ? " active" : ""}`;
     div.dataset.level = i;
+    // v2 Phase D (2026-05-21): replaced the per-level textarea with
+    // a structured Known-powers list mirroring the spellcasting
+    // pattern. Each row carries its own name input + ⓘ info toggle
+    // + remove button. The power-picker's "+ Known" button appends
+    // here via Spells.addKnownPower. Legacy textarea saves
+    // (`power-${i}: "name1\nname2"`) migrate to rows on load.
     div.innerHTML = `
       <h3>${spellOrd(i)} Level Powers</h3>
-      <textarea class="psi-power-text" data-lvl="${i}" rows="8" placeholder="Enter ${spellOrd(i)} level powers, one per line..."></textarea>
+      <div class="psi-known-list" data-lvl="${i}"></div>
+      <button type="button" class="btn-add psi-add-known-row"
+              data-lvl="${i}" style="margin-top:0.3rem">
+        + Add Power
+      </button>
     `;
     container.appendChild(div);
+    div.querySelector(".psi-add-known-row").addEventListener("click", () => {
+      const listEl = div.querySelector(`.psi-known-list[data-lvl="${i}"]`);
+      const row = createPsiKnownRow(listEl, i, "");
+      row.querySelector(".psi-known-name").focus();
+    });
+  }
+
+  // Build one structured Known-powers row inside `listEl`. The row
+  // mirrors createKnownRow's pattern: name input + ⓘ info button +
+  // X remove. The ⓘ button toggles an inline rules panel rendered
+  // by renderPowerRules. Called from:
+  //   - The per-level "+ Add Power" button (empty row)
+  //   - power-picker.js via Spells.addKnownPower (pre-filled)
+  //   - loadData migration (one row per legacy text-N line)
+  function createPsiKnownRow(listEl, lvl, powerName) {
+    const row = document.createElement("div");
+    row.className = "psi-known-row sc-known-row"; // share the sc-* styling
+    row.innerHTML =
+      `<input type="text" class="psi-known-name sc-known-name" ` +
+      `list="power-options" autocomplete="off" ` +
+      `value="${escapeAttr(powerName || "")}" placeholder="Power name">` +
+      `<button class="btn-feat-info psi-known-info sc-known-info" ` +
+      `title="Show rules">ⓘ</button>` +
+      `<button class="btn-remove psi-known-remove sc-known-remove" ` +
+      `title="Remove">X</button>`;
+    listEl.appendChild(row);
+    const nameInput = row.querySelector(".psi-known-name");
+    const infoBtn   = row.querySelector(".psi-known-info");
+    const rmBtn     = row.querySelector(".psi-known-remove");
+    const panel = listEl.closest(".inner-tab-content");
+    nameInput.addEventListener("input", () => {
+      // Collapse stale rules panel — the row's power identity may
+      // have changed.
+      const existing = row.querySelector(".psi-known-rules");
+      if (existing) existing.remove();
+      infoBtn.classList.remove("active");
+      updatePsionicsKnownCount(panel);
+    });
+    infoBtn.addEventListener("click", () =>
+      togglePowerRules(row, nameInput.value));
+    rmBtn.addEventListener("click", () => {
+      row.remove();
+      updatePsionicsKnownCount(panel);
+    });
+    updatePsionicsKnownCount(panel);
+    return row;
+  }
+
+  // Total all Known-power rows across every level on the panel and
+  // surface the count next to the Powers Known input. Mirrors
+  // updateKnownCount's color cue: red when count exceeds the cap.
+  function updatePsionicsKnownCount(panel) {
+    if (!panel) return;
+    const counter = panel.querySelector(".psi-known-count");
+    if (!counter) return;
+    let count = 0;
+    panel.querySelectorAll(".psi-known-row .psi-known-name").forEach((el) => {
+      if (el.value && el.value.trim()) count++;
+    });
+    const capEl = panel.querySelector(".psi-powers-known");
+    const cap = capEl && capEl.value !== "" ? parseInt(capEl.value, 10) : null;
+    if (cap !== null && !isNaN(cap)) {
+      counter.textContent = ` (${count} / ${cap})`;
+      counter.classList.toggle("sc-known-over", count > cap);
+    } else if (count > 0) {
+      counter.textContent = ` (${count})`;
+      counter.classList.remove("sc-known-over");
+    } else {
+      counter.textContent = "";
+      counter.classList.remove("sc-known-over");
+    }
+  }
+
+  // ⓘ rules panel for a Known-power row — query the DB by name and
+  // render discipline / display / PP / range / target / save / PR /
+  // augment / description. Mirrors toggleKnownRules but for powers.
+  function togglePowerRules(row, powerName) {
+    const existing = row.querySelector(".psi-known-rules");
+    const infoBtn = row.querySelector(".psi-known-info");
+    if (existing) {
+      existing.remove();
+      infoBtn.classList.remove("active");
+      return;
+    }
+    const name = (powerName || "").trim();
+    if (!name) return;
+    const rules = document.createElement("div");
+    rules.className = "feat-rules psi-known-rules sc-known-rules";
+    rules.innerHTML = renderPowerRules(name);
+    row.appendChild(rules);
+    infoBtn.classList.add("active");
+  }
+
+  function renderPowerRules(name) {
+    if (!window.DB || !DB.isLoaded()) {
+      return `<i>DB not loaded — pickers unavailable.</i>`;
+    }
+    // Strip a trailing parenthetical (e.g. "Energy Bolt (Fire)" →
+    // retry without if first lookup misses) and try case-insensitive.
+    let row = DB.queryOne(
+      "SELECT id, data FROM entry WHERE type='power' " +
+      "AND name = :n COLLATE NOCASE LIMIT 1", { ":n": name });
+    if (!row) {
+      const stripped = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+      if (stripped && stripped !== name) {
+        row = DB.queryOne(
+          "SELECT id, data FROM entry WHERE type='power' " +
+          "AND name = :n COLLATE NOCASE LIMIT 1", { ":n": stripped });
+      }
+    }
+    if (!row) {
+      return `<i>No DB match for <b>${escapeAttr(name)}</b> ` +
+             `(homebrew or unknown power).</i>`;
+    }
+    let d;
+    try { d = JSON.parse(row.data); } catch (e) { return `<i>Parse error.</i>`; }
+    const bits = [];
+    // Title line: power name + discipline label
+    const disc = d.discipline || "";
+    bits.push(`<b>${escapeAttr(name)}</b>` +
+      (disc ? ` <span style="opacity:.7">[${escapeAttr(disc)}]</span>` : ""));
+    // Class/level mapping (e.g. "Psion/Wilder 3, Telepath 3")
+    if (d.level && typeof d.level === "object") {
+      const lvls = Object.entries(d.level)
+        .map(([c, l]) => `${c} ${l}`).join(", ");
+      if (lvls) bits.push(`<b>Level:</b> ${escapeAttr(lvls)}`);
+    }
+    if (d.display)           bits.push(`<b>Display:</b> ${escapeAttr(d.display)}`);
+    if (d.manifesting_time)  bits.push(`<b>Manifesting:</b> ${escapeAttr(d.manifesting_time)}`);
+    if (d.range)             bits.push(`<b>Range:</b> ${escapeAttr(d.range)}`);
+    if (d.target)            bits.push(`<b>Target:</b> ${escapeAttr(d.target)}`);
+    if (d.area)              bits.push(`<b>Area:</b> ${escapeAttr(d.area)}`);
+    if (d.effect)            bits.push(`<b>Effect:</b> ${escapeAttr(d.effect)}`);
+    if (d.duration)          bits.push(`<b>Duration:</b> ${escapeAttr(d.duration)}`);
+    if (d.saving_throw)      bits.push(`<b>Save:</b> ${escapeAttr(d.saving_throw)}`);
+    if (d.power_resistance)  bits.push(`<b>PR:</b> ${escapeAttr(d.power_resistance)}`);
+    if (d.power_points)      bits.push(`<b>PP:</b> ${escapeAttr(d.power_points)}`);
+    let html = bits.join(" &nbsp;·&nbsp; ");
+    if (d.augment) {
+      html += `<div style="margin-top:0.4rem"><b>Augment:</b> ` +
+              `${escapeAttr(d.augment)}</div>`;
+    }
+    if (d.description) {
+      html += `<div style="margin-top:0.4rem">${escapeAttr(d.description)}</div>`;
+    }
+    return html;
+  }
+
+  // Public-API helper for power-picker.js to append a structured row
+  // into the psionics panel's Known list. Returns the row element.
+  function addKnownPower(listEl, lvl, powerName) {
+    return createPsiKnownRow(listEl, lvl, powerName);
   }
   function addPsionicsLevel(panel) {
     const table = panel.querySelector(".psi-dc-table");
@@ -1854,8 +2116,17 @@ const Spells = (function () {
         caster.ability = panel.querySelector(".psi-ability")?.value || "";
         const psiMax = int(panel.querySelector(".psi-dc-table")?.dataset.maxLevel || 9);
         caster.maxLevel = psiMax;
+        // v2 Phase D (2026-05-21): Known powers is now a structured
+        // list (per-level array of names). Legacy `power-${i}: "n1\nn2"`
+        // textarea strings still load via the loadData migration path
+        // below for one-shot conversion; new saves emit
+        // `knownPowersList-${i}: [names]`.
         for (let i = 1; i <= psiMax; i++) {
-          caster[`power-${i}`] = panel.querySelector(`.psi-power-text[data-lvl="${i}"]`)?.value || "";
+          const rows = panel.querySelectorAll(
+            `.psi-known-list[data-lvl="${i}"] .psi-known-row`);
+          caster[`knownPowersList-${i}`] = Array.from(rows)
+            .map(r => (r.querySelector(".psi-known-name")?.value || "").trim())
+            .filter(Boolean);
         }
       } else if (type === "maneuvers") {
         caster.initLevel = panel.querySelector(".tom-init-level")?.value || "";
@@ -2033,8 +2304,25 @@ const Spells = (function () {
         } else if (caster.type === "psionics") {
           const psiMax = int(caster.maxLevel || 9);
           for (let i = 1; i <= psiMax; i++) {
-            const textEl = panel.querySelector(`.psi-power-text[data-lvl="${i}"]`);
-            if (textEl && caster[`power-${i}`]) textEl.value = caster[`power-${i}`];
+            const listEl = panel.querySelector(
+              `.psi-known-list[data-lvl="${i}"]`);
+            if (!listEl) continue;
+            // Prefer the v2 structured save (knownPowersList-N: [names]);
+            // fall back to the legacy textarea string (power-N: "n1\nn2")
+            // split per line for one-shot migration. Both paths feed
+            // createPsiKnownRow so the resulting DOM is identical.
+            const newList = caster[`knownPowersList-${i}`];
+            let names = [];
+            if (Array.isArray(newList)) {
+              names = newList.filter(n => typeof n === "string" && n.trim());
+            } else if (typeof caster[`power-${i}`] === "string"
+                       && caster[`power-${i}`].trim()) {
+              names = caster[`power-${i}`].split(/\r?\n/)
+                .map(s => s.trim()).filter(Boolean);
+            }
+            for (const name of names) {
+              createPsiKnownRow(listEl, i, name);
+            }
           }
         } else if (caster.type === "maneuvers") {
           for (let i = 1; i <= 9; i++) {
@@ -2211,6 +2499,7 @@ const Spells = (function () {
     collectData,
     loadData,
     addKnownSpell,
+    addKnownPower,
     // v2 Phase C structural restructure: the metamagic preparer
     // writes prepared spells as structured rows via this helper
     // (instead of newline-appending to the old textarea).
