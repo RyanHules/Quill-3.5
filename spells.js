@@ -2461,8 +2461,12 @@ const Spells = (function () {
       const SPONTANEOUS = [
         "sorcerer", "bard", "favored soul", "spirit shaman", "warmage",
         "beguiler", "dread necromancer", "healer", "hexblade",
-        "duskblade", "spellthief", "sha'ir", "shair", "shugenja",
+        "duskblade", "spellthief", "shugenja",
       ];
+      // Sha'ir is technically spontaneous-by-stat-block, but spells
+      // function as prepared once a gen retrieves them — metamagic is
+      // baked in during retrieval, so the increased-casting-time
+      // reminder doesn't apply. Deliberately omitted above.
       const isSpontaneous = SPONTANEOUS.some(c => notes.includes(c));
       warning.style.display = (isSpontaneous && mmFeats.length > 0) ? "" : "none";
     }

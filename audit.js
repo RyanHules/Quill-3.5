@@ -86,7 +86,13 @@ const Audit = (function () {
     s.casters = [];
     for (const panel of document.querySelectorAll('[data-caster-type="spellcasting"]')) {
       const notes = panel.querySelector('.caster-notes')?.value?.trim() || '(unnamed)';
-      const c = { name: notes, levels: [] };
+      // Combine tab label + notes for class identification (matches
+      // the pattern in spells.js's metamagic-reference lookup).
+      const idx = (panel.id || '').replace(/^caster-/, '');
+      const tabBtn = document.querySelector(`.inner-tab[data-caster-idx="${idx}"]`);
+      const label = (tabBtn ? tabBtn.textContent.replace('×', '').trim() : '');
+      const identity = (label + ' ' + notes).toLowerCase();
+      const c = { name: notes, identity, levels: [] };
       const table = panel.querySelector('.spell-slots-table');
       const maxLvl = int(table?.dataset.maxLevel || 9);
       for (let i = 0; i <= maxLvl; i++) {
@@ -228,7 +234,11 @@ const Audit = (function () {
             message: `${caster.name} L${level}: prepared ${preparedCount} ` +
                      `spell(s) into ${total} slot(s).`,
           });
-        } else if (total > 0 && preparedCount === total && preparedCount > 0) {
+        } else if (total > 0 && preparedCount === total && preparedCount > 0
+                   && !/sha'?ir/.test(caster.identity || '')) {
+          // Sha'ir gens retrieve any spell on demand, so a "full prep
+          // list" doesn't constrain flexibility the way it does for
+          // wizards/clerics — suppress the info noise for them.
           issues.push({
             id: `caster:prepared-full:${caster.name}:${level}`,
             severity: 'info',
