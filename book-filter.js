@@ -222,7 +222,21 @@
     }
     // Source-edition check is still useful even when the entry's
     // version field isn't set (some older rows had version blanks).
-    return allowsSource(entry.source);
+    if (!allowsSource(entry.source)) return false;
+    // Per-entry homebrew gate. HomebrewFilter registers individual
+    // entries from homebrew books (Tidecaller, Rooted Calling, etc.)
+    // so users can toggle them granularly. For non-homebrew sources
+    // this is always a no-op (allowsEntry returns true). When a
+    // homebrew entry is registered, its toggle decides visibility
+    // regardless of book filter state — i.e. a homebrew entry's
+    // per-entry toggle being OFF hides it even when the book itself
+    // is allowed.
+    if (window.HomebrewFilter
+        && typeof window.HomebrewFilter.allowsEntry === 'function'
+        && !window.HomebrewFilter.allowsEntry(entry)) {
+      return false;
+    }
+    return true;
   }
 
   function collectData() {

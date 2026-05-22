@@ -1,5 +1,5 @@
 // homebrew/book_content.js — surface homebrew BOOKS in the homebrew
-// filter modal, alongside the per-subsystem rule toggles.
+// filter modal as parent/child nested toggles.
 //
 // Why this exists
 // ---------------
@@ -12,20 +12,26 @@
 // campaign-specific extensions regardless of whether they're rules or
 // content.
 //
-// This module bridges that gap: at module load, it queries the DB
-// for every book with `book_type = 'homebrew'` and registers a
-// HomebrewFilter rule per book, in a "Homebrew content" category.
-// The rule:
-//   - displays the book name + a description listing the entries it
-//     contains (so the user can see Tidecaller / Rooted Calling /
-//     etc. without having to dig into pickers)
-//   - has `informational: true` because the actual visibility gate
-//     still lives in BookFilter — toggling here is a convenience
-//     view, not a separate filter axis
-//   - when toggled in the 🏠 modal, mirrors the change to BookFilter
-//     so the two stay coherent
-//   - listens to `book-filter-changed` and re-applies its own state
-//     so a change in the 📚 modal updates the 🏠 modal's checkbox
+// Shape of the registration
+// -------------------------
+// For each homebrew book (book_type='homebrew' in the DB), we
+// register:
+//
+//   * A parent RULE (`book_<abbr>`) that appears in the homebrew
+//     modal under "Homebrew content". It's informational — the
+//     actual visibility gating is done by the children.  The UI
+//     uses the parent for bulk-toggling: clicking it sets all
+//     children to the parent's new state.
+//
+//   * One child ENTRY per content item in the book
+//     (`entry_<abbr>_<slug>`), registered via
+//     `HomebrewFilter.registerEntry`. Each child's state controls
+//     whether that specific (source, type, name) shows up in
+//     pickers / lookup — gated through
+//     `BookFilter.allowsEntry` → `HomebrewFilter.allowsEntry`.
+//
+// Defaults: parent + children all OFF, matching the
+// "RAW by default, homebrew is opt-in" convention.
 //
 // Adding a new homebrew book? Nothing to do here — register it in
 // the DB with book_type='homebrew' (per build_sqlite_db.py's
@@ -43,21 +49,14 @@
     return;
   }
 
-  // Rule key prefix so we can identify which rules belong to us
-  // (vs. the per-subsystem rules registered by other modules).
-  const KEY_PREFIX = 'book_';
-
-  // Track which books we registered, keyed by abbreviation, so we
-  // can sync state with BookFilter without rescanning the DB.
-  // value: { abbrev, name, ruleKey }
+  // Track books and their child entry keys so the homebrew-filter-ui
+  // can render parent/child structure without re-querying the DB.
+  // value: { abbrev, name, parentKey, childKeys: [string, ...] }
   const registered = new Map();
-
-  // ---- DB-driven registration ---------------------------------------------
 
   DB.ready.then(() => {
     if (!DB.isLoaded()) return;
 
-    // Pull every homebrew book + a summary line listing its entries.
     let books = [];
     try {
       books = DB.query(
@@ -71,22 +70,37 @@
     if (!books.length) return;
 
     for (const b of books) {
-      registerBookRule(b);
+      registerBookAndContents(b);
     }
-    // Apply initial state from BookFilter so the checkboxes load
-    // matching what the book filter currently allows.
-    syncFromBookFilter();
   });
 
-  // ---- Per-book rule registration -----------------------------------------
+  // ---- Registration -------------------------------------------------------
 
-  function registerBookRule(book) {
+  // Human-friendly type labels for the description / child name
+  // prefixes. Falls back to the raw type if not listed.
+  const TYPE_LABEL = {
+    prc: 'Prestige Class', feat: 'Feat', spell: 'Spell',
+    item: 'Item', class: 'Class', race: 'Race',
+    domain: 'Domain', deity: 'Deity', invocation: 'Invocation',
+    maneuver: 'Maneuver', mystery: 'Mystery', power: 'Power',
+    rule: 'Rule', template: 'Template', creature: 'Creature',
+    soulmeld: 'Soulmeld', vestige: 'Vestige', plane: 'Plane',
+    organization: 'Organization', acf: 'ACF',
+    subst_level: 'Substitution Level', skill_trick: 'Skill Trick',
+  };
+
+  function _slug(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function registerBookAndContents(book) {
     const abbrev = book.abbreviation;
     if (!abbrev) return;
-    const ruleKey = KEY_PREFIX + abbrev;
+    const parentKey = 'book_' + abbrev;
 
-    // Entry inventory — describe what the book provides so the user
-    // can decide whether to enable it without opening a picker.
+    // Pull every entry in this book so we can register one child
+    // toggle each.
     let entries = [];
     try {
       entries = DB.query(
@@ -94,118 +108,89 @@
         "WHERE source = $src ORDER BY type, name",
         { $src: book.name });
     } catch (_) {
-      // Non-fatal — we'll just show the book summary instead.
+      // Non-fatal — the parent rule still registers, children just
+      // won't appear. That degrades to "whole book is one toggle".
     }
-    const typeLabel = { prc: 'PrC', feat: 'Feat', spell: 'Spell',
-                        item: 'Item', class: 'Class', race: 'Race',
-                        domain: 'Domain', deity: 'Deity',
-                        invocation: 'Invocation', maneuver: 'Maneuver',
-                        mystery: 'Mystery', power: 'Power',
-                        rule: 'Rule', template: 'Template',
-                        creature: 'Creature', soulmeld: 'Soulmeld',
-                        vestige: 'Vestige', plane: 'Plane',
-                        organization: 'Organization' };
-    const inventory = entries.length
-      ? entries.map(e =>
-          `${typeLabel[e.type] || e.type}: ${e.name}`
-        ).join('; ')
-      : null;
 
-    const description = inventory
-      ? `Contents: ${inventory}.`
-      : (book.summary || '(homebrew book — no description on file)');
-
+    // Parent rule. Description summarizes the contents for users
+    // who haven't expanded the children list yet.
+    const inventoryText = entries.length
+      ? 'Contains: ' + entries.map(e =>
+          `${TYPE_LABEL[e.type] || e.type} — ${e.name}`
+        ).join('; ') + '.'
+      : (book.summary || '(homebrew book — no entries indexed)');
     HomebrewFilter.registerRule({
-      key: ruleKey,
+      key: parentKey,
       name: book.name,
       category: 'Homebrew content',
-      description,
+      description: inventoryText,
       defaultEnabled: false,
-      informational: true,  // visibility actually lives in BookFilter
+      informational: true,
       source: book.name,
     });
-    registered.set(abbrev, { abbrev, name: book.name, ruleKey });
-  }
 
-  // ---- BookFilter ↔ HomebrewFilter state bridge ---------------------------
-
-  // Internal flag to suppress feedback loops while we're mid-sync.
-  let syncing = false;
-
-  function syncFromBookFilter() {
-    if (!window.BookFilter) return;
-    const active = BookFilter.getActiveAbbrevs();
-    // Empty active set = "all books allowed" (BookFilter default).
-    // So if active is empty, every homebrew book counts as enabled.
-    const allAllowed = active.size === 0;
-    syncing = true;
-    try {
-      for (const [abbrev, info] of registered) {
-        const on = allAllowed || active.has(abbrev);
-        HomebrewFilter.setEnabled(info.ruleKey, on);
-      }
-    } finally {
-      syncing = false;
+    // Children. Each registers its own state via registerEntry so
+    // it can gate visibility independently.
+    const childKeys = [];
+    for (const e of entries) {
+      const eKey = 'entry_' + abbrev + '_' + _slug(e.type) + '_'
+        + _slug(e.name);
+      HomebrewFilter.registerEntry({
+        key: eKey,
+        name: e.name,
+        type: e.type,
+        source: book.name,
+        parentKey,
+        defaultEnabled: false,
+      });
+      childKeys.push(eKey);
     }
+
+    registered.set(abbrev, {
+      abbrev,
+      name: book.name,
+      parentKey,
+      childKeys,
+    });
   }
 
-  function syncToBookFilter(ruleKey, enabled) {
-    if (syncing || !window.BookFilter) return;
-    // Find the abbrev for this rule.
-    let target = null;
+  // ---- Module surface (for UI + debugging) --------------------------------
+
+  // Bulk-toggle a parent's children. Used by the UI when the user
+  // clicks the parent checkbox. Fires only the per-child events
+  // (each setEnabled emits one); the UI can debounce its re-render
+  // if needed.
+  function setBookEnabled(parentKey, enabled) {
     for (const info of registered.values()) {
-      if (info.ruleKey === ruleKey) { target = info; break; }
-    }
-    if (!target) return;
-
-    const active = new Set(BookFilter.getActiveAbbrevs());
-    if (active.size === 0) {
-      // The "all books allowed" default means toggling a single
-      // homebrew rule shouldn't suddenly narrow the filter to JUST
-      // that book — that would be surprising. So if the user
-      // ENABLES while everything is implicitly allowed, do nothing
-      // (the rule is already effectively on). If they DISABLE in
-      // this state, we have to seed the active set with everything
-      // EXCEPT the disabled book, otherwise the disable does
-      // nothing.
-      if (enabled) return;
-      const allBooks = BookFilter.getBooks();
-      const seeded = new Set();
-      for (const b of allBooks) {
-        if (b.abbreviation !== target.abbrev) seeded.add(b.abbreviation);
+      if (info.parentKey !== parentKey) continue;
+      for (const ck of info.childKeys) {
+        HomebrewFilter.setEnabled(ck, enabled);
       }
-      BookFilter.setActiveAbbrevs(seeded);
       return;
     }
-    // Active set is non-empty — just add or remove the abbrev.
-    if (enabled) {
-      active.add(target.abbrev);
-    } else {
-      active.delete(target.abbrev);
-    }
-    BookFilter.setActiveAbbrevs(active);
   }
 
-  // Listen for changes from EITHER side.
-  document.addEventListener('homebrew-filter-changed', (ev) => {
-    const key = ev.detail && ev.detail.key;
-    if (!key) {
-      // Bulk load (character load with saved homebrew state). We
-      // intentionally do NOT sync to BookFilter on bulk loads — the
-      // character's own BookFilter save data handles its visibility.
-      return;
+  // Derive parent state from its children. Returns:
+  //   'all'   — every child enabled
+  //   'none'  — every child disabled
+  //   'some'  — mixed (used to render an indeterminate checkbox)
+  function getBookState(parentKey) {
+    let on = 0, off = 0;
+    for (const info of registered.values()) {
+      if (info.parentKey !== parentKey) continue;
+      for (const ck of info.childKeys) {
+        if (HomebrewFilter.isEnabled(ck)) on++; else off++;
+      }
+      break;
     }
-    if (!key.startsWith(KEY_PREFIX)) return;
-    syncToBookFilter(key, HomebrewFilter.isEnabled(key));
-  });
+    if (on && !off) return 'all';
+    if (off && !on) return 'none';
+    return 'some';
+  }
 
-  document.addEventListener('book-filter-changed', () => {
-    syncFromBookFilter();
-  });
-
-  // Expose a tiny module surface (mostly for debugging).
   window.HomebrewBookContent = {
     getRegistered() { return [...registered.values()]; },
-    refresh: syncFromBookFilter,
+    setBookEnabled,
+    getBookState,
   };
 })();

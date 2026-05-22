@@ -2901,6 +2901,49 @@ textarea {
   color: #888;
   cursor: help;
 }
+/* Nested parent/child for homebrew BOOKS. Parent rule renders with a
+   chevron to expand the children list; children are indented under
+   the parent and individually toggleable. */
+.hbf-parent {
+  margin-bottom: 0.4rem;
+}
+.hbf-row-parent {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+.hbf-chevron {
+  background: none;
+  border: 0;
+  color: #999;
+  cursor: pointer;
+  padding: 0 0.3em;
+  font-size: 0.8em;
+  line-height: 1;
+  align-self: center;
+}
+.hbf-chevron:hover { color: #c8a14a; }
+.hbf-children {
+  margin-left: 1.6rem;
+  border-left: 1px solid #333;
+  padding-left: 0.3rem;
+}
+.hbf-row-child {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid #262626;
+}
+.hbf-row-child:last-child {
+  border-bottom: none;
+}
+.hbf-child-type {
+  margin-left: 0.5em;
+  font-size: 0.7em;
+  font-weight: normal;
+  color: #888;
+  display: inline-block;
+  padding: 0 0.4em;
+  border-radius: 6px;
+  background: rgba(140, 140, 140, 0.08);
+}
 
 /* Homebrew rule blocks — used inside feat rules panels, class
    features panels, and item info panels to inject campaign-specific

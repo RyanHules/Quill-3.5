@@ -73,6 +73,28 @@
   // at registration time; user choices override them.
   const state = new Map();
 
+  // Per-entry registry — separate from `rules`. Used by homebrew
+  // book bundles (homebrew/book_content.js) to register a toggle
+  // per content entry (e.g. each PrC / feat in a homebrew book)
+  // alongside the parent book rule. The parent-child relationship
+  // is captured by the entry's `parentKey` field, which must match
+  // a registered rule's key. Pickers consult `allowsEntry()` to
+  // check whether a specific (source, type, name) triple should
+  // be hidden.
+  //
+  // entries: key → meta. Insertion order preserved.
+  //   meta = { key, name, type, source, parentKey, defaultEnabled }
+  //
+  // Note: entries DON'T appear via getRules() — they're a separate
+  // surface from per-subsystem rules. They share the SAME state Map
+  // though, so a single key namespace covers both. Use distinct
+  // prefixes (e.g. "book_DS" for the parent rule, "entry_DS_..."
+  // for children) to avoid collisions.
+  const entries = new Map();
+  // Index: source name → array of entry keys (for fast lookup in
+  // allowsEntry without scanning every entry).
+  const entriesBySource = new Map();
+
   function registerRule(meta) {
     if (!meta || !meta.key) {
       console.warn('[homebrew] registerRule called with no key:', meta);
@@ -138,12 +160,80 @@
     }
   }
 
+  // ---- Per-entry registry (homebrew BOOK contents) ------------------------
+
+  function registerEntry(meta) {
+    if (!meta || !meta.key || !meta.source || !meta.name) {
+      console.warn('[homebrew] registerEntry needs key, source, name:', meta);
+      return;
+    }
+    if (entries.has(meta.key)) return;  // idempotent
+    entries.set(meta.key, {
+      key: meta.key,
+      name: meta.name,
+      type: meta.type || '',
+      source: meta.source,
+      parentKey: meta.parentKey || null,
+      defaultEnabled: !!meta.defaultEnabled,
+    });
+    if (!state.has(meta.key)) {
+      state.set(meta.key, !!meta.defaultEnabled);
+    }
+    if (!entriesBySource.has(meta.source)) {
+      entriesBySource.set(meta.source, []);
+    }
+    entriesBySource.get(meta.source).push(meta.key);
+  }
+
+  function getEntries() {
+    return [...entries.values()];
+  }
+
+  function getChildEntries(parentKey) {
+    if (!parentKey) return [];
+    return [...entries.values()].filter(e => e.parentKey === parentKey);
+  }
+
+  // Picker-side visibility gate. Returns true if no entry registration
+  // covers this (source, type, name) triple, OR if its toggle is on.
+  // Returns false ONLY when a registered entry's toggle is off.
+  //
+  // Match semantics: source must match exactly; type and name are
+  // matched case-insensitively. type-mismatches don't disqualify (a
+  // homebrew toggle for "spell:fireball" still covers the entry
+  // regardless of how the caller spells the type), but if BOTH the
+  // registered entry and the caller's entry specify a non-empty type,
+  // they must match.
+  function allowsEntry(entry) {
+    if (!entry || !entry.source) return true;
+    const keys = entriesBySource.get(entry.source);
+    if (!keys || !keys.length) return true;
+    const callName = String(entry.name || '').trim().toLowerCase();
+    const callType = String(entry.type || '').trim().toLowerCase();
+    for (const k of keys) {
+      const e = entries.get(k);
+      if (!e) continue;
+      const eName = String(e.name || '').trim().toLowerCase();
+      const eType = String(e.type || '').trim().toLowerCase();
+      if (eName !== callName) continue;
+      if (eType && callType && eType !== callType) continue;
+      return !!state.get(k);
+    }
+    return true;
+  }
+
   function collectData() {
     // Only persist deviations from the registered defaults — keeps
     // saves clean and lets future default-changes propagate to
     // existing characters automatically.
     const out = {};
     for (const [key, meta] of rules) {
+      const cur = !!state.get(key);
+      if (cur !== !!meta.defaultEnabled) {
+        out[key] = cur;
+      }
+    }
+    for (const [key, meta] of entries) {
       const cur = !!state.get(key);
       if (cur !== !!meta.defaultEnabled) {
         out[key] = cur;
@@ -164,6 +254,9 @@
     for (const [key, meta] of rules) {
       baseline[key] = !!meta.defaultEnabled;
     }
+    for (const [key, meta] of entries) {
+      baseline[key] = !!meta.defaultEnabled;
+    }
     const savedDeviations = data._homebrew || {};
     _bulkApply({ ...baseline, ...savedDeviations });
   }
@@ -171,6 +264,10 @@
   window.HomebrewFilter = {
     registerRule,
     getRules,
+    registerEntry,
+    getEntries,
+    getChildEntries,
+    allowsEntry,
     isEnabled,
     setEnabled,
     getActiveKeys,
