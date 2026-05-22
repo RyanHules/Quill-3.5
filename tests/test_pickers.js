@@ -1456,6 +1456,13 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // familiar to the flux adept") — false positive on the
     // KEYWORDS regex.
     'Flux Adept/Taste of Truth (Ex)',
+    // 2026-05-22 Dscape Dungeon Lord re-extraction (corpus-first
+    // audit fix): "Dungeon Dependency" describes the PrC's
+    // requirement to remain in a specific dungeon — "you can be
+    // familiar with only one dungeon at a time" — uses "familiar"
+    // as an adjective ("well-acquainted with"), not as the noun
+    // for a familiar pet.
+    'Dungeon Lord/Dungeon Dependency',
     // 2026-05-18 FaP extraction. Arachne/Familiar (Su) and
     // Arachne/Spider Mount (Sp) ARE companion-granting and have
     // metadata; the two listed below mention companion keywords but
