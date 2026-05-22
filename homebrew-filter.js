@@ -112,6 +112,14 @@
       defaultEnabled: !!meta.defaultEnabled,
       informational: !!meta.informational,
       source: meta.source || null,
+      // Optional parent reference. When set, this rule renders as a
+      // child of the named parent rule in the UI (the parent's
+      // bulk-toggle affects it; it doesn't appear at top level in
+      // its own category). Used by per-subsystem rules tied to a
+      // homebrew book (e.g. Item Familiar variants nesting under
+      // Diamond Soul). Parent must be a rule key — typically a
+      // "book_<ABBR>" parent registered by homebrew/book_content.js.
+      parentKey: meta.parentKey || null,
     });
     if (!state.has(meta.key)) {
       state.set(meta.key, !!meta.defaultEnabled);
@@ -194,6 +202,27 @@
     return [...entries.values()].filter(e => e.parentKey === parentKey);
   }
 
+  function getChildRules(parentKey) {
+    if (!parentKey) return [];
+    return [...rules.values()].filter(r => r.parentKey === parentKey);
+  }
+
+  // Unified child list: both content entries and per-subsystem rules
+  // that have been parented to this rule. Each item carries a `kind`
+  // discriminator ('entry' | 'rule') so the UI can render them
+  // differently — entries get a compact type-tagged row; rules get
+  // a fuller row with description + info tag.
+  function getChildren(parentKey) {
+    const out = [];
+    for (const e of getChildEntries(parentKey)) {
+      out.push({ kind: 'entry', ...e });
+    }
+    for (const r of getChildRules(parentKey)) {
+      out.push({ kind: 'rule', ...r });
+    }
+    return out;
+  }
+
   // Picker-side visibility gate. Returns true if no entry registration
   // covers this (source, type, name) triple, OR if its toggle is on.
   // Returns false ONLY when a registered entry's toggle is off.
@@ -267,6 +296,8 @@
     registerEntry,
     getEntries,
     getChildEntries,
+    getChildRules,
+    getChildren,
     allowsEntry,
     isEnabled,
     setEnabled,

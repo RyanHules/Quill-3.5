@@ -125,9 +125,16 @@
         'this message, no rule bundles are present in this build.</div>';
       return;
     }
-    // Group by category.
+    // Group by category. Rules with a `parentKey` are skipped at
+    // the top level — they render as children under their parent's
+    // row instead (e.g. Item Familiar Diamond Soul rules nest under
+    // the Diamond Soul book parent). Categories that end up empty
+    // after this filter are omitted from the modal entirely so we
+    // don't show ghost "Item Familiar" headers with nothing under
+    // them.
     const groups = new Map();
     for (const r of allRules) {
+      if (r.parentKey) continue;
       if (!groups.has(r.category)) groups.set(r.category, []);
       groups.get(r.category).push(r);
     }
@@ -139,15 +146,18 @@
     // HomebrewFilter.registerEntry from homebrew/book_content.js.
     // Other rule categories (Item Familiar etc.) render flat as
     // before — they have no children.
-    const HBC = window.HomebrewBookContent;  // optional dependency
+    // A rule "has children" if it's referenced as parentKey by any
+    // entry or rule. The Diamond Soul parent gets BOTH content
+    // entries (Tidecaller, Rooted Calling) AND subsystem rules
+    // (Item Familiar variants) as children — see getChildren().
+    const HBF = window.HomebrewFilter;
     let html = '';
     for (const [cat, rs] of groups) {
       html += `<div class="book-filter-group" data-group="${escapeAttr(cat)}">`
         + `<div class="book-filter-grouphead"><span>${escapeHtml(cat)}</span></div>`;
       for (const r of rs) {
-        const hasChildren =
-          r.key.startsWith('book_') && HBC
-          && HBC.getRegistered().some(b => b.parentKey === r.key);
+        const hasChildren = HBF.getChildren
+          && HBF.getChildren(r.key).length > 0;
         if (hasChildren) {
           html += renderParentWithChildren(r);
         } else {
@@ -186,12 +196,9 @@
   }
 
   function renderParentWithChildren(r) {
-    const HBC = window.HomebrewBookContent;
     const HBF = window.HomebrewFilter;
-    const childEntries = HBF.getChildEntries
-      ? HBF.getChildEntries(r.key)
-      : [];
-    const state = HBC.getBookState(r.key);  // 'all' | 'some' | 'none'
+    const children = HBF.getChildren ? HBF.getChildren(r.key) : [];
+    const state = computeParentState(children);
     const checked = state === 'all';
     const indeterminate = state === 'some';
     // Children sub-list is collapsed by default — user clicks the
@@ -202,16 +209,6 @@
     const childSrc = r.source
       ? `<span class="hbf-src" title="Source">${escapeHtml(r.source)}</span>`
       : '';
-    const TYPE_LABEL = {
-      prc: 'PrC', feat: 'Feat', spell: 'Spell', item: 'Item',
-      class: 'Class', race: 'Race', domain: 'Domain',
-      deity: 'Deity', invocation: 'Invocation',
-      maneuver: 'Maneuver', mystery: 'Mystery', power: 'Power',
-      rule: 'Rule', template: 'Template', creature: 'Creature',
-      soulmeld: 'Soulmeld', vestige: 'Vestige', plane: 'Plane',
-      organization: 'Organization', acf: 'ACF',
-      subst_level: 'Subst. Level', skill_trick: 'Skill Trick',
-    };
 
     let html = `<div class="hbf-parent" data-parent-key="${escapeAttr(r.key)}">`
       + `<label class="hbf-row hbf-row-parent" data-key="${escapeAttr(r.key)}">`
@@ -224,7 +221,7 @@
       +   `<span class="hbf-rowtext">`
       +     `<span class="hbf-rowtitle">${escapeHtml(r.name)} ${childSrc}</span>`
       +     `<span class="hbf-desc">`
-      +       `${childEntries.length} ${childEntries.length === 1 ? 'item' : 'items'}`
+      +       `${children.length} ${children.length === 1 ? 'item' : 'items'}`
       +       ` — toggle individually below, or use this checkbox to toggle all`
       +     `</span>`
       +   `</span>`
@@ -232,21 +229,79 @@
     html += `<div class="hbf-children" `
       +     `data-children-of="${escapeAttr(r.key)}"`
       +     ` style="display: ${collapsed ? 'none' : 'block'};">`;
-    for (const c of childEntries) {
-      const cChecked = HBF.isEnabled(c.key) ? 'checked' : '';
-      const typeLabel = TYPE_LABEL[c.type] || c.type;
-      html += `<label class="hbf-row hbf-row-child" data-key="${escapeAttr(c.key)}">`
-        + `<input type="checkbox" data-entry-key="${escapeAttr(c.key)}" ${cChecked}>`
-        + `<span class="hbf-rowtext">`
-        +   `<span class="hbf-rowtitle">`
-        +     `${escapeHtml(c.name)}`
-        +     `<span class="hbf-child-type">${escapeHtml(typeLabel)}</span>`
-        +   `</span>`
-        + `</span>`
-        + `</label>`;
+    for (const c of children) {
+      html += c.kind === 'entry'
+        ? renderChildEntry(c)
+        : renderChildRule(c);
     }
     html += `</div></div>`;
     return html;
+  }
+
+  const TYPE_LABEL = {
+    prc: 'PrC', feat: 'Feat', spell: 'Spell', item: 'Item',
+    class: 'Class', race: 'Race', domain: 'Domain',
+    deity: 'Deity', invocation: 'Invocation',
+    maneuver: 'Maneuver', mystery: 'Mystery', power: 'Power',
+    rule: 'Rule', template: 'Template', creature: 'Creature',
+    soulmeld: 'Soulmeld', vestige: 'Vestige', plane: 'Plane',
+    organization: 'Organization', acf: 'ACF',
+    subst_level: 'Subst. Level', skill_trick: 'Skill Trick',
+  };
+
+  function renderChildEntry(c) {
+    const HBF = window.HomebrewFilter;
+    const cChecked = HBF.isEnabled(c.key) ? 'checked' : '';
+    const typeLabel = TYPE_LABEL[c.type] || c.type;
+    return `<label class="hbf-row hbf-row-child" data-key="${escapeAttr(c.key)}">`
+      + `<input type="checkbox" data-entry-key="${escapeAttr(c.key)}" ${cChecked}>`
+      + `<span class="hbf-rowtext">`
+      +   `<span class="hbf-rowtitle">`
+      +     `${escapeHtml(c.name)}`
+      +     `<span class="hbf-child-type">${escapeHtml(typeLabel)}</span>`
+      +   `</span>`
+      + `</span>`
+      + `</label>`;
+  }
+
+  function renderChildRule(c) {
+    const HBF = window.HomebrewFilter;
+    const cChecked = HBF.isEnabled(c.key) ? 'checked' : '';
+    const info = c.informational
+      ? '<span class="hbf-info-tag" title="No mechanical effect — '
+        + 'sheet-level flag for visibility only">info</span>'
+      : '';
+    // Use the rule's category as a sub-tag so the user can tell
+    // a Diamond Soul rule from a Diamond Soul content entry.
+    const catTag = c.category
+      ? `<span class="hbf-child-type">${escapeHtml(c.category)}</span>`
+      : '';
+    return `<label class="hbf-row hbf-row-child hbf-row-child-rule" `
+      +   `data-key="${escapeAttr(c.key)}">`
+      + `<input type="checkbox" data-key="${escapeAttr(c.key)}" ${cChecked}>`
+      + `<span class="hbf-rowtext">`
+      +   `<span class="hbf-rowtitle">`
+      +     `${escapeHtml(c.name)} ${catTag} ${info}`
+      +   `</span>`
+      +   (c.description
+            ? `<span class="hbf-desc">${escapeHtml(c.description)}</span>`
+            : '')
+      + `</span>`
+      + `</label>`;
+  }
+
+  // Parent tristate: 'all' (every child enabled), 'none' (every
+  // child disabled), 'some' (mixed). Walks both child kinds via
+  // the same HomebrewFilter.isEnabled lookup.
+  function computeParentState(children) {
+    const HBF = window.HomebrewFilter;
+    let on = 0, off = 0;
+    for (const c of children) {
+      if (HBF.isEnabled(c.key)) on++; else off++;
+    }
+    if (on && !off) return 'all';
+    if (off && !on) return 'none';
+    return 'some';
   }
 
   // After renderList writes innerHTML, set the indeterminate flag
@@ -261,21 +316,37 @@
   // Delegated change handler — child + parent + flat-rule checkboxes
   // all flow through here. Each sets HomebrewFilter state and the
   // change event triggers a status refresh.
+  //
+  // Note on the data-key / data-entry-key / data-parent-key split:
+  // child entries use `data-entry-key` so we can find their parent
+  // via HomebrewFilter.getEntries(); child rules use `data-key`
+  // (same as flat rules) and parent lookup goes through
+  // HomebrewFilter.getRules(). Both flow through the same
+  // setEnabled — only the parent re-render path differs.
   function onListChange(ev) {
     const t = ev.target;
     if (!(t instanceof HTMLInputElement) || t.type !== 'checkbox') return;
+    const HBF = window.HomebrewFilter;
     if (t.dataset.parentKey) {
-      // Parent checkbox: bulk-toggle all children to its new state.
-      const HBC = window.HomebrewBookContent;
-      if (HBC) HBC.setBookEnabled(t.dataset.parentKey, t.checked);
-      // Re-render the parent's child rows + indeterminate flag in
-      // place rather than rebuilding the whole list.
+      // Parent checkbox: bulk-toggle every child (both entries and
+      // parented rules) to the parent's new state. Each setEnabled
+      // emits a homebrew-filter-changed event; that's fine — they
+      // batch visually because re-render is local.
+      const children = HBF.getChildren
+        ? HBF.getChildren(t.dataset.parentKey)
+        : [];
+      for (const c of children) {
+        HBF.setEnabled(c.key, t.checked);
+      }
       reRenderParent(t.dataset.parentKey);
     } else if (t.dataset.entryKey) {
-      window.HomebrewFilter.setEnabled(t.dataset.entryKey, t.checked);
-      reRenderParentForChild(t.dataset.entryKey);
+      HBF.setEnabled(t.dataset.entryKey, t.checked);
+      reRenderParentForChild(t.dataset.entryKey, 'entry');
     } else if (t.dataset.key) {
-      window.HomebrewFilter.setEnabled(t.dataset.key, t.checked);
+      HBF.setEnabled(t.dataset.key, t.checked);
+      // Could be a flat rule (no parent) or a child rule (has
+      // parentKey). Update the parent tristate if needed.
+      reRenderParentForChild(t.dataset.key, 'rule');
     }
     refreshStatus();
   }
@@ -300,14 +371,18 @@
     const wrap = modalEl.querySelector(
       `.hbf-parent[data-parent-key="${cssEscape(parentKey)}"]`);
     if (!wrap) return;
-    // Update each child checkbox state to match HomebrewFilter.
     const HBF = window.HomebrewFilter;
+    // Update each child checkbox (both entry-kind and rule-kind)
+    // to match HomebrewFilter state.
     wrap.querySelectorAll('input[data-entry-key]').forEach(cb => {
       cb.checked = HBF.isEnabled(cb.dataset.entryKey);
     });
-    // Update parent indeterminate / checked.
-    const HBC = window.HomebrewBookContent;
-    const state = HBC ? HBC.getBookState(parentKey) : 'all';
+    wrap.querySelectorAll('.hbf-row-child-rule input[data-key]').forEach(cb => {
+      cb.checked = HBF.isEnabled(cb.dataset.key);
+    });
+    // Update parent indeterminate / checked from the unified child list.
+    const children = HBF.getChildren ? HBF.getChildren(parentKey) : [];
+    const state = computeParentState(children);
     const parentCb = wrap.querySelector('input[data-parent-key]');
     if (parentCb) {
       parentCb.checked = (state === 'all');
@@ -315,14 +390,21 @@
     }
   }
 
-  function reRenderParentForChild(entryKey) {
+  // After a child toggles, find its parent (if any) and refresh
+  // the parent's tristate. `kind` is 'entry' or 'rule' — they
+  // come from different HomebrewFilter registries so the lookup
+  // path differs.
+  function reRenderParentForChild(childKey, kind) {
     const HBF = window.HomebrewFilter;
-    if (!HBF.getChildEntries) return;
-    // Find the entry's parent via getEntries (we'll need it).
-    if (!HBF.getEntries) return;
-    const entry = HBF.getEntries().find(e => e.key === entryKey);
-    if (!entry || !entry.parentKey) return;
-    reRenderParent(entry.parentKey);
+    let parentKey = null;
+    if (kind === 'entry' && HBF.getEntries) {
+      const entry = HBF.getEntries().find(e => e.key === childKey);
+      parentKey = entry && entry.parentKey;
+    } else if (kind === 'rule' && HBF.getRules) {
+      const rule = HBF.getRules().find(r => r.key === childKey);
+      parentKey = rule && rule.parentKey;
+    }
+    if (parentKey) reRenderParent(parentKey);
   }
 
   // Browser-safe CSS.escape polyfill — older Edge / very old Chrome.

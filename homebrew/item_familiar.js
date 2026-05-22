@@ -25,10 +25,20 @@
     return;
   }
 
+  // parentKey='book_DS' nests these three rules under the Diamond
+  // Soul (Homebrew) parent in the UI, so all Diamond Soul homebrew
+  // (content + rules) lives in one collapsible bundle instead of
+  // being scattered across two top-level categories. The Diamond
+  // Soul parent is registered by homebrew/book_content.js when the
+  // DB loads. If that registration hasn't happened yet (DB still
+  // loading), the parentKey simply points at a key that will exist
+  // shortly — the UI re-renders on each modal open, so by the time
+  // the user sees the modal, both registrations have completed.
   HomebrewFilter.registerRule({
     key: 'if_free_for_jianghu',
     name: 'Item Familiar — free for Jianghu wanderers',
     category: 'Item Familiar',
+    parentKey: 'book_DS',
     description:
       'Item Familiar (UA p.170) costs no feat slot for Jianghu wanderer ' +
       'PCs and NPCs. Loss penalty, investment mechanics, L7 sapience, ' +
@@ -41,6 +51,7 @@
     key: 'if_progressive_bond_track',
     name: 'Item Familiar — Progressive Bond Track',
     category: 'Item Familiar',
+    parentKey: 'book_DS',
     description:
       'Replaces UA Table 5-12 with a continuous progression every other ' +
       'level: L3 bond + Alertness, L5/L9/L13/L17 augmentation budgets, ' +
@@ -55,6 +66,7 @@
     key: 'if_augmentation_budget',
     name: 'Item Familiar — Augmentation Budget',
     category: 'Item Familiar',
+    parentKey: 'book_DS',
     description:
       'The L5/L9/L13/L17 picks from the Progressive Bond Track operate ' +
       'as gp budgets spent via DMG p.285 custom-item pricing: 2,000 / ' +
