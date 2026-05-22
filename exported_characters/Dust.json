@@ -1,7 +1,7 @@
 {
   "char-name": "Dust",
   "char-player": "Ryan",
-  "char-class": "Sha'ir 6 / Sand Shaper 2/Tidecaller 1",
+  "char-class": "Sha'ir 5 / Sand Shaper 2 / Tidecaller 1",
   "char-race": "Earth Mephling",
   "char-type": "Humanoid (Extraplanar)",
   "char-alignment": "True Neutral",
@@ -100,7 +100,7 @@
   "_multiclass": [
     {
       "className": "Sha'ir",
-      "level": 6,
+      "level": 5,
       "classId": 2733,
       "version": "3.5",
       "source": "Dragon Compendium, Volume I"
@@ -108,9 +108,23 @@
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 13210,
+      "classId": 13217,
       "version": "3.5",
       "source": "Sandstorm",
+      "advancesTypes": [
+        "arcane"
+      ],
+      "advancesLevels": 1,
+      "advancesTargets": [
+        "Sha'ir"
+      ]
+    },
+    {
+      "className": "Tidecaller",
+      "level": 1,
+      "classId": 3122,
+      "version": "3.5",
+      "source": "Diamond Soul (Homebrew)",
       "advancesTypes": [
         "arcane"
       ],
@@ -136,7 +150,7 @@
   "shield-check-pen": "0",
   "shield-spell-fail": "0",
   "shield-special": "",
-  "armor-worn": true,
+  "armor-worn": false,
   "shield-worn": false,
   "armor-touch-ac": false,
   "shield-touch-ac": false,
@@ -698,7 +712,38 @@
       "bonus-5": "1",
       "extra-5": "",
       "used-5": "0",
-      "knownList-5": [],
+      "knownList-5": [
+        {
+          "name": "Choking Sands",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Flaywind Burst",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Flesh to Salt",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Summon Desert Ally V",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Transmute Sand to Stone",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Transmute Stone to Sand",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        }
+      ],
       "preparedList-5": [],
       "domain-5": "",
       "specialist-5": "",
@@ -707,7 +752,28 @@
       "bonus-6": "1",
       "extra-6": "",
       "used-6": "0",
-      "knownList-6": [],
+      "knownList-6": [
+        {
+          "name": "Awaken Sand",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Mummify",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Sandstorm",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        },
+        {
+          "name": "Summon Desert Ally VI",
+          "freebie": true,
+          "source": "Sand Shaper — Desert Insight"
+        }
+      ],
       "preparedList-6": [],
       "domain-6": "",
       "specialist-6": "",
@@ -745,7 +811,7 @@
     "Spell Penetration",
     "Fiery Spell",
     "Recover Breath",
-    "Place Magic\nYou may cast any spell you know without preparation, so long as you're within your attuned place. Doing so takes a full-round action for spells that have a casting time of 1 standard action; any spells that take longer than a standard action to cast takes an extra full round to cast."
+    "Rooted Calling"
   ],
   "specialAbilities": [
     "Sand Shape (Sp):\nYou can magically sculpt the soil of the waste into any solid object you can imagine, provided you have access to a sufficient quantity of the appropriate soil and you can successfully make a caster level check. The DC is determined by the size and complexity of the item.\nEach attempt to create an item requires a number of minutes equal to the DC. You can take 10 on this check. Created items persist for 10 minutes per sand shaper level, and can only be solid objects; you cannot use this ability to create liquids, gases, or living matter. The objects created have no magical properties, though they radiate faint transmutation magic.\nYou can maintain a number of objects equal to your sand shaper level. If you create an additional item, the item that has been in existence the longest reverts back to sand. Items you create otherwise persist for the duration of this use of the ability, regardless of their distance from you. If you use alchemical shapesand to create an item, you do not count that item against your limit, in addition to the other benefits provided by shapesand.\nAll items created in this fashion have hardness 5 and hit points according to their size: Fine 1; Diminutive 2; Tiny 3; Small 5; Medium 8; Large 10; Huge 15; Gargantuan 20; Colossal 25.\nDCs:\nItem Size             DC\n1 cu. ft. or less      –5\n1.1–2.0 cu. ft.        0\n2.1–4.0 cu. ft.        5\n4.1–8.0 cu. ft.        10\n8.1–12.0 cu. ft.      15\n12.1–16.0 cu. ft.    20\n16.1–24.0 cu. ft.    25\n24.1–30.0 cu. ft.    30\nItem Complexity   Modifier\nFine details           +2\nFunctioning tool   +2\nFunctioning armor/weapon +5\nMultiple parts        +5\nMasterwork version +10\nMoving parts         +10",
@@ -763,9 +829,14 @@
     "[Sha'ir 3] Recognize genie works",
     "[Sha'ir 5] Elemental protection",
     "Bind Elemental Shark (Air)\nTelthor Shark #1",
-    "Spirit Tide\nBinds all four sharks; **manifests 2 at once.** Unmanifested sharks circle in the spirit-tide. Swapping a manifested shark is a move action. The manifested pair determines which breath effects are available, which domains fetch fast (Elemental Conduit), and which movement modes the Tidecaller has (Elemental Stride) — one choice governing three systems.",
-    "Elemental Stride\nWhile a shark is manifested, it lends the Tidecaller its element's movement mode, **speed 30 ft** (doubling to 60 ft at the capstone):\n\n- **Air** → fly (poor maneuverability; → good at capstone). *(The air shark itself flies at good maneuverability; the Tidecaller's borrowed mode lags behind the shark's own flight until mastery — intentional, not an inconsistency.)*\n- **Earth** → burrow (→ *earth glide* at capstone)\n- **Water** → swim (→ gains water breathing at capstone)\n- **Fire** → no movement mode; the fire shark's contribution is its breath",
-    "Sand-Tide Breath\n**Replaces and subsumes** the character's racial breath weapon. The school shares **one breath charge.** As a standard action, any manifested shark expends the charge to loose its effect — the shark's own action, costing the Tidecaller nothing.\n\n**Save DC = 10 + Tidecaller class level + Charisma modifier.** *(Locked: Charisma — it is a Sha'ir prestige class and Charisma is the Sha'ir casting stat.)*\n\n**Cone size scales with the firing shark's current size** (Variable Size): Tiny 15 ft, Small 20 ft, +10 ft per size category above Small — Medium 30, Large 40, Huge 50, Gargantuan 60, Colossal 70."
+    "[Sha'ir 1] spells",
+    "[Sha'ir 1] Summon gen familiar",
+    "[Sha'ir 3] Recognize genie works",
+    "[Sha'ir 5] Elemental protection",
+    "[Tidecaller 1] Bind elemental shark (1st)",
+    "[Tidecaller 1] Elemental Stride",
+    "[Tidecaller 1] Sand-Tide Breath",
+    "[Tidecaller 1] Spirit Tide"
   ],
   "languages": "Common, Terran, Ignan",
   "companions": [
@@ -1103,7 +1174,7 @@
     },
     {
       "level": 4,
-      "class_taken": "Durthan",
+      "class_taken": "Sha'ir",
       "hp_rolled": 3,
       "ability_boost": "CHA",
       "skills_purchased": {},
@@ -1115,7 +1186,7 @@
     },
     {
       "level": 5,
-      "class_taken": "Durthan",
+      "class_taken": "Sha'ir",
       "hp_rolled": 3,
       "ability_boost": null,
       "skills_purchased": {},
@@ -1132,7 +1203,7 @@
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [
-        "Spell Penetration"
+        "Recover Breath"
       ],
       "spells_learned": [],
       "spells_unlearned": [],
@@ -1141,8 +1212,8 @@
     },
     {
       "level": 7,
-      "class_taken": "Durthan",
-      "hp_rolled": 3,
+      "class_taken": "Sand Shaper",
+      "hp_rolled": 4,
       "ability_boost": null,
       "skills_purchased": {},
       "feats_taken": [],
@@ -1153,8 +1224,8 @@
     },
     {
       "level": 8,
-      "class_taken": "Sand Shaper",
-      "hp_rolled": 4,
+      "class_taken": "Tidecaller",
+      "hp_rolled": 3,
       "ability_boost": "CHA",
       "skills_purchased": {},
       "feats_taken": [],
@@ -1173,6 +1244,7 @@
     "CWar",
     "DComp",
     "DMG",
+    "DS",
     "Draco",
     "FRCS",
     "MIC",
@@ -1189,7 +1261,13 @@
     "XPH"
   ],
   "_hide_30_mode": "counterpart",
-  "_homebrew": null,
+  "_homebrew": {
+    "if_free_for_jianghu": true,
+    "if_progressive_bond_track": true,
+    "if_augmentation_budget": true,
+    "entry_DS_feat_rooted_calling": true,
+    "entry_DS_prc_tidecaller": true
+  },
   "skills": [
     {
       "type": "skill",
@@ -1523,7 +1601,7 @@
     },
     {
       "type": "skill",
-      "classSkill": false,
+      "classSkill": true,
       "ranks": "0",
       "misc": "0",
       "index": 41
@@ -1555,7 +1633,7 @@
       "classSkill": false,
       "name": "",
       "ability": "INT",
-      "ranks": "",
+      "ranks": "0",
       "misc": "0"
     },
     {
