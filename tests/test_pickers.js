@@ -1482,6 +1482,14 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // dungeon), not a companion-granting feature.
     'Beast Heart Adept/Alternative Monstrous Companion',
     'Dungeon Lord/Bound to a Dungeon',
+    // 2026-05-22 Diamond Soul (Homebrew): Tidecaller's "Ride the
+    // Tide" lets a manifested elemental shark deliver the
+    // Tidecaller's touch-range spells "as a familiar delivers a
+    // touch spell" — comparative reference to the familiar
+    // mechanic, not a new familiar/companion grant. The four
+    // elemental sharks are bound via the "Bind Elemental Shark"
+    // feature; Ride the Tide is just a delivery option for them.
+    'Tidecaller/Ride the Tide (Su)',
   ]);
 
   const rows = execAll(db,
