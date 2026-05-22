@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260522b';
+    window.CACHE_VERSION = '20260522c';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -728,6 +728,12 @@
       // modules so they can self-register at module-load time.
       'homebrew-filter.js',
       'homebrew/item_familiar.js',
+      // homebrew/book_content.js — auto-registers a HomebrewFilter
+      // rule per homebrew BOOK (book_type='homebrew' in the DB), so
+      // homebrew content (Tidecaller PrC, Rooted Calling feat, etc.)
+      // surfaces in the 🏠 modal alongside per-subsystem rule
+      // toggles. Bridges to BookFilter for actual visibility.
+      'homebrew/book_content.js',
       'lookup.js', 'book-filter-ui.js', 'homebrew-filter-ui.js',
       // -- Play-feel test suite (browser-side). Self-gates on
       // `?playfeel=1` in the URL; otherwise this is a near-zero-cost
