@@ -61,11 +61,19 @@
     modalEl.id = 'homebrew-filter-modal';
     modalEl.className = 'book-filter-modal';
     modalEl.style.display = 'none';
+    // NB: reuse the BOOK filter's class names — .book-filter-card
+    // (not .book-filter-panel) and .book-filter-header (not -head).
+    // The CSS rules at line 2724+ in styles.css are scoped to those
+    // exact class names, providing the panel's width / background /
+    // flex layout / max-height etc. Using the alternate names left
+    // the panel unstyled, so the backdrop overlay covered the
+    // (correctly populated) rules list and the modal LOOKED blank.
+    // Bug found 2026-05-22.
     modalEl.innerHTML = `
       <div class="book-filter-backdrop" data-close="1"></div>
-      <div class="book-filter-panel" role="dialog" aria-modal="true"
+      <div class="book-filter-card" role="dialog" aria-modal="true"
            aria-labelledby="homebrew-filter-title">
-        <div class="book-filter-head">
+        <div class="book-filter-header">
           <div>
             <div class="book-filter-title" id="homebrew-filter-title">
               Homebrew &amp; house rules

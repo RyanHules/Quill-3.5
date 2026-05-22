@@ -173,10 +173,19 @@
         byAbbrev.set(b.abbreviation, b);
       }
     }
-    const order = ['core', 'splat', 'campaign', 'other'];
+    // Include 'homebrew' (a new book_type added 2026-05-22 with
+    // Diamond Soul) so homebrew content actually renders. Without
+    // this, books with book_type='homebrew' were grouped silently
+    // and never displayed — Diamond Soul (Homebrew) was invisible
+    // in the filter modal even though its entries were in the DB.
+    // Any future book_type that isn't in this list will still fall
+    // through into 'other' via the `b.book_type || 'other'` default
+    // above, but we hard-code the known ones so the section labels
+    // can be controlled.
+    const order = ['core', 'splat', 'campaign', 'homebrew', 'other'];
     const groupLabels = {
       core: 'Core', splat: 'Splatbooks', campaign: 'Campaign settings',
-      other: 'Other',
+      homebrew: 'Homebrew', other: 'Other',
     };
 
     let html = '';
