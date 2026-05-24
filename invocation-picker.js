@@ -196,7 +196,20 @@
       const r = invocationIndex.get(invoIn.value.trim().toLowerCase());
       if (!r) { info.style.display = 'none'; info.innerHTML = ''; return; }
       info.style.display = 'block';
-      info.innerHTML = renderInfo(r);
+      let html = renderInfo(r);
+      // Other invocations of the same grade (Least / Lesser / Greater
+      // / Dark). Useful for warlocks browsing what else they can pick
+      // up at the same grade.
+      if (window.Lookup && Lookup.renderSiblingsRow && r.grade) {
+        html += Lookup.renderSiblingsRow(
+          `Other ${r.grade} invocations`,
+          'invocation', 'grade', r.grade, r.name
+        );
+      }
+      info.innerHTML = html;
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, r.invocation_id);
     }
 

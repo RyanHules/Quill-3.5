@@ -2825,6 +2825,22 @@
     const bits = [];
     bits.push(`<b>${escapeHtml(cls.class)} ${level}</b>` +
       ` <span style="opacity:.7">(${escapeHtml(cls.version || '?')})</span>`);
+    // PrC requirements — pull from the entry data and render via
+    // Lookup with the Feats sub-field as clickable pills. Goes first
+    // because it gates entry to the class.
+    if (window.Lookup && Lookup.renderRequirementsWithPills) {
+      const reqRow = DB.queryOne(
+        "SELECT json_extract(data, '$.requirements') AS req " +
+        "FROM entry WHERE id = ?", [cls.class_id]
+      );
+      if (reqRow && reqRow.req) {
+        try {
+          const req = JSON.parse(reqRow.req);
+          const reqHtml = Lookup.renderRequirementsWithPills(req);
+          if (reqHtml) bits.push(reqHtml);
+        } catch (e) { /* malformed JSON — skip */ }
+      }
+    }
     bits.push(`<b>BAB:</b> +${bab}`);
     bits.push(`<b>Saves:</b> Fort +${fort}, Ref +${ref}, Will +${will}`);
 
@@ -2885,6 +2901,10 @@
     }
 
     panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
+    // Activate see-also pill clicks (feat names inside Requirements).
+    if (window.Lookup && Lookup.wireSeeAlsoPills) {
+      Lookup.wireSeeAlsoPills(panel);
+    }
     if (window.ErrataBadge) ErrataBadge.attach(panel, cls.class_id);
     if (window.VersionBadge) VersionBadge.attach(panel, cls.version);
     // Append the collapsible Variants section (ACFs + Sub Levels)

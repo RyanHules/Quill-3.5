@@ -328,7 +328,18 @@
       const m = maneuverIndex.get(key);
       if (!m) { info.style.display = 'none'; info.innerHTML = ''; return; }
       info.style.display = 'block';
-      info.innerHTML = renderInfo(m);
+      let html = renderInfo(m);
+      // Other maneuvers in the same discipline — clickable pills.
+      if (window.Lookup && Lookup.renderSiblingsRow && m.discipline) {
+        html += Lookup.renderSiblingsRow(
+          `Other ${m.discipline} maneuvers`,
+          'maneuver', 'discipline', m.discipline, m.name
+        );
+      }
+      info.innerHTML = html;
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, m.maneuver_id);
     }
 

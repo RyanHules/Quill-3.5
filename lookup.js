@@ -288,7 +288,79 @@
     wrap.innerHTML = renderDetailHtml(data, entryType);
     // Stop click bubbling so clicking inside the detail (e.g. on a
     // link) doesn't collapse the row.
-    wrap.addEventListener('click', (ev) => ev.stopPropagation());
+    //
+    // EXCEPTION: see_also cross-link clicks (rule entries) need to be
+    // handled here, because stopPropagation prevents the document-
+    // level [data-lookup-search] handler from firing. Intercept the
+    // click, run search(), then stopPropagation so the row stays put
+    // — search() will re-render the results list anyway, so the
+    // currently expanded row is about to be replaced regardless.
+    wrap.addEventListener('click', (ev) => {
+      const tgt = ev.target instanceof Element ? ev.target : null;
+      // See-also pill → toggle inline-expanded nested view of the
+      // linked entry. Multiple can be open at once; clicking an
+      // already-open pill closes it.
+      const seeAlsoPill = tgt?.closest('[data-see-also-name]');
+      if (seeAlsoPill) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const name = seeAlsoPill.getAttribute('data-see-also-name');
+        const container = seeAlsoPill
+          .closest('.lookup-rule-see-also')
+          ?.querySelector('.lookup-see-also-expansions');
+        if (!container) return;
+        const existing = container.querySelector(
+          `[data-nested-name="${cssAttrEscape(name)}"]`
+        );
+        if (existing) {
+          existing.remove();
+          seeAlsoPill.setAttribute('aria-expanded', 'false');
+          const caret = seeAlsoPill.querySelector('.lookup-see-also-caret');
+          if (caret) caret.textContent = '▸';
+        } else {
+          container.insertAdjacentHTML(
+            'beforeend', renderNestedExpansion(name)
+          );
+          seeAlsoPill.setAttribute('aria-expanded', 'true');
+          const caret = seeAlsoPill.querySelector('.lookup-see-also-caret');
+          if (caret) caret.textContent = '▾';
+        }
+        return;
+      }
+      // Legacy data-lookup-search → switch the modal's search query.
+      // Still wired for any non-see_also caller that uses it; the
+      // see-also flow no longer touches this code path.
+      const link = tgt?.closest('[data-lookup-search]');
+      if (link) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        search(link.getAttribute('data-lookup-search'));
+        return;
+      }
+      // Show more / less toggle for collapsed rule descriptions.
+      const toggle = tgt?.closest('[data-action="toggle-desc"]');
+      if (toggle) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const container = toggle.closest('.lookup-detail-desc');
+        if (!container) return;
+        const collapsed = container.dataset.collapsed === '1';
+        const rest = container.querySelector('.lookup-desc-rest');
+        if (rest) {
+          if (collapsed) {
+            rest.hidden = false;
+            container.dataset.collapsed = '0';
+            toggle.textContent = 'Show less ▴';
+          } else {
+            rest.hidden = true;
+            container.dataset.collapsed = '1';
+            toggle.textContent = 'Show full prose ▾';
+          }
+        }
+        return;
+      }
+      ev.stopPropagation();
+    });
     // If this entry has errata of any kind (applied or advisory),
     // append a clickable ✦ errata button to the header that opens a
     // popover listing each record. Anchored to the header so it sits
@@ -310,11 +382,66 @@
     bits.push(renderHeader(d, type));
     bits.push(renderMeta(d, type));
     if (d.description) {
-      bits.push(`<div class="lookup-detail-desc">${escapeHtml(d.description)}</div>`);
+      bits.push(renderDescription(d, type));
     }
     bits.push(renderTypeSpecific(d, type));
     bits.push(renderTags(d));
     return bits.filter(Boolean).join('');
+  }
+
+  // Collapse rule descriptions when structured tables/mechanics make
+  // most of the prose redundant. Many Core rule entries now have BOTH
+  // a thorough prose description AND a table that lists the same
+  // data — when both are present, the table wins and the prose drops
+  // to its first paragraph (or `summary` field if available) behind a
+  // "Show more" toggle. For entries without tables/mechanics (the
+  // vast majority of legacy rules), description stays fully expanded
+  // as before.
+  function renderDescription(d, type) {
+    const desc = String(d.description || '');
+    const hasStructured = type === 'rule' && (
+      (Array.isArray(d.tables) && d.tables.length) ||
+      (d.mechanics && typeof d.mechanics === 'object'
+        && Object.keys(d.mechanics).length)
+    );
+    // Threshold: only collapse when there's meaningfully more prose
+    // than the lead paragraph. Below ~350 chars the toggle adds more
+    // friction than it saves.
+    if (!hasStructured || desc.length < 350) {
+      return `<div class="lookup-detail-desc">${escapeHtml(desc)}</div>`;
+    }
+    const lead = firstParagraph(desc, d.summary);
+    // If the lead is the entire description (no second paragraph to
+    // hide), no toggle needed.
+    if (lead.length >= desc.length - 10) {
+      return `<div class="lookup-detail-desc">${escapeHtml(desc)}</div>`;
+    }
+    return (
+      `<div class="lookup-detail-desc lookup-desc-collapsed" data-collapsed="1">` +
+      `<div class="lookup-desc-lead">${escapeHtml(lead)}</div>` +
+      `<div class="lookup-desc-rest" hidden>${escapeHtml(desc.slice(lead.length).trim())}</div>` +
+      `<button type="button" class="lookup-desc-toggle" ` +
+      `data-action="toggle-desc">Show full prose ▾</button>` +
+      `</div>`
+    );
+  }
+
+  // Pick the shortest sensible lead: prefer `summary` if it exists
+  // AND is a real prefix of (or close enough to) the description's
+  // first paragraph; otherwise use the first paragraph break.
+  function firstParagraph(desc, summary) {
+    if (summary && desc.startsWith(summary)) {
+      return summary;
+    }
+    const breakIdx = desc.indexOf('\n\n');
+    if (breakIdx > 0) return desc.slice(0, breakIdx);
+    // No paragraph break. Try first sentence.
+    const sentMatch = desc.match(/^[^.!?]*[.!?](?:\s|$)/);
+    if (sentMatch && sentMatch[0].length > 40
+        && sentMatch[0].length < desc.length - 50) {
+      return sentMatch[0].trim();
+    }
+    return summary || desc;
   }
 
   function renderHeader(d, type) {
@@ -409,7 +536,8 @@
     ],
     feat: [
       ['Type',       ['types_csv', 'types']],
-      ['Prereq',     ['prerequisites']],
+      // Prereq moved to renderFeatExtra (2026-05-24) so it can render
+      // feat names as inline-expandable see-also pills.
     ],
     item: [
       ['Type',       ['item_type', 'type']],
@@ -418,7 +546,8 @@
       ['CL',         ['caster_level']],
       ['Price',      ['price']],
       ['Weight',     ['weight']],
-      ['Prereq',     ['prerequisites']],
+      // Prereq moved to renderItemExtra (2026-05-24) so it can render
+      // Craft feats and spell-name material prereqs as see-also pills.
     ],
     weapon: [
       ['Type',       ['item_type', 'type', 'weapon_type']],
@@ -561,6 +690,8 @@
     if (type === 'race')        return renderRaceExtra(d);
     if (type === 'creature')    return renderCreatureExtra(d);
     if (type === 'weapon')      return renderWeaponExtra(d);
+    if (type === 'item' || type === 'armor' || type === 'gear')
+      return renderItemExtra(d);
     if (type === 'skill')       return renderSkillExtra(d);
     if (type === 'mystery')     return renderMysteryExtra(d);
     if (type === 'rule')        return renderRuleExtra(d);
@@ -614,13 +745,221 @@
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
 
-  function renderFeatExtra(d) {
-    const lines = [];
-    if (d.benefit) lines.push(`<b>Benefit:</b> ${escapeHtml(d.benefit)}`);
-    if (d.normal)  lines.push(`<b>Normal:</b> ${escapeHtml(d.normal)}`);
-    if (d.special) lines.push(`<b>Special:</b> ${escapeHtml(d.special)}`);
-    return lines.length
-      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  // Feats: prereqs become a row of see-also-style pills for any
+  // chunk that resolves to a real feat in the DB; the rest renders
+  // as plain text (ability scores, BAB, skill ranks, alignment, etc.).
+  // Plus a "Required by" section that surfaces downstream feats — the
+  // user reading Power Attack sees the chain Cleave → Great Cleave →
+  // Improved Bull Rush all as one-click expansions.
+  //
+  // `opts.nested = true` suppresses Required-by (the prereq pills
+  // inside a nested feat would still work — they reuse the same
+  // see_also expansion container — but we skip downstream-feat
+  // querying to keep the nested view focused).
+  function renderFeatExtra(d, opts) {
+    const nested = !!(opts && opts.nested);
+    const parts = [];
+
+    // PREREQUISITES — pills for feats, plain text for everything else
+    const prereqText = d.prerequisites || d.prerequisite || '';
+    if (prereqText) {
+      // Tag with both .lookup-feat-prereq (feat-specific spacing)
+      // and .lookup-rule-see-also (so the pill-click handler's
+      // `closest('.lookup-rule-see-also')` finds this container and
+      // can locate the sibling .lookup-see-also-expansions div).
+      parts.push(
+        `<div class="lookup-feat-prereq lookup-rule-see-also">` +
+        `<b>Prereq:</b> ${renderPrereqWithPills(prereqText)}` +
+        `</div>`
+      );
+    }
+
+    if (d.benefit) {
+      parts.push(`<div><b>Benefit:</b> ${escapeHtml(d.benefit)}</div>`);
+    }
+    if (d.normal) {
+      parts.push(`<div><b>Normal:</b> ${escapeHtml(d.normal)}</div>`);
+    }
+    if (d.special) {
+      parts.push(`<div><b>Special:</b> ${escapeHtml(d.special)}</div>`);
+    }
+
+    // REQUIRED BY — feats whose prerequisite chain includes this one.
+    if (!nested) {
+      const dependents = findFeatsRequiring(d.name);
+      if (dependents.length) {
+        const pills = dependents.map(name =>
+          `<button type="button" class="lookup-see-also-pill" ` +
+          `data-see-also-name="${escapeHtml(name)}" ` +
+          `aria-expanded="false">` +
+          `<span class="lookup-see-also-caret">▸</span> ` +
+          `${escapeHtml(name)}</button>`
+        ).join(' ');
+        parts.push(
+          `<div class="lookup-rule-see-also lookup-feat-required-by">` +
+          `<b>Required by:</b> ${pills}` +
+          `<div class="lookup-see-also-expansions"></div>` +
+          `</div>`
+        );
+      }
+    }
+
+    return parts.length
+      ? `<div class="lookup-detail-extra">${parts.join('')}</div>` : '';
+  }
+
+  // Parse a prereq string ("Str 13, Power Attack, base attack bonus +4")
+  // into HTML where chunks become clickable pills when they resolve
+  // to a DB entry of an allowed type, and plain text otherwise.
+  //
+  // `opts.allowedTypes` controls which DB entry types can pillify;
+  // default `['feat']` (works for feat prereqs). Item creation prereqs
+  // pass `['feat', 'spell']` so spell names in "Craft Wondrous Item,
+  // haste" pillify too. PrC requirements use the dict-shaped renderer
+  // below (renderRequirementsWithPills) instead — that one knows the
+  // Feats / Skills / Race / etc. categories already.
+  //
+  // `opts.skipExpansionsContainer` (default false) — when nested
+  // inside another already-has-expansions container, skip the
+  // trailing .lookup-see-also-expansions div so we don't end up
+  // with two of them inside the same .lookup-rule-see-also (the
+  // pill-click handler's querySelector would pick the wrong one).
+  function renderPrereqWithPills(text, opts) {
+    const allowed = opts?.allowedTypes || ['feat'];
+    const skipExpansions = !!(opts && opts.skipExpansionsContainer);
+    const chunks = String(text).split(/,\s*/);
+    const rendered = chunks.map(chunk => {
+      const trimmed = chunk.replace(/[.;]+\s*$/, '').trim();
+      if (!trimmed) return '';
+      // Plain-text categories: ability scores, BAB, caster level,
+      // skill ranks, alignment, special prose. Anything that doesn't
+      // look like a bare proper-noun-phrase.
+      if (isNonFeatPrereqChunk(trimmed)) {
+        return escapeHtml(chunk);
+      }
+      // Try to resolve as an allowed type. If it matches, render as
+      // a pill. Spell-case (item prereqs): D&D book convention writes
+      // spell names in italics or lowercase, so resolveSeeAlsoEntry's
+      // case-insensitive match works for "haste" → Haste spell.
+      const resolved = resolveSeeAlsoEntry(trimmed);
+      if (resolved && allowed.includes(resolved.type)) {
+        return `<button type="button" class="lookup-see-also-pill" ` +
+          `data-see-also-name="${escapeHtml(trimmed)}" ` +
+          `aria-expanded="false">` +
+          `<span class="lookup-see-also-caret">▸</span> ` +
+          `${escapeHtml(trimmed)}</button>`;
+      }
+      return escapeHtml(chunk);
+    });
+    // Wrap the prereq block in a container so the pill-expansion
+    // logic finds a `.lookup-see-also-expansions` sibling. Match the
+    // see-also row's structure so the existing click handler works.
+    return rendered.filter(Boolean).join(', ') +
+      (skipExpansions ? '' :
+        `<div class="lookup-see-also-expansions"></div>`);
+  }
+
+  // Render a PrC `requirements` dict as a labeled block, with the
+  // Feats sub-category pillified and the rest rendered as plain text.
+  // Input shape (from PrC stat blocks):
+  //   {Race: "Elf or half-elf.", Feats: "Power Attack, Cleave.",
+  //    Skills: "Tumble 8 ranks.", Alignment: "Any chaotic.", ...}
+  // The container has .lookup-rule-see-also so the pill click handler
+  // finds the .lookup-see-also-expansions sibling we tack on at the end.
+  function renderRequirementsWithPills(req) {
+    if (!req || typeof req !== 'object') return '';
+    const keys = Object.keys(req);
+    if (!keys.length) return '';
+    // Preferred display order — matches stat-block convention.
+    const PRIORITY = [
+      'Alignment', 'Race', 'Base Attack Bonus', 'Skills', 'Feats',
+      'Spells', 'Spellcasting', 'Class', 'Weapon Proficiency',
+      'Special',
+    ];
+    const ordered = keys.slice().sort((a, b) => {
+      const aIdx = PRIORITY.indexOf(a);
+      const bIdx = PRIORITY.indexOf(b);
+      return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+    });
+    const lines = ordered.map(k => {
+      const v = req[k];
+      if (v == null || v === '') return '';
+      const valueHtml = (k === 'Feats')
+        ? renderPrereqWithPills(String(v), {
+            allowedTypes: ['feat'],
+            skipExpansionsContainer: true,
+          })
+        : escapeHtml(String(v));
+      return `<div><b>${escapeHtml(k)}:</b> ${valueHtml}</div>`;
+    }).filter(Boolean).join('');
+    if (!lines) return '';
+    return `<div class="lookup-class-requirements lookup-rule-see-also">` +
+      `<b>Requirements</b>${lines}` +
+      `<div class="lookup-see-also-expansions"></div>` +
+      `</div>`;
+  }
+
+  function isNonFeatPrereqChunk(chunk) {
+    // Ability score: "Str 13", "Dex 13"
+    if (/^(Str|Dex|Con|Int|Wis|Cha)\s+\d+/i.test(chunk)) return true;
+    // BAB
+    if (/^base attack bonus/i.test(chunk)) return true;
+    if (/^bab\s*[+\-]/i.test(chunk)) return true;
+    // Caster level
+    if (/^caster level/i.test(chunk)) return true;
+    // Skill ranks: "5 ranks in Tumble", "Tumble 5 ranks"
+    if (/\b(ranks?)\b/i.test(chunk)) return true;
+    // Spellcasting requirements
+    if (/^(?:able to cast|ability to cast|able to use|must be )/i.test(chunk)) return true;
+    if (/^(?:any\s+\d|spellcaster|arcane caster|divine caster)/i.test(chunk)) return true;
+    // Class level: "fighter level 4th"
+    if (/\blevel\b/i.test(chunk) && /^\w+\s+(level|class)/i.test(chunk)) return true;
+    // Alignment
+    if (/(?:^|\s)(?:lawful|chaotic|neutral|good|evil)\b/i.test(chunk)
+        && /\balignment\b/i.test(chunk)) return true;
+    // Race
+    if (/^(?:elf|dwarf|halfling|gnome|half-elf|half-orc|human|orc|drow|tiefling|aasimar)\b/i.test(chunk)) return true;
+    // Class membership ("any 2 metamagic feats" is a special, not a feat)
+    if (/^(any|two|three|four|five|\d+)\s+\w/i.test(chunk)) return true;
+    return false;
+  }
+
+  // Find feats whose prerequisite string contains the given feat's
+  // name. Used by renderFeatExtra to surface the chain downstream
+  // ("Required by" section). LIKE %name% as a coarse filter, then
+  // a comma-split exact-match per result row to filter false positives
+  // (e.g. "Cleave" matching "Great Cleave"'s prereq list — that one's
+  // a real positive — but also avoiding "Power Attack" matching a
+  // feat that only mentions it in benefit text).
+  function findFeatsRequiring(featName) {
+    if (!featName || !DB.isLoaded()) return [];
+    const rows = DB.query(
+      "SELECT name FROM entry " +
+      "WHERE type='feat' " +
+      "  AND json_extract(data, '$.prerequisites') LIKE ? " +
+      "ORDER BY name",
+      ['%' + featName + '%']
+    );
+    if (!rows || !rows.length) return [];
+    const lowerName = featName.toLowerCase();
+    const matches = new Set();
+    for (const row of rows) {
+      const stub = DB.queryOne(
+        "SELECT data FROM entry WHERE type='feat' AND name=? LIMIT 1",
+        [row.name]
+      );
+      if (!stub) continue;
+      let d;
+      try { d = JSON.parse(stub.data || '{}'); } catch { continue; }
+      const prereq = String(d.prerequisites || d.prerequisite || '');
+      const chunks = prereq.split(/,\s*/)
+        .map(c => c.replace(/[.;]+\s*$/, '').trim().toLowerCase());
+      if (chunks.includes(lowerName)) {
+        matches.add(row.name);
+      }
+    }
+    // De-dupe (same name across sources) by name only.
+    return Array.from(matches).sort();
   }
 
   function renderVestigeExtra(d) {
@@ -658,6 +997,13 @@
   // show the first 5 rows plus a "(20 levels total)" hint.
   function renderClassExtra(d) {
     const lines = [];
+    // PrC requirements — render as a labeled block with feat-name
+    // pills (Race / Alignment / Skills / etc. plain text). Goes
+    // first because it gates entry to the class.
+    if (d.requirements && typeof d.requirements === 'object') {
+      const reqHtml = renderRequirementsWithPills(d.requirements);
+      if (reqHtml) lines.push(reqHtml);
+    }
     if (d.spellcasting && typeof d.spellcasting === 'object') {
       const sc = d.spellcasting;
       const parts = [];
@@ -726,6 +1072,23 @@
     }
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
+  // Magic-item / armor / gear creation prereqs: Craft feats + spell
+  // names pillify; non-resolvable chunks ("creator must be good")
+  // stay as plain text.
+  function renderItemExtra(d, opts) {
+    const nested = !!(opts && opts.nested);
+    const prereqText = d.prerequisites || d.prerequisite || '';
+    if (!prereqText) return '';
+    const pillText = renderPrereqWithPills(prereqText, {
+      allowedTypes: ['feat', 'spell'],
+    });
+    return `<div class="lookup-detail-extra">` +
+      `<div class="lookup-rule-see-also">` +
+      `<b>Prereq:</b> ${pillText}` +
+      `</div>` +
+      `</div>`;
   }
 
   function renderRaceExtra(d) {
@@ -891,35 +1254,236 @@
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
 
-  // Rules: render tables when present. Tables come in two shapes from
-  // extraction: structured `{headers, rows}` or freeform text. We
-  // handle both.
-  function renderRuleExtra(d) {
-    if (!Array.isArray(d.tables) || !d.tables.length) return '';
-    const blocks = d.tables.map(t => {
-      const cap = t.caption || t.title || '';
-      if (Array.isArray(t.rows) && Array.isArray(t.headers)) {
-        const head = `<tr>${t.headers.map(h =>
-          `<th>${escapeHtml(String(h))}</th>`).join('')}</tr>`;
-        const body = t.rows.map(row => {
-          if (Array.isArray(row)) {
-            return `<tr>${row.map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`;
-          }
-          if (typeof row === 'object') {
-            return `<tr>${t.headers.map(h =>
-              `<td>${escapeHtml(String(row[h] ?? ''))}</td>`).join('')}</tr>`;
-          }
-          return '';
-        }).join('');
-        return (cap ? `<div style="margin-top:0.4rem"><b>${escapeHtml(cap)}</b></div>` : '') +
-          `<table class="lookup-rule-table">${head}${body}</table>`;
-      }
-      // Freeform: just show whatever string representation we have.
-      const text = typeof t === 'string' ? t : (t.text || JSON.stringify(t));
-      return (cap ? `<div style="margin-top:0.4rem"><b>${escapeHtml(cap)}</b></div>` : '') +
-        `<pre style="white-space:pre-wrap;font-size:0.85em;margin:0.2rem 0">${escapeHtml(text)}</pre>`;
+  // Rules: render mechanics, tables, see_also cross-links, page ref,
+  // and raw_text (collapsed). The 2026-05-24 Core rules pass added
+  // structured `mechanics` (dict) + `tables` (list of {name, headers,
+  // rows, notes}) + `see_also` (list of cross-link names) + `page`
+  // (int) + `raw_text` (verbatim corpus excerpt). All optional; the
+  // renderer skips blocks for absent fields so older rules still
+  // display cleanly.
+  //
+  // Tables historically used `caption`/`title`; new ones use `name`.
+  // Try all three so legacy data isn't broken by the schema change.
+  function renderRuleExtra(d, opts) {
+    const nested = !!(opts && opts.nested);
+    const parts = [];
+
+    // PAGE (small, leading) — only if not already shown above
+    if (d.page) {
+      parts.push(`<div class="lookup-rule-page">PHB / DMG / MM p.${escapeHtml(String(d.page))}</div>`);
+    }
+
+    // MECHANICS — structured dict rendered as <dl>. Recursively
+    // renders nested dicts + lists so multi-level fields like
+    // initiation_sequence + size_step_up_baseline come through readable.
+    if (d.mechanics && typeof d.mechanics === 'object'
+        && Object.keys(d.mechanics).length) {
+      parts.push(
+        `<div class="lookup-rule-mechanics"><b>Mechanics</b>${
+          renderMechValue(d.mechanics)
+        }</div>`,
+      );
+    }
+
+    // TABLES — structured {name, headers, rows, notes}. Note also
+    // legacy {caption, title, text}.
+    if (Array.isArray(d.tables) && d.tables.length) {
+      const blocks = d.tables.map(renderRuleTable).filter(Boolean);
+      if (blocks.length) parts.push(blocks.join(''));
+    }
+
+    // SEE ALSO — clickable pills that expand the linked entry INLINE
+    // below the see-also row. The use case is mid-read clarification:
+    // reading Grapple, want to know if Pinning makes someone Helpless,
+    // click Pinned → its content drops in beneath the see-also row,
+    // read it, close it, keep reading Grapple. Multiple can be open
+    // at once. The pill toggles its own expansion. Each nested
+    // expansion is compact (no further see_also nesting, no raw_text)
+    // to keep the focus on the main entry.
+    //
+    // Suppressed when `nested` is true so a nested expansion's own
+    // see_also can't open further levels (would lose the user in a
+    // rabbit hole).
+    if (!nested && Array.isArray(d.see_also) && d.see_also.length) {
+      const pills = d.see_also.map(n =>
+        `<button type="button" class="lookup-see-also-pill" ` +
+        `data-see-also-name="${escapeHtml(String(n))}" ` +
+        `aria-expanded="false">` +
+        `<span class="lookup-see-also-caret">▸</span> ` +
+        `${escapeHtml(String(n))}</button>`
+      ).join(' ');
+      parts.push(
+        `<div class="lookup-rule-see-also"><b>See also:</b> ${pills}` +
+        `<div class="lookup-see-also-expansions"></div>` +
+        `</div>`
+      );
+    }
+
+    // RAW TEXT — collapsible. Only Core re-extracted rules carry
+    // this today; rest of the corpus comes from data extractions
+    // that aren't backed by verbatim text. Suppressed in nested view
+    // — verbatim corpus is for audit / deep-read, not for the
+    // glance-and-go clarification use case.
+    if (!nested && d.raw_text && String(d.raw_text).trim()) {
+      parts.push(
+        `<details class="lookup-rule-raw-text"><summary>Verbatim source text</summary>` +
+        `<pre>${escapeHtml(String(d.raw_text))}</pre></details>`
+      );
+    }
+
+    if (!parts.length) return '';
+    return `<div class="lookup-detail-extra">${parts.join('')}</div>`;
+  }
+
+  // Render one table entry into HTML. Handles structured
+  // {name, headers, rows[], notes} (new shape, 2026-05-24) and legacy
+  // {caption|title, ...} / freeform string variants.
+  function renderRuleTable(t) {
+    const cap = t.name || t.caption || t.title || '';
+    const notes = t.notes || '';
+    if (Array.isArray(t.rows) && Array.isArray(t.headers)) {
+      const head = `<tr>${t.headers.map(h =>
+        `<th>${escapeHtml(String(h))}</th>`).join('')}</tr>`;
+      const body = t.rows.map(row => {
+        if (Array.isArray(row)) {
+          return `<tr>${row.map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`;
+        }
+        if (typeof row === 'object') {
+          return `<tr>${t.headers.map(h =>
+            `<td>${escapeHtml(String(row[h] ?? ''))}</td>`).join('')}</tr>`;
+        }
+        return '';
+      }).join('');
+      return (
+        (cap ? `<div class="lookup-rule-table-caption">${escapeHtml(cap)}</div>` : '') +
+        `<table class="lookup-rule-table">${head}${body}</table>` +
+        (notes ? `<div class="lookup-rule-table-notes">${escapeHtml(notes)}</div>` : '')
+      );
+    }
+    // Freeform: just show whatever string representation we have.
+    const text = typeof t === 'string' ? t : (t.text || JSON.stringify(t));
+    return (
+      (cap ? `<div class="lookup-rule-table-caption">${escapeHtml(cap)}</div>` : '') +
+      `<pre style="white-space:pre-wrap;font-size:0.85em;margin:0.2rem 0">${escapeHtml(text)}</pre>`
+    );
+  }
+
+  // Recursive renderer for the `mechanics` dict. Dicts → <dl>;
+  // arrays → <ul>; primitives → escaped text. Keys are humanized
+  // (snake_case → "Title Case") so a JSON-shaped dict reads like
+  // a normal rules-text block.
+  function renderMechValue(v) {
+    if (v == null) return '';
+    if (Array.isArray(v)) {
+      if (!v.length) return '';
+      // Arrays of primitives → bulleted list; arrays of objects →
+      // recurse.
+      const items = v.map(x => {
+        if (x && typeof x === 'object') return `<li>${renderMechValue(x)}</li>`;
+        return `<li>${escapeHtml(String(x))}</li>`;
+      }).join('');
+      return `<ul class="lookup-mech-list">${items}</ul>`;
+    }
+    if (typeof v === 'object') {
+      const rows = Object.entries(v).map(([k, val]) => {
+        const label = humanizeKey(k);
+        // Inline primitives directly on the dt line; nest objects/
+        // arrays as their own dd.
+        if (val && typeof val === 'object') {
+          return `<dt>${escapeHtml(label)}</dt><dd>${renderMechValue(val)}</dd>`;
+        }
+        return `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(val))}</dd>`;
+      }).join('');
+      return `<dl class="lookup-mech-dl">${rows}</dl>`;
+    }
+    return escapeHtml(String(v));
+  }
+
+  function humanizeKey(k) {
+    return String(k)
+      .replace(/_/g, ' ')
+      .replace(/\b([a-z])/g, (_, c) => c.toUpperCase());
+  }
+
+  // Resolve a see-also name string to the most appropriate DB entry.
+  // Cross-link names like "Pinned", "Improved Grapple", "Escape
+  // Artist" need a type-priority tiebreak: a "Pinned" link from a
+  // grapple rule wants the Pinned CONDITION, not (hypothetically)
+  // a Pinned feat. Order: condition > rule > feat > skill > spell >
+  // class > prc > everything else. Case-insensitive exact match on
+  // name; first hit at the best-priority tier wins.
+  const SEE_ALSO_TYPE_PRIORITY = [
+    'condition', 'rule', 'feat', 'skill', 'skill_use',
+    'spell', 'class', 'prc', 'maneuver', 'power', 'item',
+  ];
+  function resolveSeeAlsoEntry(name) {
+    if (!name || !DB.isLoaded()) return null;
+    const rows = DB.query(
+      "SELECT id, type, name, source FROM entry " +
+      "WHERE LOWER(name) = LOWER(?)",
+      [name]
+    );
+    if (!rows || !rows.length) return null;
+    // Sort by type priority, then by source-recency proxy (3.5
+    // before 3.0 — we don't have version here so prefer rows that
+    // look like the primary book entry).
+    const ranked = rows.slice().sort((a, b) => {
+      const aIdx = SEE_ALSO_TYPE_PRIORITY.indexOf(a.type);
+      const bIdx = SEE_ALSO_TYPE_PRIORITY.indexOf(b.type);
+      const aRank = aIdx === -1 ? 99 : aIdx;
+      const bRank = bIdx === -1 ? 99 : bIdx;
+      return aRank - bRank;
     });
-    return `<div class="lookup-detail-extra">${blocks.join('')}</div>`;
+    return ranked[0];
+  }
+
+  // Render the inline-expanded view of a see-also entry. Compact
+  // header (name · type · source) + description + structured extras
+  // (mechanics, tables) — see_also and raw_text are suppressed in
+  // this view to keep the focus on the parent entry the user is
+  // really reading.
+  function renderNestedExpansion(name) {
+    const stub = resolveSeeAlsoEntry(name);
+    if (!stub) {
+      return `<div class="lookup-nested-expansion lookup-nested-notfound">` +
+        `<b>${escapeHtml(name)}</b> — not found in the DB.</div>`;
+    }
+    const data = fetchDetail(stub.id);
+    if (!data) {
+      return `<div class="lookup-nested-expansion lookup-nested-notfound">` +
+        `<b>${escapeHtml(name)}</b> — entry lookup failed.</div>`;
+    }
+    const type = data.type;
+    const typeLabel = TYPE_LABELS[type] || type;
+    const head =
+      `<div class="lookup-nested-head">` +
+      `<span class="lookup-nested-name">${escapeHtml(data.name)}</span>` +
+      ` <span class="lookup-nested-type">${escapeHtml(typeLabel)}</span>` +
+      (data.source ?
+        ` <span class="lookup-nested-source">· ${escapeHtml(data.source)}</span>` : '') +
+      `</div>`;
+    const desc = data.description
+      ? `<div class="lookup-nested-desc">${escapeHtml(String(data.description))}</div>`
+      : '';
+    // Reuse the type-specific renderer but pass nested=true where
+    // supported so the renderer skips its own see_also / required-by
+    // / raw_text (which would otherwise let the user open further
+    // expansions inside an already-nested one and rabbit-hole).
+    // Renderers without nested support are called as-is.
+    let extras = '';
+    if (type === 'rule') {
+      extras = renderRuleExtra(data, { nested: true });
+    } else if (type === 'feat') {
+      extras = renderFeatExtra(data, { nested: true });
+    } else if (type === 'item' || type === 'armor' || type === 'gear') {
+      extras = renderItemExtra(data, { nested: true });
+    } else if (type === 'class' || type === 'prc') {
+      extras = renderClassExtra(data);
+    } else {
+      extras = renderTypeSpecific(data, type);
+    }
+    return `<div class="lookup-nested-expansion" data-nested-name="${escapeHtml(name)}">` +
+      head + desc + extras + `</div>`;
   }
 
   function truncate(s, n) {
@@ -1499,9 +2063,148 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Expose minimal API for the future per-picker integration (Phase 4
-  // errata badge + maybe deep-linking from a picker into the modal).
-  window.Lookup = { open, close, toggle };
+  // Escape for use inside a CSS attribute selector value (between
+  // the quotes in `[attr="..."]`). Backslash-escape the actual
+  // special chars; this is narrower than CSS.escape() because we
+  // only need attribute-value safety, not selector-token safety.
+  function cssAttrEscape(s) {
+    return String(s).replace(/(["\\])/g, '\\$1');
+  }
+
+  // Set the search query and re-render. Used by see_also cross-links
+  // in rule detail panels — clicking a related-entry link opens the
+  // modal (if not already open) and jumps the search to that name.
+  function search(query) {
+    open();
+    if (inputEl) {
+      inputEl.value = String(query || '');
+      selectedIdx = 0;
+      render(inputEl.value.trim());
+    }
+  }
+
+  // Delegated click handler for see_also cross-links inside the
+  // rule detail panel. Each link carries data-lookup-search="<name>";
+  // clicking re-runs the search with that as the query.
+  document.addEventListener('click', ev => {
+    const link = ev.target.closest?.('[data-lookup-search]');
+    if (!link) return;
+    ev.preventDefault();
+    search(link.getAttribute('data-lookup-search'));
+  });
+
+  // Render a single see-also pill (clickable button). Used by
+  // renderRuleExtra and renderFeatExtra and exposed below for per-
+  // picker info panels that want the same UX.
+  function renderSeeAlsoPill(name) {
+    return `<button type="button" class="lookup-see-also-pill" ` +
+      `data-see-also-name="${escapeHtml(String(name))}" ` +
+      `aria-expanded="false">` +
+      `<span class="lookup-see-also-caret">▸</span> ` +
+      `${escapeHtml(String(name))}</button>`;
+  }
+
+  // Render a complete see-also row: label + space-separated pills +
+  // empty expansion container. Use as a one-liner from any picker
+  // info panel that wants pill behavior. The wrapping div carries
+  // .lookup-rule-see-also so the existing click handler's
+  // closest('.lookup-rule-see-also').querySelector(
+  // '.lookup-see-also-expansions') chain works.
+  function renderSeeAlsoRow(label, names) {
+    if (!Array.isArray(names) || !names.length) return '';
+    const pills = names.map(renderSeeAlsoPill).join(' ');
+    return `<div class="lookup-rule-see-also">` +
+      `<b>${escapeHtml(label)}:</b> ${pills}` +
+      `<div class="lookup-see-also-expansions"></div>` +
+      `</div>`;
+  }
+
+  // Query DB for entries that share a group value (e.g. all maneuvers
+  // of the same discipline, all mysteries of the same path) and
+  // render them as a see-also pill row. Excludes the current entry
+  // and caps at `limit` entries to keep the panel scannable.
+  //
+  // For chain-picker types (maneuver / power / mystery / invocation)
+  // where a category field (discipline / path / grade) groups related
+  // entries — clicking any sibling pill expands its detail inline.
+  function renderSiblingsRow(label, type, groupField, groupValue,
+                              currentName, limit) {
+    if (!groupValue || !DB.isLoaded()) return '';
+    const cap = limit || 30;
+    const rows = DB.query(
+      "SELECT name FROM entry " +
+      "WHERE type = ? " +
+      "  AND json_extract(data, '$.' || ?) = ? " +
+      "  AND name != ? " +
+      "ORDER BY name LIMIT ?",
+      [type, groupField, String(groupValue), currentName || '', cap]
+    );
+    if (!rows || !rows.length) return '';
+    const names = Array.from(new Set(rows.map(r => r.name)));
+    return renderSeeAlsoRow(label, names);
+  }
+
+  // Wire the pill-click handler onto an arbitrary container element
+  // (e.g. a picker's info panel root). Idempotent — adds at most one
+  // listener per element via a dataset flag. After this call, any
+  // [data-see-also-name] pill inside the container will toggle its
+  // own inline-expanded view in the nearest .lookup-see-also-expansions
+  // sibling. This is exactly the modal's behavior, just bound to a
+  // different container so picker panels reuse it.
+  function wireSeeAlsoPills(containerEl) {
+    if (!containerEl || containerEl.dataset.seeAlsoWired === '1') return;
+    containerEl.dataset.seeAlsoWired = '1';
+    containerEl.addEventListener('click', (ev) => {
+      const tgt = ev.target instanceof Element ? ev.target : null;
+      const pill = tgt?.closest('[data-see-also-name]');
+      if (!pill) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const name = pill.getAttribute('data-see-also-name');
+      const expansions = pill
+        .closest('.lookup-rule-see-also')
+        ?.querySelector('.lookup-see-also-expansions');
+      if (!expansions) return;
+      const existing = expansions.querySelector(
+        `[data-nested-name="${cssAttrEscape(name)}"]`
+      );
+      if (existing) {
+        existing.remove();
+        pill.setAttribute('aria-expanded', 'false');
+        const caret = pill.querySelector('.lookup-see-also-caret');
+        if (caret) caret.textContent = '▸';
+      } else {
+        expansions.insertAdjacentHTML(
+          'beforeend', renderNestedExpansion(name)
+        );
+        pill.setAttribute('aria-expanded', 'true');
+        const caret = pill.querySelector('.lookup-see-also-caret');
+        if (caret) caret.textContent = '▾';
+      }
+    });
+  }
+
+  // Expose minimal API for per-picker integration (Phase 4 errata
+  // badge + deep-linking + rich see-also rendering).
+  //
+  // search() added 2026-05-24 for rule see_also cross-link rendering.
+  // The renderSeeAlso* / wireSeeAlsoPills / renderPrereqWithPills /
+  // findFeatsRequiring helpers (also 2026-05-24) let picker info
+  // panels reuse the same UX without duplicating code — feat-picker,
+  // class-picker, spell-picker etc. can render see-also pill rows
+  // and the panel-level wirePills call delegates the click to the
+  // existing nested-expansion logic.
+  window.Lookup = {
+    open, close, toggle, search,
+    renderSeeAlsoPill,
+    renderSeeAlsoRow,
+    renderSiblingsRow,
+    renderPrereqWithPills,
+    renderRequirementsWithPills,
+    findFeatsRequiring,
+    wireSeeAlsoPills,
+    renderNestedExpansion,
+  };
 
   // Init when the DOM is ready and the DB module exists. We don't
   // need DB.ready to fire — the modal shell works without data; the

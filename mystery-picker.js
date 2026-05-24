@@ -273,7 +273,21 @@
       const m = mysteryIndex.get(mysIn.value.trim().toLowerCase());
       if (!m) { info.style.display = 'none'; info.innerHTML = ''; return; }
       info.style.display = 'block';
-      info.innerHTML = renderInfo(m);
+      let html = renderInfo(m);
+      // Other mysteries in the same path — clickable pills.
+      // Shadowcaster paths typically have ~10 mysteries each across
+      // Fundamental/Apprentice/Initiate/Master tiers; useful to see
+      // siblings at a glance.
+      if (window.Lookup && Lookup.renderSiblingsRow && m.path) {
+        html += Lookup.renderSiblingsRow(
+          `Other ${m.path} mysteries`,
+          'mystery', 'path', m.path, m.name
+        );
+      }
+      info.innerHTML = html;
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, m.mystery_id);
     }
 

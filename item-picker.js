@@ -553,7 +553,23 @@
       if (full.body_slot)    bits.push(`<b>Slot:</b> ${escapeHtml(full.body_slot)}`);
       if (full.aura)         bits.push(`<b>Aura:</b> ${escapeHtml(full.aura)}`);
       if (full.caster_level) bits.push(`<b>CL:</b> ${escapeHtml(full.caster_level)}`);
-      if (full.prerequisites)bits.push(`<b>Prereq:</b> ${escapeHtml(full.prerequisites)}`);
+      if (full.prerequisites) {
+        // Item creation prereqs commonly mix feat names (Craft
+        // Wondrous Item) and spell names (haste, resistance, fireball).
+        // Use Lookup pills to make both clickable; non-matching chunks
+        // ("creator must be good") render as plain text. Wrap in
+        // .lookup-rule-see-also so the pill-click handler can find
+        // the expansions container we attach inside renderPrereqWithPills.
+        const pillText = (window.Lookup && Lookup.renderPrereqWithPills)
+          ? Lookup.renderPrereqWithPills(full.prerequisites,
+                                          { allowedTypes: ['feat', 'spell'] })
+          : escapeHtml(full.prerequisites);
+        bits.push(
+          `<div class="lookup-rule-see-also" style="margin:0">` +
+          `<b>Prereq:</b> ${pillText}` +
+          `</div>`
+        );
+      }
       if (full.price)        bits.push(`<b>Price:</b> ${escapeHtml(full.price)}`);
       if (full.weight)       bits.push(`<b>Weight:</b> ${escapeHtml(full.weight)}`);
       if (full.cost)         bits.push(`<b>Cost:</b> ${escapeHtml(full.cost)}`);
@@ -564,6 +580,11 @@
         bits.push(`<b>Description:</b> ${escapeHtml(trimmed)}`);
       }
       info.innerHTML = bits.join('<br>');
+      // Activate see-also pill clicks (Craft feats + spell names in
+      // the Prereq line).
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, entry.primaryRow.item_id);
       if (window.VersionBadge) VersionBadge.attach(info, full.version);
       info.style.display = 'block';

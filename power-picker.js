@@ -395,7 +395,20 @@
       const rec = powerIndex.get(pwrIn.value.trim().toLowerCase());
       if (!rec) { info.style.display = 'none'; info.innerHTML = ''; return; }
       info.style.display = 'block';
-      info.innerHTML = renderInfo(rec);
+      let html = renderInfo(rec);
+      // Other powers in the same discipline. Powers have a flat
+      // `discipline` field (Psychometabolism etc.); levels are a
+      // per-class dict, so we group by discipline only.
+      if (window.Lookup && Lookup.renderSiblingsRow && rec.discipline) {
+        html += Lookup.renderSiblingsRow(
+          `Other ${rec.discipline} powers`,
+          'power', 'discipline', rec.discipline, rec.name
+        );
+      }
+      info.innerHTML = html;
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, rec.power_id);
     }
 

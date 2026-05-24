@@ -344,6 +344,16 @@
         // Live ✓/✗/? check against the current character state.
         // Warn-only — never blocks. See feat-prereqs.js for parser
         // coverage and known limitations.
+        //
+        // The pill-enriched prereq text uses Lookup's renderer when
+        // available (2026-05-24): feat-name chunks become clickable
+        // pills that expand the linked feat inline in the .lookup-
+        // see-also-expansions container we tack on below. The atom
+        // chips from FeatPrereqs (with ✓/✗ status) stay; pills are
+        // for navigation, atoms are for status.
+        const pillText = (window.Lookup && Lookup.renderPrereqWithPills)
+          ? Lookup.renderPrereqWithPills(full.prerequisites)
+          : escapeHtml(full.prerequisites);
         if (typeof FeatPrereqs !== 'undefined') {
           const ev = FeatPrereqs.evaluate(full.prerequisites);
           const sumSym = ev.summary.label;
@@ -355,17 +365,31 @@
           // hint suffix is more informative anyway. For multi-atom
           // prereqs (Cleave: Str 13 + Power Attack) the summary's raw
           // text helps readability, so keep both.
+          //
+          // For multi-atom prereqs, the previously plain-text line
+          // becomes pillText so feat names in the prereq are clickable.
           if (ev.atoms && ev.atoms.length === 1) {
-            bits.push(`<b>Prereq:</b> <span class="fp-atoms">${ev.html}</span>`);
+            bits.push(
+              `<div class="lookup-rule-see-also" style="margin:0">` +
+              `<b>Prereq:</b> <span class="fp-atoms">${ev.html}</span> ` +
+              pillText +
+              `</div>`
+            );
           } else {
             bits.push(
+              `<div class="lookup-rule-see-also" style="margin:0">` +
               `<b>Prereq:</b> <span class="${sumCls}">${sumSym}</span> ` +
-              `${escapeHtml(full.prerequisites)}<br>` +
-              `<span class="fp-atoms">${ev.html}</span>`
+              pillText + `<br>` +
+              `<span class="fp-atoms">${ev.html}</span>` +
+              `</div>`
             );
           }
         } else {
-          bits.push(`<b>Prereq:</b> ${escapeHtml(full.prerequisites)}`);
+          bits.push(
+            `<div class="lookup-rule-see-also" style="margin:0">` +
+            `<b>Prereq:</b> ` + pillText +
+            `</div>`
+          );
         }
       }
       if (full.benefit && full.benefit.trim()) {
@@ -377,7 +401,21 @@
       if (full.special && full.special.trim()) {
         bits.push(`<b>Special:</b> ${escapeHtml(full.special)}`);
       }
+      // Required by — feats whose prereq chain includes this one.
+      // Same pill UX as the prereq feats above; they share the
+      // wireSeeAlsoPills click handler attached below.
+      if (window.Lookup && Lookup.findFeatsRequiring && Lookup.renderSeeAlsoRow) {
+        const deps = Lookup.findFeatsRequiring(full.name);
+        if (deps.length) {
+          bits.push(Lookup.renderSeeAlsoRow('Required by', deps));
+        }
+      }
       info.innerHTML = bits.join('<br>');
+      // Activate pill click handler — toggles inline-expanded views
+      // of linked feats below their pill row.
+      if (window.Lookup && Lookup.wireSeeAlsoPills) {
+        Lookup.wireSeeAlsoPills(info);
+      }
       if (window.ErrataBadge) ErrataBadge.attach(info, entry.primary.feat_id);
       if (window.VersionBadge) VersionBadge.attach(info, full.version);
       info.style.display = 'block';

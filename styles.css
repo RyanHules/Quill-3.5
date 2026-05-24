@@ -1639,6 +1639,214 @@ textarea {
   background: rgba(255, 255, 255, 0.05);
   font-weight: bold;
 }
+/* Rule-entry detail blocks (mechanics, see_also, page, raw_text, table
+   captions/notes) — added 2026-05-24 with the lookup-modal rendering
+   pass that surfaced the new structured rule fields. */
+.lookup-rule-page {
+  font-size: 0.78em;
+  opacity: 0.65;
+  margin-bottom: 0.25rem;
+}
+.lookup-rule-mechanics {
+  margin: 0.5rem 0;
+  padding: 0.3rem 0.5rem;
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid rgba(150, 180, 220, 0.35);
+  font-size: 0.88em;
+}
+.lookup-rule-mechanics b {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(180, 200, 230, 0.85);
+}
+.lookup-mech-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.1rem 0.6rem;
+}
+.lookup-mech-dl dt {
+  font-weight: bold;
+  opacity: 0.85;
+  padding-right: 0.5rem;
+}
+.lookup-mech-dl dd {
+  margin: 0;
+}
+.lookup-mech-dl dd .lookup-mech-dl,
+.lookup-mech-dl dd .lookup-mech-list {
+  margin-left: 0;
+  margin-top: 0.15rem;
+}
+.lookup-mech-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.lookup-mech-list li {
+  margin: 0.05rem 0;
+}
+.lookup-rule-table-caption {
+  margin-top: 0.6rem;
+  margin-bottom: 0.15rem;
+  font-weight: bold;
+  font-size: 0.92em;
+  color: rgba(200, 215, 235, 0.85);
+}
+.lookup-rule-table-notes {
+  font-size: 0.8em;
+  opacity: 0.7;
+  margin-top: 0.1rem;
+  margin-bottom: 0.4rem;
+  font-style: italic;
+}
+.lookup-rule-see-also {
+  margin: 0.5rem 0;
+  font-size: 0.88em;
+}
+.lookup-rule-see-also > b {
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+/* See-also pills toggle inline-expanded sub-views beneath the
+   see-also row (lookup-see-also-expansions). The caret span flips
+   ▸ ↔ ▾ via JS based on aria-expanded state. */
+.lookup-see-also-pill {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: rgba(200, 215, 235, 0.95);
+  cursor: pointer;
+  padding: 0.1rem 0.55rem;
+  margin: 0.1rem 0.2rem 0.1rem 0;
+  font: inherit;
+  font-size: 0.9em;
+  user-select: none;
+  vertical-align: middle;
+}
+.lookup-see-also-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.lookup-see-also-pill[aria-expanded="true"] {
+  background: rgba(120, 160, 220, 0.18);
+  border-color: rgba(150, 180, 220, 0.5);
+  color: #fff;
+}
+.lookup-see-also-caret {
+  display: inline-block;
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin-right: 0.1rem;
+  width: 0.7em;
+  text-align: center;
+}
+.lookup-see-also-pill[aria-expanded="true"] .lookup-see-also-caret {
+  opacity: 1;
+}
+.lookup-see-also-expansions {
+  /* Container for the per-pill expansions; empty when none open */
+}
+.lookup-see-also-expansions:empty {
+  display: none;
+}
+/* The inline-expanded see-also entry. Indented + bordered to make
+   clear it's a sub-view, not the main entry. */
+.lookup-nested-expansion {
+  margin: 0.5rem 0 0.25rem 0;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid rgba(120, 160, 220, 0.5);
+  border-radius: 0 4px 4px 0;
+  font-size: 0.93em;
+}
+.lookup-nested-head {
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lookup-nested-name {
+  font-weight: bold;
+  color: #fff;
+}
+.lookup-nested-type {
+  font-size: 0.82em;
+  opacity: 0.7;
+  margin-left: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lookup-nested-source {
+  font-size: 0.82em;
+  opacity: 0.6;
+}
+.lookup-nested-desc {
+  margin: 0.3rem 0;
+  white-space: pre-wrap;
+}
+.lookup-nested-notfound {
+  opacity: 0.7;
+  font-style: italic;
+}
+/* Feat-specific blocks (prereq with inline pills, Required-by row).
+   The Prereq row mixes plain text (Str 13, BAB +4) with pills
+   (clickable feat names); .lookup-feat-prereq is the wrapper for
+   that mixed-content line. */
+.lookup-feat-prereq {
+  margin: 0.25rem 0 0.4rem 0;
+}
+.lookup-feat-prereq .lookup-see-also-pill {
+  margin: 0.05rem 0.15rem 0.05rem 0;
+}
+.lookup-feat-required-by {
+  margin-top: 0.6rem;
+}
+.lookup-rule-raw-text {
+  margin-top: 0.6rem;
+  font-size: 0.85em;
+}
+.lookup-rule-raw-text summary {
+  cursor: pointer;
+  opacity: 0.7;
+  user-select: none;
+}
+.lookup-rule-raw-text summary:hover { opacity: 1; }
+.lookup-rule-raw-text pre {
+  white-space: pre-wrap;
+  margin: 0.3rem 0;
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  font-size: 0.9em;
+  max-height: 400px;
+  overflow-y: auto;
+}
+/* Collapsible rule description — leading paragraph visible, full
+   prose hidden behind a Show more toggle when the entry also has
+   tables/mechanics that would otherwise duplicate the content. */
+.lookup-desc-lead {
+  white-space: pre-wrap;
+}
+.lookup-desc-rest {
+  white-space: pre-wrap;
+  margin-top: 0.5rem;
+}
+.lookup-desc-toggle {
+  background: transparent;
+  border: none;
+  color: rgba(180, 200, 230, 0.85);
+  cursor: pointer;
+  padding: 0.15rem 0;
+  margin-top: 0.25rem;
+  font: inherit;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+.lookup-desc-toggle:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
 /* Hidden tail rows in truncated lookup tables — revealed when the
    parent table gets .lookup-expanded via the expand-more click. */
 .lookup-class-table tr.lookup-row-extra { display: none; }
