@@ -558,7 +558,7 @@
         {
           "baseName": "Scorching Ray",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Scorching Ray",
@@ -828,11 +828,6 @@
     "[Sha'ir 1] Summon gen familiar",
     "[Sha'ir 3] Recognize genie works",
     "[Sha'ir 5] Elemental protection",
-    "Bind Elemental Shark (Air)\nTelthor Shark #1",
-    "[Sha'ir 1] spells",
-    "[Sha'ir 1] Summon gen familiar",
-    "[Sha'ir 3] Recognize genie works",
-    "[Sha'ir 5] Elemental protection",
     "[Tidecaller 1] Bind elemental shark (1st)",
     "[Tidecaller 1] Elemental Stride",
     "[Tidecaller 1] Sand-Tide Breath",
@@ -958,7 +953,7 @@
     {
       "name": "Shark!",
       "compName": "Jesus Christ, Dude",
-      "compType": "familiar",
+      "compType": "other",
       "compSize": "Medium",
       "isFamiliar": false,
       "compMode": "manual",
@@ -998,8 +993,24 @@
       "compNotes": "",
       "compSpecials": [
         {
-          "name": "",
-          "notes": "Blindsense (Ex): Can locate creatures underwater within a 30-ft radius. Only works underwater\nKeen Scent (Ex): Can notice creatures by scent in a 180-ft radius and detect blood in the water at ranges of up to a mile\nBound to the Land (Ex): Tied to its durthan and is weakened if it moves more than 1 mile away from her. Outside this radius, takes 1 point of damage every minute. This damage ends immediately if it comes within 1 mile of its durthan again. Can sense the boundaries of their territory.\nNative Animal Empathy (Ex): Can communicate and empathize with animals of its kind. This gives them a +4 bonus on checks to influence the animal's attitude and allows the communication of simple concepts and (if the animal is friendly) commands, such as \"friend,\" \"enemy,\" \"flee,\" and \"attack.\nTelthor Telepathy (Su): Can communicate with other telthors telepathically, regardless of language, at a range of 100 ft."
+          "name": "Telthor Telepathy",
+          "notes": "(Su): Can communicate with other telthors telepathically, regardless of language, at a range of 100 ft."
+        },
+        {
+          "name": "Blindsense",
+          "notes": "(Ex): Can locate creatures underwater within a 30-ft radius. Only works underwater"
+        },
+        {
+          "name": "Keen Scent",
+          "notes": "(Ex): Can notice creatures by scent in a 180-ft radius and detect blood in the water at ranges of up to a mile"
+        },
+        {
+          "name": "Bound to the Land",
+          "notes": "(Ex): Tied to its durthan and is weakened if it moves more than 1 mile away from her. Outside this radius, takes 1 point of damage every minute. This damage ends immediately if it comes within 1 mile of its durthan again. Can sense the boundaries of their territory."
+        },
+        {
+          "name": "Native Animal Empathy",
+          "notes": "(Ex): Can communicate and empathize with animals of its kind. This gives them a +4 bonus on checks to influence the animal's attitude and allows the communication of simple concepts and (if the animal is friendly) commands, such as \"friend,\" \"enemy,\" \"flee,\" and \"attack."
         }
       ],
       "compAttacks": [
