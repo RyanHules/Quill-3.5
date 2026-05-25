@@ -297,4 +297,22 @@
     loadData,
     EVENT_NAME,
   };
+
+  // Bridge homebrew toggles into book-filter-changed so every picker
+  // and the lookup modal pick up the change. Without this bridge:
+  // pickers eagerly index at module load + re-index only on
+  // book-filter-changed, so toggling Tidecaller (or any other
+  // per-entry homebrew toggle) in the 🏠 modal leaves the class-
+  // picker datalist stale until a book-filter event fires or the
+  // page reloads. Bug surfaced 2026-05-24 with Tidecaller missing
+  // from the class-picker after a homebrew state change.
+  //
+  // BookFilter.allowsEntry already delegates to HomebrewFilter, so
+  // the visibility rule is unified — only the change notification
+  // was missing. Re-dispatching as book-filter-changed (rather than
+  // adding a second event every consumer needs to wire) means the
+  // existing listeners just work.
+  document.addEventListener('homebrew-filter-changed', () => {
+    document.dispatchEvent(new CustomEvent(EVENT_NAME));
+  });
 })();
