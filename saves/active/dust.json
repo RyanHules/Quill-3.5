@@ -108,7 +108,7 @@
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 13217,
+      "classId": 13262,
       "version": "3.5",
       "source": "Sandstorm",
       "advancesTypes": [
@@ -150,7 +150,7 @@
   "shield-check-pen": "0",
   "shield-spell-fail": "0",
   "shield-special": "",
-  "armor-worn": false,
+  "armor-worn": true,
   "shield-worn": false,
   "armor-touch-ac": false,
   "shield-touch-ac": false,
@@ -463,27 +463,27 @@
         {
           "baseName": "Mage Armor",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Mage Armor",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Magic Missile",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Magic Missile",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Grease",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Grease",
@@ -548,12 +548,7 @@
         {
           "baseName": "Darkvision",
           "metamagic": [],
-          "used": false
-        },
-        {
-          "baseName": "Darkvision",
-          "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Scorching Ray",
@@ -563,7 +558,7 @@
         {
           "baseName": "Scorching Ray",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Glitterdust",
@@ -571,9 +566,14 @@
           "used": false
         },
         {
-          "baseName": "Scimitar of Sand",
+          "baseName": "Scorching Ray",
           "metamagic": [],
           "used": false
+        },
+        {
+          "baseName": "Invisibility",
+          "metamagic": [],
+          "used": true
         }
       ],
       "domain-2": "",
@@ -644,7 +644,7 @@
           "metamagic": [
             "Fiery Spell"
           ],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Dispel Magic",
@@ -695,7 +695,7 @@
       ],
       "preparedList-4": [
         {
-          "baseName": "Globe of Invulnerability, Lesser",
+          "baseName": "Blast of Sand",
           "metamagic": [],
           "used": false
         },
@@ -1061,7 +1061,7 @@
       "ifamItemName": "Jar of Infinite Haboob",
       "ifamItemPrice": 0,
       "ifamItemWeight": 15,
-      "ifamItemNotes": "Haboob at will (Use-activated)\nHeat Haze (Continuous Entropic Field) (20% miss chance, not pierced by true sight/blindsight)",
+      "ifamItemNotes": "Haboob at will (Use-activated)\nHeat Haze (Continuous Entropic Field) (20% miss chance vs ranged attacks requiring an attack roll, not pierced by true sight/blindsight)",
       "ifamAlignment": "",
       "ifamCarried": true,
       "ifamLost": false,

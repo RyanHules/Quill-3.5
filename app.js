@@ -269,57 +269,220 @@
     return out;
   }
 
-  // ---- LocalStorage management ----
-  const STORAGE_KEY = "dnd35_characters";
+  // ---- Persistence ----
+  //
+  // All save / load / delete operations route through SaveBackend
+  // (save-backend.js), which transparently picks server mode (Python
+  // save_server.py serving /api/saves over filesystem-backed JSON)
+  // when available, falling back to localStorage when the page is
+  // served by plain `python -m http.server`. The functions below
+  // are async because SaveBackend is async — call sites are event
+  // handlers, which handle async functions fine.
 
-  function getSavedCharacters() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    } catch {
-      return {};
-    }
+  // The qualified name (folder + name) of the currently-loaded
+  // character. Set on loadCharacter; cleared on newCharacter. When
+  // set, saveCharacter writes to that path so loading active/Dust
+  // and pressing Save overwrites saves/active/Dust.json rather than
+  // duplicating to saves/dust.json.
+  //
+  // Exposed via window.AppState so the character-list modal can
+  // read + write it (clicking a row should update it, and the
+  // modal's "Save here" form needs to set it before saving).
+  let currentQualifiedName = null;
+  window.AppState = {
+    get currentQualifiedName() { return currentQualifiedName; },
+    set currentQualifiedName(v) { currentQualifiedName = v; },
+  };
+
+  // Decide which qualified name a Save click should write to.
+  //   - If a character was loaded from a specific path, overwrite
+  //     that path (preserves folder organization).
+  //   - Else default to the bare char-name at the root of saves/.
+  // Returns null if there's no usable name (e.g. fresh sheet with
+  // an empty char-name field) — caller should handle that case.
+  function resolveSaveTarget(data) {
+    if (currentQualifiedName) return currentQualifiedName;
+    const bare = (data["char-name"] || "").trim();
+    return bare || null;
   }
 
-  function updateCharacterSelect() {
+  // The dropdown is for QUICK ACCESS to the working set, not the
+  // full library (which could be 400+ entries — far too many to
+  // scroll through). Limit it to:
+  //   - root saves    (folder === '')
+  //   - saves/active/ (folder === 'active')
+  // The list-view modal (📂 button) handles the full library
+  // including saves/library/ and any future custom folders.
+  function isDropdownVisible(entry) {
+    return !entry.folder || entry.folder === 'active';
+  }
+
+  async function updateCharacterSelect() {
     const select = $("#character-select");
-    const chars = getSavedCharacters();
+    let entries = [];
+    try {
+      entries = await SaveBackend.list();
+    } catch (e) {
+      console.warn('[app] failed to list saves:', e);
+      // Render an empty dropdown but don't blank the page — user can
+      // still hand-type a name and save.
+    }
+    // Active / root saves only — full library lives in the modal.
+    entries = entries.filter(isDropdownVisible)
+      .sort((a, b) => a.qualified.localeCompare(b.qualified));
     select.innerHTML = '<option value="">-- Saved Characters --</option>';
-    Object.keys(chars).sort().forEach((name) => {
+    entries.forEach((e) => {
       const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = e.qualified;
+      // Show "active/Dust" so the user can distinguish from a root
+      // "Dust" if both somehow exist.
+      opt.textContent = e.qualified;
       select.appendChild(opt);
     });
-  }
-
-  function saveCharacter() {
-    const data = collectData();
-    const name = data["char-name"] || "Unnamed Character";
-    const chars = getSavedCharacters();
-    chars[name] = data;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-    updateCharacterSelect();
-    $("#character-select").value = name;
-    showNotification(`"${name}" saved!`);
-  }
-
-  function loadCharacter(name) {
-    const chars = getSavedCharacters();
-    if (chars[name]) {
-      loadData(chars[name]);
-      showNotification(`"${name}" loaded!`);
+    // Re-sync the selection so the dropdown reflects what's loaded.
+    if (currentQualifiedName) {
+      select.value = currentQualifiedName;
     }
   }
 
-  function deleteCharacter() {
-    const name = $("#character-select").value;
-    if (!name) return;
-    if (!confirm(`Delete "${name}"?`)) return;
-    const chars = getSavedCharacters();
-    delete chars[name];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-    updateCharacterSelect();
-    showNotification(`"${name}" deleted.`);
+  async function saveCharacter() {
+    const data = collectData();
+    const target = resolveSaveTarget(data);
+    if (!target) {
+      showNotification(
+        'Cannot save: enter a character name first.', true);
+      return;
+    }
+    try {
+      await SaveBackend.save(target, data);
+    } catch (e) {
+      console.error('[app] save failed:', e);
+      showNotification(`Save failed: ${e.message}`, true);
+      return;
+    }
+    currentQualifiedName = target;
+    await updateCharacterSelect();
+    const where = SaveBackend.mode === 'server'
+      ? ` (to ${target})` : '';
+    showNotification(`Saved!${where}`);
+  }
+
+  async function loadCharacter(qualified) {
+    let data;
+    try {
+      data = await SaveBackend.load(qualified);
+    } catch (e) {
+      console.error('[app] load failed:', e);
+      showNotification(`Load failed: ${e.message}`, true);
+      return;
+    }
+    if (data) {
+      loadData(data);
+      currentQualifiedName = qualified;
+      // Sync the dropdown so it shows what was just loaded (even
+      // when loaded via the modal, which is the common case for
+      // library/ characters).
+      const select = $("#character-select");
+      if (select) {
+        // If the loaded character isn't in the dropdown (i.e. it
+        // came from saves/library/), refresh the dropdown to NOT
+        // show it as selected — leave the dropdown's first item.
+        if (isDropdownVisible({ folder: SaveBackend.parseQualified(qualified).folder })) {
+          select.value = qualified;
+        } else {
+          select.value = '';
+        }
+      }
+      showNotification(`"${qualified}" loaded!`);
+    } else {
+      showNotification(`"${qualified}" not found.`, true);
+    }
+  }
+
+  async function deleteCharacter() {
+    const qualified = $("#character-select").value;
+    if (!qualified) return;
+    if (!confirm(`Delete "${qualified}"?`)) return;
+    try {
+      await SaveBackend.delete(qualified);
+    } catch (e) {
+      console.error('[app] delete failed:', e);
+      showNotification(`Delete failed: ${e.message}`, true);
+      return;
+    }
+    if (currentQualifiedName === qualified) currentQualifiedName = null;
+    await updateCharacterSelect();
+    showNotification(`"${qualified}" deleted.`);
+  }
+
+  // Expose loadCharacter so the list-view modal can call it.
+  // showNotification gets exposed below (after its definition) — it's
+  // declared further down in this IIFE, so we do that wiring in a
+  // separate window.App assignment near the notification block.
+  window.App = window.App || {};
+  window.App.loadCharacter = loadCharacter;
+  window.App.updateCharacterSelect = updateCharacterSelect;
+
+  // First-run migration prompt: shown ONCE if SaveBackend is in
+  // server mode AND legacy localStorage has saves AND the user
+  // hasn't already answered the prompt. After they answer (either
+  // way) we set MIGRATION_DONE_KEY so the banner doesn't reappear.
+  async function maybeOfferMigration() {
+    await SaveBackend.ready;
+    if (SaveBackend.mode !== 'server') return;
+    if (!SaveBackend.hasLocalStorageSaves()) return;
+    if (localStorage.getItem(SaveBackend.MIGRATION_DONE_KEY)) return;
+
+    // Inline banner (not a modal — non-blocking, dismissable).
+    const banner = document.createElement('div');
+    banner.id = 'save-migration-banner';
+    banner.style.cssText =
+      'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);' +
+      'background:#2b3050;color:#dde;padding:0.75rem 1rem;border-radius:6px;' +
+      'border:1px solid #557;box-shadow:0 4px 16px rgba(0,0,0,0.5);' +
+      'font-size:0.9rem;max-width:540px;z-index:2000;display:flex;' +
+      'gap:0.5rem;align-items:center;flex-wrap:wrap;';
+    banner.innerHTML =
+      '<span><b>Local save server detected.</b> Found ' +
+      '<b>' + Object.keys(JSON.parse(
+          localStorage.getItem(SaveBackend.CHARACTERS_KEY) || '{}'
+        )).length + '</b> ' +
+      'saves in browser storage. Migrate them to the server so they ' +
+      'survive port / browser changes?</span>' +
+      '<button id="mig-yes" style="background:#557;color:white;border:0;' +
+      'padding:0.4rem 0.8rem;border-radius:4px;cursor:pointer;">' +
+      'Migrate</button>' +
+      '<button id="mig-no" style="background:transparent;color:#bbb;' +
+      'border:1px solid #557;padding:0.4rem 0.8rem;border-radius:4px;' +
+      'cursor:pointer;">Keep in browser</button>';
+    document.body.appendChild(banner);
+
+    banner.querySelector('#mig-yes').addEventListener('click', async () => {
+      banner.querySelector('#mig-yes').disabled = true;
+      banner.querySelector('#mig-yes').textContent = 'Migrating…';
+      try {
+        const r = await SaveBackend.migrateFromLocalStorage();
+        localStorage.setItem(
+          SaveBackend.MIGRATION_DONE_KEY,
+          new Date().toISOString());
+        banner.remove();
+        const note = r.errors.length
+          ? `Migrated ${r.copied} of ${r.total}. ` +
+            `${r.errors.length} failed — check console for details.`
+          : `Migrated ${r.copied} of ${r.total} saves to server.`;
+        showNotification(note, r.errors.length > 0);
+        await updateCharacterSelect();
+      } catch (e) {
+        console.error('[app] migration failed:', e);
+        showNotification(`Migration failed: ${e.message}`, true);
+      }
+    });
+    banner.querySelector('#mig-no').addEventListener('click', () => {
+      localStorage.setItem(
+        SaveBackend.MIGRATION_DONE_KEY,
+        new Date().toISOString());
+      banner.remove();
+    });
   }
 
   function exportCharacter() {
@@ -350,6 +513,9 @@
 
   function newCharacter() {
     if (!confirm("Start a new character? Unsaved changes will be lost.")) return;
+    // Reset the loaded-character pointer so the next Save creates a
+    // new file rather than overwriting the previous one.
+    currentQualifiedName = null;
     $$("input, select, textarea").forEach((el) => {
       if (el.type === "checkbox") el.checked = (el.id === "armor-worn" || el.id === "shield-worn");
       else if (el.tagName === "SELECT") el.selectedIndex = el.id === "char-size" ? 4 : 0;
@@ -406,6 +572,14 @@
     notif.style.opacity = "1";
     setTimeout(() => (notif.style.opacity = "0"), 2500);
   }
+
+  // Expose for the character-library modal (and any other late-loading
+  // module). It needs the lazy-creation behavior — poking #notification
+  // directly silently dropped messages before any showNotification call
+  // had created the element. That's how the 2026-05-25 "moves are
+  // silent on failure" symptom surfaced.
+  window.App = window.App || {};
+  window.App.showNotification = showNotification;
 
   // ============================================================
   // Event wiring
@@ -533,7 +707,11 @@
   // can shift, so refresh every tab's recalcs.
   document.addEventListener("item-familiar-changed", recalcAll);
 
+  // Initial population is async; fire-and-forget — recalcAll doesn't
+  // depend on it. The dropdown will fill in once SaveBackend resolves
+  // (server probe takes <50 ms typically).
   updateCharacterSelect();
+  maybeOfferMigration();
   recalcAll();
 
   // Ctrl+S to save

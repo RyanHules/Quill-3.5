@@ -3,3 +3,8 @@
 !README.md
 imported_characters/**
 data/**
+# Library = archive of imports (currently ~370 chars in various states
+# of completeness). Active characters live in saves/active/ and ARE
+# tracked. Anything you want to commit, move out of library/ first.
+saves/library/**
+__pycache__/**
