@@ -85,13 +85,301 @@
     syncInputs();
     wireDelegation();
     observeNew();
+    injectBrowsePanel();
 
     document.addEventListener('book-filter-changed', () => {
       rebuildIndex();
       // Rebuild every per-slot datalist + the fallback `-all`.
       buildPerSlotDatalists();
+      // Rebuild the browse-panel chip wall too.
+      if (browseRefresh) browseRefresh();
     });
   }
+
+  // ---- Browse-all chip-wall picker ---------------------------------------
+  //
+  // The per-slot datalists narrow to chakra-valid soulmelds for each
+  // input — perfect for "I know I want a Throat-chakra meld, surface
+  // me the options." But it doesn't answer the discovery question:
+  // "what Totemist soulmelds exist? Show me everything." For that we
+  // need a browse panel.
+  //
+  // Lives above the Magic Item Slots section on the Equipment tab.
+  // Collapsible (closed by default) since users only need it during
+  // build / level-up — mid-play it sits out of the way.
+  //
+  // Filters: Chakra (drops to one slot's pool) + Class (Totemist /
+  // Incarnate / Soulborn) + Name (typed substring). Click a chip →
+  // expands an inline info panel below the row with Base / Essentia /
+  // Chakra Bind effects + Source + a "→ Add to first compatible
+  // empty slot" button that finds the first matching .slot-sm-name
+  // / .slot-sm2-name input that's empty AND accepts a valid chakra,
+  // fills it, and triggers the existing per-input auto-fill flow.
+
+  let browseRefresh = null;
+
+  // All chakras the data uses, in PHB-table reading order. Used to
+  // populate the chakra filter dropdown. Lowercase to match the
+  // parseChakras() output.
+  const ALL_CHAKRAS = [
+    'crown', 'brow', 'throat', 'shoulders', 'hands', 'arms',
+    'heart', 'waist', 'feet', 'totem', 'soul',
+  ];
+
+  // Classes that can grant soulmelds. Matched substring-insensitively
+  // against each soulmeld's classes_csv (which is comma-separated
+  // free text in the data).
+  const SOULMELD_CLASSES = ['Totemist', 'Incarnate', 'Soulborn'];
+
+  function injectBrowsePanel() {
+    const host = document.getElementById('magic-items-container');
+    if (!host) return;
+    if (document.getElementById('soulmeld-browse')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'soulmeld-browse';
+    wrap.style.cssText =
+      'margin: 0.5rem 0 1rem; padding: 0.4rem 0.6rem; ' +
+      'background: rgba(255,255,255,0.04); ' +
+      'border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;';
+    wrap.innerHTML = `
+      <details>
+        <summary style="cursor:pointer; user-select:none; font-weight:600">
+          Browse soulmelds…
+          <span id="sm-browse-count" style="opacity:0.65; font-weight:400;
+            font-size:0.85em; margin-left:0.4rem"></span>
+        </summary>
+        <div style="margin-top:0.5rem; display:flex; gap:0.4rem;
+                    align-items:center; flex-wrap:wrap; font-size:0.85em;">
+          <label>Chakra:
+            <select id="sm-browse-chakra"
+                    style="background:#15171f;color:#eee;border:1px solid #444;
+                           border-radius:3px; padding:0.15rem;">
+              <option value="">All</option>
+              ${ALL_CHAKRAS.map(c =>
+                `<option value="${c}">${c[0].toUpperCase()+c.slice(1)}</option>`
+              ).join('')}
+            </select>
+          </label>
+          <label>Class:
+            <select id="sm-browse-class"
+                    style="background:#15171f;color:#eee;border:1px solid #444;
+                           border-radius:3px; padding:0.15rem;">
+              <option value="">All</option>
+              ${SOULMELD_CLASSES.map(c =>
+                `<option value="${c}">${c}</option>`).join('')}
+            </select>
+          </label>
+          <input type="text" id="sm-browse-name" placeholder="Name…"
+                 style="flex:1 1 8rem; min-width:6rem; padding:0.2rem;
+                        background:#15171f;color:#eee;border:1px solid #444;
+                        border-radius:3px;">
+          <button type="button" id="sm-browse-clear"
+                  style="background:transparent;color:#bbb;
+                         border:1px solid #555; border-radius:3px;
+                         padding:0.15rem 0.5rem; cursor:pointer;
+                         font-family:inherit; font-size:inherit">Clear</button>
+        </div>
+        <div id="sm-browse-results-host" style="margin-top:0.4rem"></div>
+        <div id="sm-browse-info"
+             style="display:none; margin-top:0.4rem; padding:0.4rem 0.6rem;
+                    background:rgba(0,0,0,0.25); border-radius:4px;
+                    font-size:0.85em; line-height:1.45;"></div>
+      </details>
+    `;
+    // Insert before the slot list so the browse panel doesn't get
+    // visually crowded by the slot grid below.
+    host.parentElement.insertBefore(wrap, host);
+
+    const chakraSel = wrap.querySelector('#sm-browse-chakra');
+    const classSel  = wrap.querySelector('#sm-browse-class');
+    const nameInput = wrap.querySelector('#sm-browse-name');
+    const clearBtn  = wrap.querySelector('#sm-browse-clear');
+    const resultsHost = wrap.querySelector('#sm-browse-results-host');
+    const infoPanel = wrap.querySelector('#sm-browse-info');
+    const countEl   = wrap.querySelector('#sm-browse-count');
+
+    function getMatching() {
+      const chakraFilter = chakraSel.value.toLowerCase();
+      const classFilter = classSel.value.toLowerCase();
+      const nameFilter = nameInput.value.trim().toLowerCase();
+      const matches = [];
+      for (const sm of soulmeldIndex.values()) {
+        if (chakraFilter && !parseChakras(sm.chakra).includes(chakraFilter)) {
+          continue;
+        }
+        if (classFilter) {
+          const cs = String(sm.classes_csv || '').toLowerCase();
+          if (!cs.includes(classFilter)) continue;
+        }
+        if (nameFilter && !sm.name.toLowerCase().includes(nameFilter)) {
+          continue;
+        }
+        matches.push(sm);
+      }
+      matches.sort((a, b) => a.name.localeCompare(b.name));
+      return matches;
+    }
+
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(resultsHost, {
+          itemNoun: 'soulmeld',
+          onPick: (name) => {
+            const sm = soulmeldIndex.get(name.toLowerCase());
+            if (sm) showInfo(sm);
+          },
+        })
+      : null;
+
+    function refresh() {
+      const matches = getMatching();
+      countEl.textContent = matches.length
+        ? `(${matches.length} match${matches.length === 1 ? '' : 'es'})`
+        : '';
+      if (results) results.render(matches.map(s => s.name));
+    }
+    browseRefresh = refresh;
+
+    // Inline info panel — shows base / essentia / bind effects per
+    // chakra + a "→ Add to slot" button per chakra. Slot routing
+    // reuses the existing fillFromSoulmeld() flow by setting the
+    // target input's value and dispatching an `input` event (which
+    // the delegated handler picks up).
+    function showInfo(sm) {
+      const bits = [];
+      bits.push(
+        `<div style="font-weight:600; font-size:1em; color:#cee">` +
+        `${escapeHtml(sm.name)} ` +
+        `<span style="color:#888; font-weight:400; font-size:0.85em;">` +
+        `(chakra: ${escapeHtml(sm.chakra || '?')})</span></div>`);
+      if (sm.classes_csv) {
+        bits.push(`<div><b>Classes:</b> ${escapeHtml(sm.classes_csv)}</div>`);
+      }
+      if (sm.descriptors) {
+        bits.push(`<div><b>Descriptors:</b> ${escapeHtml(sm.descriptors)}</div>`);
+      }
+      if (sm.saving_throw) {
+        bits.push(`<div><b>Save:</b> ${escapeHtml(sm.saving_throw)}</div>`);
+      }
+      if (sm.baseEffect) {
+        bits.push(`<div style="margin-top:0.25rem"><b>Base:</b> ` +
+                  `${escapeHtml(sm.baseEffect)}</div>`);
+      }
+      if (sm.essentiaScaling) {
+        bits.push(`<div><b>Essentia:</b> ${escapeHtml(sm.essentiaScaling)}</div>`);
+      }
+      if (Array.isArray(sm.bindEffects) && sm.bindEffects.length) {
+        for (const b of sm.bindEffects) {
+          bits.push(`<div><b>Chakra Bind (${escapeHtml(b.chakra || '?')}):</b> ` +
+                    `${escapeHtml(b.text)}</div>`);
+        }
+      }
+      bits.push(`<div style="opacity:0.65; margin-top:0.3rem">` +
+                `<i>${escapeHtml(sm.source || '')}</i></div>`);
+      // Add-to-slot buttons — one per chakra the soulmeld supports.
+      // Each button fills the first compatible empty slot input.
+      const chakras = parseChakras(sm.chakra);
+      const slotIds = new Set();
+      for (const c of chakras) {
+        for (const [slotId, validChakras] of Object.entries(SLOT_TO_CHAKRAS)) {
+          if (validChakras.some(v => v.toLowerCase() === c)) {
+            slotIds.add(slotId);
+          }
+        }
+      }
+      if (slotIds.size) {
+        const btnsHtml = [...slotIds].map(slotId =>
+          `<button type="button" class="sm-browse-add"
+                   data-slot-id="${escapeAttr(slotId)}"
+                   data-sm-name="${escapeAttr(sm.name)}"
+                   style="background:rgba(140,180,220,0.15);
+                          border:1px solid rgba(140,180,220,0.4);
+                          color:#bcd; border-radius:3px;
+                          padding:0.15rem 0.5rem; margin:0.1rem;
+                          cursor:pointer; font-family:inherit;
+                          font-size:0.82em;">→ ${escapeHtml(slotId)}</button>`
+        ).join('');
+        bits.push(`<div style="margin-top:0.4rem">` +
+                  `<span style="opacity:0.7">Add to first empty slot:</span> ` +
+                  `${btnsHtml}</div>`);
+      }
+      infoPanel.innerHTML = bits.join('');
+      infoPanel.style.display = '';
+    }
+
+    // Delegated click for the add-to-slot buttons.
+    infoPanel.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.sm-browse-add');
+      if (!btn) return;
+      const targetSlotId = btn.dataset.slotId;
+      const smName = btn.dataset.smName;
+      const filledIn = fillFirstEmptySlot(targetSlotId, smName);
+      if (filledIn) {
+        btn.textContent = `✓ filled ${targetSlotId}`;
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+      } else {
+        btn.textContent = `(no empty ${targetSlotId} slot)`;
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+      }
+    });
+
+    chakraSel.addEventListener('change', refresh);
+    classSel.addEventListener('change', refresh);
+    nameInput.addEventListener('input', refresh);
+    clearBtn.addEventListener('click', () => {
+      chakraSel.value = '';
+      classSel.value = '';
+      nameInput.value = '';
+      refresh();
+      infoPanel.style.display = 'none';
+    });
+
+    refresh();
+  }
+
+  // Find the first .slot-sm-name / .slot-sm2-name input belonging to
+  // a slot whose data-slot-id matches `targetSlotId` AND whose value
+  // is empty. Set its value + dispatch input so the existing
+  // delegated handler picks it up and runs the auto-fill flow.
+  // Returns true on success, false if no empty matching slot exists
+  // (the user has already filled every applicable slot).
+  function fillFirstEmptySlot(targetSlotId, soulmeldName) {
+    if (targetSlotId === 'totem') {
+      for (const id of ['totem-sm-name', 'totem-sm2-name']) {
+        const inp = document.getElementById(id);
+        if (inp && !inp.value.trim()) {
+          inp.value = soulmeldName;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+      }
+      return false;
+    }
+    const slots = document.querySelectorAll(
+      `.magic-item-slot[data-slot-id="${targetSlotId}"]`);
+    for (const slot of slots) {
+      for (const cls of ['.slot-sm-name', '.slot-sm2-name']) {
+        const inp = slot.querySelector(cls);
+        if (inp && !inp.value.trim()) {
+          inp.value = soulmeldName;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escapeAttr(s) { return escapeHtml(s).replace(/'/g, '&#39;'); }
 
   // Parse a soulmeld description of the form
   //   "Base: <text>. Essentia: <text>."

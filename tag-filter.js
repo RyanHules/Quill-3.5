@@ -386,6 +386,34 @@
         }
         if (dropdown.style.display === 'block') renderDropdown();
       },
+      // Refresh per-tag counts WITHOUT changing the pool composition
+      // or firing onChange. Used by pickers to surface CONTEXTUAL
+      // counts — i.e. "evil-descriptor (3)" when class=Wizard L3 is
+      // active, vs the global "evil-descriptor (42)" when no other
+      // filter narrows the set. Pass a Map (or plain object) of
+      // tag-name → count; missing tags keep their global count, so
+      // partial updates work too.
+      //
+      // Crucially does NOT call onChange — that would re-trigger
+      // whatever computed the new counts in the first place, causing
+      // a feedback loop. setCounts is display-only.
+      setCounts: (counts) => {
+        if (!counts) return;
+        const updates = (counts instanceof Map)
+          ? counts.entries()
+          : Object.entries(counts);
+        for (const [name, count] of updates) {
+          if (tagCounts.has(name)) {
+            tagCounts.set(name, count || 0);
+            // Also patch tagPool so autocomplete sort + display sees
+            // the new count.
+            for (const entry of tagPool) {
+              if (entry[0] === name) { entry[1] = count || 0; break; }
+            }
+          }
+        }
+        if (dropdown.style.display === 'block') renderDropdown();
+      },
       root,
     };
   }

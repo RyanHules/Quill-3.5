@@ -1033,24 +1033,43 @@
       lines.push(parts.map(escapeHtml).join(' · '));
     }
     if (Array.isArray(d.class_features) && d.class_features.length) {
+      // Render full descriptions — previously truncated to 140 chars,
+      // which made data inaccessible (a Druid's Wild Shape description
+      // is ~1k chars; truncating mid-sentence defeats the point of
+      // having it in the DB at all). Per-class total is bounded — max
+      // ~20 features, most under 200 chars each — so unbounded render
+      // is well within the modal's scroll budget.
+      //
+      // Prefer `raw_text` (verbatim corpus) over `description` (old
+      // summary): the bounds-script sweep populates raw_text with the
+      // full feature text from the book. The Wilder Wild Surge case
+      // (2026-05-25) — `description`=233ch summary vs `raw_text`=
+      // 2011ch full mechanics — was the cautionary tale: the user
+      // saw the truncated summary in the lookup modal and assumed
+      // the rules were missing, when actually the verbatim was
+      // already in the DB on a different field. Falls back to
+      // description for features that haven't been swept yet.
       const feats = d.class_features.map(f => {
         const lvl = f.level_acquired != null
           ? `L${f.level_acquired} ` : '';
-        const desc = f.description
-          ? `: ${escapeHtml(truncate(f.description, 140))}` : '';
-        return `<div style="margin-left:0.5rem">` +
+        const body = f.raw_text || f.description || '';
+        const desc = body ? `: ${escapeHtml(body)}` : '';
+        return `<div class="lookup-class-feature">` +
                `<b>${escapeHtml(lvl + (f.name || ''))}</b>${desc}</div>`;
       }).join('');
       lines.push(`<b>Class features:</b>${feats}`);
     }
     // Class table — first 5 rows visible; the rest render hidden so
     // the "… N more levels" footer can reveal them on click without
-    // re-running the renderer.
+    // re-running the renderer. The "Special" cell renders full — it
+    // used to be truncated to 80 chars but that hid level-tier
+    // descriptors (Crusader's "Furious counterstrike, steely resolve"
+    // fit, but PrC entries with long "Special" prose got cut).
     if (Array.isArray(d.class_table) && d.class_table.length) {
       const VISIBLE = 5;
       const head = `<tr><th>L</th><th>BAB</th><th>Fort</th><th>Ref</th><th>Will</th><th>Special</th></tr>`;
       const body = d.class_table.map((r, i) => {
-        const special = truncate(r.special || '—', 80);
+        const special = r.special || '—';
         const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
         return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>` +
                `<td>${escapeHtml(String(r.bab || ''))}</td>` +
@@ -1070,8 +1089,170 @@
       lines.push(`<b>Class table:</b>` +
         `<table class="lookup-class-table">${head}${body}</table>${more}`);
     }
+    // Spell-progression / power-progression / maneuver-progression
+    // table. Separate from the BAB/save table because (a) the column
+    // set is variable per class and (b) splicing 9 spell-slot columns
+    // onto the same table would blow out the modal width for
+    // Sorcerer-style casters. Hidden entirely for non-casters. See
+    // renderProgressionTables for the per-shape logic.
+    const progTables = renderProgressionTables(d.class_table);
+    if (progTables) lines.push(progTables);
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
+  // Spell / power / maneuver / invocation progression tables for
+  // class entries. Two data shapes coexist in the DB:
+  //
+  //   A) PHB-style — per-row `spells_per_day: [3, 1, "-", ...]`
+  //      indexed by spell level 0-9. Sorcerer / Bard also carry
+  //      `spells_known: [4, 2, "-", ...]` in parallel. Rendered as
+  //      a Spells/Day table + optional Spells Known table; all-"-"
+  //      spell-level columns are dropped so a Paladin (4 levels)
+  //      doesn't render six empty columns.
+  //   B) PHB2 / XPH / ToB / CArc style — per-row `columns: {key: N}`
+  //      dict for non-spell-slot resources. Keys observed:
+  //      invocations_known, power_points_day, powers_known,
+  //      max_power_level, maneuvers_known, maneuvers_readied,
+  //      maneuvers_granted, stances_known, infusions_per_day,
+  //      essentia, soulmelds, chakra_binds, mind_blade_enhancement,
+  //      craft_reserve, ac_bonus, unarmed_damage, spells. Rendered
+  //      as a single table keyed by L + one column per non-zero key.
+  //
+  // A class can carry both shapes simultaneously (rare; some
+  // manifesters carry both). Both tables render in that case. Same
+  // 5-rows-visible + "(click to expand)" treatment as the BAB/save
+  // table — uses the existing data-action="expand-table" handler.
+  function renderProgressionTables(classTable) {
+    if (!Array.isArray(classTable) || !classTable.length) return '';
+    const VISIBLE = 5;
+    const blocks = [];
+
+    // --- Pattern A: spells_per_day / spells_known --------------------
+    // Determine which spell-level columns to render. A column is
+    // included if any row has a non-"-" non-null value at that index.
+    function activeSpellCols(field) {
+      const has = classTable.some(r => Array.isArray(r[field]));
+      if (!has) return null;
+      const len = Math.max(...classTable.map(
+        r => Array.isArray(r[field]) ? r[field].length : 0));
+      const active = [];
+      for (let i = 0; i < len; i++) {
+        const used = classTable.some(r => {
+          const v = Array.isArray(r[field]) ? r[field][i] : null;
+          return v != null && v !== '' && v !== '-' && v !== '—';
+        });
+        if (used) active.push(i);
+      }
+      return active.length ? active : null;
+    }
+
+    function buildSpellTable(field, label) {
+      const cols = activeSpellCols(field);
+      if (!cols) return '';
+      const headCells = ['<th>L</th>']
+        .concat(cols.map(i => `<th>${i}</th>`)).join('');
+      const head = `<tr>${headCells}</tr>`;
+      const body = classTable.map((r, i) => {
+        const arr = Array.isArray(r[field]) ? r[field] : [];
+        const cells = cols.map(idx => {
+          const v = arr[idx];
+          const display = (v == null || v === '') ? '—'
+            : (v === '-' ? '—' : String(v));
+          return `<td>${escapeHtml(display)}</td>`;
+        }).join('');
+        const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
+        return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>${cells}</tr>`;
+      }).join('');
+      const extra = classTable.length - VISIBLE;
+      const more = extra > 0
+        ? `<div class="lookup-expand-more" data-action="expand-table" ` +
+          `tabindex="0" role="button" ` +
+          `title="Click to show all ${classTable.length} levels">` +
+          `… ${extra} more level${extra === 1 ? '' : 's'} (click to expand)` +
+          `</div>`
+        : '';
+      return `<b>${escapeHtml(label)}</b>` +
+        `<table class="lookup-class-table">${head}${body}</table>${more}`;
+    }
+
+    const spdHtml = buildSpellTable('spells_per_day', 'Spells per day:');
+    if (spdHtml) blocks.push(spdHtml);
+    const skHtml = buildSpellTable('spells_known', 'Spells known:');
+    if (skHtml) blocks.push(skHtml);
+
+    // --- Pattern B: per-row columns dict -----------------------------
+    // Collect every key seen across all rows (insertion order from the
+    // first row that uses each key — preserves the natural class-table
+    // layout: Psion shows power_points_day before powers_known before
+    // max_power_level because that's the PHB Table 2-4 order).
+    const colKeys = [];
+    const seenKey = new Set();
+    for (const r of classTable) {
+      if (r.columns && typeof r.columns === 'object') {
+        for (const k of Object.keys(r.columns)) {
+          if (!seenKey.has(k)) {
+            seenKey.add(k);
+            colKeys.push(k);
+          }
+        }
+      }
+    }
+    // Filter out keys that are uniformly empty / 0 / "-" / "—".
+    const activeKeys = colKeys.filter(k =>
+      classTable.some(r => {
+        const v = r.columns && r.columns[k];
+        return v != null && v !== '' && v !== '-' && v !== '—' && v !== 0;
+      }));
+    if (activeKeys.length) {
+      const COL_LABELS = {
+        spells: 'Spells',
+        spells_per_day: 'Spells/Day',
+        spells_known: 'Spells Known',
+        power_points_day: 'PP/Day',
+        powers_known: 'Powers Known',
+        max_power_level: 'Max Lvl',
+        invocations_known: 'Invocations',
+        maneuvers_known: 'Mnv Known',
+        maneuvers_readied: 'Mnv Readied',
+        maneuvers_granted: 'Mnv Granted',
+        stances_known: 'Stances',
+        infusions_per_day: 'Infusions/Day',
+        essentia: 'Essentia',
+        soulmelds: 'Soulmelds',
+        chakra_binds: 'Chakra Binds',
+        mind_blade_enhancement: 'Mind Blade',
+        craft_reserve: 'Craft Reserve',
+        ac_bonus: 'AC Bonus',
+        unarmed_damage: 'Unarmed',
+      };
+      const headCells = ['<th>L</th>']
+        .concat(activeKeys.map(k =>
+          `<th title="${escapeHtml(k)}">${escapeHtml(COL_LABELS[k] || k)}</th>`))
+        .join('');
+      const head = `<tr>${headCells}</tr>`;
+      const body = classTable.map((r, i) => {
+        const cells = activeKeys.map(k => {
+          const v = r.columns && r.columns[k];
+          const display = (v == null || v === '') ? '—' : String(v);
+          return `<td>${escapeHtml(display)}</td>`;
+        }).join('');
+        const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
+        return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>${cells}</tr>`;
+      }).join('');
+      const extra = classTable.length - VISIBLE;
+      const more = extra > 0
+        ? `<div class="lookup-expand-more" data-action="expand-table" ` +
+          `tabindex="0" role="button" ` +
+          `title="Click to show all ${classTable.length} levels">` +
+          `… ${extra} more level${extra === 1 ? '' : 's'} (click to expand)` +
+          `</div>`
+        : '';
+      blocks.push(`<b>Class resources:</b>` +
+        `<table class="lookup-class-table">${head}${body}</table>${more}`);
+    }
+
+    return blocks.join('<br>');
   }
 
   // Magic-item / armor / gear creation prereqs: Craft feats + spell
@@ -1509,6 +1690,15 @@
     // the most commonly populated narrative fields via json_extract
     // (everything per-type ends up here, falling back to NULLs).
     // Roughly ~5 MB of strings in memory for 12.5k entries — fine.
+    //
+    // For class / prc entries we ALSO pull `class_features` (raw
+    // JSON) so the body match can hit feature names. This is what
+    // makes "Wild Shape" surface Druid, "Rage" surface Barbarian,
+    // "Bardic Music" surface Bard, etc. — without it, a player
+    // searching for a feature they remember by name has to guess
+    // the parent class to navigate to it. Parsed client-side
+    // because SQLite's json1 doesn't ergonomically flatten an
+    // array-of-objects into a text blob.
     const rows = DB.query(
       "SELECT id, name, type, source, " +
       "  COALESCE(" +
@@ -1518,7 +1708,10 @@
       "    json_extract(data, '$.granted_power'), " +
       "    json_extract(data, '$.text'), " +
       "    ''" +
-      "  ) AS body " +
+      "  ) AS body, " +
+      "  CASE WHEN type IN ('class','prc') " +
+      "       THEN json_extract(data, '$.class_features') ELSE NULL END " +
+      "    AS class_features_json " +
       "FROM entry WHERE name IS NOT NULL"
     );
     // Pull tags in one shot.
@@ -1549,10 +1742,49 @@
       const nameKey = squash(r.name);
       const tags = tagsById.get(r.id) || new Set();
       typeCounts.set(r.type, (typeCounts.get(r.type) || 0) + 1);
+      // Parse class_features for class / prc rows. Stores the
+      // original feature names (preserved case + punctuation) so
+      // rankEntry can return WHICH feature matched as attribution,
+      // and folds each feature's name + description into bodyKey for
+      // the tier-10 contains match. Defensive try/catch so a single
+      // malformed entry can't blank the whole index.
+      let featureNames = null;     // null when not class/prc
+      let featureBody = '';
+      if (r.class_features_json) {
+        try {
+          const arr = JSON.parse(r.class_features_json);
+          if (Array.isArray(arr)) {
+            featureNames = [];
+            const bits = [];
+            for (const f of arr) {
+              if (!f || typeof f !== 'object') continue;
+              if (f.name) {
+                featureNames.push(String(f.name));
+                bits.push(f.name);
+              }
+              // Fold BOTH the old curated summary (description) AND
+              // the verbatim corpus excerpt (raw_text) into the
+              // search body. raw_text is the higher-fidelity source
+              // populated by the bounds-script sweeps; description
+              // is the older synthesized version that still exists
+              // on un-swept features. Including both maximizes match
+              // surface without double-counting (rankEntry uses
+              // contains-match, not term-frequency).
+              if (f.description) bits.push(String(f.description));
+              if (f.raw_text) bits.push(String(f.raw_text));
+            }
+            featureBody = bits.join(' ');
+          }
+        } catch (_) {
+          // Bad JSON on a class — leave featureNames=null so
+          // rank skips feature attribution for this entry.
+        }
+      }
       // bodyKey is a lower-case, punctuation-flattened version of the
       // entry's primary descriptive text. Used for tier-10 body-text
-      // matches in rankEntry.
-      const bodyKey = squash(r.body || '');
+      // matches in rankEntry. Includes class-feature text for
+      // class/prc entries so "Wild Shape" finds Druid.
+      const bodyKey = squash(((r.body || '') + ' ' + featureBody).trim());
       return {
         id: r.id,
         name: r.name,
@@ -1568,6 +1800,7 @@
           (r.source || '').toLowerCase() + '·' +
           [...tags].join('·'),
         bodyKey,
+        featureNames,    // null OR list of preserved-case names
       };
     });
     console.log(`[lookup] indexed ${entries.length} entries across ` +
@@ -1622,6 +1855,35 @@
     }
     out.q = squash(parts.join(' '));
     return out;
+  }
+
+  // Find the best-matching class feature for an entry, given the
+  // raw query string. Returns the feature's preserved-case name when
+  // found, else null. Used only for the visible result page to
+  // annotate "(via Wild Shape)" on a Druid row when the user typed
+  // "wild shape". Returns null for non-class entries (those have
+  // featureNames === null) and when the query doesn't match any
+  // feature name (e.g. the entry surfaced via name match, not body).
+  //
+  // Prefers: exact (case-insensitive) > startsWith > contains.
+  function findMatchedFeature(entry, q) {
+    if (!entry.featureNames || !entry.featureNames.length) return null;
+    if (!q) return null;
+    const ql = q.toLowerCase();
+    // Don't bother annotating when the entry's NAME already contains
+    // the query — the user already sees why it matched.
+    if (entry.nameKey.includes(squash(q))) return null;
+    let best = null;
+    let bestRank = 0;
+    for (const f of entry.featureNames) {
+      const fl = f.toLowerCase();
+      let rank = 0;
+      if (fl === ql) rank = 3;
+      else if (fl.startsWith(ql)) rank = 2;
+      else if (fl.includes(ql)) rank = 1;
+      if (rank > bestRank) { bestRank = rank; best = f; }
+    }
+    return best;
   }
 
   // Rank a single entry against the parsed query.
@@ -1975,9 +2237,20 @@
       row.setAttribute('aria-selected', i === selectedIdx ? 'true' : 'false');
       row.dataset.entryId = e.id;
       row.dataset.entryType = e.type;
+      // Class-feature match attribution: when a class/prc surfaces
+      // because the query matched a feature name (e.g. "Wild Shape" →
+      // Druid), surface WHICH feature so the user understands why
+      // the parent class is in the result list. Runs only for the
+      // visible page of results so it stays cheap (string includes
+      // over a 20-element list per row, ~max 20 rows).
+      const featNote = findMatchedFeature(e, parsed.q);
+      const featNoteHtml = featNote
+        ? ` <span class="lookup-row-via" title="Matched via class feature">` +
+          `(via ${escapeHtml(featNote)})</span>`
+        : '';
       row.innerHTML =
         `<span class="lookup-row-type">${escapeHtml(TYPE_LABELS[e.type] || e.type)}</span>` +
-        `<span class="lookup-row-name">${escapeHtml(e.name)}</span>` +
+        `<span class="lookup-row-name">${escapeHtml(e.name)}${featNoteHtml}</span>` +
         `<span class="lookup-row-meta">${escapeHtml(e.source || '')}` +
         (window.VersionBadge ? VersionBadge.html(e.version) : '') +
         `</span>`;

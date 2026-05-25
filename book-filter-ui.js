@@ -192,7 +192,12 @@
     for (const grp of order) {
       const byAbbrev = groups.get(grp);
       if (!byAbbrev) continue;
-      const entries = [...byAbbrev.values()];
+      // Sort books alphabetically by name within each category. The
+      // underlying SQL orders by edition + publication date for the
+      // source-recency tiebreak used by pickers, but for the picker
+      // checklist alphabetical reads as the more natural browse order.
+      const entries = [...byAbbrev.values()].sort(
+        (a, b) => String(a.name || '').localeCompare(String(b.name || '')));
       html += `<div class="book-filter-group" data-group="${grp}">`;
       html += `<div class="book-filter-grouphead">`
         + `<span>${groupLabels[grp] || grp}</span> `

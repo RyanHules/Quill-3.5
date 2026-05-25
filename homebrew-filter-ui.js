@@ -151,8 +151,18 @@
     // entries (Tidecaller, Rooted Calling) AND subsystem rules
     // (Item Familiar variants) as children — see getChildren().
     const HBF = window.HomebrewFilter;
+    // Sort categories alphabetically AND sort rules within each
+    // category alphabetically by name. Registration order is whatever
+    // the script-tag order in index.html happens to be — alphabetical
+    // is the more predictable browse order in a menu the user opens
+    // looking for a specific rule.
+    const byName = (a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''));
+    const sortedCats = [...groups.keys()].sort(
+      (a, b) => String(a).localeCompare(String(b)));
     let html = '';
-    for (const [cat, rs] of groups) {
+    for (const cat of sortedCats) {
+      const rs = [...groups.get(cat)].sort(byName);
       html += `<div class="book-filter-group" data-group="${escapeAttr(cat)}">`
         + `<div class="book-filter-grouphead"><span>${escapeHtml(cat)}</span></div>`;
       for (const r of rs) {
@@ -197,7 +207,16 @@
 
   function renderParentWithChildren(r) {
     const HBF = window.HomebrewFilter;
-    const children = HBF.getChildren ? HBF.getChildren(r.key) : [];
+    // Sort children alphabetically too — a Diamond Soul book parent
+    // collects both content entries (Tidecaller, Rooted Calling…)
+    // and subsystem rules (Item Familiar variants) as children, and
+    // their registration order is whatever the homebrew/*.js script-
+    // tag order happens to be. Alphabetical reads as the natural
+    // browse order when the user is looking for a specific entry.
+    const children = (HBF.getChildren ? HBF.getChildren(r.key) : [])
+      .slice()
+      .sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || '')));
     const state = computeParentState(children);
     const checked = state === 'all';
     const indeterminate = state === 'some';

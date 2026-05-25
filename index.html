@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260524h';
+    window.CACHE_VERSION = '20260525h';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -698,7 +698,18 @@
       'feats.js', 'item-familiar.js', 'companion.js',
       'class-features.js', 'conditions.js',
       'feat-prereqs.js', 'character-history.js', 'build-timeline.js',
-      'audit.js', 'app.js',
+      'audit.js',
+      // save-backend.js — async storage abstraction over the Python
+      // save_server.py (when available) or localStorage (fallback).
+      // Must load BEFORE app.js, which uses SaveBackend.list/save/load.
+      'save-backend.js',
+      'app.js',
+      // character-library.js — 📂 button + modal for browsing the
+      // full save library (saves/library/, saves/active/, etc.) with
+      // search + folder/tag filters. Loads AFTER app.js because it
+      // calls window.App.loadCharacter. Decoupled enough to load
+      // anywhere after app.js — keeping it adjacent for clarity.
+      'character-library.js',
       // -- D&D 3.5 database (sql.js + dnd35.db). Purely additive:
       // failing to load these leaves the sheet operating in manual-
       // entry mode.

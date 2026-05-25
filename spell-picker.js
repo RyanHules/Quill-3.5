@@ -634,15 +634,43 @@
     // the candidate ids, and rewrites the option labels in place.
     // Cheap: ~100 tags × O(|tag-set| ∩ |candidates|) — runs in <1ms
     // for the typical Wizard-L3 case.
-    // refreshTagCounts is a no-op now — the old single-tag <select>
-    // displayed per-tag counts adjusted for the current class/level
-    // filter. The new TagFilter component shows GLOBAL counts in its
-    // autocomplete; rebuilding the pool on every keystroke would
-    // disrupt the typing experience. Future enhancement: expose a
-    // setCounts() on TagFilter so we can refresh autocomplete counts
-    // contextually without re-rendering. For now, accept slightly
-    // stale (= unfiltered) counts in the autocomplete.
-    function refreshTagCounts() { /* no-op */ }
+    // Recompute per-tag counts contextually based on the current
+    // class / level / name filters (but NOT the tag filter itself —
+    // including the tag filter would zero every option's count
+    // because adding a tag eliminates spells without it). Call
+    // tagFilter.setCounts() to push the new numbers into the
+    // autocomplete dropdown so users see "evil-descriptor (3)" when
+    // Wizard L3 is active vs the global "evil-descriptor (42)" when
+    // no other filter is set.
+    //
+    // Cheap: ~100 tags × O(|tag-set| ∩ |candidates|) — runs in <1ms
+    // for the typical case. Computed lazily — only when class/level
+    // filters change AND the tag filter is attached.
+    function refreshTagCounts() {
+      if (!tagFilter || typeof tagFilter.setCounts !== 'function') return;
+      // Skip when no narrowing filter is active — globals are already
+      // correct, and refreshing every keystroke before any narrowing
+      // is wasted work.
+      const cls = normalizeClass(classInput.value);
+      const lvlFilter = parseLevelFilter(levelInput.value);
+      if (!(cls && canonical.has(cls)) && !lvlFilter
+          && !spellInput.value.trim()) {
+        return;
+      }
+      const candidates = computeCandidateIds(
+        { ignoreTag: true, applyName: false });
+      const candidateIds = new Set(candidates.map(c => c.spell_id));
+      const newCounts = new Map();
+      for (const [tag, ids] of spellTagIndex.entries()) {
+        let n = 0;
+        // Iterate the smaller set for cache friendliness.
+        const [small, big] = ids.size < candidateIds.size
+          ? [ids, candidateIds] : [candidateIds, ids];
+        for (const id of small) if (big.has(id)) n++;
+        newCounts.set(tag, n);
+      }
+      tagFilter.setCounts(newCounts);
+    }
 
     // Shared helper: returns the set of spell ids matching the
     // current filters with optional knobs.  Used by both
@@ -859,8 +887,10 @@
     }
 
     classInput.addEventListener('input', refreshSpellList);
+    classInput.addEventListener('input', refreshTagCounts);
     levelInput.addEventListener('input', refreshSpellList);
     levelInput.addEventListener('input', refreshMetamagicRow);
+    levelInput.addEventListener('input', refreshTagCounts);
     // (Tag changes are now wired via TagFilter's onChange callback above.)
     spellInput.addEventListener('input', updateInfoPanel);
     spellInput.addEventListener('input', renderResults);

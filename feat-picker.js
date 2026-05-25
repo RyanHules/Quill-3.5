@@ -307,13 +307,40 @@
       if (results) results.render(names, { typedFilter: featInput.value.trim() });
     }
 
+    // Contextual tag counts — refresh per-tag counts in the dropdown
+    // to reflect ONLY entries that pass the type + name filters
+    // (deliberately ignoring the tag filter itself). Mirrors the
+    // spell-picker pattern; without this, the autocomplete shows
+    // global counts and the user can't see how many fighter-bonus
+    // feats exist in the current type-restricted view.
+    function refreshTagCounts() {
+      if (!tagFilter || typeof tagFilter.setCounts !== 'function') return;
+      const chosenType = typeSelect.value;
+      const typedRaw = (featInput.value || '').trim().toLowerCase();
+      // Skip when neither type nor name narrows — globals are correct.
+      if (!chosenType && !typedRaw) return;
+      const tally = new Map();
+      for (const display of displayNames) {
+        const entry = featIndex.get(display.toLowerCase());
+        if (!entry) continue;
+        if (!matchesType(entry, chosenType)) continue;
+        if (typedRaw && !display.toLowerCase().includes(typedRaw)) continue;
+        for (const tag of (entry.tags || [])) {
+          tally.set(tag, (tally.get(tag) || 0) + 1);
+        }
+      }
+      tagFilter.setCounts(tally);
+    }
+
     applyFilters();
 
     typeSelect.addEventListener('change', applyFilters);
+    typeSelect.addEventListener('change', refreshTagCounts);
     // (Tag changes are wired via TagFilter's onChange callback above.)
     // Re-render chips when the user types — substring filter on names
     // so the chip wall tracks what they're looking for.
     featInput.addEventListener('input', applyFilters);
+    featInput.addEventListener('input', refreshTagCounts);
 
     // Rebuild the index when the active book set changes so the
     // datalist reflects only in-scope sources.

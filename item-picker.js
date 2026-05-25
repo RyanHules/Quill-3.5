@@ -416,6 +416,43 @@
         })
       : null;
 
+    // Contextual tag counts — refresh per-tag counts in the dropdown
+    // to reflect ONLY items that pass the type + cost + name filters
+    // (deliberately ignoring the tag filter itself). Matches the
+    // spell-picker / feat-picker pattern. Items don't carry a
+    // per-entry tag list; we compute candidate-ids from the filter
+    // pass then intersect each tag's id-set against it.
+    function refreshTagCounts() {
+      if (!tagFilter || typeof tagFilter.setCounts !== 'function') return;
+      const chosenType = typeSel.value;
+      const costFilter = parseCostFilter(costInput.value);
+      const typedRaw = (itemInput.value || '').trim().toLowerCase();
+      // Skip when nothing narrows — globals are correct.
+      if (!chosenType && !costFilter && !typedRaw) return;
+      const candidateIds = new Set();
+      for (const display of displayNames) {
+        const entry = itemIndex.get(display.toLowerCase());
+        if (!entry) continue;
+        if (chosenType && entry.primaryRow.type !== chosenType) continue;
+        if (costFilter) {
+          const c = entry.costGp;
+          if (c == null) continue;
+          if (c < costFilter.min || c > costFilter.max) continue;
+        }
+        if (typedRaw && !display.toLowerCase().includes(typedRaw)) continue;
+        candidateIds.add(entry.primaryRow.item_id);
+      }
+      const tally = new Map();
+      for (const [tag, ids] of tagIndex.entries()) {
+        let n = 0;
+        const [small, big] = ids.size < candidateIds.size
+          ? [ids, candidateIds] : [candidateIds, ids];
+        for (const id of small) if (big.has(id)) n++;
+        tally.set(tag, n);
+      }
+      tagFilter.setCounts(tally);
+    }
+
     function applyFilters() {
       const costFilter = parseCostFilter(costInput.value);
       const positives = tagFilter ? tagFilter.getSelected() : [];
@@ -459,10 +496,13 @@
     }
     applyFilters();
     typeSel.addEventListener('change', applyFilters);
+    typeSel.addEventListener('change', refreshTagCounts);
     // (Tag changes are wired via TagFilter's onChange callback above.)
     costInput.addEventListener('input', applyFilters);
+    costInput.addEventListener('input', refreshTagCounts);
     // Re-render chips as the user types — substring filter on names.
     itemInput.addEventListener('input', applyFilters);
+    itemInput.addEventListener('input', refreshTagCounts);
 
     document.addEventListener('book-filter-changed', () => {
       buildIndex();
