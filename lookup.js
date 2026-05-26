@@ -1067,16 +1067,126 @@
     // fit, but PrC entries with long "Special" prose got cut).
     if (Array.isArray(d.class_table) && d.class_table.length) {
       const VISIBLE = 5;
-      const head = `<tr><th>L</th><th>BAB</th><th>Fort</th><th>Ref</th><th>Will</th><th>Special</th></tr>`;
+      // Unified class table that combines:
+      //   - BAB / Fort / Ref / Will / Special (always)
+      //   - Spells/Day column when ANY row carries spells_per_day
+      //     (handles the 4 distinct shapes: array, dict, "+1 level"
+      //     advance string, "1st: 0; 2nd: 1" per-level string)
+      //   - Pattern B columns (per-row `columns: {key: N}` dict —
+      //     XPH/ToB/MoI/etc. style for power_points_day,
+      //     powers_known, max_power_level, maneuvers_known, etc.)
+      //   - Spell-advance text extracted from `special` when the
+      //     advance is baked there instead of in spells_per_day
+      //     (Cerebremancer, Psion Uncarnate, dual-progression PrCs).
+      //
+      // Goal: one table that matches the book layout. User
+      // 2026-05-26: Black Flame Zealot rendered as full-progression
+      // because per-level spell info was missing; XPH Psion's PP/Day
+      // / Powers Known / Max Lvl rendered as a separate table below
+      // instead of merged; Cerebremancer's "+1 level of existing
+      // arcane spellcasting class and manifesting class" was stuck
+      // in Special instead of its own column.
+
+      // Extract advance text from special, return [cleanedSpecial, advanceText|null]
+      // Handles both the long form ("+1 level of existing arcane
+      // spellcasting class") and the short form ("+1 level manifesting"
+      // — Psion Uncarnate's L2 special) AND the dual-progression form
+      // ("+1 level of existing arcane spellcasting class and
+      // manifesting class" — Cerebremancer).
+      const ADVANCE_RE = /,?\s*\+\d+\s+level(?:s)?(?:\s+of\s+(?:existing\s+)?[a-zA-Z'\-\s]+?)?\s+(?:spellcasting|manifesting)(?:\s+class(?:es)?(?:\s+and\s+(?:spellcasting|manifesting)\s+class(?:es)?)?)?/i;
+      function extractAdvance(special) {
+        if (typeof special !== 'string') return [special, null];
+        const m = special.match(ADVANCE_RE);
+        if (!m) return [special, null];
+        // Trim trailing/leading comma+space artifacts after extraction
+        const cleaned = special.replace(m[0], '').replace(/^[\s,]+|[\s,]+$/g, '').replace(/,\s*,/g, ',').trim();
+        return [cleaned || '—', m[0].replace(/^[\s,]+/, '').trim()];
+      }
+
+      // Determine row's effective spells_per_day, preferring the
+      // dedicated field but falling back to extracted advance text.
+      function effectiveSpd(r) {
+        if (r.spells_per_day != null) return r.spells_per_day;
+        const [, adv] = extractAdvance(r.special || '');
+        return adv;  // null when no advance text in special
+      }
+
+      function fmtSpd(v) {
+        if (v == null) return '—';
+        if (Array.isArray(v)) {
+          return v.map(x => (x == null || x === '' || x === '-')
+            ? '—' : String(x)).join(' / ');
+        }
+        if (typeof v === 'object') {
+          const keys = Object.keys(v).map(k => parseInt(k, 10))
+            .filter(n => !isNaN(n)).sort((a, b) => a - b);
+          return keys.map(k => {
+            const x = v[String(k)];
+            return (x == null || x === '' || x === '-' || x === '—')
+              ? '—' : String(x);
+          }).join(' / ') || '—';
+        }
+        if (typeof v === 'string') return v;
+        return String(v);
+      }
+
+      // Collect Pattern B column keys present in this class_table
+      const colKeysOrder = [];
+      const seenColKey = new Set();
+      for (const r of d.class_table) {
+        if (r.columns && typeof r.columns === 'object') {
+          for (const k of Object.keys(r.columns)) {
+            if (!seenColKey.has(k)) {
+              seenColKey.add(k);
+              colKeysOrder.push(k);
+            }
+          }
+        }
+      }
+      // Keep only columns with at least one non-empty/non-zero value
+      const activeColKeys = colKeysOrder.filter(k =>
+        d.class_table.some(r => {
+          const v = r.columns && r.columns[k];
+          return v != null && v !== '' && v !== '-' && v !== '—' && v !== 0;
+        }));
+      const COL_LABELS = {
+        spells: 'Spells', spells_per_day: 'Spells/Day', spells_known: 'Spells Known',
+        power_points_day: 'PP/Day', powers_known: 'Powers Known',
+        max_power_level: 'Max Lvl', invocations_known: 'Invocations',
+        maneuvers_known: 'Mnv Known', maneuvers_readied: 'Mnv Readied',
+        maneuvers_granted: 'Mnv Granted', stances_known: 'Stances',
+        infusions_per_day: 'Infusions/Day', essentia: 'Essentia',
+        soulmelds: 'Soulmelds', chakra_binds: 'Chakra Binds',
+        mind_blade_enhancement: 'Mind Blade', craft_reserve: 'Craft Reserve',
+        ac_bonus: 'AC Bonus', unarmed_damage: 'Unarmed',
+      };
+
+      // Detect whether any row has effective spells_per_day
+      const hasSpd = d.class_table.some(r => effectiveSpd(r) != null);
+      const spdHead = hasSpd ? `<th>Spells/Day</th>` : '';
+      const colHeads = activeColKeys.map(k =>
+        `<th title="${escapeHtml(k)}">${escapeHtml(COL_LABELS[k] || k)}</th>`).join('');
+      const head = `<tr><th>L</th><th>BAB</th><th>Fort</th><th>Ref</th>` +
+        `<th>Will</th><th>Special</th>${spdHead}${colHeads}</tr>`;
       const body = d.class_table.map((r, i) => {
-        const special = r.special || '—';
+        const [cleanedSpecial, advText] = extractAdvance(r.special || '');
+        const specialDisplay = cleanedSpecial || '—';
+        const spdValue = r.spells_per_day != null
+          ? r.spells_per_day : advText;
+        const spdCell = hasSpd
+          ? `<td>${escapeHtml(fmtSpd(spdValue))}</td>` : '';
+        const colCells = activeColKeys.map(k => {
+          const v = r.columns && r.columns[k];
+          const display = (v == null || v === '') ? '—' : String(v);
+          return `<td>${escapeHtml(display)}</td>`;
+        }).join('');
         const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
         return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>` +
                `<td>${escapeHtml(String(r.bab || ''))}</td>` +
                `<td>${escapeHtml(String(r.fort || ''))}</td>` +
                `<td>${escapeHtml(String(r.ref || ''))}</td>` +
                `<td>${escapeHtml(String(r.will || ''))}</td>` +
-               `<td>${escapeHtml(special)}</td></tr>`;
+               `<td>${escapeHtml(specialDisplay)}</td>${spdCell}${colCells}</tr>`;
       }).join('');
       const extra = d.class_table.length - VISIBLE;
       const more = extra > 0
@@ -1090,12 +1200,11 @@
         `<table class="lookup-class-table">${head}${body}</table>${more}`);
     }
     // Spell-progression / power-progression / maneuver-progression
-    // table. Separate from the BAB/save table because (a) the column
-    // set is variable per class and (b) splicing 9 spell-slot columns
-    // onto the same table would blow out the modal width for
-    // Sorcerer-style casters. Hidden entirely for non-casters. See
-    // renderProgressionTables for the per-shape logic.
-    const progTables = renderProgressionTables(d.class_table);
+    // sub-tables: only render Pattern A (per-spell-level slots) here.
+    // Pattern B columns are now merged into the main class_table above,
+    // so the standalone "Class resources" sub-table is suppressed for
+    // them. See renderProgressionTables for the per-shape logic.
+    const progTables = renderProgressionTables(d.class_table, true);
     if (progTables) lines.push(progTables);
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
@@ -1123,7 +1232,7 @@
   // manifesters carry both). Both tables render in that case. Same
   // 5-rows-visible + "(click to expand)" treatment as the BAB/save
   // table — uses the existing data-action="expand-table" handler.
-  function renderProgressionTables(classTable) {
+  function renderProgressionTables(classTable, suppressPatternB) {
     if (!Array.isArray(classTable) || !classTable.length) return '';
     const VISIBLE = 5;
     const blocks = [];
@@ -1197,26 +1306,11 @@
     }
     const spdMeta = classTable.map(normalizeSpd);
 
-    // If any row uses an "advance" string AND none use arrays, render a
-    // compact one-line summary instead of a column-per-level table.
-    // If MIXED, surface the advance text as a note and let the array
-    // table render too (PrCs with both per-level slots AND advancement
-    // text exist in rare cases).
-    const advanceTexts = [];
-    const seenAdv = new Set();
-    for (let i = 0; i < spdMeta.length; i++) {
-      if (spdMeta[i].kind === 'advance' && !seenAdv.has(spdMeta[i].text)) {
-        seenAdv.add(spdMeta[i].text);
-        advanceTexts.push(spdMeta[i].text);
-      }
-    }
-    if (advanceTexts.length) {
-      // Most common case: same advance text on every spellcasting
-      // level. Render once as a summary. If different texts (rare),
-      // join with " / ".
-      blocks.push(`<b>Spellcasting:</b> ` +
-        advanceTexts.map(escapeHtml).join(' / '));
-    }
+    // (We no longer emit a separate "Spellcasting:" summary block —
+    // per-row spells_per_day is now in the main class_table's
+    // Spells/Day column, which is more book-faithful. Pattern A's
+    // per-spell-level slot table still renders below for PrCs with
+    // their own spell list.)
 
     // --- Pattern A: spells_per_day / spells_known --------------------
     // Determine which spell-level columns to render. A column is
@@ -1272,10 +1366,13 @@
     if (skHtml) blocks.push(skHtml);
 
     // --- Pattern B: per-row columns dict -----------------------------
-    // Collect every key seen across all rows (insertion order from the
-    // first row that uses each key — preserves the natural class-table
-    // layout: Psion shows power_points_day before powers_known before
-    // max_power_level because that's the PHB Table 2-4 order).
+    // Skipped when caller (the main class_table renderer) has already
+    // merged these columns into the unified table. Without that
+    // suppression, we'd double-render PP/Day / Powers Known / Max Lvl
+    // for every XPH manifester. Standalone Pattern B render is kept
+    // for callers that don't pass the flag (no current callers, but
+    // future direct renderProgressionTables() invocations work fine).
+    if (suppressPatternB) return blocks.join('<br>');
     const colKeys = [];
     const seenKey = new Set();
     for (const r of classTable) {
