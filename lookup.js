@@ -1128,6 +1128,96 @@
     const VISIBLE = 5;
     const blocks = [];
 
+    // --- Normalize spells_per_day across the 4 PrC data shapes -------
+    // PrC class_table rows carry `spells_per_day` in one of FOUR shapes
+    // (audited 2026-05-26 across 111 spellcasting PrCs):
+    //   1. Array `[3, 1, "-", "-"]` — PHB-style per-spell-level slots.
+    //      Renders via Pattern A. (4 PrCs)
+    //   2. Dict `{"1": "1", "2": "—"}` — same data, dict-keyed by spell
+    //      level as string. Convert to array. (4 PrCs)
+    //   3. String "1st: 0; 2nd: 1" — Assassin-style compact per-level
+    //      string. Parse to array. (42 PrCs)
+    //   4. String "+1 level of existing arcane spellcasting class" —
+    //      spell-advancing PrC pattern. Surface as a compact summary
+    //      line instead of a per-level table. (61 PrCs)
+    //
+    // Shapes 2–4 were silently invisible before this normalization;
+    // most spellcasting PrCs showed BAB/saves/special only. User
+    // flagged 2026-05-26: this is THE first thing checked to decide if
+    // a PrC is worth taking as a caster.
+    function normalizeSpd(row) {
+      const v = row.spells_per_day;
+      if (v == null) return { kind: null };
+      if (Array.isArray(v)) {
+        row.spells_per_day = v;
+        return { kind: 'array' };
+      }
+      if (typeof v === 'object') {
+        // Dict keyed by spell level as string (or int)
+        const keys = Object.keys(v).map(k => parseInt(k, 10))
+          .filter(n => !isNaN(n));
+        if (!keys.length) return { kind: null };
+        const max = Math.max(...keys);
+        // Build array indexed by spell level (0..max). PHB convention
+        // is 0-indexed (cantrips at index 0); dicts here seem 1-keyed
+        // (no zero level — sub-9 caster pattern). We preserve the
+        // 1-based indexing in the array (index 0 stays "—") so the
+        // rendered column headers match expectations.
+        const out = [];
+        for (let i = 0; i <= max; i++) {
+          const k = String(i);
+          out.push(v[k] != null ? v[k] : '—');
+        }
+        row.spells_per_day = out;
+        return { kind: 'array' };
+      }
+      if (typeof v === 'string') {
+        const s = v.trim();
+        // Shape 4: spell-advancing PrC. Keep string for compact render.
+        if (/\+\d+\s*level\s+of\s+(?:existing\s+)?/i.test(s)) {
+          return { kind: 'advance', text: s };
+        }
+        // Shape 3: "1st: 0; 2nd: 1; 3rd: —" — parse to array
+        const re = /(\d+)(?:st|nd|rd|th):\s*([\d—\-]+)/g;
+        const out = [];
+        let m;
+        while ((m = re.exec(s)) !== null) {
+          const lvl = parseInt(m[1], 10);
+          while (out.length <= lvl) out.push('—');
+          out[lvl] = m[2];
+        }
+        if (out.length) {
+          row.spells_per_day = out;
+          return { kind: 'array' };
+        }
+        // Unknown string shape — surface as plain text fallback
+        return { kind: 'plain', text: s };
+      }
+      return { kind: null };
+    }
+    const spdMeta = classTable.map(normalizeSpd);
+
+    // If any row uses an "advance" string AND none use arrays, render a
+    // compact one-line summary instead of a column-per-level table.
+    // If MIXED, surface the advance text as a note and let the array
+    // table render too (PrCs with both per-level slots AND advancement
+    // text exist in rare cases).
+    const advanceTexts = [];
+    const seenAdv = new Set();
+    for (let i = 0; i < spdMeta.length; i++) {
+      if (spdMeta[i].kind === 'advance' && !seenAdv.has(spdMeta[i].text)) {
+        seenAdv.add(spdMeta[i].text);
+        advanceTexts.push(spdMeta[i].text);
+      }
+    }
+    if (advanceTexts.length) {
+      // Most common case: same advance text on every spellcasting
+      // level. Render once as a summary. If different texts (rare),
+      // join with " / ".
+      blocks.push(`<b>Spellcasting:</b> ` +
+        advanceTexts.map(escapeHtml).join(' / '));
+    }
+
     // --- Pattern A: spells_per_day / spells_known --------------------
     // Determine which spell-level columns to render. A column is
     // included if any row has a non-"-" non-null value at that index.
