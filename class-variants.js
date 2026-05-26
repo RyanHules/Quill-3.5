@@ -67,7 +67,7 @@ const ClassVariants = (function () {
       + "json_extract(data, '$.class')         AS class_field, "
       + "json_extract(data, '$.level')         AS level, "
       + "json_extract(data, '$.replaces')      AS replaces, "
-      + "json_extract(data, '$.prerequisite')  AS prerequisite, "
+      + "json_extract(data, '$.prerequisites') AS prerequisite, "
       + "json_extract(data, '$.benefit')       AS benefit, "
       + "json_extract(data, '$.description')   AS description "
       + "FROM entry WHERE type = 'acf' "

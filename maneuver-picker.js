@@ -29,7 +29,7 @@
       + "json_extract(data, '$.target')            AS target, "
       + "json_extract(data, '$.duration')          AS duration, "
       + "json_extract(data, '$.saving_throw')      AS saving_throw, "
-      + "json_extract(data, '$.prerequisite')      AS prerequisite, "
+      + "json_extract(data, '$.prerequisites')     AS prerequisite, "
       + "json_extract(data, '$.classes')           AS classes_json, "
       + "json_extract(data, '$.description')       AS description "
       + "FROM entry WHERE type = 'maneuver' "
