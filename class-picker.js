@@ -2844,6 +2844,19 @@
     bits.push(`<b>BAB:</b> +${bab}`);
     bits.push(`<b>Saves:</b> Fort +${fort}, Ref +${ref}, Will +${will}`);
 
+    // Weapon/armor proficiencies. Fetched per-render (not in the
+    // class index) to keep the index lean — same pattern as the
+    // requirements pull above. Canonical DB field is the plural
+    // `weapon_armor_proficiencies` (enforced by the 2026-05-26
+    // field-canon sweep); fall back to legacy singular for safety.
+    const profRow = DB.queryOne(
+      "SELECT json_extract(data, '$.weapon_armor_proficiencies') AS plural, " +
+      "       json_extract(data, '$.weapon_armor_proficiency')   AS singular " +
+      "FROM entry WHERE id = ?", [cls.class_id]
+    );
+    const prof = profRow && (profRow.plural || profRow.singular);
+    if (prof) bits.push(`<b>Proficiencies:</b> ${escapeHtml(prof)}`);
+
     // Cumulative class features (1..level), with stack-vs-scale dedup.
     // If the player has any ACFs / Sub Levels for this class in their
     // Class Customizations list, strike through the features each one

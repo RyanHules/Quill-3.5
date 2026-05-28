@@ -1021,8 +1021,12 @@
     if (d.will_progression) progs.push(`Will: ${d.will_progression}`);
     if (progs.length)
       lines.push(`<b>Progressions:</b> ${escapeHtml(progs.join(' · '))}`);
-    if (d.weapon_armor_proficiency)
-      lines.push(`<b>Proficiencies:</b> ${escapeHtml(d.weapon_armor_proficiency)}`);
+    // Canonical DB field is `weapon_armor_proficiencies` (plural); the
+    // 2026-05-26 field-canon sweep enforces that name. Read plural,
+    // fall back to the legacy singular for any un-rebuilt blob.
+    const wap = d.weapon_armor_proficiencies || d.weapon_armor_proficiency;
+    if (wap)
+      lines.push(`<b>Proficiencies:</b> ${escapeHtml(wap)}`);
     if (Array.isArray(d.class_skills) && d.class_skills.length) {
       lines.push(`<b>Class skills:</b> ${escapeHtml(d.class_skills.join(', '))}`);
     }
