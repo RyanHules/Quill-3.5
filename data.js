@@ -241,6 +241,26 @@ const DND35 = {
     return isGood ? Math.floor(hd / 2) + 2 : Math.floor(hd / 3);
   },
 
+  // Map a creature type to the BAB / save PROGRESSION LABELS that
+  // class-picker's multiclass aggregate consumes ('good' / 'average' /
+  // 'poor'). Lets a creature's racial Hit Dice be injected as a synthetic
+  // class row that pools with class levels through the SAME BAB/save math
+  // (so the +2 good-save base is granted once per save type, etc.). BAB
+  // factor 1 → good (full), 0.75 → average (3/4), 0.5 → poor (1/2); each
+  // of Fort/Ref/Will is 'good' when listed in the type's goodSaves, else
+  // 'poor'. Accepts a raw type ("Humanoid (Goblinoid)") or a clean one
+  // ("Monstrous Humanoid"); returns null for unrecognized types. The
+  // single-block BAB/save this produces matches creatureBABAtHD /
+  // creatureSaveAtHD for the same HD count.
+  creatureTypeToProg(rawType) {
+    const type = this.parseCreatureType(rawType);
+    if (!type) return null;
+    const info = this.creatureTypes[type];
+    const bab = info.bab >= 1 ? 'good' : info.bab >= 0.75 ? 'average' : 'poor';
+    const sv = (w) => info.goodSaves.includes(w) ? 'good' : 'poor';
+    return { bab, fort: sv('Fort'), ref: sv('Ref'), will: sv('Will') };
+  },
+
   // Skill points per the MM advancement rules:
   //   ×4 multiplier on the FIRST HD, plain on subsequent HD.
   //   Per HD = max(1, skillBase + INT mod) (min 1 from the SRD rule

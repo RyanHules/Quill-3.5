@@ -68,6 +68,12 @@
         <div class="field"><label>Player</label><input type="text" id="char-player"></div>
         <div class="field field-lg"><label>Race</label><input type="text" id="char-race"></div>
         <div class="field"><label>Type</label><input type="text" id="char-type" placeholder="e.g. Humanoid, Outsider"></div>
+        <div class="field field-lg">
+          <label>Creature as Race
+            <span style="opacity:0.6; font-weight:normal; font-size:0.85em">(monster PC — applies racial adjustments + racial HD)</span>
+          </label>
+          <input type="text" id="char-creature-race" placeholder="e.g. Bugbear, Goblin, Ogre">
+        </div>
         <div class="field">
           <label>Alignment</label>
           <select id="char-alignment">
@@ -734,6 +740,10 @@
       'domain-picker.js', 'maneuver-picker.js', 'power-picker.js',
       'mystery-picker.js', 'soulmeld-picker.js', 'vestige-picker.js',
       'invocation-picker.js', 'special-ability-picker.js',
+      // creature-race-picker.js — monster-as-PC race picker. Loads AFTER
+      // class-picker.js (calls ClassPicker.addRacialHD for racial HD),
+      // data.js (creatureTypeToProg), feats.js, and picker-results.js.
+      'creature-race-picker.js',
       'errata-badge.js', 'version-badge.js',
       // -- Homebrew filter loads BEFORE individual homebrew rule
       // modules so they can self-register at module-load time.

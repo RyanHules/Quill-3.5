@@ -1477,6 +1477,84 @@
   }
 
   // ============================================================
+  // Creature-as-race racial Hit Dice (synthetic class rows)
+  //
+  // A creature picked as a playable race (via creature-race-picker.js)
+  // can carry racial Hit Dice — real HD that sit BEFORE class levels and
+  // contribute their own BAB / saves / total level. We model them as a
+  // synthetic pickedClasses entry (`racialHD: true`) carrying the BAB/save
+  // PROGRESSION LABELS for the creature type (from data.js
+  // `creatureTypeToProg`), so they pool through the exact same aggregate
+  // math as any class. The entry has NO DB classId/source/monsterExt:
+  //  - ability mods / natural armor / size are applied by the
+  //    creature-race-picker's adjustment layer (the race-column writes),
+  //    NOT via monsterExt — so they're never double-counted here.
+  //  - prog is persisted DIRECTLY in the save (synthetic rows can't be
+  //    rehydrated from the DB class table — see the load branch below).
+  // At most one racial-HD row exists at a time (one creature-race).
+  // ============================================================
+
+  function addRacialHD(meta) {
+    if (!meta || !meta.creatureRace || !meta.count || !meta.prog) return null;
+    const className = `${meta.creatureRace} (racial HD)`;
+    // Drop any prior racial-HD row first (only one creature-race active).
+    for (let i = pickedClasses.length - 1; i >= 0; i--) {
+      if (pickedClasses[i].racialHD) pickedClasses.splice(i, 1);
+    }
+    pickedClasses.push({
+      className,
+      level: meta.count,
+      racialHD: true,
+      creatureRace: meta.creatureRace,
+      creatureType: meta.creatureType || null,
+      prog: {
+        bab:  meta.prog.bab,
+        fort: meta.prog.fort,
+        ref:  meta.prog.ref,
+        will: meta.prog.will,
+      },
+    });
+    applyAggregatesToSheet();
+    renderClassList();
+    if (typeof window.recalcAll === 'function') {
+      try { window.recalcAll(); } catch (e) { /* non-fatal */ }
+    }
+    try {
+      document.dispatchEvent(new CustomEvent('classes-changed', {
+        detail: { state: pickedClasses.slice() },
+      }));
+    } catch (e) { /* non-fatal */ }
+    return className;
+  }
+
+  // Remove the synthetic racial-HD row. With no argument, removes
+  // whichever racial-HD row is present (there's only ever one). Routes
+  // through removeClass so aggregates + chip list + recalc all refresh;
+  // the class-specific cleanup in removeClass no-ops for a synthetic row
+  // (no DB class to match for skills / granted spells / monsterExt).
+  function removeRacialHD(creatureRace) {
+    if (!creatureRace) {
+      const found = pickedClasses.find(e => e.racialHD);
+      if (found) removeClass(found.className);
+      return;
+    }
+    removeClass(`${creatureRace} (racial HD)`);
+  }
+
+  // Double-count guard for creature-race-picker: true when a Savage
+  // Species monster CLASS for the same creature is already applied
+  // (those carry monsterExt + their own class_table HD, so layering the
+  // creature-as-race racial HD on top would count the HD/abilities
+  // twice). Matched by class name == creature name (case-insensitive).
+  function hasMonsterClassFor(creatureName) {
+    if (!creatureName) return false;
+    const k = String(creatureName).toLowerCase();
+    return pickedClasses.some(e =>
+      !e.racialHD && e.monsterExt &&
+      e.className.toLowerCase() === k);
+  }
+
+  // ============================================================
   // Save / Load persistence
   //
   // Monkey-patch Character.collectData / loadData. On save, append
@@ -1549,6 +1627,14 @@
           // bumps applied to the sheet on apply). Needed for removeClass
           // to subtract the right delta after a save/load round-trip.
           monsterExt: e.monsterExt,
+          // Creature-as-race synthetic racial-HD rows. These have no DB
+          // class, so prog can't be rehydrated from the class table —
+          // persist it directly here. The load branch reconstructs the
+          // entry from the stub without a DB lookup.
+          racialHD:     e.racialHD || undefined,
+          creatureRace: e.creatureRace || undefined,
+          creatureType: e.creatureType || undefined,
+          prog:         e.racialHD ? e.prog : undefined,
         }));
       }
       if (useFractional) out._fractionalBaseBonus = true;
@@ -1560,6 +1646,23 @@
       useFractional = !!(data && data._fractionalBaseBonus);
       if (data && Array.isArray(data._multiclass)) {
         for (const stub of data._multiclass) {
+          // Synthetic racial-HD rows (creature-as-race) carry their own
+          // prog and have no DB class — reconstruct directly from the
+          // stub BEFORE attempting a DB class lookup. Defensive defaults
+          // keep this inert for older saves (no `racialHD` key → normal
+          // path below).
+          if (stub.racialHD) {
+            pickedClasses.push({
+              className: stub.className,
+              level: stub.level,
+              racialHD: true,
+              creatureRace: stub.creatureRace,
+              creatureType: stub.creatureType || null,
+              prog: stub.prog ||
+                { bab: null, fort: null, ref: null, will: null },
+            });
+            continue;
+          }
           // Resolve by name+source FIRST. entry.id renumbers on every
           // DB rebuild (auto-increment shifts when new entries land),
           // so an old save's classId can resolve to the wrong class
@@ -3936,5 +4039,9 @@
     findEntry: findClassEntry,
     removeClass,
     clearAll: clearAllClasses,
+    // Creature-as-race racial Hit Dice (see creature-race-picker.js).
+    addRacialHD,
+    removeRacialHD,
+    hasMonsterClassFor,
   };
 })();

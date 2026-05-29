@@ -3353,6 +3353,150 @@ test('save: app.js#collectData wires every UI module', () => {
   }
 });
 
+// ---- tests: creature-race-picker.js (creature as playable race) ----------
+//
+// A Monster Manual creature with an `as_character` block can be picked as
+// a playable race. Two parts: a racial-adjustment layer (mirrors
+// race-picker) + a synthetic racial-HD class row injected into
+// class-picker's multiclass aggregate. These guards cover the DB query
+// shape, the data.js type→progression mapping (load-bearing: wrong labels
+// mean wrong BAB/saves on every monster PC), the synthetic-row save
+// round-trip, and the double-count guard.
+
+// Eval data.js (a bare `const DND35 = {...}` with no exports) so the pure
+// helpers can be exercised in Node.
+function loadDND35() {
+  const src = readSource('data.js');
+  return new Function(src + '\nreturn DND35;')();
+}
+
+test('creature-race-picker: list query returns creatures with as_character', (db) => {
+  const rows = execAll(db,
+    "SELECT e.name FROM entry e "
+    + "WHERE e.type = 'creature' "
+    + "  AND json_extract(e.data, '$.as_character') IS NOT NULL "
+    + "ORDER BY e.name");
+  const names = rows.map(r => r.name);
+  assertGE(names.length, 26);
+  assert(names.includes('Bugbear'),
+    'Bugbear (3 racial HD) should be a pickable creature-race');
+  assert(names.includes('Goblin'),
+    'Goblin (0 racial HD) should be a pickable creature-race');
+});
+
+test('creature-race-picker: as_character block carries the required fields', (db) => {
+  const r = execOne(db,
+    "SELECT json_extract(data, '$.as_character') AS ac FROM entry "
+    + "WHERE type = 'creature' AND name = 'Bugbear' LIMIT 1");
+  assert(r && r.ac, 'Bugbear as_character block not found');
+  const ac = JSON.parse(r.ac);
+  assert(ac.sourced === true, 'as_character.sourced should be true');
+  assert(Array.isArray(ac.ability_adjustments) && ac.ability_adjustments.length,
+    'ability_adjustments present');
+  assert('ability' in ac.ability_adjustments[0] &&
+         'modifier' in ac.ability_adjustments[0],
+    'ability_adjustments shape is {ability, modifier}');
+  assert(ac.size === 'Medium', 'Bugbear size Medium');
+  assert(ac.racial_hd && ac.racial_hd.count === 3 &&
+         ac.racial_hd.type === 'Humanoid',
+    'Bugbear racial_hd {count:3, type:Humanoid}');
+  assert(ac.level_adjustment === 1, 'Bugbear LA 1 (int, post-normalize)');
+});
+
+test('data.js: creatureTypeToProg maps creature types to BAB/save labels', () => {
+  const D = loadDND35();
+  assert(typeof D.creatureTypeToProg === 'function',
+    'data.js missing creatureTypeToProg');
+  // Humanoid: 3/4 BAB (average), good Ref only.
+  const h = D.creatureTypeToProg('Humanoid (Goblinoid)');
+  assert(h.bab === 'average', 'Humanoid BAB should be average (3/4)');
+  assert(h.fort === 'poor' && h.ref === 'good' && h.will === 'poor',
+    'Humanoid good save = Ref only');
+  // Monstrous Humanoid: full BAB, good Ref + Will.
+  const mh = D.creatureTypeToProg('Monstrous Humanoid');
+  assert(mh.bab === 'good' && mh.ref === 'good' && mh.will === 'good' &&
+         mh.fort === 'poor', 'Monstrous Humanoid: full BAB, good Ref+Will');
+  // Outsider: full BAB, all three good.
+  const o = D.creatureTypeToProg('Outsider');
+  assert(o.bab === 'good' && o.fort === 'good' && o.ref === 'good' &&
+         o.will === 'good', 'Outsider: full BAB, all good saves');
+  // Fey: 1/2 BAB (poor), good Ref + Will.
+  const f = D.creatureTypeToProg('Fey');
+  assert(f.bab === 'poor' && f.ref === 'good' && f.will === 'good' &&
+         f.fort === 'poor', 'Fey: poor BAB, good Ref+Will');
+  assert(D.creatureTypeToProg('Bogusoid') === null,
+    'unknown type returns null');
+});
+
+test('data.js: creatureTypeToProg labels reproduce creatureBABAtHD/SaveAtHD', () => {
+  // The synthetic racial-HD row uses the prog LABELS; for a single block
+  // of N HD the pooled aggregate must reproduce the direct per-type
+  // formulas (creatureBABAtHD / creatureSaveAtHD) exactly, else a
+  // monster PC's BAB/saves drift from RAW.
+  const D = loadDND35();
+  // Bugbear: 3 Humanoid HD → BAB +2 (avg), Fort +1 (poor), Ref +3 (good).
+  assert(D.creatureBABAtHD('Humanoid', 3) === 2, 'Humanoid 3HD BAB = 2');
+  assert(D.creatureSaveAtHD('Humanoid', 3, 'Fort') === 1, 'poor Fort = 1');
+  assert(D.creatureSaveAtHD('Humanoid', 3, 'Ref') === 3, 'good Ref = 3');
+  const prog = D.creatureTypeToProg('Humanoid');
+  assert(prog.bab === 'average' && prog.fort === 'poor' && prog.ref === 'good',
+    'prog labels encode the same progressions');
+});
+
+test('creature-race-picker: queries creatures filtered by as_character', () => {
+  const src = readSource('creature-race-picker.js');
+  assert(/type\s*=\s*'creature'/.test(src),
+    'creature-race-picker.js does not query type=creature');
+  assert(/json_extract\([^)]*'\$\.as_character'\)\s+IS NOT NULL/.test(src),
+    'creature-race-picker.js does not filter on as_character presence');
+});
+
+test('creature-race-picker: injects synthetic HD + uses creatureTypeToProg', () => {
+  const src = readSource('creature-race-picker.js');
+  assert(/ClassPicker\.addRacialHD\s*\(/.test(src),
+    'creature-race-picker.js does not call ClassPicker.addRacialHD — ' +
+    'racial Hit Dice would not reach BAB/saves.');
+  assert(/creatureTypeToProg\s*\(/.test(src),
+    'creature-race-picker.js does not derive prog via creatureTypeToProg.');
+  assert(/ClassPicker\.removeRacialHD\s*\(/.test(src),
+    'creature-race-picker.js does not call removeRacialHD — clearing / ' +
+    're-picking would leave a stale synthetic HD row.');
+});
+
+test('creature-race-picker: double-count guard against Savage Species class', () => {
+  const src = readSource('creature-race-picker.js');
+  assert(/ClassPicker\.hasMonsterClassFor\s*\(/.test(src),
+    'creature-race-picker.js does not consult hasMonsterClassFor — a ' +
+    'creature-race layered on its own Savage Species monster class would ' +
+    'double-count HD/abilities with no warning.');
+});
+
+test('save: class-picker round-trips synthetic racialHD rows', () => {
+  // Synthetic racial-HD rows (creature-as-race) are NOT DB classes, so
+  // their prog can't be rehydrated from the class table. collectData must
+  // persist racialHD + creatureRace + prog directly, and loadData must
+  // reconstruct from the stub BEFORE attempting a DB class lookup.
+  const src = readSource('class-picker.js');
+  assert(/addRacialHD/.test(src) && /removeRacialHD/.test(src) &&
+         /hasMonsterClassFor/.test(src),
+    'class-picker.js does not expose the racial-HD API.');
+  // collectData persists the synthetic-row fields.
+  assert(/racialHD:\s*e\.racialHD/.test(src),
+    'class-picker.js collectData does not persist e.racialHD.');
+  assert(/creatureRace:\s*e\.creatureRace/.test(src),
+    'class-picker.js collectData does not persist e.creatureRace.');
+  assert(/prog:\s*e\.racialHD\s*\?\s*e\.prog/.test(src),
+    'class-picker.js collectData does not persist prog for synthetic rows ' +
+    '(it would be lost — synthetic rows have no DB class to rehydrate from).');
+  // loadData reconstructs synthetic rows directly.
+  assert(/if\s*\(\s*stub\.racialHD\s*\)/.test(src),
+    'class-picker.js loadData has no `if (stub.racialHD)` branch — ' +
+    'synthetic rows would fail DB resolution and lose their prog.');
+  // The window export includes the new API.
+  assert(/window\.ClassPicker\s*=\s*\{[^}]*addRacialHD[^}]*\}/.test(src),
+    'window.ClassPicker does not export addRacialHD.');
+});
+
 // ---- tests: book filter --------------------------------------------------
 //
 // The book filter is a global picker scope. These tests assert the
@@ -3399,6 +3543,7 @@ test('book-filter: every picker consults BookFilter in its row loop', () => {
     'domain-picker.js', 'maneuver-picker.js', 'power-picker.js',
     'mystery-picker.js', 'soulmeld-picker.js', 'vestige-picker.js',
     'invocation-picker.js', 'special-ability-picker.js',
+    'creature-race-picker.js',
   ];
   const missing = [];
   for (const p of pickers) {
@@ -3421,6 +3566,7 @@ test('book-filter: every picker re-runs on book-filter-changed', () => {
     'domain-picker.js', 'maneuver-picker.js', 'power-picker.js',
     'mystery-picker.js', 'soulmeld-picker.js', 'vestige-picker.js',
     'invocation-picker.js', 'special-ability-picker.js',
+    'creature-race-picker.js',
   ];
   const missing = [];
   for (const p of pickers) {

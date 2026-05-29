@@ -663,6 +663,106 @@
       'SS1: old "Familiar" display-text compType migrates to "familiar" key on load');
   });
 
+  regression('SS-CR: creature-race racial-HD row round-trips via _multiclass', async () => {
+    // Creature-as-race (creature-race-picker.js): picking a creature with
+    // racial Hit Dice injects a SYNTHETIC class row into the multiclass
+    // aggregate. That row has no DB class, so its prog can't be rehydrated
+    // on load — class-picker persists prog + creatureRace directly in
+    // _multiclass and reconstructs the row from the stub. This drives the
+    // real collectData → loadData round-trip end to end.
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    set('char-creature-race', 'Bugbear');   // 3 Humanoid racial HD
+    await wait(400);
+    // Adjustment layer landed on the Race column + size.
+    expectValue('#str-race', '4', 'SS-CR: Bugbear +4 Str in the race column');
+    expectValue('#char-size', 'Medium', 'SS-CR: Bugbear size Medium');
+    // Synthetic racial-HD row reached the aggregate.
+    let st = ClassPicker.getState().filter(e => e.racialHD);
+    expect(st.length, 1, 'SS-CR: exactly one synthetic racial-HD row');
+    expect(st[0].level, 3, 'SS-CR: 3 racial HD');
+    expect(st[0].prog.bab, 'average', 'SS-CR: Humanoid → average (3/4) BAB');
+    expect(st[0].prog.ref, 'good', 'SS-CR: Humanoid → good Ref save');
+    // BAB pooled through the aggregate: floor(3 × 3/4) = +2.
+    expectValue('#bab-1', '2', 'SS-CR: racial HD contributes BAB +2');
+    // Round-trip through Character.collectData / loadData (class-picker
+    // monkey-patches both to carry _multiclass).
+    const blob = Character.collectData();
+    const rrow = (blob._multiclass || []).find(s => s.racialHD);
+    if (!rrow) fail('SS-CR: collectData dropped the synthetic racial-HD row');
+    expect(rrow.creatureRace, 'Bugbear', 'SS-CR: creatureRace persisted');
+    expect(rrow.prog.bab, 'average',
+      'SS-CR: prog persisted directly (synthetic row cannot rehydrate from DB)');
+    // Wipe, then reload.
+    await newCharacter();
+    expect(ClassPicker.getState().filter(e => e.racialHD).length, 0,
+      'SS-CR: new character clears the synthetic row');
+    Character.loadData(blob);
+    await wait(300);
+    st = ClassPicker.getState().filter(e => e.racialHD);
+    expect(st.length, 1, 'SS-CR: loadData restores the synthetic row');
+    expect(st[0].prog.ref, 'good', 'SS-CR: restored prog labels intact');
+    expectValue('#bab-1', '2', 'SS-CR: restored BAB +2 after reload');
+  });
+
+  regression('RESET: New Character clears every module\'s state', async () => {
+    // Systematic reset-hygiene guard (added after the 2026-05-29 finding
+    // that ClassFeatures customizations survived "New Character" — a whole
+    // CLASS of bug where a module's DOM list / JS store isn't wired into
+    // the reset path). Seed state across modules, click New, assert a clean
+    // slate everywhere. A new state-bearing module that forgets to wire
+    // into the reset path fails here loudly instead of silently bleeding
+    // the previous character's data into the next sheet.
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+
+    // --- seed state across several modules ---
+    setAbilities({ STR: 16, INT: 14 });
+    await applyClass('Wizard', 3);                        // pickedClasses
+    ClassFeatures.addCustomization({                      // customizations Map+DOM
+      kind: 'ACF', name: 'Spelltouched', class: 'Wizard', level: 1,
+      replaces: 'Scribe Scroll', source: 'Unearthed Arcana',
+    });
+    await wait(50);
+    set('char-creature-race', 'Bugbear');                // racial-HD row + race-col adj + tagged specials
+    await wait(350);
+
+    // Sanity: the seeding actually took (else the post-reset asserts are vacuous).
+    if (ClassPicker.getState().length < 2)
+      fail('RESET: precondition — expected classes + racial-HD row seeded');
+    expect(ClassFeatures.getCustomizations().length, 1,
+      'RESET: precondition — a customization was seeded');
+
+    // --- New Character, then assert nothing bled through ---
+    await newCharacter();
+    const v = id => (document.getElementById(id) || {}).value;
+    const nonzero = s => s && s !== '0' && String(s).trim() !== '';
+    const leaks = [];
+    if (ClassPicker.getState().length)
+      leaks.push(`ClassPicker retains ${ClassPicker.getState().length} class/racial-HD row(s)`);
+    if (ClassFeatures.getCustomizations().length)
+      leaks.push(`ClassFeatures retains ${ClassFeatures.getCustomizations().length} customization(s)`);
+    if (nonzero(v('char-creature-race')))
+      leaks.push(`#char-creature-race not cleared: "${v('char-creature-race')}"`);
+    if (nonzero(v('str-race')))
+      leaks.push(`#str-race (race-column adj) not cleared: "${v('str-race')}"`);
+    if (v('char-class') && v('char-class').trim())
+      leaks.push(`#char-class not cleared: "${v('char-class')}"`);
+    if (nonzero(v('bab-1')))
+      leaks.push(`#bab-1 not reset: "${v('bab-1')}"`);
+    const autoSpecials = document.querySelectorAll(
+      '#special-abilities-container [data-from-race="1"], ' +
+      '#special-abilities-container [data-from-creature-race="1"], ' +
+      '#special-abilities-container [data-from-class]');
+    if (autoSpecials.length)
+      leaks.push(`${autoSpecials.length} auto-added special-ability row(s) survive`);
+    if (leaks.length)
+      fail('RESET: New Character left state behind (a module is not wired ' +
+           'into the reset path):\n  - ' + leaks.join('\n  - '));
+  });
+
   regression('SS4: class customizations round-trip + legacy textarea migration', async () => {
     // The Class Customizations list is structured (added 2026-05-17,
     // refactored same day from a free-form textarea). Two contracts:
