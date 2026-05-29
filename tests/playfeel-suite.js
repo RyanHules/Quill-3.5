@@ -33,6 +33,17 @@
   const regressions = [];
   let lastResults = null;
 
+  // Concurrency guard. Every test drives ONE shared sheet (newCharacter /
+  // applyClass mutate the same DOM + module state), so two runs in flight
+  // interleave and corrupt each other — a concurrent newCharacter can wipe
+  // a maneuvers panel another run JUST created, which surfaces as phantom
+  // order-dependent failures like "M5 … expected 6, got 0" / "M8 … got 2"
+  // even though each test passes single-threaded. Run All, the per-test ▶
+  // buttons, and the class sweep all route through this flag and refuse to
+  // start while a run is active. (Diagnosed 2026-05-29: the M5/M8 reds only
+  // reproduced when a second run was launched mid-run.)
+  let isRunning = false;
+
   function scenario(name, fn) { scenarios.push({ name, fn, kind: 'scenario' }); }
   function regression(name, fn) { regressions.push({ name, fn, kind: 'regression' }); }
 
@@ -988,6 +999,19 @@
   //   PlayFeel.runClassSweep({ types: ['class'], maxCount: 30 })
 
   async function runClassSweep(opts = {}) {
+    if (isRunning) {
+      setStatus('⚠ A run is already in progress — wait for it to finish.');
+      return null;
+    }
+    isRunning = true;
+    try {
+      return await runClassSweepInner(opts);
+    } finally {
+      isRunning = false;
+    }
+  }
+
+  async function runClassSweepInner(opts = {}) {
     await waitForDb();
     setStatus('Class sweep starting…');
     const typeFilter = opts.types || ['class', 'prc'];
@@ -1131,35 +1155,53 @@
   }
 
   async function runAll() {
-    await waitForDb();
-    setStatus('Running…');
-    const results = [];
-    // Regressions first — fast and high-signal.
-    for (const r of regressions) {
-      renderRunning(r);
-      results.push(await runOne(r));
-      renderResult(results[results.length - 1]);
+    if (isRunning) {
+      setStatus('⚠ A run is already in progress — wait for it to finish.');
+      return lastResults;
     }
-    for (const s of scenarios) {
-      renderRunning(s);
-      results.push(await runOne(s));
-      renderResult(results[results.length - 1]);
+    isRunning = true;
+    try {
+      await waitForDb();
+      setStatus('Running…');
+      const results = [];
+      // Regressions first — fast and high-signal.
+      for (const r of regressions) {
+        renderRunning(r);
+        results.push(await runOne(r));
+        renderResult(results[results.length - 1]);
+      }
+      for (const s of scenarios) {
+        renderRunning(s);
+        results.push(await runOne(s));
+        renderResult(results[results.length - 1]);
+      }
+      lastResults = results;
+      const passed = results.filter(r => r.status === 'pass').length;
+      const failed = results.length - passed;
+      setStatus(`${passed} passed / ${failed} failed (${results.length} total)`);
+      return results;
+    } finally {
+      isRunning = false;
     }
-    lastResults = results;
-    const passed = results.filter(r => r.status === 'pass').length;
-    const failed = results.length - passed;
-    setStatus(`${passed} passed / ${failed} failed (${results.length} total)`);
-    return results;
   }
 
   async function runSpec(spec) {
-    await waitForDb();
-    setStatus(`Running ${spec.name}…`);
-    renderRunning(spec);
-    const r = await runOne(spec);
-    renderResult(r);
-    setStatus(r.status === 'pass' ? `✓ ${spec.name}` : `✗ ${spec.name}: ${r.error}`);
-    return r;
+    if (isRunning) {
+      setStatus('⚠ A run is already in progress — wait for it to finish.');
+      return null;
+    }
+    isRunning = true;
+    try {
+      await waitForDb();
+      setStatus(`Running ${spec.name}…`);
+      renderRunning(spec);
+      const r = await runOne(spec);
+      renderResult(r);
+      setStatus(r.status === 'pass' ? `✓ ${spec.name}` : `✗ ${spec.name}: ${r.error}`);
+      return r;
+    } finally {
+      isRunning = false;
+    }
   }
 
   // ---- UI ---------------------------------------------------------------
