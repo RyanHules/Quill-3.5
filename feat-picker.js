@@ -396,10 +396,12 @@
           // For multi-atom prereqs, the previously plain-text line
           // becomes pillText so feat names in the prereq are clickable.
           if (ev.atoms && ev.atoms.length === 1) {
+            // Render ONLY the chip — its value-hint suffix already shows
+            // the prereq verbatim, so appending pillText would repeat it
+            // (the "Str 13" twice bug, fixed 2026-05-29).
             bits.push(
               `<div class="lookup-rule-see-also" style="margin:0">` +
-              `<b>Prereq:</b> <span class="fp-atoms">${ev.html}</span> ` +
-              pillText +
+              `<b>Prereq:</b> <span class="fp-atoms">${ev.html}</span>` +
               `</div>`
             );
           } else {
