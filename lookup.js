@@ -576,6 +576,7 @@
       ['Type',       ['creature_type', 'type']],
       ['CR',         ['cr', 'challenge_rating']],
       ['HD',         ['hit_dice']],
+      ['LA',         ['level_adjustment']],
       ['AC',         ['armor_class']],
       ['Alignment',  ['alignment']],
     ],
