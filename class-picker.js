@@ -437,6 +437,13 @@
     'Divine Emissary':       { types: ['divine'],  advancesAllLevels: true },
     'High Proselytizer':     { types: ['divine'],  advancesAllLevels: true,
                                nonAdvancingLevels: [1, 3, 5, 7, 9] },
+    // Races of the Wild: advancement lives only in the class_features
+    // "Spellcasting" prose (no class_table marker). Mirror of
+    // _class_metadata.ADVANCEMENT_METADATA; added 2026-05-28.
+    'Arcane Hierophant':     { types: ['arcane', 'divine'], advancesAllLevels: true },
+    'Luckstealer':           { types: ['any'],     advancesAllLevels: true,
+                               nonAdvancingLevels: [1, 7, 10] },
+    'Ruathar':               { types: ['any'],     advancesAllLevels: true },
   };
 
   // Tome of Battle maneuver-advancement metadata. Parallel to
