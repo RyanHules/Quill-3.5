@@ -537,6 +537,12 @@
     Character.loadData({}, getAbilityMod);
     Spells.loadData({});
     Companion.loadData({});
+    // Class customizations (ACFs / sub levels) live in a DOM list +
+    // a JS Map, neither of which the generic input-reset loop above
+    // clears — so without this the previous character's customizations
+    // bleed into the fresh sheet (reported 2026-05-29). loadData({})
+    // empties the list, the Map, and re-renders the empty state.
+    ClassFeatures.loadData({});
     // H1 (2026-05-16 play-feel pass): without this, the previous
     // character's Build Timeline rows bleed through into the fresh
     // character and the audit flags stale "Timeline has N Foo levels
