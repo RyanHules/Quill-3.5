@@ -2447,6 +2447,36 @@ test('save: companion.js still uses .feat-entry as a styling class', () => {
   );
 });
 
+test('save: Equipment gear readers scope to .gear-row (skip rules panels)', () => {
+  // The Possessions ⓘ button inserts a collapsible item-rules panel as
+  // a sibling <tr class="gear-rules-row"> that carries NO .gear-* inputs.
+  // If the gear collector iterates an unscoped `#gear-body tr`, an open
+  // panel row matches and `row.querySelector('.gear-name').value` throws
+  // mid-save — crashing collectData and losing the character. The
+  // collector must scope to `tr.gear-row`.
+  const eq = readSource('equipment.js');
+  const body = extractFunctionBody(eq, 'collectData');
+  assert(body, "Couldn't extract Equipment.collectData body");
+  assert(!/\$\$\(\s*['"]#gear-body tr['"]\s*\)/.test(body),
+    "Equipment.collectData iterates an unscoped `$$('#gear-body tr')`. " +
+    "An open item-rules panel row (tr.gear-rules-row) has no .gear-name " +
+    "input, so `.gear-name.value` throws during save. Scope to " +
+    "`#gear-body tr.gear-row`.");
+  assert(/#gear-body tr\.gear-row/.test(body),
+    "Equipment.collectData should iterate `#gear-body tr.gear-row` so " +
+    "the collapsible rules-panel rows are skipped.");
+  // The weight readers (equipment.js recalcWeight + character.js
+  // encumbrance) use optional chaining so they're crash-safe, but are
+  // also scoped to .gear-row for clarity + future-proofing.
+  assert(/#gear-body tr\.gear-row/.test(eq),
+    "equipment.js recalcWeight should scope its gear-weight scan to " +
+    "`#gear-body tr.gear-row`.");
+  const ch = readSource('character.js');
+  assert(/#gear-body tr\.gear-row/.test(ch),
+    "character.js encumbrance scan should scope to " +
+    "`#gear-body tr.gear-row`.");
+});
+
 test('save: every UI module exposes collectData + loadData', () => {
   // Catch the case where a new module is added without persistence.
   const modules = [

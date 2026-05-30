@@ -577,7 +577,18 @@ textarea {
 .skill-acp-marker { color: var(--accent);font-size: 0.6rem;margin-left: 2px;}
 
 /* === Gear Table === */
-.gear-table { width: 100%;border-collapse: collapse;font-size: 0.8rem;}
+/* `table-layout: fixed` is load-bearing: the collapsible item-rules
+   panel lives in a <td colspan=4>, and under the default auto layout a
+   long unbreakable token in that cell (e.g. an item's
+   "(apple/grape/tangerine/strawberry/…)," slash-list) feeds into the
+   column-width algorithm and reflows / overflows the Item/Location/
+   Weight/Actions columns when the panel opens. Fixed layout sizes the
+   columns from the header row only, so opening a panel can't disturb
+   them. Item + Location stay auto (split the remaining width); Weight
+   and Actions get explicit widths below. */
+.gear-table { width: 100%;border-collapse: collapse;font-size: 0.8rem;table-layout: fixed;}
+.gear-table thead th:nth-child(3) { width: 90px; }  /* Weight  */
+.gear-table thead th:nth-child(4) { width: 92px; }  /* Actions (ⓘ + X) */
 
 .gear-table th {
   font-size: 0.65rem;
@@ -592,6 +603,22 @@ textarea {
 
 .gear-table input { width: 100%; font-size: 0.8rem; padding: 0.2rem 0.4rem; }
 .gear-table input[type="number"] { width: 70px; }
+
+/* Per-row action cell: ⓘ rules toggle + remove button, kept compact
+   and on one line so the table stays tight. */
+.gear-table .gear-actions { white-space: nowrap; }
+.gear-table .gear-actions .btn-feat-info,
+.gear-table .gear-actions .btn-remove {
+  margin-top: 0;
+  padding: 0.15rem 0.45rem;
+  line-height: 1;
+}
+.gear-table .gear-actions .btn-feat-info { margin-right: 0.2rem; }
+
+/* Collapsible item-rules panel row (mirrors the Feats tab ⓘ panel).
+   The inner .feat-rules div carries the actual styling; this just
+   strips the cell padding so the panel sits flush. */
+.gear-rules-row > td { padding: 0 0.25rem 0.3rem; border-bottom: none; }
 
 /* === Armor Block === */
 .armor-block { margin-bottom: 0.5rem; }
@@ -1052,6 +1079,9 @@ textarea {
   align-items: flex-end;
   margin-bottom: 0.3rem;
 }
+/* ⓘ rules toggle in the magic-item header row — drop the .btn-feat-info
+   top margin so it lines up with the adjacent X (remove) button. */
+.mi-header-row .mi-info-btn { margin-top: 0; padding: 0.2rem 0.5rem; line-height: 1; }
 .mi-toggle {
   display: inline-flex;
   align-items: center;
@@ -1164,6 +1194,15 @@ textarea {
   color: #ccd;
   font-size: 0.92em;
   line-height: 1.4;
+  /* Defensive token-breaking: break a token longer than the panel
+     itself (rare, but some item slash-lists run ~50+ chars with no
+     spaces) so it can't overflow horizontally in any panel context
+     — Feats rows, spell Known/prepared rows, and the Possessions /
+     Magic Items item-rules panels all share this class. Note: this
+     does NOT fix the Possessions table column reflow — Chromium's
+     table layout ignores a child's wrap settings when sizing a cell;
+     `table-layout: fixed` on .gear-table is what handles that. */
+  overflow-wrap: anywhere;
 }
 .feat-rules b { color: #eef; }
 

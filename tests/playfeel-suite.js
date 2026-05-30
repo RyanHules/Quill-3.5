@@ -977,6 +977,115 @@
       'SS2: loadData re-stamps the marker so a future class-remove can clean the field');
   });
 
+  regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail(
+      'SS5: DB not loaded — re-run after [DB] Loaded appears in console.');
+    document.querySelector('[data-tab="tab-equipment"]').click();
+    await wait(150);
+
+    // --- Possessions (gear) ⓘ panel + weapon stat line ---
+    document.getElementById('gear-body').innerHTML = '';
+    Equipment.addGearRow({ name: 'Cloak of Resistance', location: 'Worn', weight: 1 });
+    Equipment.addGearRow({ name: 'Longsword', location: 'Belt', weight: 4 });
+    const gearRows = $$('#gear-body tr.gear-row');
+    expect(gearRows.length, 2, 'SS5: two gear rows added');
+
+    // Open the weapon's panel — must surface the weapon stat line.
+    const swordRow = gearRows.find(r => r.querySelector('.gear-name').value === 'Longsword');
+    swordRow.querySelector('.gear-info-btn').click();
+    const swordPanel = swordRow.nextElementSibling;
+    if (!swordPanel || !swordPanel.classList.contains('gear-rules-row')) {
+      fail('SS5: gear ⓘ did not insert a sibling rules-panel row');
+    }
+    const swordText = swordPanel.querySelector('.feat-rules').innerText;
+    expectIncludes(swordText, 'Damage:', 'SS5: weapon panel shows a Damage line');
+    expectIncludes(swordText, '1d8', 'SS5: Longsword medium damage 1d8 rendered');
+    expectIncludes(swordText, 'Critical:', 'SS5: weapon panel shows a Critical line');
+
+    // Save-stability: collect WHILE the panel is open. The panel row has
+    // no .gear-name input — an unscoped collector would throw right here.
+    let blob, threw = null;
+    try { blob = Equipment.collectData(); }
+    catch (e) { threw = String(e); }
+    expect(threw, null, 'SS5: collectData must not throw with a gear panel open');
+    expect(blob.gear.length, 2, 'SS5: exactly two gear items collected (panel row excluded)');
+    expect(blob.gear.map(g => g.name).join('|'), 'Cloak of Resistance|Longsword',
+      'SS5: gear names + order intact (no phantom null row)');
+
+    // Round-trip: load the blob back, gear survives.
+    Equipment.loadData(blob);
+    await wait(100);
+    expect($$('#gear-body tr.gear-row .gear-name').map(i => i.value).join('|'),
+      'Cloak of Resistance|Longsword', 'SS5: gear round-trips through loadData');
+
+    // --- Magic Items ⓘ panel ---
+    document.getElementById('magic-items-container').innerHTML = '';
+    Equipment.addMagicItem({ name: 'Cloak of Resistance', weight: 1, special: 'x' });
+    const entry = document.querySelector('#magic-items-container .magic-item-entry');
+    if (!entry) fail('SS5: magic item entry not created');
+    entry.querySelector('.mi-info-btn').click();
+    const miPanel = entry.querySelector(':scope > .feat-rules');
+    if (!miPanel) fail('SS5: magic-item ⓘ did not insert a rules panel');
+    expectIncludes(miPanel.innerText, 'Cloak of Resistance', 'SS5: magic-item panel shows the item');
+    expectIncludes(miPanel.innerText, 'Aura:', 'SS5: magic-item panel shows the Aura line');
+
+    // Save-stability: collect WHILE the magic-item panel is open.
+    let miThrew = null, miBlob;
+    try { miBlob = Equipment.collectData(); }
+    catch (e) { miThrew = String(e); }
+    expect(miThrew, null, 'SS5: collectData must not throw with a magic-item panel open');
+    const magic = (miBlob.magicItems || []).filter(m => m.name === 'Cloak of Resistance');
+    expect(magic.length, 1, 'SS5: exactly one magic item collected (panel not counted as an entry)');
+
+    // Second click collapses the magic-item panel.
+    entry.querySelector('.mi-info-btn').click();
+    expect(!!entry.querySelector(':scope > .feat-rules'), false,
+      'SS5: second click collapses the magic-item panel');
+  });
+
+  regression('SS5b: Possessions ⓘ panel does not reflow / overflow the gear table', async () => {
+    await newCharacter();
+    if (!dbReady()) fail(
+      'SS5b: DB not loaded — re-run after [DB] Loaded appears in console.');
+    document.querySelector('[data-tab="tab-equipment"]').click();
+    await wait(150);
+
+    // "Cornucopia of the Needful" carries the worst-case content: a
+    // ~54-char unbreakable slash-list token. Under the old table-layout
+    // (auto) that token fed the column-width algorithm and reflowed the
+    // Item/Location/Weight/Actions columns (and overflowed at narrow
+    // widths) when the panel opened. table-layout:fixed on .gear-table
+    // decouples the columns from the colspan cell.
+    const tbody = document.getElementById('gear-body');
+    tbody.innerHTML = '';
+    Equipment.addGearRow({ name: 'Cornucopia of the Needful', location: 'Bag', weight: 1 });
+    Equipment.addGearRow({ name: 'Backpack', location: 'Back', weight: 2 });
+    const table = document.querySelector('.gear-table');
+    const section = table.closest('.section');
+    const row0 = tbody.querySelector('tr.gear-row');
+    const widths = () => [...row0.children].map(td => Math.round(td.getBoundingClientRect().width)).join(',');
+    const closed = widths();
+
+    row0.querySelector('.gear-info-btn').click();
+    await wait(50);
+    const panel = row0.nextElementSibling && row0.nextElementSibling.querySelector('.feat-rules');
+    if (!panel) fail('SS5b: gear ⓘ panel did not open');
+    // Guard against a false green: if the item ever drops out of the DB
+    // the panel shows the short "homebrew" fallback (which never
+    // reflowed), so confirm the long DB content actually rendered.
+    expectIncludes(panel.innerText, 'Cornucopia of the Needful',
+      'SS5b: real DB content must render (else swap to another long-token item)');
+
+    expect(widths(), closed,
+      'SS5b: opening the panel must NOT reflow the gear columns ' +
+      '(table-layout:fixed regressed?)');
+    expect(panel.scrollWidth > panel.clientWidth + 1, false,
+      'SS5b: panel content must not overflow horizontally (overflow-wrap regressed?)');
+    expect(table.getBoundingClientRect().width > section.clientWidth + 1, false,
+      'SS5b: table must not overflow its section when the panel is open');
+  });
+
   // ---- Per-class application sweep -------------------------------------
   //
   // Iterates every class + PrC in the DB and verifies the sheet can

@@ -12,14 +12,193 @@ const Equipment = (function () {
   function addGearRow(data = {}) {
     const tbody = $("#gear-body");
     const tr = document.createElement("tr");
+    tr.className = "gear-row";
+    // The ⓘ button toggles a collapsible panel (an inserted sibling
+    // <tr>) showing the item's rules text from the DB — the same
+    // affordance the Feats tab gives each feat row. Falls back
+    // gracefully for homebrew / custom items with no DB match, and
+    // auto-collapses when the item name is edited so stale text never
+    // sits under a renamed item.
     tr.innerHTML = `
       <td><input type="text" class="gear-name" value="${data.name || ""}" placeholder="Item name"></td>
       <td><input type="text" class="gear-location" value="${data.location || ""}" placeholder="Location"></td>
       <td><input type="number" class="gear-weight" value="${data.weight || ""}" min="0" step="0.1" style="width:70px"></td>
-      <td><button class="btn-remove" onclick="this.closest('tr').remove(); Equipment.recalcWeight();">X</button></td>
+      <td class="gear-actions">
+        <button type="button" class="btn-feat-info gear-info-btn" title="Show item rules" aria-expanded="false">ⓘ</button>
+        <button type="button" class="btn-remove gear-remove-btn">X</button>
+      </td>
     `;
     tbody.appendChild(tr);
     tr.querySelector(".gear-weight").addEventListener("input", recalcWeight);
+    tr.querySelector(".gear-info-btn").addEventListener("click", () => toggleGearRules(tr));
+    tr.querySelector(".gear-remove-btn").addEventListener("click", () => removeGearRow(tr));
+    // Collapse the rules panel whenever the user edits the item name.
+    tr.querySelector(".gear-name").addEventListener("input", () => collapseGearRules(tr));
+  }
+
+  function removeGearRow(tr) {
+    // Drop the attached rules panel (the sibling <tr>) first, then the
+    // row itself, then recalc since the dropped weight changes the total.
+    collapseGearRules(tr);
+    tr.remove();
+    recalcWeight();
+  }
+
+  // Build the .feat-rules panel element for a given item name — shared
+  // by the Possessions (gear) ⓘ toggle and the Magic Items ⓘ toggle.
+  // Handles the empty-name / DB-not-loaded / lookup paths and attaches
+  // the errata + version badges. Reuses the feat panel styling for
+  // visual parity with the Feats tab.
+  function buildItemRulesPanel(name) {
+    const panel = document.createElement("div");
+    panel.className = "feat-rules";
+    if (!name) {
+      panel.innerHTML = '<i style="opacity:.7">Type an item name first.</i>';
+    } else if (!(window.DB && DB.isLoaded())) {
+      panel.innerHTML = '<i style="opacity:.7">Database not loaded — rules text unavailable.</i>';
+    } else {
+      const rendered = renderItemRules(name);
+      panel.innerHTML = rendered.html;
+      if (rendered.entryId && window.ErrataBadge) ErrataBadge.attach(panel, rendered.entryId);
+      if (rendered.version && window.VersionBadge) VersionBadge.attach(panel, rendered.version);
+    }
+    return panel;
+  }
+
+  function toggleGearRules(tr) {
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains("gear-rules-row")) {
+      collapseGearRules(tr);
+      return;
+    }
+    const btn = tr.querySelector(".gear-info-btn");
+    const name = (tr.querySelector(".gear-name").value || "").trim();
+    const rulesTr = document.createElement("tr");
+    rulesTr.className = "gear-rules-row";
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.appendChild(buildItemRulesPanel(name));
+    rulesTr.appendChild(td);
+    tr.after(rulesTr);
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("active");
+  }
+
+  function collapseGearRules(tr) {
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains("gear-rules-row")) next.remove();
+    const btn = tr.querySelector(".gear-info-btn");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("active");
+    }
+  }
+
+  // Magic Items ⓘ panel — same affordance as the Possessions rows, but
+  // the panel is inserted as a block-level sibling right after the
+  // entry's header row (a .magic-item-entry is a block container, so
+  // the .feat-rules div spans full width).
+  function toggleMagicItemRules(entry) {
+    if (entry.querySelector(":scope > .feat-rules")) {
+      collapseMagicItemRules(entry);
+      return;
+    }
+    const header = entry.querySelector(".mi-header-row");
+    const btn = entry.querySelector(".mi-info-btn");
+    const name = (entry.querySelector(".mi-name")?.value || "").trim();
+    header.after(buildItemRulesPanel(name));
+    if (btn) {
+      btn.setAttribute("aria-expanded", "true");
+      btn.classList.add("active");
+    }
+  }
+
+  function collapseMagicItemRules(entry) {
+    const panel = entry.querySelector(":scope > .feat-rules");
+    if (panel) panel.remove();
+    const btn = entry.querySelector(".mi-info-btn");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("active");
+    }
+  }
+
+  // Look up a possessions item by typed name (case-insensitive) and
+  // render its rules panel HTML. Mirrors feats.js renderFeatRules:
+  // whole-string match first, then strip a trailing "+N" enhancement
+  // and/or parenthetical and retry (so "Cloak of Resistance +1" still
+  // resolves to the base "Cloak of Resistance"). Field set matches the
+  // item-picker info panel so every item / weapon / armor / gear shape
+  // renders gracefully — missing fields are simply omitted. Returns
+  // { html, entryId, version }.
+  function renderItemRules(name) {
+    const select =
+      "SELECT e.id, e.name, e.version, e.source, e.item_type AS type, " +
+      "  e.body_slot, e.aura, e.caster_level, e.price, e.weight, " +
+      "  json_extract(e.data, '$.prerequisites')   AS prerequisites, " +
+      "  json_extract(e.data, '$.cost')            AS cost, " +
+      "  json_extract(e.data, '$.description')      AS description, " +
+      "  json_extract(e.data, '$.damage_medium')   AS damage_medium, " +
+      "  json_extract(e.data, '$.damage_small')    AS damage_small, " +
+      "  json_extract(e.data, '$.critical')        AS critical, " +
+      "  json_extract(e.data, '$.range_increment') AS range_increment " +
+      "FROM entry e " +
+      "WHERE e.type IN ('item','weapon','armor','gear') " +
+      "  AND LOWER(e.name) = LOWER(?) " +
+      "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1";
+    let row = DB.queryOne(select, [name]);
+    if (!row) {
+      const stripped = name
+        .replace(/\s*\([^)]*\)\s*$/, "")
+        .replace(/\s*\+\d+\s*$/, "")
+        .trim();
+      if (stripped && stripped !== name) row = DB.queryOne(select, [stripped]);
+    }
+    if (!row) {
+      return {
+        html: '<i style="opacity:.7">No rules text found in database — ' +
+          'this looks like a homebrew or custom item.</i>',
+        entryId: null, version: null,
+      };
+    }
+    // Treat bare dash placeholders ("-", "—") as empty so the panel
+    // doesn't print noise lines like "Cost: -" — same convention
+    // feats.js uses for "-" prerequisites.
+    const has = (v) => {
+      const s = String(v == null ? "" : v).trim();
+      return s !== "" && s !== "-" && s !== "—";
+    };
+    const bits = [];
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
+    bits.push(`<b>${escapeHtml(row.name)}</b>${verBadge}` +
+      (has(row.source) ? ` <span style="opacity:.7">(${escapeHtml(row.source)})</span>` : ""));
+    if (has(row.type))          bits.push(`<b>Type:</b> ${escapeHtml(row.type)}`);
+    if (has(row.body_slot))     bits.push(`<b>Slot:</b> ${escapeHtml(row.body_slot)}`);
+    if (has(row.aura))          bits.push(`<b>Aura:</b> ${escapeHtml(row.aura)}`);
+    if (has(row.caster_level))  bits.push(`<b>CL:</b> ${escapeHtml(row.caster_level)}`);
+    // Weapon stat line — only mundane/magic weapons carry these (no
+    // non-weapon item in the DB has damage_medium). Show both damage
+    // columns when the Small die differs from the Medium die.
+    if (has(row.damage_medium) || has(row.damage_small)) {
+      const dm = has(row.damage_medium) ? row.damage_medium : null;
+      const ds = has(row.damage_small) ? row.damage_small : null;
+      const dmg = (dm && ds && dm !== ds) ? `${dm} (M) / ${ds} (S)` : (dm || ds);
+      bits.push(`<b>Damage:</b> ${escapeHtml(dmg)}`);
+    }
+    if (has(row.critical))        bits.push(`<b>Critical:</b> ${escapeHtml(row.critical)}`);
+    if (has(row.range_increment)) bits.push(`<b>Range:</b> ${escapeHtml(row.range_increment)}`);
+    if (has(row.prerequisites)) bits.push(`<b>Prereq:</b> ${escapeHtml(row.prerequisites)}`);
+    if (has(row.price))         bits.push(`<b>Price:</b> ${escapeHtml(row.price)}`);
+    if (has(row.weight))        bits.push(`<b>Weight:</b> ${escapeHtml(row.weight)}`);
+    if (has(row.cost))          bits.push(`<b>Cost:</b> ${escapeHtml(row.cost)}`);
+    if (has(row.description))   bits.push(`<b>Description:</b> ${escapeHtml(row.description)}`);
+    return { html: bits.join("<br>"), entryId: row.id, version: row.version };
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   // ============================================================
@@ -53,6 +232,7 @@ const Equipment = (function () {
         <div class="field" style="flex:2"><label>Item</label><input type="text" class="mi-name" value="${data.name || ""}"></div>
         <div class="field field-sm"><label>Body Slot</label><select class="mi-slot">${buildSlotOptions(data.slot || "")}</select></div>
         <div class="field field-sm"><label>Weight</label><input type="number" class="mi-weight" value="${data.weight || ""}" step="0.1"></div>
+        <button type="button" class="btn-feat-info mi-info-btn" title="Show item rules" aria-expanded="false" style="align-self:flex-end">ⓘ</button>
         <button class="btn-remove" style="align-self:flex-end" onclick="Equipment.removeMagicItem(this)">X</button>
       </div>
       <div class="mi-row">
@@ -95,6 +275,11 @@ const Equipment = (function () {
     slotSelect.addEventListener("change", () => syncSlot(div));
     nameInput.addEventListener("input", () => syncSlot(div));
     div.querySelector(".mi-worn")?.addEventListener("change", () => syncSlot(div));
+
+    // ⓘ rules panel toggle + auto-collapse when the item name is edited
+    // (so stale text never sits under a renamed item).
+    div.querySelector(".mi-info-btn")?.addEventListener("click", () => toggleMagicItemRules(div));
+    nameInput.addEventListener("input", () => collapseMagicItemRules(div));
 
     // Live weight recalculation when the user edits a magic item's
     // weight. Without this, editing .mi-weight needs a separate
@@ -489,7 +674,7 @@ const Equipment = (function () {
   // ============================================================
   function recalcWeight() {
     let totalWeight = 0;
-    $$("#gear-body tr").forEach((row) => {
+    $$("#gear-body tr.gear-row").forEach((row) => {
       totalWeight += parseFloat(row.querySelector(".gear-weight")?.value) || 0;
     });
     totalWeight += parseFloat($("#armor-weight").value) || 0;
@@ -636,9 +821,12 @@ const Equipment = (function () {
       }
     }
 
-    // Gear
+    // Gear. Scope to `tr.gear-row` so the collapsible item-rules
+    // panel rows (`tr.gear-rules-row`, which have no .gear-* inputs)
+    // are skipped — an unscoped `#gear-body tr` would match an open
+    // panel row and throw on `.gear-name.value` while saving.
     data.gear = [];
-    $$("#gear-body tr").forEach((row) => {
+    $$("#gear-body tr.gear-row").forEach((row) => {
       data.gear.push({
         name: row.querySelector(".gear-name").value,
         location: row.querySelector(".gear-location").value,
@@ -885,5 +1073,8 @@ const Equipment = (function () {
     addGearRow, addMagicItem, buildMagicItemSlots, removeMagicItem,
     recalcWeight, getProtectiveItems, getActiveBonuses, getSkillBonuses,
     updatePaperDoll, collectData, loadData,
+    // Exposed so other item surfaces (e.g. the Magic Items list) can
+    // reuse the same name→DB rules lookup the Possessions ⓘ panel uses.
+    renderItemRules,
   };
 })();

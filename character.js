@@ -73,7 +73,9 @@ const Character = (function () {
     const carryMult = sizeData.carryMult || 1;
     const capacity = rawCapacity.map(v => Math.floor(v * carryMult));
     let totalWeight = 0;
-    $$("#gear-body tr").forEach((row) => {
+    // Scope to `tr.gear-row` — the collapsible item-rules panel rows
+    // (`tr.gear-rules-row`) carry no .gear-weight input.
+    $$("#gear-body tr.gear-row").forEach((row) => {
       totalWeight += parseFloat(row.querySelector(".gear-weight")?.value) || 0;
     });
     totalWeight += parseFloat($("#armor-weight").value) || 0;
