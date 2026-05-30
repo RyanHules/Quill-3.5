@@ -19,8 +19,11 @@
   const BASE = new URL('.', document.baseURI).href;
   // Cache-bust the DB blob — Chrome/Firefox aggressively cache the
   // 14 MB file otherwise, so a rebuilt DB on disk doesn't reach the
-  // page until a hard refresh. Bump this when dnd35.db changes.
-  const DB_VERSION = '20260529p';
+  // page until a hard refresh. CONTENT-DERIVED: stamped automatically by the
+  // DB project's deploy_to_charsheet.py (= <build-date>-<sha256[:8]> of the
+  // blob). Do NOT hand-edit — re-run that script to deploy a new DB. (This
+  // removes the multi-instance "whose turn to increment" race.)
+  const DB_VERSION = '20260531-cff80e51';
   const DB_PATH = BASE + 'data/dnd35.db?v=' + DB_VERSION;
   const SQLJS_WASM_PATH = BASE + 'vendor/sql-wasm.wasm';
 

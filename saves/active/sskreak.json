@@ -1,0 +1,769 @@
+{
+  "char-name": "Sskreak",
+  "char-player": "Ryan",
+  "char-class": "Scout 1 / Rogue 2",
+  "char-race": "Poison Dusk Lizardfolk",
+  "char-type": "Humanoid (Reptilian, Dragontouched)",
+  "char-alignment": "",
+  "char-deity": "",
+  "char-level": "3",
+  "char-size": "Small",
+  "char-age": "",
+  "char-gender": "",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "0",
+  "char-speed": "30",
+  "damage-reduction": "",
+  "str-score": "13",
+  "str-race": "",
+  "str-template": "",
+  "str-temp": "",
+  "dex-score": "14",
+  "dex-race": "2",
+  "dex-template": "",
+  "dex-temp": "",
+  "con-score": "10",
+  "con-race": "2",
+  "con-template": "",
+  "con-temp": "",
+  "int-score": "10",
+  "int-race": "",
+  "int-template": "",
+  "int-temp": "",
+  "wis-score": "11",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp": "",
+  "cha-score": "11",
+  "cha-race": "-2",
+  "cha-template": "",
+  "cha-temp": "",
+  "hp-total": "22",
+  "hp-current": "",
+  "hp-temp": "",
+  "hp-nonlethal": "",
+  "ac-natural": "3",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "con-to-ac": false,
+  "con-to-ac-type": "Untyped",
+  "int-to-ac": false,
+  "int-to-ac-type": "Untyped",
+  "wis-to-ac": false,
+  "wis-to-ac-type": "Untyped",
+  "cha-to-ac": false,
+  "cha-to-ac-type": "Untyped",
+  "ignore-encumbrance": false,
+  "fort-base": "1",
+  "fort-magic": "0",
+  "fort-misc": "1",
+  "fort-temp": "0",
+  "ref-base": "3",
+  "ref-magic": "0",
+  "ref-misc": "1",
+  "ref-temp": "0",
+  "will-base": "1",
+  "will-magic": "0",
+  "will-misc": "1",
+  "will-temp": "0",
+  "save-conditional": "+1 vs paralysis, sleep",
+  "init-misc": "0",
+  "bab-1": "2",
+  "grapple-misc": "0",
+  "spell-resistance": "",
+  "attacks": [
+    {
+      "name": "Claw x2",
+      "bonus": "BAB+S+1",
+      "damage": "d3+S",
+      "crit": "x2",
+      "range": "",
+      "type": "Slashing",
+      "notes": ""
+    },
+    {
+      "name": "Bite",
+      "bonus": "BAB+S+1",
+      "damage": "d3+.5*S",
+      "crit": "x2",
+      "range": "",
+      "type": "Piercing",
+      "notes": ""
+    },
+    {
+      "name": "Dagger",
+      "bonus": "BAB+S+1",
+      "damage": "1d3+S",
+      "crit": "19-20/x2",
+      "range": "10 ft.",
+      "type": "Piercing or slashing",
+      "notes": "Simple Melee"
+    },
+    {
+      "name": "Shortbow",
+      "bonus": "BAB+D+1",
+      "damage": "1d4",
+      "crit": "x3",
+      "range": "60 ft.",
+      "type": "Piercing",
+      "notes": "Martial Ranged, 60 Arrows"
+    }
+  ],
+  "_multiclass": [
+    {
+      "className": "Scout",
+      "level": 1,
+      "classId": 334,
+      "version": "3.5",
+      "source": "Complete Adventurer"
+    },
+    {
+      "className": "Rogue",
+      "level": 2,
+      "classId": 11805,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "armor-name": "Leather",
+  "armor-type": "Light Armor",
+  "armor-ac-bonus": "2",
+  "armor-max-dex": "6",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "10",
+  "armor-speed": "",
+  "armor-weight": "7.5",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [
+    {
+      "name": "Boots of Agile Leaping",
+      "weight": "2",
+      "special": "Use Dexterity for Jump checks. With 5 ranks Balance, stand from prone as a swift action without provoking attacks of opportunity.",
+      "slot": "feet",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    },
+    {
+      "name": "Cloak of Resistance",
+      "weight": "1",
+      "special": "+1 to +5 resistance bonus on all saving throws.",
+      "slot": "shoulders",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    },
+    {
+      "name": "Chronocharm of the Horizon Walker",
+      "weight": "",
+      "special": "Once/day move up to half your speed as part of a swift action (no AoO).",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    }
+  ],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "Chronocharm of the Horizon Walker",
+  "slot-shoulders": "Cloak of Resistance",
+  "slot-ring1": "",
+  "slot-ring2": "",
+  "slot-hands": "",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "Boots of Agile Leaping",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "0",
+  "gear": [
+    {
+      "name": "Backpack",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "Dagger",
+      "location": "",
+      "weight": ".5"
+    },
+    {
+      "name": "Shortbow",
+      "location": "",
+      "weight": ".5"
+    },
+    {
+      "name": "Grappling Hook",
+      "location": "",
+      "weight": "4"
+    },
+    {
+      "name": "Mirror, Small Steel",
+      "location": "",
+      "weight": "0.5"
+    },
+    {
+      "name": "Thieves' Tools, Masterwork",
+      "location": "",
+      "weight": "2"
+    },
+    {
+      "name": "Dust of Dispersion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Sending Stones",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "Spool of Endless Rope",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "Talisman of the Disk",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Everlasting Rations",
+      "location": "",
+      "weight": "2"
+    },
+    {
+      "name": "Everfull Mug",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Glitter Stone",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Blessed Bandage (5)",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "5",
+  "money-gp": "129",
+  "money-pp": "0",
+  "casters": [],
+  "feats": [
+    "Dragontouched\n+1 hp, +1 to Listen, Search, Spot, +1 to saving throws vs paralysis, sleep",
+    "Dragonfire Strike"
+  ],
+  "specialAbilities": [
+    "[Scout 1] Skirmish (+1d6)",
+    "[Scout 1] trapfinding",
+    "Weapon Familiarity\nYou treat bolas and nets as martial weapons rather than exotic weapons",
+    "[Rogue 1] Sneak attack +1d6",
+    "[Rogue 1] trapfinding",
+    "[Rogue 2] Evasion",
+    "Poison use",
+    "Chameleon skin",
+    "Hold breath",
+    "Racial skill bonuses: +4 Balance, +4 Jump, +4 Swim, +5 Hide (chameleon skin; only when not wearing armor, robes, or other covering clothing)",
+    ""
+  ],
+  "languages": "Common, Draconic",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "",
+  "customizations": [],
+  "activeConditions": [],
+  "auditDismissed": [
+    "history:prereq-unmet:1:Weapon Finesse:bab:BAB +1"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Scout",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Dragontouched"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 2,
+      "class_taken": "Rogue",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 3,
+      "class_taken": "Rogue",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "5",
+      "misc": "4",
+      "index": 1
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 2
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 3
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 4
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 5
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 5,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "2",
+      "index": 8
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 9
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 10
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 12
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "9",
+      "index": 15
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 16
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "7",
+      "index": 17
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 21
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 27
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "1",
+      "index": 28
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 29
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "1",
+      "misc": "2",
+      "index": 30
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 31
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 31,
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 32
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 32,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "1",
+      "index": 34
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 35
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "1",
+      "index": 39
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "4",
+      "index": 41
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 42
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 43
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44
+    }
+  ],
+  "customSkills": []
+}
