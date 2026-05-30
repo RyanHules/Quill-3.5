@@ -2477,6 +2477,36 @@ test('save: Equipment gear readers scope to .gear-row (skip rules panels)', () =
     "`#gear-body tr.gear-row`.");
 });
 
+test('feats: Special Abilities ⓘ resolves creature abilities (renderCreatureAbilityRules)', () => {
+  // The Special Abilities ⓘ dispatcher must include the creature
+  // resolver. The creature-race-picker writes the creature's name into
+  // #char-race (its canonical Race field, which persists), so both the
+  // racial and creature resolvers key off #char-race. Racial runs FIRST
+  // (real races are the common case); pure monsters aren't in the `race`
+  // table, so racial returns null and the creature resolver takes over.
+  const f = readSource('feats.js');
+  assert(/function renderCreatureAbilityRules/.test(f),
+    "feats.js must define renderCreatureAbilityRules.");
+  const creatureBody = extractFunctionBody(f, 'renderCreatureAbilityRules');
+  assert(creatureBody && /char-race/.test(creatureBody) &&
+      !/char-creature-race/.test(creatureBody),
+    "renderCreatureAbilityRules must key off #char-race (not the transient " +
+    "#char-creature-race input, which the picker clears after apply).");
+  assert(/type='creature'/.test(creatureBody) &&
+      /special_abilities/.test(creatureBody),
+    "renderCreatureAbilityRules must query the creature's special_abilities.");
+  const dispatch = extractFunctionBody(f, 'renderAbilityRules');
+  assert(dispatch, "Couldn't extract renderAbilityRules body");
+  const creatureAt = dispatch.indexOf('renderCreatureAbilityRules');
+  const racialAt = dispatch.indexOf('renderRacialTraitRules');
+  assert(creatureAt !== -1 && racialAt !== -1,
+    "renderAbilityRules must call both the creature and racial resolvers.");
+  assert(racialAt < creatureAt,
+    "renderAbilityRules must try the racial resolver BEFORE the creature " +
+    "resolver (real races are the common case; pure-monster names fall " +
+    "through to the creature resolver).");
+});
+
 test('save: every UI module exposes collectData + loadData', () => {
   // Catch the case where a new module is added without persistence.
   const modules = [

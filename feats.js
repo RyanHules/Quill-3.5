@@ -339,14 +339,29 @@ const Feats = (function () {
   }
 
   // Resolve a Special Abilities row to its rules text. The list is fed
-  // from three sources, each with its own text shape — so we try them
+  // from several sources, each with its own text shape — so we try them
   // in order and return the first that resolves:
-  //   1. Class features (class-picker)      → `[Class N] Ability Name`
-  //   2. Racial traits (race-picker)        → `Trait Name: description`
-  //   3. Skill tricks (special-ability-picker) → `Name · category…\nbenefit`
+  //   1. Class features (class-picker)        → `[Class N] Ability Name`
+  //   2. Racial traits (race-picker)          → bare trait name
+  //   3. Creature abilities (creature-race-picker) → bare ability name
+  //   4. Skill tricks (special-ability-picker) → `Name · category…\nbenefit`
   // Anything else is treated as a custom / homebrew entry. Returns
   // { html, entryId } so the caller can attach an errata badge when the
   // match is a self-contained DB entry (skill tricks only — see below).
+  //
+  // Both the racial and creature resolvers key off #char-race: the
+  // race-picker writes the race name there, and the creature-race-picker
+  // writes the CREATURE's name there too (it owns #char-race as "the
+  // canonical Race field"; its own #char-creature-race input is transient
+  // and cleared after apply). #char-race persists via Character, so this
+  // works live AND after a save/reload. Racial runs first because real
+  // races are the common case; pure monsters (Hound Archon, Mind Flayer,
+  // Troll…) aren't in the `race` table, so racial returns null and the
+  // creature resolver takes over. A few names exist as BOTH a race and an
+  // as_character creature (Kobold/Orc/Goblin/Lizardfolk); for those the
+  // race trait wins on overlapping ability names — acceptable, since the
+  // text is near-identical and non-overlapping creature abilities still
+  // resolve via the creature resolver.
   function renderAbilityRules(text) {
     // 1. Class-prefixed class feature.
     const parsed = parseAbilityPrefix(text);
@@ -355,17 +370,33 @@ const Feats = (function () {
     //    trait name can't false-match a same-named entry elsewhere.
     const racial = renderRacialTraitRules(text);
     if (racial) return racial;
-    // 3. Skill trick (a real, self-contained `entry` row).
+    // 3. Creature-as-race ability (creature name in #char-race).
+    const creature = renderCreatureAbilityRules(text);
+    if (creature) return creature;
+    // 4. Skill trick (a real, self-contained `entry` row).
     const trick = renderSkillTrickRules(text);
     if (trick) return trick;
-    // 4. Fallback for custom / homebrew abilities with no DB match.
+    // 5. Fallback for custom / homebrew abilities with no DB match.
     return {
       html: '<i style="opacity:.7">No rules text found in database — this ' +
-        'looks like a custom or homebrew ability. (Class features added via ' +
-        'the class picker, racial traits, and skill tricks resolve ' +
+        'looks like a custom or homebrew ability. (Class features, racial ' +
+        'traits, creature abilities, and skill tricks resolve ' +
         'automatically.)</i>',
       entryId: null,
     };
+  }
+
+  // Normalize an ability label for fuzzy name matching: lowercase, drop
+  // parentheticals (save-DC notes etc.), reduce punctuation to spaces,
+  // collapse whitespace. "Aura of menace (Will DC 15…)" and the detail
+  // block's "Aura of Menace" both normalize to "aura of menace".
+  function normAbility(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function renderClassFeatureRules({ className, abilityName }) {
@@ -462,6 +493,100 @@ const Feats = (function () {
     // map to a single trait, so no badge here (it's surfaced on the
     // Character-tab race info panel instead).
     return { html: bits.join("<br>"), entryId: null };
+  }
+
+  // Resolve a creature-as-race ability row. The creature-race-picker
+  // auto-fills the creature's special attacks + qualities as bare,
+  // name-only rows (e.g. "Aura of menace (Will DC 15…)", "Heat shimmer",
+  // "DR 10/evil"), tagged data-from-creature-race, and writes the
+  // creature's name into #char-race (the canonical Race field). We scope
+  // to that creature — #char-race persists via Character, so this works
+  // live AND after a save/reload — and resolve in two tiers:
+  //   - Full rules: the creature's structured `special_abilities` block
+  //     ({name, kind, description}) — only ~13 pickable creatures carry
+  //     it, but it's the high-value case.
+  //   - Honest stub: the row IS one of the creature's listed special
+  //     attacks/qualities but has no detail block (passive immunities,
+  //     DR/SR, or creatures whose mechanical text wasn't extracted).
+  //     We say so plainly rather than letting it hit the misleading
+  //     "custom or homebrew" fallback.
+  // Returns null when #char-race isn't an as_character creature or the
+  // row isn't one of its abilities, so the dispatcher can fall through.
+  function renderCreatureAbilityRules(text) {
+    const raceInput = document.getElementById("char-race");
+    const crName = (raceInput && raceInput.value || "").trim()
+      .replace(/\s*\(3\.0\)\s*$/, "")
+      .replace(/\s*\(3\.5\)\s*$/, "");
+    if (!crName) return null;
+    const row = DB.queryOne(
+      "SELECT name, source, version, " +
+      "  json_extract(data, '$.special_abilities') AS detail, " +
+      "  json_extract(data, '$.as_character.special_attacks') AS ac_sa, " +
+      "  json_extract(data, '$.as_character.special_qualities') AS ac_sq " +
+      "FROM entry WHERE type='creature' AND name = ? COLLATE NOCASE " +
+      "  AND json_extract(data, '$.as_character') IS NOT NULL " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
+      [crName]
+    );
+    if (!row) return null;
+    const parseArr = (s) => {
+      try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; }
+      catch (e) { return []; }
+    };
+    const detail = parseArr(row.detail);
+    const known = parseArr(row.ac_sa).concat(parseArr(row.ac_sq))
+      .filter((x) => typeof x === "string");
+    const rowNorm = normAbility(text.split(/\r?\n/)[0]);
+    if (!rowNorm) return null;
+
+    // Match the row against a candidate list by exact-normalized name,
+    // then by a length-guarded substring match (catches "Regeneration 5"
+    // → "Regeneration" and "Immunity to sleep and charm effects" →
+    // "Immunity to Sleep and Charm"). Returns the best (longest) hit.
+    const matchIn = (items, nameOf) => {
+      let best = null, bestLen = -1;
+      for (const it of items) {
+        const n = normAbility(nameOf(it));
+        if (!n) continue;
+        const hit = n === rowNorm
+          || (n.length >= 4 && rowNorm.includes(n))
+          || (rowNorm.length >= 4 && n.includes(rowNorm));
+        if (hit && n.length > bestLen) { best = it; bestLen = n.length; }
+      }
+      return best;
+    };
+
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
+    const attribution = ` <span style="opacity:.7">(${escapeHtml(row.name)} ` +
+      `creature ability)</span>`;
+
+    // Tier 1 — structured rules text.
+    const block = matchIn(detail, (d) => d && d.name);
+    if (block) {
+      const kind = (block.kind || "").trim();
+      const tagHtml = kind
+        ? ` <span style="opacity:.7">[${escapeHtml(kind)}]</span>` : "";
+      const bits = [];
+      bits.push(`<b>${escapeHtml(block.name)}</b>${tagHtml}${verBadge}` +
+        attribution);
+      if (block.description && block.description.trim()) {
+        bits.push(escapeHtml(block.description));
+      }
+      return { html: bits.join("<br>"), entryId: null };
+    }
+
+    // Tier 2 — a listed ability with no detail block: be honest.
+    const listed = matchIn(known, (s) => s);
+    if (listed) {
+      const bits = [];
+      bits.push(`<b>${escapeHtml(listed)}</b>${verBadge}${attribution}`);
+      bits.push('<i style="opacity:.6">No detailed rules text for this ' +
+        'creature ability in the database — see the source book' +
+        (row.source ? ` (${escapeHtml(row.source)})` : "") + ".</i>");
+      return { html: bits.join("<br>"), entryId: null };
+    }
+
+    return null;
   }
 
   // Resolve a skill-trick row to its DB entry. The special-ability
