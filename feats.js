@@ -290,7 +290,16 @@ const Feats = (function () {
     } else if (!(window.DB && DB.isLoaded())) {
       panel.innerHTML = '<i style="opacity:.7">Database not loaded — rules text unavailable.</i>';
     } else {
-      panel.innerHTML = renderAbilityRules(text);
+      const rendered = renderAbilityRules(text);
+      panel.innerHTML = rendered.html;
+      // Tack on the errata badge when the lookup resolved to a real,
+      // self-contained entry (skill tricks). Class features / racial
+      // traits live inside their parent class/race blob, whose errata
+      // doesn't map cleanly to a single sub-feature — so those return
+      // a null entryId and the badge is skipped.
+      if (rendered.entryId && window.ErrataBadge) {
+        ErrataBadge.attach(panel, rendered.entryId);
+      }
     }
     row.appendChild(panel);
     btn.setAttribute("aria-expanded", "true");
@@ -329,14 +338,37 @@ const Feats = (function () {
       .toLowerCase();
   }
 
+  // Resolve a Special Abilities row to its rules text. The list is fed
+  // from three sources, each with its own text shape — so we try them
+  // in order and return the first that resolves:
+  //   1. Class features (class-picker)      → `[Class N] Ability Name`
+  //   2. Racial traits (race-picker)        → `Trait Name: description`
+  //   3. Skill tricks (special-ability-picker) → `Name · category…\nbenefit`
+  // Anything else is treated as a custom / homebrew entry. Returns
+  // { html, entryId } so the caller can attach an errata badge when the
+  // match is a self-contained DB entry (skill tricks only — see below).
   function renderAbilityRules(text) {
+    // 1. Class-prefixed class feature.
     const parsed = parseAbilityPrefix(text);
-    if (!parsed) {
-      return '<i style="opacity:.7">No class prefix detected — type the ' +
-        'ability as <code>[Class N] Ability Name</code> or use the class ' +
-        'picker to add it.</i>';
-    }
-    const { className, abilityName } = parsed;
+    if (parsed) return renderClassFeatureRules(parsed);
+    // 2. Racial trait — scoped to the character's current race so a
+    //    trait name can't false-match a same-named entry elsewhere.
+    const racial = renderRacialTraitRules(text);
+    if (racial) return racial;
+    // 3. Skill trick (a real, self-contained `entry` row).
+    const trick = renderSkillTrickRules(text);
+    if (trick) return trick;
+    // 4. Fallback for custom / homebrew abilities with no DB match.
+    return {
+      html: '<i style="opacity:.7">No rules text found in database — this ' +
+        'looks like a custom or homebrew ability. (Class features added via ' +
+        'the class picker, racial traits, and skill tricks resolve ' +
+        'automatically.)</i>',
+      entryId: null,
+    };
+  }
+
+  function renderClassFeatureRules({ className, abilityName }) {
     const row = DB.queryOne(
       "SELECT name, source, version, " +
       "  json_extract(data, '$.class_features') AS f " +
@@ -345,8 +377,11 @@ const Feats = (function () {
       [className]
     );
     if (!row || !row.f) {
-      return `<i style="opacity:.7">Class "${escapeHtml(className)}" not ` +
-        `found in database.</i>`;
+      return {
+        html: `<i style="opacity:.7">Class "${escapeHtml(className)}" not ` +
+          `found in database.</i>`,
+        entryId: null,
+      };
     }
     let features = [];
     try { features = JSON.parse(row.f) || []; } catch (e) {}
@@ -355,18 +390,111 @@ const Feats = (function () {
     let feat = features.find(f => (f.name || "").toLowerCase() === abilityName.toLowerCase());
     if (!feat) feat = features.find(f => stemAbilityName(f.name) === targetStem);
     if (!feat) {
-      return `<i style="opacity:.7">No matching feature "${escapeHtml(abilityName)}" ` +
-        `found in ${escapeHtml(className)}'s class_features.</i>`;
+      return {
+        html: `<i style="opacity:.7">No matching feature ` +
+          `"${escapeHtml(abilityName)}" found in ${escapeHtml(className)}'s ` +
+          `class_features.</i>`,
+        entryId: null,
+      };
     }
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
     const bits = [];
-    bits.push(`<b>${escapeHtml(feat.name || abilityName)}</b>` +
+    bits.push(`<b>${escapeHtml(feat.name || abilityName)}</b>${verBadge}` +
       ` <span style="opacity:.7">(${escapeHtml(row.name)}` +
       (feat.level_acquired ? ` ${feat.level_acquired}` : "") +
       `)</span>`);
     if (feat.description) {
       bits.push(escapeHtml(feat.description));
     }
-    return bits.join("<br>");
+    // Class features live inside the class blob — their errata doesn't
+    // map to a single feature, so no badge (entryId: null).
+    return { html: bits.join("<br>"), entryId: null };
+  }
+
+  // Resolve a racial-trait row against the character's CURRENT race
+  // (read from #char-race). The race-picker auto-fills rows as
+  // `Trait Name: description` (or bare `Trait Name` when the trait has
+  // no description), so we recover the name as the text up to the first
+  // ": " and match it exactly against the race's `traits` list. Scoping
+  // to the chosen race avoids false matches and survives save/reload
+  // (the race input persists; the data-from-race marker does not).
+  // Returns null when there's no current race or no matching trait, so
+  // the dispatcher can fall through to the next resolver.
+  function renderRacialTraitRules(text) {
+    const raceInput = document.getElementById("char-race");
+    const raceName = (raceInput && raceInput.value || "").trim()
+      .replace(/\s*\(3\.0\)\s*$/, "")
+      .replace(/\s*\(3\.5\)\s*$/, "");
+    if (!raceName) return null;
+    const row = DB.queryOne(
+      "SELECT name, source, version, " +
+      "  json_extract(data, '$.traits') AS t " +
+      "FROM entry WHERE type='race' AND name = ? COLLATE NOCASE " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
+      [raceName]
+    );
+    if (!row || !row.t) return null;
+    let traits = [];
+    try { traits = JSON.parse(row.t) || []; } catch (e) { return null; }
+    if (!Array.isArray(traits) || !traits.length) return null;
+    // Recover the trait name: first line, up to the first ": " separator.
+    const firstLine = text.split(/\r?\n/)[0];
+    const candidate = firstLine.split(/:\s/)[0].trim().toLowerCase();
+    if (!candidate) return null;
+    const trait = traits.find(
+      t => (t && t.name || "").trim().toLowerCase() === candidate
+    );
+    if (!trait) return null;
+    const tag = (trait.tag || "").trim();
+    const tagHtml = tag
+      ? ` <span style="opacity:.7">[${escapeHtml(tag)}]</span>` : "";
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
+    const bits = [];
+    bits.push(`<b>${escapeHtml(trait.name)}</b>${tagHtml}${verBadge}` +
+      ` <span style="opacity:.7">(${escapeHtml(row.name)} racial trait)</span>`);
+    if (trait.description && trait.description.trim()) {
+      bits.push(escapeHtml(trait.description));
+    } else {
+      bits.push('<i style="opacity:.6">Racial trait — see the race info ' +
+        'panel on the Character tab for full details.</i>');
+    }
+    // Racial traits live inside the race blob; race-level errata doesn't
+    // map to a single trait, so no badge here (it's surfaced on the
+    // Character-tab race info panel instead).
+    return { html: bits.join("<br>"), entryId: null };
+  }
+
+  // Resolve a skill-trick row to its DB entry. The special-ability
+  // picker formats rows as `Name · category skill trick\nbenefit`, so we
+  // take the first line up to the " · " separator (tolerating a bare
+  // name) and look it up directly. Skill tricks ARE self-contained
+  // `entry` rows, so we return the id and let the caller attach errata.
+  function renderSkillTrickRules(text) {
+    const firstLine = text.split(/\r?\n/)[0];
+    const name = firstLine.split(" · ")[0].trim();
+    if (!name) return null;
+    const row = DB.queryOne(
+      "SELECT id, name, source, version, " +
+      "  json_extract(data, '$.category')      AS category, " +
+      "  json_extract(data, '$.prerequisites') AS prerequisites, " +
+      "  json_extract(data, '$.benefit')       AS benefit, " +
+      "  json_extract(data, '$.description')   AS description " +
+      "FROM entry WHERE type='skill_trick' AND name = ? COLLATE NOCASE " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
+      [name]
+    );
+    if (!row) return null;
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
+    const bits = [];
+    bits.push(`<b>${escapeHtml(row.name)}</b>${verBadge}` +
+      ` <span style="opacity:.7">(${escapeHtml(row.source || "?")})</span>`);
+    if (row.category)      bits.push(`<b>Category:</b> ${escapeHtml(row.category)}`);
+    if (row.prerequisites) bits.push(`<b>Prereq:</b> ${escapeHtml(row.prerequisites)}`);
+    if (row.benefit)       bits.push(`<b>Benefit:</b> ${escapeHtml(row.benefit)}`);
+    if (row.description && row.description !== row.benefit) {
+      bits.push(escapeHtml(row.description));
+    }
+    return { html: bits.join("<br>"), entryId: row.id };
   }
 
   function collectData() {

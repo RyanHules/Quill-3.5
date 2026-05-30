@@ -278,16 +278,20 @@
       if (row) row.remove();
     });
 
-    // 2. Add the new race's traits.
+    // 2. Add the new race's traits — NAME ONLY. The full description is
+    // surfaced on demand via the row's ⓘ panel (Feats.renderAbilityRules
+    // → renderRacialTraitRules looks the trait up by name against the
+    // current race), so dumping the description inline here would be
+    // redundant — you'd be carrying the text just to render the same text.
     for (const t of traits) {
       // Skip empty/duplicative entries (Darkvision/Low-Light Vision are
       // expressed elsewhere in the info panel; skip if the description
-      // is empty AND the name is one of those known fields).
+      // is empty AND the name is one of those known fields). Also skip
+      // any nameless trait — without a name the ⓘ panel can't resolve it.
       const skipNames = new Set(['Darkvision', 'Low-Light Vision']);
       if (skipNames.has(t.name) && !t.description) continue;
-      const text = t.description
-        ? `${t.name}: ${t.description}`
-        : t.name;
+      if (!t.name || !String(t.name).trim()) continue;
+      const text = t.name;
       Feats.addSpecialAbility(text);
       // Tag the textarea we just added so we can find/remove it later.
       // (The textarea is inside the last appended .feat-row.)

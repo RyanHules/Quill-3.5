@@ -1086,6 +1086,68 @@
       'SS5b: table must not overflow its section when the panel is open');
   });
 
+  regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
+    await newCharacter();
+    if (!dbReady()) fail(
+      'SA-INFO: DB not loaded — re-run after [DB] Loaded appears in console.');
+    const cont = document.getElementById('special-abilities-container');
+
+    // Helper: open the ⓘ panel on the special-ability row whose text
+    // starts with `frag`, return its innerText, then collapse again.
+    const panelTextFor = (frag) => {
+      const row = $$('#special-abilities-container .feat-row').find(r =>
+        (r.querySelector('.special-ability-entry')?.value || '').startsWith(frag));
+      if (!row) return null;
+      row.querySelector('.btn-feat-info').click();
+      const txt = row.querySelector('.feat-rules')?.innerText || '';
+      row.querySelector('.btn-feat-info').click();   // collapse
+      return txt;
+    };
+
+    // 1. PHB racial trait. The race-picker auto-fills NAME ONLY; the
+    //    description is surfaced on demand via the ⓘ panel (which matches
+    //    by name). Previously this row carried the full description inline
+    //    AND hit the "No class prefix detected" dead-end on ⓘ.
+    set('char-race', 'Dwarf');
+    await wait(200);
+    const stoneRow = $$('#special-abilities-container .feat-row').find(r =>
+      (r.querySelector('.special-ability-entry')?.value || '').startsWith('Stonecunning'));
+    if (!stoneRow) fail('SA-INFO: Dwarf did not auto-fill a Stonecunning row');
+    expect(stoneRow.querySelector('.special-ability-entry').value, 'Stonecunning',
+      'SA-INFO: racial trait auto-fills NAME ONLY (no inline description)');
+    const stone = panelTextFor('Stonecunning');
+    expectIncludes(stone, 'Stonecunning', 'SA-INFO: racial panel shows the trait name');
+    expectIncludes(stone, 'Dwarf racial trait', 'SA-INFO: racial panel attributes the race');
+    expectIncludes(stone, 'racial bonus on Search', 'SA-INFO: racial panel resolves the description by NAME');
+    if (/No class prefix detected/i.test(stone)) {
+      fail('SA-INFO: racial trait still hits the class-prefix dead-end');
+    }
+
+    // 2. Splat race with a typed trait — the [Ex]/[Su]/[Sp] tag surfaces.
+    set('char-race', 'Aquatic Elf');
+    await wait(200);
+    const slv = panelTextFor('Superior Low-Light Vision');
+    if (slv == null) fail('SA-INFO: Aquatic Elf did not auto-fill Superior Low-Light Vision');
+    expectIncludes(slv, '[Ex]', 'SA-INFO: typed racial trait surfaces its Ex/Su/Sp tag');
+
+    // 3. Skill trick (special-ability-picker format) resolves + shows Benefit.
+    Feats.addSpecialAbility('Acrobatic Backstab · Movement skill trick\nplaceholder');
+    const trick = panelTextFor('Acrobatic Backstab');
+    expectIncludes(trick, 'Benefit:', 'SA-INFO: skill-trick panel shows the Benefit line');
+    expectIncludes(trick, 'Complete Scoundrel', 'SA-INFO: skill-trick panel shows the source');
+
+    // 4. Class feature (class-picker format) still resolves (regression).
+    Feats.addSpecialAbility('[Barbarian 1] Fast Movement');
+    const cf = panelTextFor('[Barbarian 1] Fast Movement');
+    expectIncludes(cf, 'Fast Movement', 'SA-INFO: class-feature panel still resolves');
+    expectIncludes(cf, 'Barbarian', 'SA-INFO: class-feature panel attributes the class');
+
+    // 5. Custom / homebrew falls back gracefully (no false DB match).
+    Feats.addSpecialAbility('Totally Invented Homebrew Knack');
+    const custom = panelTextFor('Totally Invented Homebrew Knack');
+    expectIncludes(custom, 'custom or homebrew', 'SA-INFO: unmatched entry falls back gracefully');
+  });
+
   // ---- Per-class application sweep -------------------------------------
   //
   // Iterates every class + PrC in the DB and verifies the sheet can
