@@ -126,7 +126,7 @@
     {
       "className": "Rogue",
       "level": 2,
-      "classId": 11805,
+      "classId": 11902,
       "version": "3.5",
       "source": "Player's Handbook (Premium Edition)"
     }
@@ -294,8 +294,7 @@
     "Poison use",
     "Chameleon skin",
     "Hold breath",
-    "Racial skill bonuses: +4 Balance, +4 Jump, +4 Swim, +5 Hide (chameleon skin; only when not wearing armor, robes, or other covering clothing)",
-    ""
+    "Racial skill bonuses: +4 Balance, +4 Jump, +4 Swim, +5 Hide (chameleon skin; only when not wearing armor, robes, or other covering clothing)"
   ],
   "languages": "Common, Draconic",
   "companions": [
@@ -560,7 +559,7 @@
       "type": "skill",
       "classSkill": true,
       "ranks": "0",
-      "misc": "7",
+      "misc": "6",
       "index": 17
     },
     {

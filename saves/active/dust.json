@@ -16,7 +16,7 @@
   "char-hair": "None",
   "char-skin": "Light Brown",
   "char-campaign": "",
-  "char-xp": "28605",
+  "char-xp": "37289",
   "char-speed": "30 (L), 10 (B)",
   "damage-reduction": "",
   "str-score": "14",
@@ -108,7 +108,7 @@
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 13862,
+      "classId": 13913,
       "version": "3.5",
       "source": "Sandstorm",
       "advancesTypes": [
@@ -554,7 +554,7 @@
         {
           "baseName": "Scorching Ray",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Scorching Ray",
@@ -574,7 +574,7 @@
         {
           "baseName": "Invisibility",
           "metamagic": [],
-          "used": false
+          "used": true
         }
       ],
       "domain-2": "",
@@ -645,7 +645,7 @@
           "metamagic": [
             "Fiery Spell"
           ],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Dispel Magic",
@@ -700,7 +700,7 @@
         {
           "baseName": "Evard's Black Tentacles",
           "metamagic": [],
-          "used": false
+          "used": true
         },
         {
           "baseName": "Globe of Invulnerability, Lesser",
