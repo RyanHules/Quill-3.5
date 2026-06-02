@@ -2309,6 +2309,17 @@ textarea {
   letter-spacing: 0.02em;
 }
 .bloodline-slot input[type="checkbox"] { flex: 0 0 auto; }
+.bloodline-pick-summary {
+  margin-top: 0.35rem;
+  font-size: 0.85em;
+  color: #d9a96a;
+}
+/* Bloodline-injected bonus-feat rows in the Feats list — fire accent so
+   the user can tell them apart from feats they added themselves. */
+.feat-row.feat-from-bloodline .feat-entry {
+  border-left: 3px solid #d9863a;
+  background: rgba(217, 134, 58, 0.07);
+}
 
 .cf-customization {
   padding: 0.4rem 0.55rem;

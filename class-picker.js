@@ -832,6 +832,15 @@
       renderClassList();
     });
 
+    // Bloodline-changed: the bloodline contributes a level segment to the
+    // Class & Level box (e.g. "… / Fireclaw Bloodline 1"). Rebuild the
+    // aggregate so that segment refreshes when the bloodline selection or
+    // its slot count changes. Only when classes are picked (the box is
+    // ours to rebuild — a manual-entry char-class is left to the user).
+    document.addEventListener('bloodline-changed', () => {
+      if (pickedClasses.length) applyAggregatesToSheet();
+    });
+
     // 4. Apply button writes calculated values into the sheet.
     applyBtn.addEventListener('click', () => {
       applyToSheet(classInput.value, levelInput.value, infoPanel);
@@ -958,11 +967,19 @@
     setNumeric('fort-base', totals.fort);
     setNumeric('ref-base',  totals.ref);
     setNumeric('will-base', totals.will);
-    // Rebuild #char-class textarea verbatim from entries.
+    // Rebuild #char-class textarea verbatim from entries, then append
+    // the bloodline as another level segment, e.g.
+    // "Scout 3 / Rogue 2 / Fireclaw Bloodline 1" — UA bloodline levels
+    // are real class levels. bloodline.js owns the label + the count
+    // (= slots taken in its tracker); empty until ≥1 slot is taken.
     const ta = document.getElementById('char-class');
     if (ta) {
-      ta.value = pickedClasses
-        .map(e => `${e.className} ${e.level}`).join(' / ');
+      const segs = pickedClasses.map(e => `${e.className} ${e.level}`);
+      const blLabel = (window.Bloodline
+        && typeof Bloodline.getClassLevelLabel === 'function')
+        ? Bloodline.getClassLevelLabel() : '';
+      if (blLabel) segs.push(blLabel);
+      ta.value = segs.join(' / ');
       ta.dispatchEvent(new Event('input', { bubbles: true }));
     }
     // Total Level: only set if user hasn't manually deviated. We track

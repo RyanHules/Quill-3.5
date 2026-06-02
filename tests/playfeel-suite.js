@@ -798,7 +798,8 @@
       HomebrewFilter.setEnabled('entry_DS_bloodline_fireclaw', true);
     }
     await wait(200);
-    document.querySelector('[data-tab="tab-class-features"]').click();
+    // Picker now lives on the Character tab (next to Template Lookup).
+    document.querySelector('[data-tab="tab-character"]').click();
     await wait(150);
     // Odd base scores so a +1 bump flips the total into a new modifier.
     setAbilities({ CHA: 13, DEX: 13, CON: 13 });
@@ -848,6 +849,62 @@
     await wait(100);
     expect(Bloodline.getActiveBonuses().abilities.CON, 1,
       'SS-BL: bumps re-derive from the restored selection after reload');
+  });
+
+  regression('SS-BL2: bonus feats inject + bloodline level in Class & Level box', async () => {
+    // (c) bonus feats auto-inject into the Feats list as marked
+    // data-from-bloodline rows (derived, not persisted); (b) the
+    // bloodline level appears in the Class & Level box, counting slots
+    // taken in the tracker.
+    await newCharacter();
+    await waitForDb();
+    await wait(300);
+    if (typeof HomebrewBookContent !== 'undefined') {
+      HomebrewBookContent.setBookEnabled('book_DS', true);
+    }
+    await wait(200);
+    // Picker-managed Class & Level box needs picked classes.
+    await applyClass('Scout', 3);
+    await applyClass('Rogue', 2);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    set('bloodline-name', 'Fireclaw');
+    await wait(250);
+    set('char-level', '8');     // user override above the class total (5)
+    await wait(200);
+    // (c) Dodge(L4) + Mobility(L6) + Spring Attack(L8) injected, marked.
+    const injected = () => $$('#feats-container .feat-row[data-from-bloodline="1"] .feat-entry')
+      .map(t => t.value);
+    let feats = injected();
+    expect(feats.length, 3, 'SS-BL2: 3 bonus feats injected at L8');
+    expectIncludes(feats.join(' | '), 'Dodge', 'SS-BL2: Dodge injected');
+    expectIncludes(feats.join(' | '), 'Mobility', 'SS-BL2: Mobility injected');
+    expectIncludes(feats.join(' | '), 'Spring Attack', 'SS-BL2: Spring Attack injected');
+    // Derived, not persisted — Feats.collectData excludes them.
+    const fblob = Feats.collectData();
+    if ((fblob.feats || []).some(f => /bloodline/i.test(f))) {
+      fail('SS-BL2: injected bonus feats leaked into Feats.collectData (would double on reload)');
+    }
+    // Lowering level drops the now-inactive bonus feats (Spring Attack L8,
+    // Mobility L6) — at L5 only Dodge (L4) remains.
+    set('char-level', '5');
+    await wait(200);
+    feats = injected();
+    expect(feats.length, 1, 'SS-BL2: at L5 only the L4 bonus feat (Dodge) is injected');
+    set('char-level', '8');
+    await wait(150);
+    // (b) Class & Level box gains the bloodline once a slot is taken.
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(150);
+    const slot0 = $('#bloodline-thresholds .bloodline-slot-paid');
+    if (!slot0) fail('SS-BL2: slot checkbox missing in the tracker');
+    slot0.checked = true;
+    slot0.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(200);
+    const cl = $('#char-class').value;
+    expectIncludes(cl, 'Scout 3', 'SS-BL2: classes still present in Class & Level box');
+    expectIncludes(cl, 'Fireclaw Bloodline 1',
+      'SS-BL2: bloodline level (1 slot taken) appended to the Class & Level box');
   });
 
   regression('SS4: class customizations round-trip + legacy textarea migration', async () => {

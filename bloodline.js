@@ -201,6 +201,62 @@ const Bloodline = (function () {
     return bonuses;
   }
 
+  // Auto-inject the bonus feats granted by active traits into the Feats
+  // tab as marked rows (`data-from-bloodline`). Reconciling + idempotent:
+  // rebuilds only when the active set actually changes, so slot toggles
+  // and repeat calls don't thrash the user's feat rows. These rows are
+  // DERIVED, not persisted — Feats.collectData skips data-from-bloodline
+  // rows, so they re-derive on load rather than round-tripping as user
+  // feats (same model as the ability bumps). The "substitute if already
+  // taken" clause is a GM call, so the granted feat's text carries a
+  // note rather than auto-resolving.
+  function syncBonusFeats() {
+    const container = document.getElementById('feats-container');
+    if (!container || typeof Feats === 'undefined'
+        || typeof Feats.addFeat !== 'function') return;
+    const wanted = [];
+    if (state.name) {
+      for (const t of activeTraits()) {
+        if (Array.isArray(t.bonus_feats)) {
+          for (const f of t.bonus_feats) {
+            wanted.push({ feat: String(f), level: t.level });
+          }
+        }
+      }
+    }
+    const existing = [...container.querySelectorAll(
+      '.feat-row[data-from-bloodline="1"]')];
+    const existingKeys = existing.map(r => r.dataset.blFeatKey || '');
+    const wantedKeys = wanted.map(w => `${w.feat}|${w.level}`);
+    const inSync = existingKeys.length === wantedKeys.length
+      && existingKeys.every((k, i) => k === wantedKeys[i]);
+    if (inSync) return;
+    existing.forEach(r => r.remove());
+    for (const w of wanted) {
+      Feats.addFeat(`${w.feat} (${state.name} bloodline — L${w.level})`);
+      const rows = container.querySelectorAll('.feat-row');
+      const row = rows[rows.length - 1];
+      if (!row) continue;
+      row.dataset.fromBloodline = '1';
+      row.dataset.blFeatKey = `${w.feat}|${w.level}`;
+      row.classList.add('feat-from-bloodline');
+      const ta = row.querySelector('.feat-entry');
+      if (ta) ta.dataset.fromBloodline = '1';
+    }
+  }
+
+  // Label for the Class & Level box, appended by class-picker:
+  // "<Name> Bloodline <N>" where N = bloodline-level slots taken (the
+  // paid checkboxes in the tracker). Empty until at least one slot is
+  // taken — UA bloodline levels are real class levels, so the count
+  // tracks how many you've actually spent.
+  function getClassLevelLabel() {
+    if (!state.name) return '';
+    const n = state.slotsPaid.filter(Boolean).length;
+    if (n < 1) return '';
+    return `${state.name} Bloodline ${n}`;
+  }
+
   // ------------------------------------------------------------------
   // Rendering
   // ------------------------------------------------------------------
@@ -234,6 +290,28 @@ const Bloodline = (function () {
         strengthSel.appendChild(opt);
       }
       void sCur;
+    }
+
+    // --- Picker summary (the Character-tab Bloodline Lookup) ---
+    // A one-line "what's selected + where the detail lives" note, so the
+    // picker (Character tab) and the panel (Feats & Abilities tab) stay
+    // legible despite living on different tabs.
+    const pickSummary = $('#bloodline-pick-summary');
+    if (pickSummary) {
+      if (!hasSelection) {
+        pickSummary.style.display = 'none';
+        pickSummary.innerHTML = '';
+      } else {
+        pickSummary.style.display = 'block';
+        const strengthLabel = state.strength
+          ? state.strength.charAt(0).toUpperCase() + state.strength.slice(1)
+          : '';
+        pickSummary.innerHTML =
+          `<b>${escapeHtml(state.name)}</b>`
+          + (strengthLabel ? ` — ${escapeHtml(strengthLabel)}` : '')
+          + ` <span style="opacity:.7">· full traits + slot tracker on the `
+          + `<b>Feats &amp; Abilities</b> tab</span>`;
+      }
     }
 
     // --- Header (origin + description + badges) ---
@@ -376,6 +454,7 @@ const Bloodline = (function () {
     if (reresolve) resolveSelection();
     syncSlots();
     render();
+    syncBonusFeats();
     document.dispatchEvent(new CustomEvent('bloodline-changed'));
   }
 
@@ -421,18 +500,21 @@ const Bloodline = (function () {
         const i = parseInt(cb.dataset.slot, 10);
         if (!Number.isNaN(i)) {
           state.slotsPaid[i] = cb.checked;
-          render();  // status-only change; no ability-bump effect
+          render();  // status colors
+          // Bloodline-level count (slots taken) feeds the Class & Level
+          // box, so notify even though bumps/feats are unaffected.
+          document.dispatchEvent(new CustomEvent('bloodline-changed'));
         }
       });
     }
 
-    // Character level drives both active-trait highlighting and the
-    // ability bumps. recalcAll already fires on #char-level input
-    // (app.js), so here we only need to re-render the panel; the
-    // bonus layer is recomputed by that recalc.
+    // Character level drives active-trait highlighting, the ability
+    // bumps, AND which bonus feats are granted. recalcAll already fires
+    // on #char-level input (app.js) so the bumps recompute there; here we
+    // re-render the panel + re-sync the injected bonus-feat rows.
     const lvl = $('#char-level');
     if (lvl) {
-      const onLvl = () => render();
+      const onLvl = () => { render(); syncBonusFeats(); };
       lvl.addEventListener('input', onLvl);
       lvl.addEventListener('change', onLvl);
     }
@@ -499,8 +581,9 @@ const Bloodline = (function () {
         buildCatalog();
         resolveSelection();
         render();
-        // A bloodline that resolved post-load may carry ability bumps;
-        // make sure the sheet recalculates with them.
+        syncBonusFeats();
+        // A bloodline that resolved post-load may carry ability bumps +
+        // bonus feats; make sure the sheet recalculates with them.
         document.dispatchEvent(new CustomEvent('bloodline-changed'));
       });
     }
@@ -508,6 +591,7 @@ const Bloodline = (function () {
       buildCatalog();
       resolveSelection();
       render();
+      syncBonusFeats();
       document.dispatchEvent(new CustomEvent('bloodline-changed'));
     };
     document.addEventListener('book-filter-changed', onFilter);
@@ -522,6 +606,7 @@ const Bloodline = (function () {
 
   return {
     getActiveBonuses,
+    getClassLevelLabel,
     collectData,
     loadData,
     // Exposed for tests / debugging.

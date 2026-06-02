@@ -634,7 +634,14 @@ const Feats = (function () {
     data.feats = [];
     if (featsRoot) {
       featsRoot.querySelectorAll(".feat-entry")
-        .forEach((input) => data.feats.push(input.value));
+        .forEach((input) => {
+          // Bloodline-injected bonus-feat rows are DERIVED from the
+          // bloodline selection (bloodline.js#syncBonusFeats), not user
+          // data — skip them so they don't double-persist (they re-derive
+          // on load). Marked via data-from-bloodline on the textarea.
+          if (input.dataset.fromBloodline === "1") return;
+          data.feats.push(input.value);
+        });
     }
     data.specialAbilities = [];
     if (specRoot) {

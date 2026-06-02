@@ -3608,7 +3608,8 @@ test('bloodline: catalog query is filter-shape compatible', (db) => {
 
 test('bloodline: module exposes the persistence + bonus API', () => {
   const src = readSource('bloodline.js');
-  for (const sym of ['getActiveBonuses', 'collectData', 'loadData']) {
+  for (const sym of ['getActiveBonuses', 'getClassLevelLabel',
+                     'collectData', 'loadData']) {
     assert(new RegExp(`\\b${sym}\\b`).test(src),
       `bloodline.js does not export ${sym}`);
   }
@@ -3666,6 +3667,54 @@ test('bloodline: registered in the index.html module load order', () => {
   const html = readSource('index.html');
   assert(/['"]bloodline\.js['"]/.test(html),
     'index.html does not load bloodline.js in the document.write module list.');
+});
+
+test('bloodline: picker on Character tab, panel on Feats & Abilities tab', () => {
+  // Relocation (2026-06-03): the picker (#bloodline-picker) sits with the
+  // Template Lookup on the Character tab; the trait panel
+  // (#bloodline-section) moved into #tab-feats. Assert both anchors
+  // exist and the panel is inside the feats tab, not class-features.
+  const html = readSource('index.html');
+  assert(/id="bloodline-picker"/.test(html),
+    'index.html missing the #bloodline-picker (Character-tab Bloodline Lookup).');
+  assert(/id="bloodline-name"/.test(html) && /id="bloodline-options"/.test(html),
+    'index.html missing the bloodline name input / datalist.');
+  const featsTab = html.slice(html.indexOf('id="tab-feats"'),
+    html.indexOf('id="tab-equipment"'));
+  assert(/id="bloodline-section"/.test(featsTab),
+    'bloodline panel (#bloodline-section) is not inside the Feats & Abilities tab.');
+  const cfTab = html.slice(html.indexOf('id="tab-class-features"'),
+    html.indexOf('id="tab-notes"'));
+  assert(!/id="bloodline-section"/.test(cfTab),
+    'bloodline panel should have moved OUT of the Class Features tab.');
+});
+
+test('bloodline: class-picker appends the bloodline level to Class & Level', () => {
+  // (b) The Class & Level box rebuild includes the bloodline segment via
+  // Bloodline.getClassLevelLabel, and class-picker re-runs on
+  // bloodline-changed so the count refreshes.
+  const src = readSource('class-picker.js');
+  assert(/Bloodline\.getClassLevelLabel\s*\(/.test(src),
+    'class-picker does not append Bloodline.getClassLevelLabel to #char-class.');
+  assert(/['"]bloodline-changed['"]/.test(src),
+    'class-picker does not listen for bloodline-changed (Class & Level box ' +
+    'would not refresh when the bloodline / its slot count changes).');
+});
+
+test('bloodline: injected bonus-feat rows are excluded from Feats save', () => {
+  // (c) Bloodline-injected feat rows are DERIVED (data-from-bloodline),
+  // re-synced from the selection — Feats.collectData must skip them so
+  // they do not double-persist + duplicate on reload.
+  const feats = readSource('feats.js');
+  const collectBody = extractFunctionBody(feats, 'collectData');
+  assert(/fromBloodline/.test(collectBody),
+    'feats.js#collectData does not skip data-from-bloodline rows — injected ' +
+    'bonus feats would persist as user feats and duplicate on reload.');
+  const bl = readSource('bloodline.js');
+  assert(/syncBonusFeats/.test(bl) && /Feats\.addFeat\s*\(/.test(bl),
+    'bloodline.js does not inject bonus feats via Feats.addFeat (syncBonusFeats).');
+  assert(/data-from-bloodline|fromBloodline/.test(bl),
+    'bloodline.js does not mark its injected feat rows as data-from-bloodline.');
 });
 
 test('book-filter: module exposes the expected public API', () => {
