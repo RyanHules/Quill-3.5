@@ -2233,6 +2233,83 @@ textarea {
   gap: 0.4rem;
   margin-bottom: 0.4rem;
 }
+/* ---- Bloodline (UA Bloodlines subsystem) -------------------------- */
+.bloodline-header {
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.85em;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid #d9863a;
+  border-radius: 3px;
+  line-height: 1.45;
+}
+.bloodline-trait {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  margin: 0.2rem 0;
+  border-left: 3px solid #555;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.02);
+  opacity: 0.62;
+}
+.bloodline-trait-active {
+  opacity: 1;
+  border-left-color: #d9863a;
+  background: rgba(217, 134, 58, 0.08);
+}
+.bloodline-trait-lvl {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  min-width: 2.1rem;
+  text-align: center;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.78em;
+  font-weight: 700;
+  color: #eee;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.bloodline-trait-active .bloodline-trait-lvl {
+  background: rgba(217, 134, 58, 0.3);
+  color: #ffe;
+}
+.bloodline-trait-body { flex: 1 1 auto; }
+.bloodline-trait-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.bloodline-trait-type {
+  font-size: 0.82em;
+  color: #9ab;
+}
+.bloodline-trait-pending {
+  font-size: 0.82em;
+  color: #888;
+  font-style: italic;
+}
+.bloodline-trait-desc {
+  margin-top: 0.2rem;
+  font-size: 0.88em;
+  color: #bbb;
+  line-height: 1.4;
+}
+.bloodline-bump-chip {
+  display: inline-block;
+  padding: 0.02rem 0.4rem;
+  font-size: 0.75em;
+  font-weight: 700;
+  color: #0d1f0d;
+  background: #7fcf8f;
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+}
+.bloodline-slot input[type="checkbox"] { flex: 0 0 auto; }
+
 .cf-customization {
   padding: 0.4rem 0.55rem;
   background: rgba(255, 255, 255, 0.04);

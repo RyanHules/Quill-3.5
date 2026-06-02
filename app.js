@@ -150,6 +150,19 @@
       if (cn.strToZero)   bonuses.strToZero = true;
     }
 
+    // Bloodline: permanent ability-score bumps from the active traits
+    // of the selected UA bloodline + strength (e.g. Fireclaw CHA at L3,
+    // DEX at L6, CON at L8). Derived live from the selection + current
+    // character level — no persisted ability field to collide with the
+    // Template-column writers.
+    if (typeof Bloodline !== "undefined" &&
+        typeof Bloodline.getActiveBonuses === "function") {
+      const bl = Bloodline.getActiveBonuses();
+      for (const [ab, val] of Object.entries(bl.abilities || {})) {
+        bonuses.abilities[ab] = (bonuses.abilities[ab] || 0) + val;
+      }
+    }
+
     return bonuses;
   }
 
@@ -189,6 +202,7 @@
       Feats.collectData(),
       Companion.collectData(),
       ClassFeatures.collectData(),
+      typeof Bloodline !== "undefined" ? Bloodline.collectData() : {},
       typeof Conditions !== "undefined" ? Conditions.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
@@ -206,6 +220,7 @@
     Feats.loadData(data);
     Companion.loadData(data);
     ClassFeatures.loadData(data);
+    if (typeof Bloodline !== "undefined") Bloodline.loadData(data);
     if (typeof Conditions !== "undefined") Conditions.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
@@ -543,6 +558,12 @@
     // bleed into the fresh sheet (reported 2026-05-29). loadData({})
     // empties the list, the Map, and re-renders the empty state.
     ClassFeatures.loadData({});
+    // Bloodline selection lives in a JS state object + a DOM panel the
+    // generic input-reset loop only half-clears (it blanks the input
+    // but not the module's internal `state`). loadData({}) resets both
+    // so the previous character's bloodline + its ability bumps don't
+    // bleed into the fresh sheet.
+    if (typeof Bloodline !== "undefined") Bloodline.loadData({});
     // H1 (2026-05-16 play-feel pass): without this, the previous
     // character's Build Timeline rows bleed through into the fresh
     // character and the audit flags stale "Timeline has N Foo levels
@@ -712,6 +733,9 @@
   // Item-familiar-changed: skill bonuses / bonus slots / XP multiplier
   // can shift, so refresh every tab's recalcs.
   document.addEventListener("item-familiar-changed", recalcAll);
+  // Bloodline-changed: selection / strength / character-level shifts can
+  // change the auto-applied ability bumps, so re-aggregate + recalc.
+  document.addEventListener("bloodline-changed", recalcAll);
 
   // Initial population is async; fire-and-forget — recalcAll doesn't
   // depend on it. The dropdown will fill in once SaveBackend resolves

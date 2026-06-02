@@ -1440,7 +1440,7 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     'Guild Thief/Reputation',
     'Hexblade/Ex-Hexblades',
     'Mountebank/Infernal Escape (Su)',
-    'Cerebremancer/Spells per Day / Powers Known',
+    'Cerebremancer/Spells per Day/Powers Known',  // walk feature name (no spaces around slash; was "Day / Powers" pre-2026-06-02)
     'Hierophant/Power of Nature (Su)',
     'Hierophant/Power of Nature [druid-only special ability]',
     'Blighter/Unbond (Sp)',
@@ -3563,6 +3563,110 @@ test('save: class-picker round-trips synthetic racialHD rows', () => {
 // infrastructure exists (state + persistence + wiring) and verify that
 // each picker's row loop consults BookFilter so a filter actually
 // reaches the autocomplete suggestions.
+
+// ---- tests: bloodline.js (UA Bloodlines subsystem) ------------------------
+
+test('bloodline: DB has the Fireclaw bloodline with parseable strengths', (db) => {
+  const r = execOne(db,
+    "SELECT name, source, data FROM entry WHERE type='bloodline' "
+    + "AND name='Fireclaw'");
+  assert(r, 'Fireclaw bloodline missing from DB (type=bloodline)');
+  assert(/Diamond Soul/.test(r.source),
+    `Fireclaw should be sourced from Diamond Soul homebrew, got ${r.source}`);
+  const d = JSON.parse(r.data);
+  assert(d.strengths && d.strengths.major,
+    'Fireclaw should carry a strengths.major column');
+  const traits = d.strengths.major.traits;
+  assertNotEmpty(traits, 'Fireclaw Major column has no traits');
+  // The ability bumps are the ONLY field bloodline.js auto-applies.
+  const bumps = {};
+  for (const t of traits) {
+    if (t.ability && typeof t.ability === 'object') bumps[t.level] = t.ability;
+  }
+  assert(JSON.stringify(bumps[3]) === '{"CHA":1}', 'L3 should bump CHA +1');
+  assert(JSON.stringify(bumps[6]) === '{"DEX":1}', 'L6 should bump DEX +1');
+  assert(JSON.stringify(bumps[8]) === '{"CON":1}', 'L8 should bump CON +1');
+  assert(JSON.stringify(d.strengths.major.bloodline_levels_required)
+    === '[3,6,12]', 'Major slot schedule should be [3,6,12]');
+});
+
+test('bloodline: catalog query is filter-shape compatible', (db) => {
+  // The exact SELECT bloodline.js#buildCatalog issues (LEFT JOIN book
+  // for the source-recency tiebreak; e.source surfaced for the filter).
+  const rows = execAll(db,
+    "SELECT e.id AS bl_id, e.name, e.version, e.source, "
+    + "       b.publication_date "
+    + "FROM entry e LEFT JOIN book b ON b.name = e.source "
+    + "WHERE e.type = 'bloodline' "
+    + "ORDER BY e.name COLLATE NOCASE, "
+    + "         CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, "
+    + "         b.publication_date DESC");
+  assertNotEmpty(rows, 'bloodline catalog query returned no rows');
+  assert(rows.every(r => 'source' in r && 'name' in r && 'bl_id' in r),
+    'catalog rows must expose name/source/bl_id for the BookFilter gate');
+});
+
+test('bloodline: module exposes the persistence + bonus API', () => {
+  const src = readSource('bloodline.js');
+  for (const sym of ['getActiveBonuses', 'collectData', 'loadData']) {
+    assert(new RegExp(`\\b${sym}\\b`).test(src),
+      `bloodline.js does not export ${sym}`);
+  }
+  assert(/window\.Bloodline\s*=/.test(src),
+    'bloodline.js does not assign window.Bloodline');
+});
+
+test('bloodline: consults BookFilter + listens for both filter events', () => {
+  // BookFilter.allowsEntry delegates to HomebrewFilter, so the single
+  // gate covers both campaign-scope and the per-entry homebrew toggle.
+  // The module must also re-run on BOTH filter events so toggling
+  // Diamond Soul homebrew surfaces/hides the catalog live.
+  const src = readSource('bloodline.js');
+  assert(/BookFilter\.allowsEntry\s*\(/.test(src),
+    'bloodline.js does not consult BookFilter.allowsEntry — homebrew ' +
+    'bloodlines would show even when their source is filtered out.');
+  assert(/['"]book-filter-changed['"]/.test(src),
+    'bloodline.js does not listen for book-filter-changed.');
+  assert(/['"]homebrew-filter-changed['"]/.test(src),
+    'bloodline.js does not listen for homebrew-filter-changed — ' +
+    'enabling Diamond Soul homebrew would not surface Fireclaw until reload.');
+});
+
+test('bloodline: app.js wires save/load + the ability-bump bonus layer', () => {
+  const src = readSource('app.js');
+  const collectBody = extractFunctionBody(src, 'collectData');
+  const loadBody = extractFunctionBody(src, 'loadData');
+  const bonusBody = extractFunctionBody(src, 'collectActiveBonuses');
+  assert(/Bloodline\.collectData\s*\(/.test(collectBody),
+    'app.js#collectData does not call Bloodline.collectData — saved ' +
+    'sheets silently drop the bloodline selection.');
+  assert(/Bloodline\.loadData\s*\(/.test(loadBody),
+    'app.js#loadData does not call Bloodline.loadData.');
+  assert(/Bloodline\.getActiveBonuses\s*\(/.test(bonusBody),
+    'app.js#collectActiveBonuses does not fold in Bloodline.getActiveBonuses ' +
+    '— bloodline ability bumps would never reach the ability modifiers.');
+});
+
+test('bloodline: _bloodline persists name+source, not a brittle DB id', () => {
+  // Save-stability rule #7: entry ids renumber on every DB rebuild, so
+  // the save must resolve by a human-meaningful identifier.
+  const src = readSource('bloodline.js');
+  const collectBody = extractFunctionBody(src, 'collectData');
+  assert(/name:\s*state\.name/.test(collectBody)
+      && /source:\s*state\.source/.test(collectBody),
+    'bloodline.js#collectData must persist name + source.');
+  assert(!/\bid:\s*/.test(collectBody),
+    'bloodline.js#collectData must NOT persist a DB id (renumbers on rebuild).');
+  assert(/resolveSelection/.test(src),
+    'bloodline.js must resolve the saved selection against the catalog ' +
+    'by name/source (resolveSelection).');
+});
+
+test('bloodline: registered in the index.html module load order', () => {
+  const html = readSource('index.html');
+  assert(/['"]bloodline\.js['"]/.test(html),
+    'index.html does not load bloodline.js in the document.write module list.');
+});
 
 test('book-filter: module exposes the expected public API', () => {
   const src = readSource('book-filter.js');

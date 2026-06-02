@@ -740,12 +740,18 @@
     await wait(50);
     set('char-creature-race', 'Bugbear');                // racial-HD row + race-col adj + tagged specials
     await wait(350);
+    Bloodline.loadData({ _bloodline: {                   // bloodline state object + DOM panel
+      name: 'Fireclaw', source: 'Diamond Soul (Homebrew)',
+      strength: 'major', slotsPaid: [true], notes: '' } });
+    await wait(50);
 
     // Sanity: the seeding actually took (else the post-reset asserts are vacuous).
     if (ClassPicker.getState().length < 2)
       fail('RESET: precondition — expected classes + racial-HD row seeded');
     expect(ClassFeatures.getCustomizations().length, 1,
       'RESET: precondition — a customization was seeded');
+    if (!Bloodline.collectData()._bloodline)
+      fail('RESET: precondition — a bloodline was seeded');
 
     // --- New Character, then assert nothing bled through ---
     await newCharacter();
@@ -756,6 +762,8 @@
       leaks.push(`ClassPicker retains ${ClassPicker.getState().length} class/racial-HD row(s)`);
     if (ClassFeatures.getCustomizations().length)
       leaks.push(`ClassFeatures retains ${ClassFeatures.getCustomizations().length} customization(s)`);
+    if (Bloodline.collectData()._bloodline)
+      leaks.push(`Bloodline retains selection "${Bloodline.collectData()._bloodline.name}"`);
     if (nonzero(v('char-creature-race')))
       leaks.push(`#char-creature-race not cleared: "${v('char-creature-race')}"`);
     if (nonzero(v('str-race')))
@@ -773,6 +781,73 @@
     if (leaks.length)
       fail('RESET: New Character left state behind (a module is not wired ' +
            'into the reset path):\n  - ' + leaks.join('\n  - '));
+  });
+
+  regression('SS-BL: bloodline ability bumps apply by level + round-trip', async () => {
+    // Fireclaw is a Diamond Soul homebrew bloodline (off by default).
+    // Enable the homebrew book so the DB-driven catalog includes it,
+    // then verify (1) the per-level ability bumps reach the Character
+    // tab at the right levels and (2) the selection round-trips through
+    // collectData/loadData.
+    await newCharacter();
+    await waitForDb();
+    await wait(300);   // let homebrew/book_content register on DB.ready
+    if (typeof HomebrewBookContent !== 'undefined') {
+      HomebrewBookContent.setBookEnabled('book_DS', true);
+    } else if (typeof HomebrewFilter !== 'undefined') {
+      HomebrewFilter.setEnabled('entry_DS_bloodline_fireclaw', true);
+    }
+    await wait(200);
+    document.querySelector('[data-tab="tab-class-features"]').click();
+    await wait(150);
+    // Odd base scores so a +1 bump flips the total into a new modifier.
+    setAbilities({ CHA: 13, DEX: 13, CON: 13 });
+    set('char-level', '2');
+    await wait(100);
+    set('bloodline-name', 'Fireclaw');
+    await wait(250);
+    expectValue('#bloodline-strength', 'major',
+      'SS-BL: strength defaults to the only column (major)');
+    expectVisible('#bloodline-progression',
+      'SS-BL: trait progression renders on selection');
+    // L2: the first ability bump (CHA) is at L3, so nothing active yet.
+    expect(JSON.stringify(Bloodline.getActiveBonuses().abilities), '{}',
+      'SS-BL: no ability bump active at L2');
+    expectText('#cha-total', '13', 'SS-BL: CHA total unbumped at L2');
+    // L3 → CHA +1 (13 → 14).
+    set('char-level', '3');
+    await wait(100);
+    expect(Bloodline.getActiveBonuses().abilities.CHA, 1,
+      'SS-BL: CHA bump active at L3');
+    expectText('#cha-total', '14', 'SS-BL: CHA total reflects the +1 bump at L3');
+    // L8 → CHA + DEX + CON all bumped.
+    set('char-level', '8');
+    await wait(100);
+    const b8 = Bloodline.getActiveBonuses().abilities;
+    expect(b8.CHA, 1, 'SS-BL: CHA bumped at L8');
+    expect(b8.DEX, 1, 'SS-BL: DEX bumped at L8');
+    expect(b8.CON, 1, 'SS-BL: CON bumped at L8');
+    expectText('#dex-total', '14', 'SS-BL: DEX total reflects the bump at L8');
+    // --- round-trip ---
+    const blob = Bloodline.collectData();
+    expect(blob._bloodline.name, 'Fireclaw', 'SS-BL: collectData persists name');
+    expect(blob._bloodline.strength, 'major', 'SS-BL: collectData persists strength');
+    await newCharacter();                       // clears via Bloodline.loadData({})
+    await wait(150);
+    expect(Bloodline.collectData()._bloodline, null,
+      'SS-BL: New Character clears the bloodline selection');
+    expect(JSON.stringify(Bloodline.getActiveBonuses().abilities), '{}',
+      'SS-BL: no stale bumps survive New Character');
+    // The homebrew toggle is campaign-level (persists across New), so
+    // the catalog still includes Fireclaw for the reload.
+    Bloodline.loadData(blob);
+    await wait(250);
+    expectValue('#bloodline-name', 'Fireclaw', 'SS-BL: loadData restores the name');
+    expectValue('#bloodline-strength', 'major', 'SS-BL: loadData restores the strength');
+    set('char-level', '8');
+    await wait(100);
+    expect(Bloodline.getActiveBonuses().abilities.CON, 1,
+      'SS-BL: bumps re-derive from the restored selection after reload');
   });
 
   regression('SS4: class customizations round-trip + legacy textarea migration', async () => {
