@@ -80,6 +80,11 @@
     const raceResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {
           itemNoun: 'race',
+          // Collapsed by default — you generally only browse one picker
+          // at a time, so don't let the chip wall clutter the
+          // consolidated "Lookups & Pickers" area (matches deity browse).
+          collapsible: true,
+          collapsedByDefault: true,
           onPick: (name) => {
             raceInput.value = name;
             onRaceChosen(name);

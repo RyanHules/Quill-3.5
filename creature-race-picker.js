@@ -80,6 +80,10 @@
     crResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {
           itemNoun: 'creature race',
+          // Collapsed by default — one browse open at a time (matches
+          // deity + race browse).
+          collapsible: true,
+          collapsedByDefault: true,
           onPick: (name) => {
             input.value = name;
             onCreatureChosen(name);
