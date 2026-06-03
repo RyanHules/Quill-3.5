@@ -349,12 +349,11 @@ const Feats = (function () {
   // { html, entryId } so the caller can attach an errata badge when the
   // match is a self-contained DB entry (skill tricks only — see below).
   //
-  // Both the racial and creature resolvers key off #char-race: the
-  // race-picker writes the race name there, and the creature-race-picker
-  // writes the CREATURE's name there too (it owns #char-race as "the
-  // canonical Race field"; its own #char-creature-race input is transient
-  // and cleared after apply). #char-race persists via Character, so this
-  // works live AND after a save/reload. Racial runs first because real
+  // Both the racial and creature resolvers key off #char-race — the
+  // single unified Race field (the separate creature input was removed
+  // 2026-06-03; race-unify.js routes a typed name to the right picker).
+  // #char-race persists via Character, so this works live AND after a
+  // save/reload. Racial runs first because real
   // races are the common case; pure monsters (Hound Archon, Mind Flayer,
   // Troll…) aren't in the `race` table, so racial returns null and the
   // creature resolver takes over. A few names exist as BOTH a race and an

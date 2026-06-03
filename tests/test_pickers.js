@@ -3747,6 +3747,35 @@ test('layout: rarely-used pickers consolidated into #character-lookups', () => {
     'feat-picker Feat Lookup is not a collapsible <details>.');
 });
 
+test('race-unify: single Race field + coordinator + picker hooks', () => {
+  // 2026-06-03: "Creature as Race" merged into #char-race. race-unify.js
+  // routes a typed name to the right picker (collision chooser for
+  // Centaur/Gnoll) and runs a shared teardown so switching race<->monster
+  // starts from a clean slate (else stale ability mods / racial HD linger).
+  const html = readSource('index.html');
+  assert(!/id="char-creature-race"/.test(html),
+    'the separate #char-creature-race input should be gone (unified into #char-race).');
+  assert(/['"]race-unify\.js['"]/.test(html),
+    'index.html does not load race-unify.js.');
+  const ru = readSource('race-unify.js');
+  for (const sym of ['claim', 'resolve', 'teardownAll', 'reset']) {
+    assert(new RegExp(`\\b${sym}\\b`).test(ru), `race-unify.js missing ${sym}`);
+  }
+  assert(/window\.RaceUnify\s*=/.test(ru), 'race-unify.js does not assign window.RaceUnify');
+  const rp = readSource('race-picker.js');
+  const cp = readSource('creature-race-picker.js');
+  assert(/window\.RacePicker\s*=/.test(rp) && /resetWrites/.test(rp) && /applyByName/.test(rp),
+    'race-picker.js must expose window.RacePicker { resetWrites, applyByName }.');
+  assert(/window\.CreatureRacePicker\s*=/.test(cp) && /resetWrites/.test(cp) && /applyByName/.test(cp),
+    'creature-race-picker.js must expose window.CreatureRacePicker { resetWrites, applyByName }.');
+  assert(/getElementById\(['"]char-race['"]\)/.test(cp),
+    'creature-race-picker.js should bind to the unified #char-race input.');
+  assert(/RaceUnify\.claim/.test(rp) && /RaceUnify\.claim/.test(cp),
+    'both pickers must gate auto-apply through RaceUnify.claim (collision routing).');
+  assert(/RaceUnify\.teardownAll/.test(rp) && /RaceUnify\.teardownAll/.test(cp),
+    'both pickers must call RaceUnify.teardownAll for clean race<->monster switching.');
+});
+
 test('book-filter: module exposes the expected public API', () => {
   const src = readSource('book-filter.js');
   for (const sym of ['getActiveAbbrevs', 'setActiveAbbrevs',

@@ -564,6 +564,9 @@
     // so the previous character's bloodline + its ability bumps don't
     // bleed into the fresh sheet.
     if (typeof Bloodline !== "undefined") Bloodline.loadData({});
+    // Clear the unified Race field's collision resolutions (Centaur/Gnoll
+    // standard-vs-monster choices) so they don't carry into a new sheet.
+    if (typeof RaceUnify !== "undefined" && RaceUnify.reset) RaceUnify.reset();
     // H1 (2026-05-16 play-feel pass): without this, the previous
     // character's Build Timeline rows bleed through into the fresh
     // character and the audit flags stale "Timeline has N Foo levels

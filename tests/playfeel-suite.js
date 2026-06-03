@@ -685,7 +685,7 @@
     await newCharacter();
     document.querySelector('[data-tab="tab-character"]').click();
     await wait(150);
-    set('char-creature-race', 'Bugbear');   // 3 Humanoid racial HD
+    set('char-race', 'Bugbear');   // unified Race field; 3 Humanoid racial HD
     await wait(400);
     // Adjustment layer landed on the Race column + size.
     expectValue('#str-race', '4', 'SS-CR: Bugbear +4 Str in the race column');
@@ -738,7 +738,7 @@
       replaces: 'Scribe Scroll', source: 'Unearthed Arcana',
     });
     await wait(50);
-    set('char-creature-race', 'Bugbear');                // racial-HD row + race-col adj + tagged specials
+    set('char-race', 'Bugbear');                         // unified Race field; racial-HD row + race-col adj + tagged specials
     await wait(350);
     Bloodline.loadData({ _bloodline: {                   // bloodline state object + DOM panel
       name: 'Fireclaw', source: 'Diamond Soul (Homebrew)',
@@ -764,8 +764,8 @@
       leaks.push(`ClassFeatures retains ${ClassFeatures.getCustomizations().length} customization(s)`);
     if (Bloodline.collectData()._bloodline)
       leaks.push(`Bloodline retains selection "${Bloodline.collectData()._bloodline.name}"`);
-    if (nonzero(v('char-creature-race')))
-      leaks.push(`#char-creature-race not cleared: "${v('char-creature-race')}"`);
+    if (v('char-race') && v('char-race').trim())
+      leaks.push(`#char-race not cleared: "${v('char-race')}"`);
     if (nonzero(v('str-race')))
       leaks.push(`#str-race (race-column adj) not cleared: "${v('str-race')}"`);
     if (v('char-class') && v('char-class').trim())
@@ -1300,7 +1300,7 @@
     // Change Shape, …). The picker auto-fills its attacks/qualities as
     // bare, name-only rows tagged data-from-creature-race AND writes the
     // creature's name into #char-race (the resolver keys off that).
-    set('char-creature-race', 'Archon, Hound');
+    set('char-race', 'Archon, Hound');   // unified Race field
     await wait(400);
     const fromCreature = $$('#special-abilities-container ' +
       '[data-from-creature-race="1"]');

@@ -166,6 +166,16 @@
       hideInfo();
       return;
     }
+    // Unified Race field: defer to the chooser on a race/creature
+    // collision (Centaur, Gnoll) until the player picks which they mean.
+    if (window.RaceUnify && !RaceUnify.claim('race', typedName)) {
+      hideInfo();
+      return;
+    }
+    // Clean slate across BOTH pickers first, so switching from a monster
+    // race back to a standard one doesn't leave stale ability mods /
+    // racial HD behind.
+    if (window.RaceUnify) RaceUnify.teardownAll();
 
     // Pull the entry row + parse JSON sub-fields into the same shape the
     // old per-table queries used to return. The DB now stores everything
@@ -422,6 +432,31 @@
     }
     return null;
   }
+
+  // Reset everything race-picker auto-writes: the 6 Race ability columns
+  // and the special-ability rows it tagged (data-from-race). Exposed via
+  // window.RacePicker so race-unify's shared teardown can wipe race
+  // writes before a creature-race applies on the unified Race field (and
+  // vice versa) — without it, switching would leave stale ability mods on
+  // the abilities the new pick doesn't touch.
+  function resetWrites() {
+    ['str', 'dex', 'con', 'int', 'wis', 'cha'].forEach((a) => {
+      const el = document.getElementById(`${a}-race`);
+      if (el && String(el.value) !== '') {
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    const c = document.getElementById('special-abilities-container');
+    if (c) {
+      c.querySelectorAll('[data-from-race="1"]').forEach((node) => {
+        const row = node.closest('.feat-row');
+        if (row) row.remove();
+      });
+    }
+  }
+
+  window.RacePicker = { resetWrites, applyByName: onRaceChosen };
 
   // Wait for DB to load, then init.
   DB.ready.then((db) => {

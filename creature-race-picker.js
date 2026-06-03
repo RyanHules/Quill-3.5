@@ -39,20 +39,22 @@
   let crResults = null;
 
   function init() {
-    const input = document.getElementById('char-creature-race');
+    // Unified Race field — both pickers bind to #char-race (the old
+    // separate #char-creature-race input was removed). race-unify.js
+    // routes a typed name to the right picker.
+    const input = document.getElementById('char-race');
     if (!input) {
-      console.warn('[creature-race-picker] #char-creature-race input not found');
+      console.warn('[creature-race-picker] #char-race input not found');
       return;
     }
 
-    let datalist = document.getElementById('creature-race-options');
-    if (!datalist) {
-      datalist = document.createElement('datalist');
-      datalist.id = 'creature-race-options';
-      input.setAttribute('list', 'creature-race-options');
-      input.setAttribute('autocomplete', 'off');
-      input.parentElement.appendChild(datalist);
-    }
+    // Share race-picker's #race-options datalist: race-picker owns it (it
+    // sets the input's `list` attr + clears/repopulates with races on
+    // populate); we APPEND our creatures. Load order (race-picker is
+    // listed first in index.html) means its populate runs before ours on
+    // DB.ready and book-filter-changed, so the creatures land after the
+    // races rather than getting wiped.
+    const datalist = document.getElementById('race-options');
 
     let infoPanel = document.getElementById('creature-race-info');
     if (!infoPanel) {
@@ -106,19 +108,32 @@
         + "         b.publication_date DESC"
       );
       crIndex = new Map();
-      datalist.innerHTML = '';
+      // Refresh only OUR options in the shared #race-options datalist —
+      // race-picker owns the race options (unmarked); ours carry data-cr.
+      // Don't wipe the whole list (that would drop the races).
+      let existing = new Set();
+      if (datalist) {
+        datalist.querySelectorAll('option[data-cr="1"]').forEach(o => o.remove());
+        existing = new Set(
+          Array.from(datalist.options).map(o => o.value.toLowerCase()));
+      }
       const browseNames = [];
       let kept = 0;
       for (const r of rows) {
         if (window.BookFilter && !window.BookFilter.allowsEntry(
           { source: r.source, version: r.version, name: r.name,
             type: 'creature' })) continue;
-        if (crIndex.has(r.name.toLowerCase())) continue;  // first (recency) wins
-        const opt = document.createElement('option');
-        opt.value = r.name;
-        datalist.appendChild(opt);
+        const lname = r.name.toLowerCase();
+        if (crIndex.has(lname)) continue;  // first (recency) wins
+        if (datalist && !existing.has(lname)) {
+          const opt = document.createElement('option');
+          opt.value = r.name;
+          opt.dataset.cr = '1';   // creature-contributed (for refresh)
+          datalist.appendChild(opt);
+          existing.add(lname);
+        }
         browseNames.push(r.name);
-        crIndex.set(r.name.toLowerCase(), r.creature_id);
+        crIndex.set(lname, r.creature_id);
         kept++;
       }
       if (crResults) {
@@ -147,11 +162,12 @@
     document.addEventListener('classes-changed', () => {
       const stillThere = window.ClassPicker && ClassPicker.getState &&
         ClassPicker.getState().some(e => e.racialHD);
-      const haveRace = !!document.getElementById('char-creature-race')?.value.trim();
-      if (haveRace && !stillThere && activeCreatureHadHD) {
-        // The HD row vanished out from under us — clear the picker.
-        const inp = document.getElementById('char-creature-race');
-        if (inp) inp.value = '';
+      if (!stillThere && activeCreatureHadHD) {
+        // The racial-HD chip was removed out from under us — drop the rest
+        // of the creature adjustment layer too. We DON'T clear #char-race
+        // (the unified Race input the player typed). Our own teardown
+        // clears activeCreatureHadHD before removing the HD row, so this
+        // won't re-fire during a race<->monster switch.
         clearCreatureRace();
       }
     });
@@ -166,6 +182,12 @@
     const key = (typedName || '').trim().toLowerCase();
     const id = crIndex.get(key);
     if (id === undefined) { hideInfo(); return; }
+    // Unified Race field: defer to the chooser on a race/creature
+    // collision (Centaur, Gnoll) until the player picks which they mean.
+    if (window.RaceUnify && !RaceUnify.claim('creature', typedName)) {
+      hideInfo();
+      return;
+    }
 
     const row = DB.queryOne(
       "SELECT id, name, source, version, creature_type, data "
@@ -203,13 +225,8 @@
     clearOwned('ac-natural', '0', 'input');
     clearOwned('char-speed', '', 'input');
     clearOwned('char-type', '', 'input');
-    // #char-race cleared SILENTLY (see the apply path) to avoid waking
-    // race-picker's autocomplete on our own teardown.
-    const raceEl = document.getElementById('char-race');
-    if (raceEl && raceEl.dataset[MARK]) {
-      raceEl.value = '';
-      delete raceEl.dataset[MARK];
-    }
+    // NOTE: #char-race is the unified Race input the player typed into —
+    // we no longer own/clear it (the old separate creature input is gone).
     const sizeSel = document.getElementById('char-size');
     if (sizeSel && sizeSel.dataset[MARK]) {
       sizeSel.value = 'Medium';
@@ -224,11 +241,13 @@
         if (r) r.remove();
       });
     }
-    // Synthetic racial-HD row.
+    // Synthetic racial-HD row. Clear the flag FIRST so the classes-changed
+    // handler above doesn't re-fire clearCreatureRace() when removeRacialHD
+    // dispatches classes-changed during our own teardown.
+    activeCreatureHadHD = false;
     if (window.ClassPicker && typeof ClassPicker.removeRacialHD === 'function') {
       ClassPicker.removeRacialHD();
     }
-    activeCreatureHadHD = false;
   }
 
   function clearOwned(id, val, evt) {
@@ -267,7 +286,11 @@
 
   function applyCreatureRace(cr) {
     const ac = cr.ac;
-    resetCreatureRaceWrites();                 // clean slate (reversible)
+    // Clean slate across BOTH pickers (so switching from a standard race
+    // doesn't leave its ability mods behind). Falls back to our own reset
+    // if the coordinator isn't loaded.
+    if (window.RaceUnify) RaceUnify.teardownAll();
+    else resetCreatureRaceWrites();
     const notApplied = [];
 
     // 1. Ability adjustments → Race column (reset already cleared ours).
@@ -306,19 +329,20 @@
       }
     }
 
-    // 5. Creature type + race-name label fields.
+    // 5. Creature type — authoritative for a monster race, so own it
+    // (overwrite + mark) rather than only-if-empty; this way a race ->
+    // monster switch updates the Type field instead of keeping the
+    // standard race's type.
     if (cr.creature_type) {
-      setOwnedOrEmpty('char-type', cr.creature_type, 'input');
+      const typeEl = document.getElementById('char-type');
+      if (typeEl) {
+        typeEl.value = cr.creature_type;
+        typeEl.dataset[MARK] = '1';
+        typeEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     }
-    // Race label: own it so the canonical Race field reads the creature.
-    // Written SILENTLY (no input/change dispatch) so race-picker.js — which
-    // listens on #char-race — doesn't treat the creature name as a typed
-    // race query and surface a "no matching race" browse message.
-    const raceEl = document.getElementById('char-race');
-    if (raceEl && (!String(raceEl.value).trim() || raceEl.dataset[MARK])) {
-      raceEl.value = cr.name;
-      raceEl.dataset[MARK] = '1';
-    }
+    // The Race name lives in #char-race — the unified input the player
+    // typed into — so the creature picker no longer writes/owns it.
 
     // 6. Automatic languages — fill only when empty (don't clobber).
     const autoLangs = (ac.automatic_languages || []);
@@ -505,6 +529,15 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+
+  // Exposed for race-unify.js: its shared teardown calls resetWrites()
+  // before a standard race applies (clearing this picker's ability deltas
+  // + racial HD), and applyByName() lets the collision chooser apply the
+  // monster reading of an ambiguous name (Centaur / Gnoll).
+  window.CreatureRacePicker = {
+    resetWrites: resetCreatureRaceWrites,
+    applyByName: onCreatureChosen,
+  };
 
   DB.ready.then((db) => { if (db) init(); });
 })();
