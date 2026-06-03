@@ -108,7 +108,7 @@
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 13913,
+      "classId": 13981,
       "version": "3.5",
       "source": "Sandstorm",
       "advancesTypes": [
@@ -307,6 +307,11 @@
       "name": "Hand of the Mage",
       "location": "",
       "weight": "2"
+    },
+    {
+      "name": "Scroll (Scorching Ray x3)",
+      "location": "",
+      "weight": ""
     }
   ],
   "possessions-notes": "",
