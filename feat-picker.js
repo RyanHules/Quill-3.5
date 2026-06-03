@@ -211,16 +211,18 @@
       .filter(([, c]) => c >= 5)
       .sort((a, b) => a[0].localeCompare(b[0]));
 
-    const wrap = document.createElement('div');
-    wrap.className = 'feat-picker';
-    wrap.style.cssText =
-      'padding:0.5rem; margin-bottom:0.5rem; ' +
-      'background:rgba(255,255,255,0.04); border-left:3px solid #aa8a6a; ' +
-      'border-radius:3px;';
+    // Collapsible: the lookup is mostly used at level-up, so default it
+    // folded so the feats list + anything stacked below stays visible.
+    // `picker-section` gives it the same disclosure styling as the
+    // Template / Class / Bloodline lookups.
+    const wrap = document.createElement('details');
+    wrap.className = 'feat-picker picker-section';
+    wrap.style.cssText = 'margin-bottom:0.5rem;';
     wrap.innerHTML = `
+      <summary>Feat Lookup</summary>
       <div style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
-          <label>Feat Lookup</label>
+          <label>Feat name</label>
           <input type="text" id="feat-lookup" list="feat-options"
                  placeholder="e.g. Power Attack" autocomplete="off">
           <datalist id="feat-options"></datalist>

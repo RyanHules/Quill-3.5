@@ -88,7 +88,11 @@
     // row, not squeezed into a flex cell of the info-grid.
     const infoGrid = raceInput.closest('.info-grid');
     const section = infoGrid?.parentElement || raceInput.closest('.section');
-    if (!section) return;
+    // Preferred home: the consolidated "Lookups & Pickers" disclosure
+    // (#template-lookup-host). Falls back to the old after-the-info-grid
+    // placement if that host isn't present.
+    const host = document.getElementById('template-lookup-host');
+    if (!host && !section) return;
 
     const wrap = document.createElement('div');
     wrap.id = 'template-picker';
@@ -110,9 +114,10 @@
         <div id="template-applied-list"></div>
       </details>
     `;
-    // Insert as the FIRST child after the info-grid so it precedes
-    // the class & level textarea / class lookup.
-    if (infoGrid && infoGrid.nextSibling) {
+    if (host) {
+      host.appendChild(wrap);
+    } else if (infoGrid && infoGrid.nextSibling) {
+      // Legacy placement: first child after the info-grid.
       section.insertBefore(wrap, infoGrid.nextSibling);
     } else {
       section.appendChild(wrap);

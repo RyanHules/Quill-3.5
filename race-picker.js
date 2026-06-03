@@ -65,7 +65,11 @@
       browseWrap.id = 'race-browse';
       browseWrap.style.cssText =
         'grid-column: 1 / -1; margin-top: 0.25rem;';
-      raceInput.parentElement.parentElement.appendChild(browseWrap);
+      // Prefer the consolidated "Lookups & Pickers" disclosure; fall back
+      // to the info-grid (next to the input) if that host is absent.
+      const host = document.getElementById('race-browse-host')
+        || raceInput.parentElement.parentElement;
+      host.appendChild(browseWrap);
     }
     // Chip click: set value + run the auto-fill / info-show flow
     // DIRECTLY without dispatching 'input' (the input event handler

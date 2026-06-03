@@ -111,7 +111,11 @@
       browseWrap.id = 'deity-browse';
       browseWrap.style.cssText =
         'grid-column: 1 / -1; margin-top: 0.25rem;';
-      infoPanel.parentElement.appendChild(browseWrap);
+      // Prefer the consolidated "Lookups & Pickers" disclosure; fall back
+      // to next to the deity info panel.
+      const host = document.getElementById('deity-browse-host')
+        || infoPanel.parentElement;
+      host.appendChild(browseWrap);
     }
     // Chip click: set value + run the auto-fill / info-show flow
     // DIRECTLY without dispatching 'input' (the input event handler

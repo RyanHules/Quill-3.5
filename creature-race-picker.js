@@ -71,7 +71,11 @@
       browseWrap = document.createElement('div');
       browseWrap.id = 'creature-race-browse';
       browseWrap.style.cssText = 'grid-column: 1 / -1; margin-top: 0.25rem;';
-      input.parentElement.parentElement.appendChild(browseWrap);
+      // Prefer the consolidated "Lookups & Pickers" disclosure; fall back
+      // to the info-grid next to the input.
+      const host = document.getElementById('creature-race-browse-host')
+        || input.parentElement.parentElement;
+      host.appendChild(browseWrap);
     }
     crResults = (typeof PickerResults !== 'undefined')
       ? PickerResults.attach(browseWrap, {

@@ -3717,6 +3717,36 @@ test('bloodline: injected bonus-feat rows are excluded from Feats save', () => {
     'bloodline.js does not mark its injected feat rows as data-from-bloodline.');
 });
 
+test('layout: rarely-used pickers consolidated into #character-lookups', () => {
+  // 2026-06-03 UX pass: the browse walls + Template/Bloodline/Class
+  // lookups + Build Timeline fold into one collapsed disclosure to free
+  // vertical space. Each picker injects into a host div (with a fallback
+  // to its old in-grid placement). The Class & Level box stays visible.
+  const html = readSource('index.html');
+  assert(/id="character-lookups"/.test(html),
+    'missing the consolidated #character-lookups disclosure');
+  for (const host of ['race-browse-host', 'creature-race-browse-host',
+                      'deity-browse-host', 'template-lookup-host']) {
+    assert(new RegExp(`id="${host}"`).test(html),
+      `missing host div #${host} in the consolidated area`);
+  }
+  // Class & Level box stays OUTSIDE / above the consolidated area.
+  assert(html.indexOf('id="char-class"') < html.indexOf('id="character-lookups"'),
+    'Class & Level box (#char-class) should stay above the consolidated lookups.');
+  // Each picker reroutes into its host div.
+  assert(/race-browse-host/.test(readSource('race-picker.js')),
+    'race-picker not rerouted to #race-browse-host.');
+  assert(/creature-race-browse-host/.test(readSource('creature-race-picker.js')),
+    'creature-race-picker not rerouted.');
+  assert(/deity-browse-host/.test(readSource('deity-picker.js')),
+    'deity-picker not rerouted.');
+  assert(/template-lookup-host/.test(readSource('template-picker.js')),
+    'template-picker not rerouted.');
+  // Feat Lookup is now a collapsible <details>.
+  assert(/createElement\(['"]details['"]\)/.test(readSource('feat-picker.js')),
+    'feat-picker Feat Lookup is not a collapsible <details>.');
+});
+
 test('book-filter: module exposes the expected public API', () => {
   const src = readSource('book-filter.js');
   for (const sym of ['getActiveAbbrevs', 'setActiveAbbrevs',
