@@ -3507,6 +3507,43 @@ test('race-picker: MM "as characters" sidebars surface as type=race with LA', (d
   }
 });
 
+test('race-picker: MM monster races carry racial_hd (int); 1-HD races are 0', (db) => {
+  // racial_hd is a canonical race field (2026-06-03). A monster race's racial HD =
+  // its creature stat block's base HD, EXCEPT a 1-HD creature has that HD replaced by
+  // its first class level (racial_hd 0) — validated against the "X as Characters"
+  // sidebars (multi-HD = "—Racial Hit Dice: Nd8"; 1-HD = "feats per class level", incl.
+  // the non-humanoid Aasimar/Tiefling/Pixie). racial_hd>0 carries type+die for the
+  // char sheet's BAB/save/HP derivation.
+  const rows = execAll(db,
+    "SELECT name, data FROM entry WHERE type='race' AND source='Monster Manual'");
+  const byName = {};
+  let withHd = 0;
+  for (const r of rows) {
+    const d = JSON.parse(r.data);
+    byName[r.name] = d;
+    assert(typeof d.racial_hd === 'number',
+      `${r.name}: racial_hd must be an int (canonical race field, default 0)`);
+    if (d.racial_hd > 0) {
+      withHd++;
+      assert(typeof d.racial_hd_die === 'number',
+        `${r.name}: racial_hd>0 must carry racial_hd_die`);
+      assert(typeof d.racial_hd_type === 'string' && d.racial_hd_type,
+        `${r.name}: racial_hd>0 must carry racial_hd_type`);
+    } else {
+      assert(d.racial_hd_die === null || d.racial_hd_die === undefined,
+        `${r.name}: racial_hd 0 must have null racial_hd_die`);
+    }
+  }
+  assertGE(withHd, 18);  // ~21 of 31 MM races are monster races with racial HD
+  assert(byName['Ogre'] && byName['Ogre'].racial_hd === 4 &&
+         byName['Ogre'].racial_hd_die === 8 &&
+         byName['Ogre'].racial_hd_type === 'Giant', 'Ogre = 4d8 Giant racial HD');
+  for (const n of ['Aasimar', 'Tiefling', 'Pixie', 'Goblin', 'Kobold']) {
+    assert(byName[n] && byName[n].racial_hd === 0,
+      `${n} racial_hd = 0 (1-HD race: racial HD replaced by class per the sidebar)`);
+  }
+});
+
 test('data.js: creatureTypeToProg maps creature types to BAB/save labels', () => {
   const D = loadDND35();
   assert(typeof D.creatureTypeToProg === 'function',

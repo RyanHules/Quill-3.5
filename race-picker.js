@@ -205,8 +205,16 @@
       favored_class: parsed.favored_class,
       description: parsed.description,
       senses: Array.isArray(parsed.senses) ? parsed.senses : [],
-      racial_hd: extractBonus(parsed.bonuses, 'racial_HD'),
-      racial_hd_die: null,
+      // Racial Hit Dice — monster races (Ogre, Troll, …) carry extra racial HD
+      // on top of class levels; canonical top-level fields since 2026-06-03.
+      // Default 0 for PC-style races so existing entries (PHB, etc.) don't break.
+      racial_hd: (typeof parsed.racial_hd === 'number')
+        ? parsed.racial_hd
+        : (extractBonus(parsed.bonuses, 'racial_HD') || 0),
+      racial_hd_die: (typeof parsed.racial_hd_die === 'number')
+        ? parsed.racial_hd_die : null,
+      racial_hd_type: parsed.racial_hd_type
+        || (parsed.racial_hd ? (row.creature_type || parsed.creature_type) : null),
     };
 
     // Canonical schema (post-normalize_schema.py):
@@ -345,10 +353,12 @@
     if (race.level_adjustment) {
       bits.push(`<b>LA:</b> +${race.level_adjustment}`);
     }
-    // Racial HD
+    // Racial HD — monster races carry extra racial Hit Dice on top of class
+    // levels (Ogre = 4d8 Giant); racial_hd 0 (PC-style races) shows nothing.
     if (race.racial_hd && race.racial_hd_die) {
+      const t = race.racial_hd_type ? ` ${escapeHtml(race.racial_hd_type)}` : '';
       bits.push(
-        `<b>Racial HD:</b> ${race.racial_hd}d${race.racial_hd_die}`
+        `<b>Racial HD:</b> ${race.racial_hd}d${race.racial_hd_die}${t}`
       );
     }
     // Bonus languages (compact)
