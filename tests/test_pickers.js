@@ -3415,13 +3415,22 @@ test('save: app.js#collectData wires every UI module', () => {
 
 // ---- tests: creature-race-picker.js (creature as playable race) ----------
 //
-// A Monster Manual creature with an `as_character` block can be picked as
-// a playable race. Two parts: a racial-adjustment layer (mirrors
-// race-picker) + a synthetic racial-HD class row injected into
-// class-picker's multiclass aggregate. These guards cover the DB query
-// shape, the data.js type→progression mapping (load-bearing: wrong labels
-// mean wrong BAB/saves on every monster PC), the synthetic-row save
-// round-trip, and the double-count guard.
+// A creature with an `as_character` block can be picked as a playable race.
+// Two parts: a racial-adjustment layer (mirrors race-picker) + a synthetic
+// racial-HD class row injected into class-picker's multiclass aggregate.
+// These guards cover the DB query shape, the data.js type→progression mapping
+// (load-bearing: wrong labels mean wrong BAB/saves on every monster PC), the
+// synthetic-row save round-trip, and the double-count guard.
+//
+// MIGRATION NOTE (2026-06-03): the v3 walk emits a book's "X as Characters"
+// sidebars as standalone type=race entries (which the MAIN race-picker
+// surfaces) rather than as_character blocks on the creature. The MM I REPLACE
+// migrated all of Monster Manual I this way, so the legacy as_character path
+// below now serves only NOT-yet-walked books (MM III/IV/V, Frostburn,
+// Sandstorm, Draconomicon, Drow of the Underdark — 24 creatures). Ryan's
+// call: race-shaped entries go in the main picker now; the creature-race-
+// picker is reserved for the full derived stat blocks later. The two shape
+// tests below assert the INVARIANT contract, not specific (migratable) names.
 
 // Eval data.js (a bare `const DND35 = {...}` with no exports) so the pure
 // helpers can be exercised in Node.
@@ -3430,37 +3439,72 @@ function loadDND35() {
   return new Function(src + '\nreturn DND35;')();
 }
 
-test('creature-race-picker: list query returns creatures with as_character', (db) => {
+test('creature-race-picker: list query returns legacy as_character creatures', (db) => {
   const rows = execAll(db,
-    "SELECT e.name FROM entry e "
+    "SELECT e.name, e.source FROM entry e "
     + "WHERE e.type = 'creature' "
     + "  AND json_extract(e.data, '$.as_character') IS NOT NULL "
     + "ORDER BY e.name");
-  const names = rows.map(r => r.name);
-  assertGE(names.length, 26);
-  assert(names.includes('Bugbear'),
-    'Bugbear (3 racial HD) should be a pickable creature-race');
-  assert(names.includes('Goblin'),
-    'Goblin (0 racial HD) should be a pickable creature-race');
+  // SHRINKING set — each walked book migrates its as_character creatures to
+  // type=race entries (see the migration note above). Assert a floor, not an
+  // exact count, and don't name specific creatures (they migrate book-by-book).
+  assertGE(rows.length, 20);
+  // Monster Manual I's as_character data moved to type=race, so no MM I
+  // creature should still carry an as_character block.
+  assert(!rows.some(r => r.source === 'Monster Manual'),
+    'Monster Manual I creatures should no longer carry as_character ' +
+    '(migrated to type=race by the v3 walk REPLACE)');
 });
 
 test('creature-race-picker: as_character block carries the required fields', (db) => {
+  // Shape-CONTRACT test. Pick the first surviving legacy creature rather than
+  // a named one — named creatures migrate to type=race as their book is walked
+  // (Bugbear/Goblin did, in the MM I REPLACE). The contract is invariant.
   const r = execOne(db,
-    "SELECT json_extract(data, '$.as_character') AS ac FROM entry "
-    + "WHERE type = 'creature' AND name = 'Bugbear' LIMIT 1");
-  assert(r && r.ac, 'Bugbear as_character block not found');
+    "SELECT name, json_extract(data, '$.as_character') AS ac FROM entry "
+    + "WHERE type = 'creature' "
+    + "  AND json_extract(data, '$.as_character') IS NOT NULL "
+    + "ORDER BY name LIMIT 1");
+  assert(r && r.ac, 'no legacy as_character creature found');
   const ac = JSON.parse(r.ac);
-  assert(ac.sourced === true, 'as_character.sourced should be true');
+  assert(ac.sourced === true, `${r.name} as_character.sourced should be true`);
   assert(Array.isArray(ac.ability_adjustments) && ac.ability_adjustments.length,
     'ability_adjustments present');
   assert('ability' in ac.ability_adjustments[0] &&
          'modifier' in ac.ability_adjustments[0],
     'ability_adjustments shape is {ability, modifier}');
-  assert(ac.size === 'Medium', 'Bugbear size Medium');
-  assert(ac.racial_hd && ac.racial_hd.count === 3 &&
-         ac.racial_hd.type === 'Humanoid',
-    'Bugbear racial_hd {count:3, type:Humanoid}');
-  assert(ac.level_adjustment === 1, 'Bugbear LA 1 (int, post-normalize)');
+  assert(typeof ac.size === 'string' && ac.size, 'size present (string)');
+  assert(ac.racial_hd && typeof ac.racial_hd.count === 'number' &&
+         typeof ac.racial_hd.type === 'string',
+    'racial_hd {count:int, type:str}');
+  assert(typeof ac.level_adjustment === 'number',
+    'level_adjustment int (post-normalize)');
+});
+
+test('race-picker: MM "as characters" sidebars surface as type=race with LA', (db) => {
+  // The v3 walk emits the MM "X as Characters" sidebars as standalone
+  // type=race entries; the main race-picker's `WHERE type='race'` query picks
+  // them up automatically and shows "LA: +N". Guard that the migrated set is
+  // present, includes the races that USED to be creature-as_character blocks
+  // (Bugbear/Goblin/Gnoll/Kobold/Ogre), and carries a picker-usable shape.
+  const rows = execAll(db,
+    "SELECT name, data FROM entry "
+    + "WHERE type='race' AND source='Monster Manual' ORDER BY name");
+  assertGE(rows.length, 26);
+  const names = rows.map(r => r.name);
+  for (const n of ['Bugbear', 'Goblin', 'Gnoll', 'Kobold', 'Ogre']) {
+    assert(names.includes(n),
+      `MM "as characters" race "${n}" should surface in the main race-picker`);
+  }
+  // Every MM race carries a picker-usable shape: ability_mods list + an
+  // integer level_adjustment (the picker renders "LA: +N" from it).
+  for (const r of rows) {
+    const d = JSON.parse(r.data);
+    assert(Array.isArray(d.ability_mods),
+      `${r.name}: ability_mods must be a list`);
+    assert(typeof d.level_adjustment === 'number',
+      `${r.name}: level_adjustment must be an int`);
+  }
 });
 
 test('data.js: creatureTypeToProg maps creature types to BAB/save labels', () => {
