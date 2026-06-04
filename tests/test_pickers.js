@@ -1497,6 +1497,16 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // elemental sharks are bound via the "Bind Elemental Shark"
     // feature; Ride the Tide is just a delivery option for them.
     'Tidecaller/Ride the Tide (Su)',
+    // 2026-06-04 Epic Level Handbook v3-walk REPLACE: two epic PrC
+    // bonus-feat features mention a companion keyword only as an
+    // item in the selectable epic-feat list — Cosmic Descryer's
+    // "Bonus Feat (Ex)" lists a Familiar-related feat option, and
+    // Divine Emissary's "Bonus Feats" lists Leadership as an option.
+    // Neither grants/advances a companion. (Divine Emissary's actual
+    // mount-advancer is the separate "Special Mount" feature, which
+    // DOES carry companion metadata.)
+    'Cosmic Descryer/Bonus Feat (Ex)',
+    'Divine Emissary/Bonus Feats',
   ]);
 
   const rows = execAll(db,
