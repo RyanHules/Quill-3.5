@@ -126,7 +126,7 @@
     {
       "className": "Rogue",
       "level": 2,
-      "classId": 11950,
+      "classId": 12248,
       "version": "3.5",
       "source": "Player's Handbook (Premium Edition)"
     }
@@ -683,7 +683,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "8",
       "misc": "0",
       "index": 10
     },
@@ -734,7 +734,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "3",
       "misc": "6",
       "index": 17
     },
@@ -880,7 +880,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "8",
       "misc": "0",
       "index": 36
     },
@@ -923,7 +923,7 @@
       "type": "skill",
       "classSkill": true,
       "ranks": "8",
-      "misc": "2",
+      "misc": "0",
       "index": 42
     },
     {
@@ -936,7 +936,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "5",
       "misc": "0",
       "index": 44
     }

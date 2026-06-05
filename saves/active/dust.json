@@ -101,14 +101,14 @@
     {
       "className": "Sha'ir",
       "level": 5,
-      "classId": 2700,
+      "classId": 2716,
       "version": "3.5",
       "source": "Dragon Compendium, Volume I"
     },
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 13981,
+      "classId": 14511,
       "version": "3.5",
       "source": "Sandstorm",
       "advancesTypes": [
@@ -122,7 +122,7 @@
     {
       "className": "Tidecaller",
       "level": 2,
-      "classId": 3089,
+      "classId": 3162,
       "version": "3.5",
       "source": "Diamond Soul (Homebrew)",
       "advancesTypes": [
@@ -328,7 +328,7 @@
       "ability": "CHA",
       "quickenedThisRound": "0",
       "bonusAbility": "",
-      "conditional": "+1 CL in waste terrain or when carrying >=15 pounds of sand\n+1 CL for earth spells\n+1 CL (competence) for fire spells",
+      "conditional": "+1 CL in waste terrain or when carrying >=15 pounds of sand\n+1 CL for earth spells\n+1 CL (Competence) for earth spells",
       "specialist": false,
       "showPrepared": true,
       "showKnown": true,
@@ -816,11 +816,11 @@
   ],
   "feats": [
     "Touchstone (City of the Dead)\n+1 Insight to Cha-based skill checks\n+1 vs SR",
-    "Spell Penetration",
     "Fiery Spell",
     "Recover Breath",
     "Rooted Calling",
-    "Fiery Burst"
+    "Landlord",
+    "Clutch of Earth"
   ],
   "specialAbilities": [
     "Sand Shape (Sp):\nYou can magically sculpt the soil of the waste into any solid object you can imagine, provided you have access to a sufficient quantity of the appropriate soil and you can successfully make a caster level check. The DC is determined by the size and complexity of the item.\nEach attempt to create an item requires a number of minutes equal to the DC. You can take 10 on this check. Created items persist for 10 minutes per sand shaper level, and can only be solid objects; you cannot use this ability to create liquids, gases, or living matter. The objects created have no magical properties, though they radiate faint transmutation magic.\nYou can maintain a number of objects equal to your sand shaper level. If you create an additional item, the item that has been in existence the longest reverts back to sand. Items you create otherwise persist for the duration of this use of the ability, regardless of their distance from you. If you use alchemical shapesand to create an item, you do not count that item against your limit, in addition to the other benefits provided by shapesand.\nAll items created in this fashion have hardness 5 and hit points according to their size: Fine 1; Diminutive 2; Tiny 3; Small 5; Medium 8; Large 10; Huge 15; Gargantuan 20; Colossal 25.\nDCs:\nItem Size             DC\n1 cu. ft. or less      –5\n1.1–2.0 cu. ft.        0\n2.1–4.0 cu. ft.        5\n4.1–8.0 cu. ft.        10\n8.1–12.0 cu. ft.      15\n12.1–16.0 cu. ft.    20\n16.1–24.0 cu. ft.    25\n24.1–30.0 cu. ft.    30\nItem Complexity   Modifier\nFine details           +2\nFunctioning tool   +2\nFunctioning armor/weapon +5\nMultiple parts        +5\nMasterwork version +10\nMoving parts         +10",
@@ -1118,8 +1118,8 @@
       ],
       "sapienceUnlocked": true,
       "sapienceInt": 10,
-      "sapienceWis": 10,
-      "sapienceCha": 12,
+      "sapienceWis": 16,
+      "sapienceCha": 16,
       "sapienceNotes": "",
       "specialAbilities": [],
       "name": "Item Familiar"
@@ -1239,6 +1239,7 @@
   "rage-active": false,
   "notes": "--- Planned Progression ---\nPlanned Progression: Sha'ir 3 -> LA Buyback -> Durthan 2 -> Sand Shaper 10 -> Durthan 7\n\nNeed: Know (Nature) 4, Survival 4, Touchstone (City of the Dead) (Needs Know(Local - City of the Dead) 8, or possession of a touchstone key (a portable object native to the area worth at least 250 gp). must also forge a link by spending a day in meditation and spending 10 xp and 250 gp in material components; alternatively, the key object can be destroyed as part of the ritual, in place of the material component)\n\nFlaws: Hot-Blooded (Automatically fail Fort saves made to overcome the effects of low temperatures. Cold-based effects deal an additional 2 points of damage to you), Material Devotion (You may only use spell-trigger items (wands and staffs) that cast spells on your domain spell lists. Other spell-trigger items fail in your hands)\n\nTraits: Honest (+1 Diplo, -1 Bluff, Sense Motive), Polite (+1 Diplo, -2 Intimidate)\n\nSpell Retrieval:\nModifiers to Diplomacy Check (Base DC 20):\n+1 per sha'ir level\n+2 for known arcane spell\n-2 per level of spell\n-6 for unknown divine spell\n-1 per +1 lvl from metamagic\n-2 per attempt after a failed check (resets the next day)\n\nDelay:\n-Known Arcane Spell: d4+ spell level rounds\n-Unknown Arcane Spell: d6+ spell level minutes\n-Divine Spell: d6 + spell level hours",
   "customizations": [],
+  "_bloodline": null,
   "activeConditions": [],
   "auditDismissed": [
     "history:prereq-unmet:1:Touchstone:skill:Knowledge (local) 8 ranks",
@@ -1255,7 +1256,8 @@
     "caster:prepared-full:Sha'ir:1",
     "caster:prepared-full:Sha'ir:4",
     "caster:over-prepared:Sha'ir:2",
-    "history:class-mismatch:Sha'ir"
+    "history:class-mismatch:Sha'ir",
+    "caster:known-full:Sha'ir:4"
   ],
   "history": [
     {
