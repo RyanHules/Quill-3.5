@@ -829,6 +829,12 @@
     expect(b8.DEX, 1, 'SS-BL: DEX bumped at L8');
     expect(b8.CON, 1, 'SS-BL: CON bumped at L8');
     expectText('#dex-total', '14', 'SS-BL: DEX total reflects the bump at L8');
+    // Fireclaw's L2 skill boost is written in the homebrew SHORTHAND
+    // ("+2 Tumble (Skill Boost)"), not the UA "+N on <Skill> checks"
+    // wording — getActiveSkillBonuses must still parse it (regression
+    // 2026-06-05: homebrew skill bonus was silently dropped).
+    expect(Bloodline.getActiveSkillBonuses().direct['tumble'], 2,
+      'SS-BL: Fireclaw "+2 Tumble (Skill Boost)" homebrew skill bonus parses');
     // --- round-trip ---
     const blob = Bloodline.collectData();
     expect(blob._bloodline.name, 'Fireclaw', 'SS-BL: collectData persists name');

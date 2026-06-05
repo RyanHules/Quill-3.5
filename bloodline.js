@@ -225,19 +225,36 @@ const Bloodline = (function () {
   // already disambiguates Skill vs Affinity vs Ex, and the published UA
   // names are perfectly regular ("+2 on Sense Motive checks", "Celestial
   // affinity +4"). A malformed name simply contributes nothing.
+  // Parse a direct skill-boost trait name into { skill, value }. Handles
+  // BOTH the canonical UA wording ("+2 on Sense Motive checks", preserving
+  // a Knowledge/Craft subtype like "Knowledge (the planes)") AND the looser
+  // homebrew shorthand ("+2 Tumble (Skill Boost)" — Fireclaw). Returns null
+  // when the name carries no skill bonus. The trailing-annotation strip only
+  // removes a recognized tag in the LAST parens, so a subtype (which UA
+  // always writes mid-name, before "checks") is never lost.
+  function parseSkillBoost(name) {
+    const vm = /\+(\d+)/.exec(name || '');
+    if (!vm) return null;
+    const value = parseInt(vm[1], 10) || 0;
+    if (!value) return null;
+    const cleaned = String(name)
+      .replace(/\s*\((?:skill boost|skill|ex|sp|su)\)\s*$/i, '');
+    const m = /^\+\d+\s+on\s+(.+?)\s+checks$/i.exec(cleaned)   // UA wording
+           || /^\+\d+\s+(.+?)(?:\s+checks)?$/i.exec(cleaned);  // shorthand
+    const skill = m ? m[1].trim() : '';
+    return skill ? { skill, value } : null;
+  }
+
   function getActiveSkillBonuses() {
     const direct = {};
     let affinityValue = 0;
     let affinityVs = '';
     for (const t of activeTraits()) {
-      if (t.trait_type === 'Skill') {
-        const m = /^\+(\d+)\s+on\s+(.+?)\s+checks$/i.exec(t.name || '');
-        if (m) {
-          const n = parseInt(m[1], 10) || 0;
-          const key = m[2].trim().toLowerCase();
-          if (n) direct[key] = (direct[key] || 0) + n;
-        }
-      } else if (t.trait_type === 'Affinity') {
+      // trait_type may be combined (homebrew uses e.g. "Ex/Feat"), so match
+      // by substring rather than exact equality — the name parse + row match
+      // are the real gates, so a non-skill name simply contributes nothing.
+      const tt = t.trait_type || '';
+      if (/affinity/i.test(tt)) {
         const m = /affinity\s+\+(\d+)/i.exec(t.name || '');
         if (m) {
           const n = parseInt(m[1], 10) || 0;
@@ -246,6 +263,12 @@ const Bloodline = (function () {
             const dm = /interact with\s+([^.]+)\.?/i.exec(t.description);
             if (dm) affinityVs = dm[1].trim();
           }
+        }
+      } else if (/skill/i.test(tt)) {
+        const parsed = parseSkillBoost(t.name || '');
+        if (parsed) {
+          const key = parsed.skill.toLowerCase();
+          direct[key] = (direct[key] || 0) + parsed.value;
         }
       }
     }
