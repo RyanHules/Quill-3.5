@@ -968,6 +968,46 @@
       'SS-BL4: affinity was never in the Bluff total (delta 0 on clear)');
   });
 
+  regression('SS-BL5: bloodline bumps show in Template/Bloodline column, not Item', async () => {
+    // Bloodline ability bumps surface in the read-only Template / Bloodline
+    // column (which hides when empty), NOT the Item Bonus column.
+    await newCharacter();
+    await waitForDb();
+    await wait(200);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    setAbilities({ STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 });
+    await wait(100);
+    const table = () => document.querySelector('.ability-table');
+    expect(table().classList.contains('hide-tplbl-col'), true,
+      'SS-BL5: Template/Bloodline column hidden when no template or bloodline');
+    set('char-level', '20');
+    set('bloodline-name', 'Celestial');
+    await wait(250);
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(100);
+    set('bloodline-strength', 'major');
+    await wait(250);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    // Celestial major @ L20 bumps WIS/CHA/CON +1.
+    expect(table().classList.contains('hide-tplbl-col'), false,
+      'SS-BL5: column shown once a bloodline contributes');
+    expectText('#wis-tplbl', '+1',
+      'SS-BL5: WIS bloodline bump lands in the Template/Bloodline column');
+    expectText('#wis-item', '',
+      'SS-BL5: WIS bloodline bump is NOT in the Item Bonus column');
+    expectText('#wis-total', '11', 'SS-BL5: WIS total still includes the bump');
+    expectText('#str-tplbl', '',
+      'SS-BL5: STR (no Celestial bump) stays blank in the column');
+    // Clearing the bloodline hides the column again and resets the total.
+    set('bloodline-name', '');
+    await wait(250);
+    expect(table().classList.contains('hide-tplbl-col'), true,
+      'SS-BL5: column hides again when the bloodline clears');
+    expectText('#wis-total', '10', 'SS-BL5: WIS total back to base on clear');
+  });
+
   regression('SS-BL2: bonus feats inject + bloodline level in Class & Level box', async () => {
     // (c) bonus feats auto-inject into the Feats list as marked
     // data-from-bloodline rows (derived, not persisted); (b) the

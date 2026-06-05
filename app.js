@@ -107,7 +107,11 @@
   // Returns { abilities: { STR: N, ... }, saves: { will: N, ... }, ac: N }
   // ============================================================
   function collectActiveBonuses() {
-    const bonuses = { abilities: {}, saves: {}, ac: 0 };
+    // `abilities` is the merged active-bonus sum used for modifier math.
+    // `bloodlineAbilities` mirrors only the bloodline portion so the
+    // Character tab can show it in the Template / Bloodline column instead
+    // of lumping it into the Item Bonus column.
+    const bonuses = { abilities: {}, saves: {}, ac: 0, bloodlineAbilities: {} };
 
     // Class features (rage, future: other toggles)
     if (typeof ClassFeatures.getActiveBonuses === "function") {
@@ -160,6 +164,8 @@
       const bl = Bloodline.getActiveBonuses();
       for (const [ab, val] of Object.entries(bl.abilities || {})) {
         bonuses.abilities[ab] = (bonuses.abilities[ab] || 0) + val;
+        bonuses.bloodlineAbilities[ab] =
+          (bonuses.bloodlineAbilities[ab] || 0) + val;
       }
     }
 

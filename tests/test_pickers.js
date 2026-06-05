@@ -3800,6 +3800,34 @@ test('bloodline: skill bonuses — direct folds into total, affinity is a note',
     '(never added to the total).');
 });
 
+test('bloodline: ability bumps render in the Template/Bloodline column, not Item', () => {
+  // Bloodline ability bumps must surface in the read-only Template /
+  // Bloodline column (which hides when empty), not lumped into Item Bonus.
+  const html = readSource('index.html');
+  assert(/type="hidden"\s+id="str-template"/.test(html),
+    'index.html: #str-template should be a hidden backing input (picker-' +
+    'written + persisted), with the visible value in the Template/Bloodline span.');
+  assert(/id="str-tplbl"/.test(html) && /id="cha-tplbl"/.test(html),
+    'index.html: missing the per-ability Template/Bloodline display spans (#x-tplbl).');
+  assert(/Template\s*\/\s*Bloodline/.test(html),
+    'index.html: the ability column header should read "Template / Bloodline".');
+  assert(/ability-table hide-tplbl-col/.test(html),
+    'index.html: ability table should start with hide-tplbl-col (hidden when empty).');
+
+  const app = readSource('app.js');
+  assert(/bloodlineAbilities/.test(app),
+    'app.js#collectActiveBonuses must expose the bloodline portion separately ' +
+    '(bloodlineAbilities) so it can show in its own column, not Item Bonus.');
+
+  const ch = readSource('character.js');
+  assert(/bloodlineBonus(es)?\b/.test(ch) && /\bitemBonus\b/.test(ch),
+    'character.js#recalc must split the merged active bonus into item vs bloodline.');
+  assert(/-tplbl`?\)/.test(ch) || /-tplbl"/.test(ch) || /\$\(`#\$\{lower\}-tplbl`\)/.test(ch),
+    'character.js must write the Template/Bloodline span (#x-tplbl).');
+  assert(/hide-tplbl-col/.test(ch),
+    'character.js must toggle hide-tplbl-col when the column is empty.');
+});
+
 test('bloodline: registered in the index.html module load order', () => {
   const html = readSource('index.html');
   assert(/['"]bloodline\.js['"]/.test(html),

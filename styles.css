@@ -363,6 +363,11 @@ textarea {
 .ability-table input { width: 50px; text-align: center; }
 
 .ability-item-bonus { color: var(--accent); font-size: 0.8rem; min-width: 30px; display: inline-block; }
+/* Derived Template / Bloodline bonus — gold-toned to read as "from a
+   template or bloodline" rather than an item bonus. The whole column hides
+   when no ability has a template or bloodline contribution. */
+.ability-tplbl-bonus { color: #c8a14a; font-size: 0.8rem; min-width: 30px; display: inline-block; }
+.ability-table.hide-tplbl-col .ability-col-tplbl { display: none; }
 .ability-total { font-weight: 600; min-width: 30px; display: inline-block; }
 
 .ability-to-ac-section { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.4rem; padding: 0.3rem 0; font-size: 0.75rem; }

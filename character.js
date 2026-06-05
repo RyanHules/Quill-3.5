@@ -16,21 +16,33 @@ const Character = (function () {
   // ============================================================
   function recalc(getAbilityMod, bonuses = {}) {
     const abilityBonuses = bonuses.abilities || {};
+    const bloodlineBonuses = bonuses.bloodlineAbilities || {};
     const saveBonuses = bonuses.saves || {};
     const acBonus = bonuses.ac || 0;
 
-    // Ability modifiers (include active bonuses like rage + items + race)
+    // Ability modifiers (include active bonuses like rage + items + race).
+    // The merged `bonus` still drives the math; for DISPLAY we split it so
+    // the derived Template / Bloodline column carries template + bloodline
+    // and the Item Bonus column carries only the rest (items/rage/conditions).
+    let anyTplbl = false;
     DND35.abilities.forEach((ab) => {
       const lower = ab.toLowerCase();
-      const bonus = abilityBonuses[ab] || 0;            // active/item bonus
+      const bonus = abilityBonuses[ab] || 0;             // merged active bonus
+      const bloodlineBonus = bloodlineBonuses[ab] || 0;  // bloodline portion
+      const itemBonus = bonus - bloodlineBonus;          // items/rage/conditions
       const rawScore = int($(`#${lower}-score`).value);
-      const raceMod = int($(`#${lower}-race`)?.value);  // racial adjustment
-      const tplMod  = int($(`#${lower}-template`)?.value); // template (Half-Dragon, etc.)
+      const raceMod = int($(`#${lower}-race`)?.value);   // racial adjustment
+      const tplMod  = int($(`#${lower}-template`)?.value); // template (hidden backing input)
       const totalScore = rawScore + raceMod + tplMod + bonus;
       const baseMod = DND35.abilityModifier(totalScore);
-      // Item bonus column (show only when non-zero)
+      // Item bonus column — non-bloodline active bonuses only.
       const itemEl = $(`#${lower}-item`);
-      if (itemEl) itemEl.textContent = bonus ? fmt(bonus) : "";
+      if (itemEl) itemEl.textContent = itemBonus ? fmt(itemBonus) : "";
+      // Template / Bloodline column — template adjustment + bloodline bumps.
+      const tplblVal = tplMod + bloodlineBonus;
+      const tplblEl = $(`#${lower}-tplbl`);
+      if (tplblEl) tplblEl.textContent = tplblVal ? fmt(tplblVal) : "";
+      if (tplblVal !== 0) anyTplbl = true;
       // Total score column — only show when there's a base score
       const totalEl = $(`#${lower}-total`);
       if (totalEl) totalEl.textContent = rawScore ? totalScore : "";
@@ -44,6 +56,10 @@ const Character = (function () {
         $(`#${lower}-tempmod`).textContent = "";
       }
     });
+    // Hide the Template / Bloodline column entirely when nothing's in it
+    // (the common case — no template applied, no bloodline selected).
+    const abilityTable = document.querySelector(".ability-table");
+    if (abilityTable) abilityTable.classList.toggle("hide-tplbl-col", !anyTplbl);
 
     // Size modifier
     const size = $("#char-size").value;
