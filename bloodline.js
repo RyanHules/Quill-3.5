@@ -176,10 +176,16 @@ const Bloodline = (function () {
   // count, preserving existing paid flags positionally.
   function syncSlots() {
     const s = currentStrength();
-    const req = (s && Array.isArray(s.bloodline_levels_required))
-      ? s.bloodline_levels_required : [];
-    const next = req.map((_, i) => !!state.slotsPaid[i]);
-    state.slotsPaid = next;
+    // When the strength can't be resolved yet — e.g. a saved character is
+    // loaded BEFORE DB.ready has built the bloodline catalog — do NOT
+    // clobber state.slotsPaid. Wiping it here loses the saved bloodline-
+    // level checkboxes for good, because the DB.ready handler re-renders
+    // from `state` and there's nothing left to restore (save-stability
+    // rule #4). Leave the saved flags intact; render() re-syncs them once
+    // the entry resolves and req has a real length.
+    if (!s || !Array.isArray(s.bloodline_levels_required)) return;
+    const req = s.bloodline_levels_required;
+    state.slotsPaid = req.map((_, i) => !!state.slotsPaid[i]);
   }
 
   // ------------------------------------------------------------------

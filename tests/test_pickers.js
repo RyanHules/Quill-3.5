@@ -3754,6 +3754,27 @@ test('bloodline: _bloodline persists name+source, not a brittle DB id', () => {
     'by name/source (resolveSelection).');
 });
 
+test('save: bloodline.js syncSlots preserves slotsPaid when unresolved (load-before-DB-ready)', () => {
+  // Save-stability rule #4: a saved character can load BEFORE DB.ready has
+  // built the bloodline catalog. If syncSlots() unconditionally rewrites
+  // state.slotsPaid from the (empty) resolved threshold list, the saved
+  // bloodline-level checkboxes are wiped for good — the DB.ready re-render
+  // has nothing left to restore. The guard must early-return when the
+  // strength can't resolve, leaving the saved flags intact. (Bug fixed
+  // 2026-06-05: checked bloodline-level slots vanished on reload.)
+  const src = readSource('bloodline.js');
+  const body = extractFunctionBody(src, 'syncSlots');
+  assert(body, 'syncSlots not found in bloodline.js');
+  const retIdx = body.search(/\breturn\b/);
+  const assignIdx = body.search(/state\.slotsPaid\s*=/);
+  assert(retIdx !== -1,
+    'bloodline.js#syncSlots has no early-return guard — a load-before-DB-' +
+    'ready wipes slotsPaid (bloodline-level checkboxes do not survive reload).');
+  assert(assignIdx !== -1 && retIdx < assignIdx,
+    'bloodline.js#syncSlots must guard (return) BEFORE overwriting ' +
+    'state.slotsPaid, so an unresolved strength preserves the saved flags.');
+});
+
 test('bloodline: registered in the index.html module load order', () => {
   const html = readSource('index.html');
   assert(/['"]bloodline\.js['"]/.test(html),

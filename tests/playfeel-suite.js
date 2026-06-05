@@ -851,6 +851,59 @@
       'SS-BL: bumps re-derive from the restored selection after reload');
   });
 
+  regression('SS-BL3: bloodline-level slots round-trip + survive an unresolved load', async () => {
+    // Bug fixed 2026-06-05: checked bloodline-level slots vanished on reload.
+    // Loading a saved character BEFORE DB.ready built the catalog left the
+    // bloodline unresolved, and syncSlots() then wiped state.slotsPaid. Two
+    // assertions: (1) the slots round-trip through save/clear/load, and
+    // (2) an UNRESOLVED selection (the same code path as load-before-DB-ready:
+    // currentStrength() === null) preserves the saved flags rather than wiping
+    // them. Celestial is a published UA bloodline (3 strengths), no homebrew.
+    await newCharacter();
+    await waitForDb();
+    await wait(200);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    set('char-level', '20');
+    set('bloodline-name', 'Celestial');
+    await wait(250);
+    // Major has 3 thresholds (L3/6/12). The tracker lives on Feats & Abilities.
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(150);
+    set('bloodline-strength', 'major');
+    await wait(200);
+    const boxAt = (i) => document.querySelector(
+      `#bloodline-thresholds .bloodline-slot-paid[data-slot="${i}"]`);
+    expect(!!boxAt(0) && !!boxAt(2), true,
+      'SS-BL3: major bloodline shows the 3 slot checkboxes');
+    // Check Bloodline 1 (slot 0) + Bloodline 3 (slot 2). render() rebuilds the
+    // panel on each change, so re-query the live box for the second toggle.
+    boxAt(0).checked = true;
+    boxAt(0).dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(120);
+    boxAt(2).checked = true;
+    boxAt(2).dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(150);
+    const blob = Bloodline.collectData();
+    expect(JSON.stringify(blob._bloodline.slotsPaid), '[true,false,true]',
+      'SS-BL3: collectData persists the checked bloodline-level slots');
+    // (1) save → New Character → reload.
+    await newCharacter();
+    await wait(150);
+    Bloodline.loadData(blob);
+    await wait(250);
+    expect(JSON.stringify(Bloodline.collectData()._bloodline.slotsPaid),
+      '[true,false,true]', 'SS-BL3: slots survive a save/clear/load round-trip');
+    // (2) load-before-resolve: a selection whose entry does NOT resolve must
+    // preserve slotsPaid (guards the load-before-DB-ready wipe).
+    Bloodline.loadData({ _bloodline: { name: '__nope_unresolved_bloodline__',
+      source: '', strength: 'major', slotsPaid: [true, false, true], notes: '' } });
+    await wait(150);
+    expect(JSON.stringify(Bloodline.collectData()._bloodline.slotsPaid),
+      '[true,false,true]',
+      'SS-BL3: an unresolved selection preserves slotsPaid (load-before-DB-ready guard)');
+  });
+
   regression('SS-BL2: bonus feats inject + bloodline level in Class & Level box', async () => {
     // (c) bonus feats auto-inject into the Feats list as marked
     // data-from-bloodline rows (derived, not persisted); (b) the
