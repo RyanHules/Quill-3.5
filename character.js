@@ -35,7 +35,11 @@ const Character = (function () {
       const rawScore = int($(`#${lower}-score`).value);
       const raceMod = int($(`#${lower}-race`)?.value);   // racial adjustment
       const tplMod  = int($(`#${lower}-template`)?.value); // template (hidden backing input)
-      const totalScore = rawScore + raceMod + tplMod + bonus;  // permanent total
+      const tempDelta = int($(`#${lower}-temp`)?.value);   // temporary adjustment (delta)
+      // Total is the EFFECTIVE current score — every contributor column to its
+      // left (base, race, template/bloodline, misc, temp) sums into it, so
+      // Total and the Modifier next to it stay consistent.
+      const totalScore = rawScore + raceMod + tplMod + bonus + tempDelta;
       // Misc column — non-bloodline active bonuses; hides when empty.
       const miscEl = $(`#${lower}-misc`);
       if (miscEl) miscEl.textContent = miscBonus ? fmt(miscBonus) : "";
@@ -45,8 +49,8 @@ const Character = (function () {
       const tplblEl = $(`#${lower}-tplbl`);
       if (tplblEl) tplblEl.textContent = tplblVal ? fmt(tplblVal) : "";
       if (tplblVal !== 0) anyTplbl = true;
-      // Total = permanent score (only when there's a base score). Modifier =
-      // effective mod, including the writable Temp adjustment.
+      // Total = effective score incl. Temp (shown only when there's a base
+      // score). Modifier = the same effective mod via getAbilityMod.
       const totalEl = $(`#${lower}-total`);
       if (totalEl) totalEl.textContent = rawScore ? totalScore : "";
       $(`#${lower}-mod`).textContent = fmt(getAbilityMod(ab));

@@ -1029,7 +1029,8 @@
     await wait(150);
     expectText('#str-mod', '+4',
       'AB-TEMP: Temp +4 lifts STR 14 to an effective 18 (+4)');
-    expectText('#str-total', '14', 'AB-TEMP: Total stays the permanent score (14)');
+    expectText('#str-total', '18',
+      'AB-TEMP: Total reflects the effective score including Temp (18)');
     // Propagates to a STR-based skill (Climb, 0 ranks) → +4.
     document.querySelector('[data-tab="tab-skills"]').click();
     await wait(150);
