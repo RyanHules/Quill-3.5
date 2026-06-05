@@ -207,6 +207,58 @@ const Bloodline = (function () {
     return bonuses;
   }
 
+  // The 5 social skills a bloodline-affinity bonus applies to (UA: "all
+  // Bluff, Diplomacy, Gather Information, Intimidate, and Perform checks").
+  const AFFINITY_SKILLS = ['Bluff', 'Diplomacy', 'Gather Information',
+                           'Intimidate', 'Perform'];
+
+  // Skill bonuses granted by active traits, for skills.js to apply. TWO
+  // kinds, surfaced separately because they behave differently:
+  //   - direct: an unconditional "+N on <Skill> checks" — folds into the
+  //     skill's TOTAL (keyed by skill name, lower-cased; "Perform" matches
+  //     every Perform subtype via the base name on the skills side).
+  //   - affinity: the situational "<X> affinity +2/+4/+6" — applies ONLY
+  //     to the 5 social skills vs creatures of the bloodline, so it is a
+  //     NOTE, never added to the total. Affinity REPLACES (it scales
+  //     2→4→6), so we take the max active value, not a sum.
+  // The trait NAME is parsed (not a structured field) because trait_type
+  // already disambiguates Skill vs Affinity vs Ex, and the published UA
+  // names are perfectly regular ("+2 on Sense Motive checks", "Celestial
+  // affinity +4"). A malformed name simply contributes nothing.
+  function getActiveSkillBonuses() {
+    const direct = {};
+    let affinityValue = 0;
+    let affinityVs = '';
+    for (const t of activeTraits()) {
+      if (t.trait_type === 'Skill') {
+        const m = /^\+(\d+)\s+on\s+(.+?)\s+checks$/i.exec(t.name || '');
+        if (m) {
+          const n = parseInt(m[1], 10) || 0;
+          const key = m[2].trim().toLowerCase();
+          if (n) direct[key] = (direct[key] || 0) + n;
+        }
+      } else if (t.trait_type === 'Affinity') {
+        const m = /affinity\s+\+(\d+)/i.exec(t.name || '');
+        if (m) {
+          const n = parseInt(m[1], 10) || 0;
+          if (n > affinityValue) affinityValue = n;
+          if (!affinityVs && t.description) {
+            const dm = /interact with\s+([^.]+)\.?/i.exec(t.description);
+            if (dm) affinityVs = dm[1].trim();
+          }
+        }
+      }
+    }
+    return {
+      direct,
+      affinity: affinityValue
+        ? { value: affinityValue,
+            vs: affinityVs || `creatures of your ${state.name} bloodline`,
+            skills: AFFINITY_SKILLS.slice() }
+        : null,
+    };
+  }
+
   // Auto-inject the bonus feats granted by active traits into the Feats
   // tab as marked rows (`data-from-bloodline`). Reconciling + idempotent:
   // rebuilds only when the active set actually changes, so slot toggles
@@ -612,6 +664,7 @@ const Bloodline = (function () {
 
   return {
     getActiveBonuses,
+    getActiveSkillBonuses,
     getClassLevelLabel,
     collectData,
     loadData,

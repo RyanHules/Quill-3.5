@@ -216,6 +216,17 @@ const Skills = (function () {
       && ItemFamiliar.getAllSkillBonuses)
       ? ItemFamiliar.getAllSkillBonuses() : {};
 
+    // Bloodline skill bonuses (UA Bloodlines). `direct` is an
+    // unconditional {skill_lower: bonus} map that folds into the total
+    // (a "Perform" key applies to every Perform subtype via base name).
+    // `affinity` is the SITUATIONAL social bonus vs creatures of the
+    // bloodline — surfaced as a per-skill note, never added to the total.
+    const bloodlineSkill = (typeof Bloodline !== "undefined"
+      && Bloodline.getActiveSkillBonuses)
+      ? Bloodline.getActiveSkillBonuses() : { direct: {}, affinity: null };
+    const affinitySkillsLower = bloodlineSkill.affinity
+      ? bloodlineSkill.affinity.skills.map(s => s.toLowerCase()) : [];
+
     // First pass: gather all skill ranks for synergy calculation
     const rankMap = {};
     $$("#skills-body-left tr, #skills-body-right tr").forEach((row) => {
@@ -307,8 +318,18 @@ const Skills = (function () {
       const equipBonus = equipSkillBonuses[skillName] || 0;
       // Item Familiar skill bonuses (lowercased lookup).
       const ifamBonus = itemFamiliarSkillBonuses[(skillName || "").toLowerCase()] || 0;
+      // Bloodline DIRECT skill bonus (unconditional). Match the full skill
+      // name, and — for subtype rows (Perform) — the base name too, so a
+      // "+2 on Perform checks" trait reaches every Perform subtype. The
+      // two keys never collide (full vs base), so summing can't double-count.
+      const blKey = (skillName || "").toLowerCase();
+      const blBaseKey = (baseName && baseName !== skillName)
+        ? baseName.toLowerCase() : null;
+      const bloodlineBonus = (bloodlineSkill.direct[blKey] || 0)
+        + (blBaseKey ? (bloodlineSkill.direct[blBaseKey] || 0) : 0);
 
-      const total = abilityMod + ranks + misc + penalty + synergyBonus + equipBonus + ifamBonus;
+      const total = abilityMod + ranks + misc + penalty + synergyBonus
+        + equipBonus + ifamBonus + bloodlineBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");
@@ -337,18 +358,47 @@ const Skills = (function () {
             `title="Item familiar bonus (UA): bypass max-ranks cap">` +
             `+${ifamBonus} item familiar</span>`);
         }
+        if (bloodlineBonus > 0) {
+          badges.push(
+            `<span class="synergy-badge" style="background:rgba(200,140,60,0.16);border-color:rgba(200,140,60,0.5)" ` +
+            `title="Bloodline skill bonus (UA Bloodlines)">` +
+            `+${bloodlineBonus} bloodline</span>`);
+        }
         synInfoEl.innerHTML = badges.join("");
       }
 
       // Auto-populate situational synergies into the skill's notes
       const toggleBtn = row.querySelector(".skill-notes-toggle");
       if (toggleBtn) {
-        const synNotes = situational.length > 0
+        // Rank-based synergy notes stay in rankSynergy on their own —
+        // updateClassFeatureSynergies (Spellcraft specialty-school) reads
+        // it and must not pick up the bloodline affinity note.
+        const rankSyn = situational.length > 0
           ? situational.map(s => `+${s.bonus} ${s.note} (${s.from} synergy)`).join("; ")
           : "";
-        toggleBtn.dataset.rankSynergy = synNotes;
+        toggleBtn.dataset.rankSynergy = rankSyn;
+        // Bloodline AFFINITY: situational social bonus vs creatures of the
+        // bloodline — a note on the 5 social skills, NEVER added to the total.
+        const parts = [rankSyn];
+        if (bloodlineSkill.affinity
+            && (affinitySkillsLower.includes(blKey)
+                || (blBaseKey && affinitySkillsLower.includes(blBaseKey)))) {
+          parts.push(`+${bloodlineSkill.affinity.value} vs `
+            + `${bloodlineSkill.affinity.vs} (bloodline affinity)`);
+        }
+        const synNotes = parts.filter(Boolean).join("; ");
         toggleBtn.dataset.synergy = synNotes;
         toggleBtn.classList.toggle("has-notes", !!synNotes || !!toggleBtn.dataset.notes);
+        // If this skill's notes row is already open, refresh the visible
+        // situational-note div so the affinity note appears live.
+        const nextRow = row.nextElementSibling;
+        if (nextRow && nextRow.classList.contains("skill-notes-row-container")) {
+          const synDiv = nextRow.querySelector(".synergy-notes");
+          if (synDiv) {
+            synDiv.textContent = synNotes;
+            synDiv.style.display = synNotes ? "" : "none";
+          }
+        }
       }
     });
 

@@ -904,6 +904,64 @@
       'SS-BL3: an unresolved selection preserves slotsPaid (load-before-DB-ready guard)');
   });
 
+  regression('SS-BL4: bloodline skill bonuses — direct in total, affinity as note', async () => {
+    // Direct skill boosts ("+2 on Sense Motive checks") fold into the skill
+    // TOTAL; affinity bonuses ("Celestial affinity +6") are SITUATIONAL — a
+    // note on the 5 social skills, NEVER added to the total. Uses Celestial
+    // (published UA, 3 strengths). Delta-checks the total with vs without the
+    // bloodline so it's robust to the base ability mod.
+    await newCharacter();
+    await waitForDb();
+    await wait(200);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    // Base 10 (mod +0); the +1 ability bump keeps it +0, so deltas are clean.
+    setAbilities({ WIS: 10, CHA: 10 });
+    set('char-level', '20');
+    set('bloodline-name', 'Celestial');
+    await wait(250);
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(100);
+    set('bloodline-strength', 'major');
+    await wait(200);
+    // Parsed bonuses.
+    const skb = Bloodline.getActiveSkillBonuses();
+    expect(skb.direct['sense motive'], 2, 'SS-BL4: direct "+2 Sense Motive" parsed');
+    expect(skb.affinity && skb.affinity.value, 6, 'SS-BL4: affinity scales to +6 at L20');
+    // Read skill totals on the Skills tab.
+    document.querySelector('[data-tab="tab-skills"]').click();
+    await wait(200);
+    const rowOf = (name) => [...document.querySelectorAll(
+      '#skills-body-left tr, #skills-body-right tr')].find(
+      x => x.querySelector('.skill-name')?.textContent.trim() === name);
+    const totalOf = (name) => {
+      const r = rowOf(name);
+      return r ? parseInt(r.querySelector('.skill-total')?.textContent, 10) : null;
+    };
+    const noteOf = (name) => {
+      const r = rowOf(name);
+      return r ? (r.querySelector('.skill-notes-toggle')?.dataset.synergy || '') : '';
+    };
+    const smWith = totalOf('Sense Motive');     // +2 direct in total
+    const bluffWith = totalOf('Bluff');         // affinity NOT in total
+    expect(/affinity/i.test(noteOf('Bluff')), true,
+      'SS-BL4: Bluff carries the affinity situational note');
+    expect(/affinity/i.test(noteOf('Sense Motive')), false,
+      'SS-BL4: non-social Sense Motive has no affinity note');
+    // Clear the bloodline; the direct bonus must leave the total, and Bluff
+    // (which only had the note) must be unchanged.
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(100);
+    set('bloodline-name', '');
+    await wait(250);
+    document.querySelector('[data-tab="tab-skills"]').click();
+    await wait(150);
+    expect(smWith - totalOf('Sense Motive'), 2,
+      'SS-BL4: direct +2 leaves the Sense Motive total when the bloodline clears');
+    expect(bluffWith - totalOf('Bluff'), 0,
+      'SS-BL4: affinity was never in the Bluff total (delta 0 on clear)');
+  });
+
   regression('SS-BL2: bonus feats inject + bloodline level in Class & Level box', async () => {
     // (c) bonus feats auto-inject into the Feats list as marked
     // data-from-bloodline rows (derived, not persisted); (b) the

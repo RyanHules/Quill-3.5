@@ -3775,6 +3775,31 @@ test('save: bloodline.js syncSlots preserves slotsPaid when unresolved (load-bef
     'state.slotsPaid, so an unresolved strength preserves the saved flags.');
 });
 
+test('bloodline: skill bonuses — direct folds into total, affinity is a note', () => {
+  // UA bloodlines grant two kinds of skill bonus: unconditional "+N on
+  // <Skill> checks" (direct → skill TOTAL) and situational "<X> affinity
+  // +2/+4/+6" (the 5 social skills vs creatures of the bloodline → a NOTE,
+  // never the total). bloodline.js parses its own regular trait names;
+  // skills.js#recalc consumes them.
+  const bl = readSource('bloodline.js');
+  assert(/\bgetActiveSkillBonuses\b/.test(bl),
+    'bloodline.js does not expose getActiveSkillBonuses.');
+  assert(/window\.Bloodline\s*=[\s\S]*getActiveSkillBonuses/.test(bl)
+      || /getActiveSkillBonuses,/.test(bl),
+    'getActiveSkillBonuses is not exported on window.Bloodline.');
+  assert(/\bdirect\b/.test(bl) && /\baffinity\b/.test(bl),
+    'getActiveSkillBonuses must return a {direct, affinity} split.');
+  const sk = readSource('skills.js');
+  assert(/Bloodline\.getActiveSkillBonuses\s*\(/.test(sk),
+    'skills.js#recalc does not consult Bloodline.getActiveSkillBonuses — ' +
+    'bloodline skill bonuses never reach the skills tab.');
+  assert(/\+\s*bloodlineBonus\b/.test(sk),
+    'skills.js must add the DIRECT bloodline bonus to the skill total.');
+  assert(/bloodline affinity/.test(sk),
+    'skills.js must surface the AFFINITY bonus as a situational note ' +
+    '(never added to the total).');
+});
+
 test('bloodline: registered in the index.html module load order', () => {
   const html = readSource('index.html');
   assert(/['"]bloodline\.js['"]/.test(html),
