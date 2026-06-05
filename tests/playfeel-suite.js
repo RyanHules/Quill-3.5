@@ -995,8 +995,8 @@
       'SS-BL5: column shown once a bloodline contributes');
     expectText('#wis-tplbl', '+1',
       'SS-BL5: WIS bloodline bump lands in the Template/Bloodline column');
-    expectText('#wis-item', '',
-      'SS-BL5: WIS bloodline bump is NOT in the Item Bonus column');
+    expectText('#wis-misc', '',
+      'SS-BL5: WIS bloodline bump is NOT in the Misc column');
     expectText('#wis-total', '11', 'SS-BL5: WIS total still includes the bump');
     expectText('#str-tplbl', '',
       'SS-BL5: STR (no Celestial bump) stays blank in the column');
@@ -1006,6 +1006,51 @@
     expect(table().classList.contains('hide-tplbl-col'), true,
       'SS-BL5: column hides again when the bloodline clears');
     expectText('#wis-total', '10', 'SS-BL5: WIS total back to base on clear');
+  });
+
+  regression('AB-TEMP: Temp is a score delta (+ round-trips); Misc hides when empty', async () => {
+    // Temp became a temporary score ADJUSTMENT (delta), not a full alternate
+    // score, and the redundant Temp Score / Temp Mod columns were removed.
+    // Item Bonus → Misc (hides when empty). Verifies the delta math + skill
+    // propagation + the new persistence key + the Misc hide-when-empty toggle.
+    await newCharacter();
+    await waitForDb();
+    await wait(150);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    setAbilities({ STR: 14 });   // +2 mod
+    await wait(120);
+    const table = document.querySelector('.ability-table');
+    expect(table.classList.contains('hide-misc-col'), true,
+      'AB-TEMP: Misc column hidden when no items/rage/conditions');
+    expectText('#str-mod', '+2', 'AB-TEMP: STR 14 = +2 before temp');
+    // Temp +4 (Bull's Strength): effective 18 → +4 mod; Total stays 14.
+    set('str-temp', '4');
+    await wait(150);
+    expectText('#str-mod', '+4',
+      'AB-TEMP: Temp +4 lifts STR 14 to an effective 18 (+4)');
+    expectText('#str-total', '14', 'AB-TEMP: Total stays the permanent score (14)');
+    // Propagates to a STR-based skill (Climb, 0 ranks) → +4.
+    document.querySelector('[data-tab="tab-skills"]').click();
+    await wait(150);
+    const climbTotal = () => parseInt([...document.querySelectorAll(
+      '#skills-body-left tr, #skills-body-right tr')].find(
+      x => x.querySelector('.skill-name')?.textContent.trim() === 'Climb')
+      ?.querySelector('.skill-total')?.textContent, 10);
+    expect(climbTotal(), 4, 'AB-TEMP: Temp propagates to STR-based skills (Climb +4)');
+    // Negative temp (ability damage): STR 14 - 4 = effective 10 → +0.
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(120);
+    set('str-temp', '-4');
+    await wait(150);
+    expectText('#str-mod', '+0', 'AB-TEMP: negative Temp models ability damage');
+    // Persistence: new `-temp-adj` key, NOT the old full-score `-temp` key.
+    set('str-temp', '3');
+    await wait(100);
+    const blob = Character.collectData();
+    expect(blob['str-temp-adj'], '3', 'AB-TEMP: Temp persists under str-temp-adj');
+    expect(blob['str-temp'], undefined,
+      'AB-TEMP: the old full-score str-temp key is no longer written');
   });
 
   regression('SS-BL2: bonus feats inject + bloodline level in Class & Level box', async () => {

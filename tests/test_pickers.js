@@ -3820,12 +3820,46 @@ test('bloodline: ability bumps render in the Template/Bloodline column, not Item
     '(bloodlineAbilities) so it can show in its own column, not Item Bonus.');
 
   const ch = readSource('character.js');
-  assert(/bloodlineBonus(es)?\b/.test(ch) && /\bitemBonus\b/.test(ch),
-    'character.js#recalc must split the merged active bonus into item vs bloodline.');
+  assert(/bloodlineBonus(es)?\b/.test(ch) && /\bmiscBonus\b/.test(ch),
+    'character.js#recalc must split the merged active bonus into misc vs bloodline.');
   assert(/-tplbl`?\)/.test(ch) || /-tplbl"/.test(ch) || /\$\(`#\$\{lower\}-tplbl`\)/.test(ch),
     'character.js must write the Template/Bloodline span (#x-tplbl).');
   assert(/hide-tplbl-col/.test(ch),
     'character.js must toggle hide-tplbl-col when the column is empty.');
+});
+
+test('ability table: Misc (catch-all, hides empty) + Temp delta column; no Temp Score/Mod', () => {
+  // Item Bonus → Misc (read-only catch-all of items/rage/conditions, hides
+  // when empty). The two redundant Temp Score / Temp Mod columns are replaced
+  // by a single writable Temp ADJUSTMENT (delta) right before Modifier.
+  const html = readSource('index.html');
+  assert(/<th class="ability-col-misc">Misc<\/th>/.test(html),
+    'index.html: the catch-all column header should be "Misc".');
+  assert(/id="str-misc"/.test(html) && /id="cha-misc"/.test(html),
+    'index.html: per-ability Misc spans (#x-misc) missing.');
+  assert(/hide-misc-col/.test(html),
+    'index.html: ability table should start with hide-misc-col (hidden when empty).');
+  assert(/<th>Temp<\/th>/.test(html) && /class="ability-score ability-temp"/.test(html),
+    'index.html: a writable Temp column should exist.');
+  // The ability-table Temp Score / Temp Mod columns are gone (the saves
+  // table keeps its own "Temp Mod" column, so check the ability-specific ids).
+  assert(!/id="str-tempmod"/.test(html) && !/id="cha-tempmod"/.test(html),
+    'index.html: the old ability Temp Mod spans (#x-tempmod) must be removed.');
+
+  const app = readSource('app.js');
+  const body = extractFunctionBody(app, 'getAbilityMod');
+  assert(/-temp`?\)?\.value|#\$\{ab\}-temp/.test(body) && /score\s*\+=/.test(body),
+    'app.js#getAbilityMod must add the Temp value to the score as a delta ' +
+    '(not replace the base score).');
+  assert(!/active\s*=\s*temp/.test(body),
+    'app.js#getAbilityMod must NOT use the old temp-replaces-base logic.');
+
+  const ch = readSource('character.js');
+  assert(/-temp-adj/.test(ch),
+    'character.js must persist Temp under the new `-temp-adj` key (the meaning ' +
+    'changed from a full alternate score to a delta).');
+  assert(/hide-misc-col/.test(ch),
+    'character.js must toggle hide-misc-col when the Misc column is empty.');
 });
 
 test('bloodline: registered in the index.html module load order', () => {

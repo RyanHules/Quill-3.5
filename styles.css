@@ -362,7 +362,10 @@ textarea {
 
 .ability-table input { width: 50px; text-align: center; }
 
-.ability-item-bonus { color: var(--accent); font-size: 0.8rem; min-width: 30px; display: inline-block; }
+/* Misc column — the catch-all for items / rage / conditions. Hides when
+   every ability's misc bonus is zero. */
+.ability-misc-bonus { color: var(--accent); font-size: 0.8rem; min-width: 30px; display: inline-block; }
+.ability-table.hide-misc-col .ability-col-misc { display: none; }
 /* Derived Template / Bloodline bonus — gold-toned to read as "from a
    template or bloodline" rather than an item bonus. The whole column hides
    when no ability has a template or bloodline contribution. */

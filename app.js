@@ -84,21 +84,23 @@
   // ============================================================
   function getAbilityMod(ability, abilityBonuses) {
     const ab = ability.toLowerCase();
-    const temp = $(`#${ab}-temp`).value;
-    const base = $(`#${ab}-score`).value;
+    const base = $(`#${ab}-score`)?.value;
     const race = $(`#${ab}-race`)?.value;
     const tpl  = $(`#${ab}-template`)?.value;
     // "—" (em dash), "–" (en dash), or "-" (hyphen) means "no ability
     // score" — RAW says constructs/undead with no score get +0 mod, not
     // the -5 a literal 0 would produce. Short-circuit before the
-    // arithmetic so racial/template/bonus adjustments don't bring a
+    // arithmetic so racial/template/bonus/temp adjustments don't bring a
     // scoreless ability back into negative-mod territory.
-    const active = temp !== "" ? temp : base;
-    if (active === "—" || active === "–" || active === "-") return 0;
-    let score = temp !== "" ? parseInt(temp) || 0 : parseInt(base) || 0;
+    if (base === "—" || base === "–" || base === "-") return 0;
+    let score = parseInt(base) || 0;
     score += parseInt(race) || 0;  // racial adjustment always applies
     score += parseInt(tpl)  || 0;  // template adjustment (Half-Dragon, etc.)
     if (abilityBonuses) score += abilityBonuses[ability] || 0;
+    // Temp is a temporary ADJUSTMENT to the score (e.g. +4 Bull's Strength,
+    // -2 ability damage), not a full alternate score — so it stacks like
+    // every other modifier rather than replacing the base.
+    score += parseInt($(`#${ab}-temp`)?.value) || 0;
     return DND35.abilityModifier(score);
   }
 

@@ -20,46 +20,43 @@ const Character = (function () {
     const saveBonuses = bonuses.saves || {};
     const acBonus = bonuses.ac || 0;
 
-    // Ability modifiers (include active bonuses like rage + items + race).
-    // The merged `bonus` still drives the math; for DISPLAY we split it so
-    // the derived Template / Bloodline column carries template + bloodline
-    // and the Item Bonus column carries only the rest (items/rage/conditions).
+    // Ability modifiers. The merged `bonus` still drives the math; for
+    // DISPLAY we split it so the derived Template / Bloodline column carries
+    // template + bloodline and the Misc column carries the rest (items / rage
+    // / conditions). Both hide when empty. The Modifier is the EFFECTIVE mod —
+    // getAbilityMod folds in the Temp adjustment (delta).
     let anyTplbl = false;
+    let anyMisc = false;
     DND35.abilities.forEach((ab) => {
       const lower = ab.toLowerCase();
       const bonus = abilityBonuses[ab] || 0;             // merged active bonus
       const bloodlineBonus = bloodlineBonuses[ab] || 0;  // bloodline portion
-      const itemBonus = bonus - bloodlineBonus;          // items/rage/conditions
+      const miscBonus = bonus - bloodlineBonus;          // items/rage/conditions
       const rawScore = int($(`#${lower}-score`).value);
       const raceMod = int($(`#${lower}-race`)?.value);   // racial adjustment
       const tplMod  = int($(`#${lower}-template`)?.value); // template (hidden backing input)
-      const totalScore = rawScore + raceMod + tplMod + bonus;
-      const baseMod = DND35.abilityModifier(totalScore);
-      // Item bonus column — non-bloodline active bonuses only.
-      const itemEl = $(`#${lower}-item`);
-      if (itemEl) itemEl.textContent = itemBonus ? fmt(itemBonus) : "";
+      const totalScore = rawScore + raceMod + tplMod + bonus;  // permanent total
+      // Misc column — non-bloodline active bonuses; hides when empty.
+      const miscEl = $(`#${lower}-misc`);
+      if (miscEl) miscEl.textContent = miscBonus ? fmt(miscBonus) : "";
+      if (miscBonus !== 0) anyMisc = true;
       // Template / Bloodline column — template adjustment + bloodline bumps.
       const tplblVal = tplMod + bloodlineBonus;
       const tplblEl = $(`#${lower}-tplbl`);
       if (tplblEl) tplblEl.textContent = tplblVal ? fmt(tplblVal) : "";
       if (tplblVal !== 0) anyTplbl = true;
-      // Total score column — only show when there's a base score
+      // Total = permanent score (only when there's a base score). Modifier =
+      // effective mod, including the writable Temp adjustment.
       const totalEl = $(`#${lower}-total`);
       if (totalEl) totalEl.textContent = rawScore ? totalScore : "";
-      $(`#${lower}-mod`).textContent = fmt(baseMod);
-
-      const tempVal = $(`#${lower}-temp`).value;
-      if (tempVal !== "") {
-        $(`#${lower}-tempmod`).textContent =
-          fmt(DND35.abilityModifier(int(tempVal) + raceMod + tplMod + bonus));
-      } else {
-        $(`#${lower}-tempmod`).textContent = "";
-      }
+      $(`#${lower}-mod`).textContent = fmt(getAbilityMod(ab));
     });
-    // Hide the Template / Bloodline column entirely when nothing's in it
-    // (the common case — no template applied, no bloodline selected).
+    // Hide the derived columns entirely when nothing's in them (common case).
     const abilityTable = document.querySelector(".ability-table");
-    if (abilityTable) abilityTable.classList.toggle("hide-tplbl-col", !anyTplbl);
+    if (abilityTable) {
+      abilityTable.classList.toggle("hide-tplbl-col", !anyTplbl);
+      abilityTable.classList.toggle("hide-misc-col", !anyMisc);
+    }
 
     // Size modifier
     const size = $("#char-size").value;
@@ -403,13 +400,17 @@ const Character = (function () {
       if (el) data[id] = el.value;
     });
 
-    // Ability scores (base, racial adjustment, temp)
+    // Ability scores (base, racial adjustment, template, temp adjustment).
+    // Temp is persisted under a NEW key (`-temp-adj`) because its meaning
+    // changed from a full alternate score to a temporary +/- adjustment
+    // (2026-06-05); the old `-temp` key in pre-change saves is intentionally
+    // not loaded so a stale full score never reloads as a huge delta.
     DND35.abilities.forEach((ab) => {
       const lower = ab.toLowerCase();
       data[`${lower}-score`] = $(`#${lower}-score`).value;
       data[`${lower}-race`] = $(`#${lower}-race`)?.value || "";
       data[`${lower}-template`] = $(`#${lower}-template`)?.value || "";
-      data[`${lower}-temp`] = $(`#${lower}-temp`).value;
+      data[`${lower}-temp-adj`] = $(`#${lower}-temp`)?.value || "";
     });
 
     // HP
@@ -492,7 +493,13 @@ const Character = (function () {
         const el = $(`#${lower}-template`);
         if (el) el.value = data[`${lower}-template`];
       }
-      if (data[`${lower}-temp`] !== undefined) $(`#${lower}-temp`).value = data[`${lower}-temp`];
+      // Temp = the new temporary adjustment (delta). The pre-2026-06-05
+      // `-temp` key (a full alternate score) is intentionally NOT loaded so a
+      // stale value never reloads as a huge +/- delta.
+      if (data[`${lower}-temp-adj`] !== undefined) {
+        const el = $(`#${lower}-temp`);
+        if (el) el.value = data[`${lower}-temp-adj`];
+      }
     });
 
     // Ability-to-AC toggles
