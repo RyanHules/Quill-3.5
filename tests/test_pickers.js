@@ -1507,6 +1507,10 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // DOES carry companion metadata.)
     'Cosmic Descryer/Bonus Feat (Ex)',
     'Divine Emissary/Bonus Feats',
+    // 2026-06-06 Eberron CS v3-walk: the Magewright NPC class's "Spell Mastery"
+    // is wizard-style spell preparation without a spellbook — not a companion
+    // grant. Incidental keyword match (it references the Spell Mastery feat).
+    'Magewright/Spell Mastery',
   ]);
 
   const rows = execAll(db,

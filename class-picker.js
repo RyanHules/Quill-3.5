@@ -238,6 +238,7 @@
     'Spellthief': 'arcane',     // Complete Adventurer
     'Jester': 'arcane',         // Dragon Compendium
     'Death Master': 'arcane',   // Dragon Compendium
+    'Magewright': 'arcane',     // Eberron Campaign Setting (NPC class — wizard-style prep)
     'Cleric': 'divine',  'Druid': 'divine',
     'Paladin': 'divine', 'Ranger': 'divine',
     'Healer': 'divine',  'Shugenja': 'divine',
@@ -278,6 +279,7 @@
     'Wu Jen': 'prepared',
     'Death Master': 'prepared',
     'Assassin': 'prepared',
+    'Magewright': 'prepared',   // Eberron CS NPC class — prepares spells as a wizard (no spellbook)
     // Arcane spontaneous (incl. "fixed list" spontaneous casters)
     'Sorcerer': 'spontaneous',
     'Bard': 'spontaneous',
