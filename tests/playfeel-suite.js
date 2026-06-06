@@ -675,21 +675,24 @@
       'SS1: old "Familiar" display-text compType migrates to "familiar" key on load');
   });
 
-  regression('SS-CR: creature-race racial-HD row round-trips via _multiclass', async () => {
-    // Creature-as-race (creature-race-picker.js): picking a creature with
+  regression('SS-CR: monster race (race-picker) applies RHD + NA and round-trips', async () => {
+    // Monster race via the MAIN race-picker. Bugbear migrated from a creature
+    // as_character block to a type=race entry in the MM I v3 walk, so it now
+    // routes through race-picker.js (not creature-race-picker.js). A race with
     // racial Hit Dice injects a SYNTHETIC class row into the multiclass
-    // aggregate. That row has no DB class, so its prog can't be rehydrated
-    // on load — class-picker persists prog + creatureRace directly in
-    // _multiclass and reconstructs the row from the stub. This drives the
-    // real collectData → loadData round-trip end to end.
+    // aggregate via ClassPicker.addRacialHD; the row has no DB class, so its
+    // prog can't be rehydrated on load — class-picker persists prog +
+    // creatureRace directly in _multiclass and reconstructs from the stub.
+    // Also guards that the racial natural-armor bonus reaches #ac-natural.
     await newCharacter();
     document.querySelector('[data-tab="tab-character"]').click();
     await wait(150);
-    set('char-race', 'Bugbear');   // unified Race field; 3 Humanoid racial HD
+    set('char-race', 'Bugbear');   // unified Race field; 3 Humanoid racial HD, +3 NA
     await wait(400);
-    // Adjustment layer landed on the Race column + size.
+    // Adjustment layer landed on the Race column + size + natural armor.
     expectValue('#str-race', '4', 'SS-CR: Bugbear +4 Str in the race column');
     expectValue('#char-size', 'Medium', 'SS-CR: Bugbear size Medium');
+    expectValue('#ac-natural', '3', 'SS-CR: Bugbear +3 natural armor applied');
     // Synthetic racial-HD row reached the aggregate.
     let st = ClassPicker.getState().filter(e => e.racialHD);
     expect(st.length, 1, 'SS-CR: exactly one synthetic racial-HD row');
@@ -1498,35 +1501,37 @@
       return txt;
     };
 
-    // Pick a creature-as-race that carries a structured special_abilities
-    // block (Hound Archon: Aura of Menace [Su], Spell-Like Abilities [Sp],
-    // Change Shape, …). The picker auto-fills its attacks/qualities as
-    // bare, name-only rows tagged data-from-creature-race AND writes the
-    // creature's name into #char-race (the resolver keys off that).
-    set('char-race', 'Archon, Hound');   // unified Race field
+    // Hound Archon migrated to a type=race entry (MM I v3 walk), so it routes
+    // through the MAIN race-picker. For a monster race the picker auto-fills
+    // the creature's INDIVIDUAL special abilities (tagged data-from-race), and
+    // the ⓘ resolver renders each against the creature entry + its subtype-
+    // trait rule (Aura of Menace's full prose lives in "Archon Traits").
+    set('char-race', 'Hound Archon');   // unified Race field
     await wait(400);
     const fromCreature = $$('#special-abilities-container ' +
-      '[data-from-creature-race="1"]');
+      '[data-from-race="1"]');
     if (!fromCreature.length) fail(
-      'SA-INFO-CR: creature picker did not auto-fill any special abilities');
-    expectValue('#char-race', 'Archon, Hound',
-      'SA-INFO-CR: picker writes the creature name into #char-race');
+      'SA-INFO-CR: race-picker did not auto-fill any creature special abilities');
+    expectValue('#char-race', 'Hound Archon',
+      'SA-INFO-CR: race-picker writes the creature name into #char-race');
 
-    // Tier 1 — a quality WITH a detail block resolves to full rules + tag.
+    // Tier 1 — Aura of Menace resolves to FULL rules. Its prose lives in the
+    // "Archon Traits" subtype rule (the stat block is terse), so this also
+    // guards the subtype-trait merge + fullest-description preference.
     const aura = panelTextFor('Aura of menace');
     if (aura == null) fail('SA-INFO-CR: no "Aura of menace" row auto-filled');
-    expectIncludes(aura, 'Aura of Menace', 'SA-INFO-CR: detail block name resolves');
-    expectIncludes(aura, '[Su]', 'SA-INFO-CR: creature ability surfaces its Su/Sp/Ex kind');
+    expectIncludes(aura, 'Aura of Menace', 'SA-INFO-CR: ability name resolves');
+    expectIncludes(aura, '[Su]', 'SA-INFO-CR: surfaces the Su/Sp/Ex kind');
     expectIncludes(aura, 'creature ability', 'SA-INFO-CR: panel attributes the creature');
-    expectIncludes(aura, 'righteous aura', 'SA-INFO-CR: full description rendered');
+    expectIncludes(aura, 'righteous aura', 'SA-INFO-CR: full subtype-trait description rendered');
     if (/custom or homebrew/i.test(aura)) {
       fail('SA-INFO-CR: a real creature ability hit the homebrew fallback');
     }
 
-    // Tier 2 — a listed quality with NO detail block gets the honest stub,
-    // NOT the misleading "custom or homebrew" message.
-    const dr = panelTextFor('DR 10/evil');
-    if (dr == null) fail('SA-INFO-CR: no "DR 10/evil" row auto-filled');
+    // Tier 2 — a listed quality with NO detail block (DR isn't an Archon
+    // subtype trait) gets the honest stub, NOT "custom or homebrew".
+    const dr = panelTextFor('damage reduction 10/evil');
+    if (dr == null) fail('SA-INFO-CR: no "damage reduction 10/evil" row auto-filled');
     expectIncludes(dr, 'No detailed rules text',
       'SA-INFO-CR: undetailed creature ability gets the honest stub');
     if (/custom or homebrew/i.test(dr)) {
@@ -1538,11 +1543,11 @@
     // as plain text). Verify the creature name is collected, and that a
     // value-only restore (no picker re-apply) still resolves the panel.
     const blob = Character.collectData();
-    expect(blob['char-race'], 'Archon, Hound',
+    expect(blob['char-race'], 'Hound Archon',
       'SA-INFO-CR: creature name persists in #char-race');
     document.getElementById('char-race').value = '';
     Character.loadData(blob, () => 0);
-    expectValue('#char-race', 'Archon, Hound',
+    expectValue('#char-race', 'Hound Archon',
       'SA-INFO-CR: #char-race round-trips through loadData');
     const auraAfter = panelTextFor('Aura of menace');
     expectIncludes(auraAfter, 'Aura of Menace',

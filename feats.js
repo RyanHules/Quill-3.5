@@ -511,19 +511,47 @@ const Feats = (function () {
   //     "custom or homebrew" fallback.
   // Returns null when #char-race isn't an as_character creature or the
   // row isn't one of its abilities, so the dispatcher can fall through.
+  // Parse a "{Subtype} Traits" rule (Archon Traits, Baatezu Traits, …) into
+  // {name, kind, description} entries. Format is an intro paragraph followed
+  // by em-dash–prefixed lines: "—Aura of Menace (Su): A righteous aura …" or
+  // bare descriptive lines ("—Immunity to electricity and petrification.").
+  function parseSubtypeTraits(desc) {
+    const out = [];
+    if (!desc) return out;
+    const segs = String(desc).split(/\n\s*—\s*/).slice(1); // drop intro before first entry
+    for (const seg of segs) {
+      const s = seg.trim();
+      if (!s) continue;
+      let m = s.match(/^(.+?)\s*\(([^)]+)\)\s*:\s*([\s\S]+)$/);
+      if (m) { out.push({ name: m[1].trim(), kind: m[2].trim(), description: m[3].trim() }); continue; }
+      m = s.match(/^(.+?)\s*:\s*([\s\S]+)$/);
+      if (m) { out.push({ name: m[1].trim(), kind: "", description: m[2].trim() }); continue; }
+      out.push({ name: s.split(/[.,]/)[0].trim(), kind: "", description: s }); // bare line
+    }
+    return out;
+  }
+
   function renderCreatureAbilityRules(text) {
     const raceInput = document.getElementById("char-race");
     const crName = (raceInput && raceInput.value || "").trim()
       .replace(/\s*\(3\.0\)\s*$/, "")
       .replace(/\s*\(3\.5\)\s*$/, "");
     if (!crName) return null;
+    // No `as_character IS NOT NULL` gate any more: the v3 WALK migrates a
+    // book's "X as Characters" sidebars to standalone type=race entries and
+    // drops the creature's as_character block, so monster races (Bugbear,
+    // Hound Archon, …) resolve against the creature's TOP-LEVEL
+    // special_abilities / special_attacks / special_qualities. Legacy
+    // (not-yet-walked) creatures still carry as_character — read both.
     const row = DB.queryOne(
       "SELECT name, source, version, " +
       "  json_extract(data, '$.special_abilities') AS detail, " +
       "  json_extract(data, '$.as_character.special_attacks') AS ac_sa, " +
-      "  json_extract(data, '$.as_character.special_qualities') AS ac_sq " +
+      "  json_extract(data, '$.as_character.special_qualities') AS ac_sq, " +
+      "  json_extract(data, '$.special_attacks') AS sa, " +
+      "  json_extract(data, '$.special_qualities') AS sq, " +
+      "  json_extract(data, '$.type') AS ctype " +
       "FROM entry WHERE type='creature' AND name = ? COLLATE NOCASE " +
-      "  AND json_extract(data, '$.as_character') IS NOT NULL " +
       "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
       [crName]
     );
@@ -532,9 +560,46 @@ const Feats = (function () {
       try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; }
       catch (e) { return []; }
     };
+    // special_attacks/qualities come in two shapes: a JSON array (as_character
+    // blocks) OR a free-text comma string (creature stat blocks — "Aura of
+    // menace, change shape, damage reduction 10/evil, …"). Normalize both.
+    const parseList = (s) => {
+      if (s == null) return [];
+      let v; try { v = JSON.parse(s); } catch (e) { v = s; }
+      if (Array.isArray(v)) return v.filter((x) => typeof x === "string");
+      if (typeof v === "string") return v.split(",").map((x) => x.trim()).filter(Boolean);
+      return [];
+    };
     const detail = parseArr(row.detail);
-    const known = parseArr(row.ac_sa).concat(parseArr(row.ac_sq))
-      .filter((x) => typeof x === "string");
+    // Subtype traits: a monster's subtype (Archon, Baatezu, Tanar'ri, …)
+    // carries full ability prose in a shared "X Traits" rule. The walk's
+    // stat block is terse ("Aura of Menace [Su]: Will DC 16 negates."), so
+    // merge the fuller per-ability descriptions from the subtype rule(s) into
+    // the detailed pool. Subtypes come from the type=race entry's structured
+    // list, falling back to the creature's type parenthetical
+    // ("Outsider (Archon, Extraplanar, …)").
+    const raceRow = DB.queryOne(
+      "SELECT json_extract(data, '$.subtypes') AS subs FROM entry " +
+      "WHERE type='race' AND name = ? COLLATE NOCASE LIMIT 1", [crName]);
+    let subtypes = parseArr(raceRow && raceRow.subs);
+    if (!subtypes.length) {
+      const m = String(row.ctype || "").match(/\(([^)]+)\)/);
+      subtypes = m ? m[1].split(",").map((x) => x.trim()).filter(Boolean) : [];
+    }
+    const subtypeAbilities = [];
+    for (const st of subtypes) {
+      if (!st) continue;
+      const rule = DB.queryOne(
+        "SELECT json_extract(data, '$.description') AS d FROM entry " +
+        "WHERE type='rule' AND name LIKE ? ORDER BY length(name) LIMIT 1",
+        [st + "%Trait%"]);
+      if (rule && rule.d) {
+        for (const a of parseSubtypeTraits(rule.d)) subtypeAbilities.push(a);
+      }
+    }
+    const detailed = detail.concat(subtypeAbilities);
+    const known = parseList(row.ac_sa).concat(parseList(row.ac_sq))
+      .concat(parseList(row.sa)).concat(parseList(row.sq));
     const rowNorm = normAbility(text.split(/\r?\n/)[0]);
     if (!rowNorm) return null;
 
@@ -559,8 +624,21 @@ const Feats = (function () {
     const attribution = ` <span style="opacity:.7">(${escapeHtml(row.name)} ` +
       `creature ability)</span>`;
 
-    // Tier 1 — structured rules text.
-    const block = matchIn(detail, (d) => d && d.name);
+    // Tier 1 — structured rules text. Match the row against the creature's
+    // own special_abilities PLUS its subtype-trait abilities, preferring the
+    // FULLEST description (the subtype rule's full prose wins over a terse
+    // stat-block note when an ability appears in both).
+    let block = null, bestDescLen = -1;
+    for (const d of detailed) {
+      if (!d || !d.name) continue;
+      const n = normAbility(d.name);
+      if (!n) continue;
+      const hit = n === rowNorm
+        || (n.length >= 4 && rowNorm.includes(n))
+        || (rowNorm.length >= 4 && n.includes(rowNorm));
+      const dl = (d.description || "").length;
+      if (hit && dl > bestDescLen) { block = d; bestDescLen = dl; }
+    }
     if (block) {
       const kind = (block.kind || "").trim();
       const tagHtml = kind

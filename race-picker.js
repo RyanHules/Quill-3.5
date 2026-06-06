@@ -285,11 +285,53 @@
       langField.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
+    // 4a. Natural armor — monster races carry a racial natural-armor bonus
+    // in `bonuses` ({bonus_type:'ac', bonus_category:'natural'}). Apply to
+    // #ac-natural with ownership so it propagates into AC and a later race
+    // switch clears only what we wrote (the field is shared with equipment
+    // and monster-class extensions).
+    const racialNA = naturalArmorFromBonuses(parsed.bonuses);
+    if (racialNA != null && racialNA > 0) {
+      raceSetOwned('ac-natural', String(racialNA), 'input', true);
+    }
+
+    // 4b. Racial HD → synthetic class row. Monster races (Bugbear, Ogre,
+    // Troll, …) carry racial Hit Dice that must pool into the BAB / save /
+    // HP / total-level aggregate — not merely display. Mirrors the creature-
+    // race-picker's integration (DND35.creatureTypeToProg → ClassPicker.
+    // addRacialHD). The synthetic "(racial HD)" row persists via class-
+    // picker's _multiclass and is torn down by RaceUnify.teardownAll() above
+    // on the next race change, so no stale racial HD survives a race switch.
+    if (race.racial_hd && race.racial_hd > 0 &&
+        window.ClassPicker && typeof ClassPicker.addRacialHD === 'function') {
+      const prog = (typeof DND35 !== 'undefined' && DND35.creatureTypeToProg)
+        ? DND35.creatureTypeToProg(race.racial_hd_type) : null;
+      if (prog) {
+        ClassPicker.addRacialHD({
+          creatureRace: race.name,
+          creatureType: race.racial_hd_type,
+          count: race.racial_hd,
+          prog,
+        });
+      }
+    }
+
     // 5. Info panel — always show for the chosen race.
     showInfo(race, abilityMods, languages, traits);
 
-    // 6. Special abilities — auto-populate from race traits.
-    populateSpecialAbilities(traits);
+    // 6. Special abilities. For a monster race (racial HD + a type=creature
+    // counterpart) auto-fill the creature's INDIVIDUAL special abilities —
+    // richer + per-ability ⓘ-resolvable (including subtype-trait prose like
+    // Archon "Aura of Menace") — instead of the walk's coarse bundled traits
+    // ("Special Qualities"). PC races keep their per-trait list. Either path
+    // tags rows data-from-race so resetWrites cleans them up on a race switch.
+    const creatureSpecials = (race.racial_hd && race.racial_hd > 0)
+      ? creatureAbilityRows(race.name) : [];
+    if (creatureSpecials.length) {
+      populateCreatureSpecials(creatureSpecials);
+    } else {
+      populateSpecialAbilities(traits);
+    }
   }
 
   // Auto-populate Special Abilities from racial traits.
@@ -326,6 +368,52 @@
       const lastTa = rows[rows.length - 1]?.querySelector(
         '.special-ability-entry'
       );
+      if (lastTa) lastTa.setAttribute('data-from-race', '1');
+    }
+  }
+
+  // For a monster race, pull the matching creature's INDIVIDUAL special
+  // abilities (attacks + qualities) — the per-ability data the walk's bundled
+  // race traits flatten. Returns a de-duped, ordered name list ([] when no
+  // creature counterpart or no specials). The ⓘ resolver renders each against
+  // the creature entry + its subtype-trait rules (Archon Traits, …).
+  function creatureAbilityRows(name) {
+    if (!name || !window.DB || !DB.isLoaded || !DB.isLoaded()) return [];
+    const cre = DB.queryOne(
+      "SELECT json_extract(data, '$.special_attacks') AS sa, " +
+      "  json_extract(data, '$.special_qualities') AS sq " +
+      "FROM entry WHERE type='creature' AND name = ? COLLATE NOCASE " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [name]);
+    if (!cre) return [];
+    const parseList = (s) => {
+      if (s == null) return [];
+      let v; try { v = JSON.parse(s); } catch (e) { v = s; }
+      if (Array.isArray(v)) return v.filter((x) => typeof x === 'string');
+      if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
+      return [];
+    };
+    const seen = new Set(), out = [];
+    for (const a of parseList(cre.sa).concat(parseList(cre.sq))) {
+      const k = a.toLowerCase();
+      if (k && !seen.has(k)) { seen.add(k); out.push(a); }
+    }
+    return out;
+  }
+
+  // Add creature ability rows to the Special Abilities list, tagged
+  // data-from-race so resetWrites cleans them up on a race switch.
+  function populateCreatureSpecials(list) {
+    const container = document.getElementById('special-abilities-container');
+    if (!container || typeof Feats?.addSpecialAbility !== 'function') return;
+    container.querySelectorAll('[data-from-race="1"]').forEach((node) => {
+      const row = node.closest('.feat-row');
+      if (row) row.remove();
+    });
+    for (const text of list) {
+      if (!text) continue;
+      Feats.addSpecialAbility(String(text));
+      const rows = container.querySelectorAll('.feat-row');
+      const lastTa = rows[rows.length - 1]?.querySelector('.special-ability-entry');
       if (lastTa) lastTa.setAttribute('data-from-race', '1');
     }
   }
@@ -443,6 +531,52 @@
     return null;
   }
 
+  // Pull a monster race's racial natural-armor bonus out of `bonuses`. The
+  // canonical shape is {bonus_type:'ac', bonus_category:'natural', target:
+  // 'natural armor', amount:N} — distinct from other AC bonuses, so match on
+  // the category/target, not bonus_type alone (extractBonus is too coarse).
+  function naturalArmorFromBonuses(bonuses) {
+    if (!Array.isArray(bonuses)) return null;
+    for (const b of bonuses) {
+      if (!b || b.bonus_type !== 'ac') continue;
+      const cat = String(b.bonus_category || '').toLowerCase();
+      const tgt = String(b.target || '').toLowerCase();
+      if (cat === 'natural' || tgt.includes('natural')) {
+        return (b.amount != null) ? b.amount : null;
+      }
+    }
+    return null;
+  }
+
+  // Ownership helpers for SHARED fields (#ac-natural is also touched by
+  // equipment, monster-class extensions, and manual entry). Write only when
+  // the field is empty or already race-owned; mark ownership so resetWrites
+  // clears exactly what the race wrote and leaves foreign/manual values
+  // intact. Mirrors the creature-race-picker's setOwnedOrEmpty/clearOwned.
+  const RACE_OWN = 'raceOwned';   // dataset key → data-race-owned attribute
+  function raceSetOwned(id, value, evt, treatZeroAsEmpty) {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    const owned = !!el.dataset[RACE_OWN];
+    const raw = String(el.value).trim();
+    const empty = !raw || (treatZeroAsEmpty && raw === '0');
+    if (owned || empty) {
+      el.value = value;
+      el.dataset[RACE_OWN] = '1';
+      el.dispatchEvent(new Event(evt, { bubbles: true }));
+      return true;
+    }
+    return false;
+  }
+  function raceClearOwned(id, val, evt) {
+    const el = document.getElementById(id);
+    if (el && el.dataset[RACE_OWN]) {
+      el.value = val;
+      delete el.dataset[RACE_OWN];
+      el.dispatchEvent(new Event(evt, { bubbles: true }));
+    }
+  }
+
   // Reset everything race-picker auto-writes: the 6 Race ability columns
   // and the special-ability rows it tagged (data-from-race). Exposed via
   // window.RacePicker so race-unify's shared teardown can wipe race
@@ -457,6 +591,10 @@
         el.dispatchEvent(new Event('input', { bubbles: true }));
       }
     });
+    // Natural armor we applied for a monster race (race-owned only — a
+    // manual / equipment / monster-class value has no RACE_OWN marker and
+    // survives). 0 is the unset default for #ac-natural.
+    raceClearOwned('ac-natural', '0', 'input');
     const c = document.getElementById('special-abilities-container');
     if (c) {
       c.querySelectorAll('[data-from-race="1"]').forEach((node) => {
