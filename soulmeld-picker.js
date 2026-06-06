@@ -345,11 +345,29 @@
   // delegated handler picks it up and runs the auto-fill flow.
   // Returns true on success, false if no empty matching slot exists
   // (the user has already filled every applicable slot).
+  // Tick a gating checkbox and fire its change handler so the block it
+  // reveals (soulmeld area / second-soulmeld block) actually becomes
+  // visible. No-op if already checked.
+  function ensureChecked(checkbox) {
+    if (checkbox && !checkbox.checked) {
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
   function fillFirstEmptySlot(targetSlotId, soulmeldName) {
     if (targetSlotId === 'totem') {
+      // The totem block lives inside a collapsible <details>; open it so
+      // the filled field is visible immediately.
+      const totemDetails = document.querySelector('.slot-totem details');
+      if (totemDetails) totemDetails.open = true;
       for (const id of ['totem-sm-name', 'totem-sm2-name']) {
         const inp = document.getElementById(id);
         if (inp && !inp.value.trim()) {
+          // The second soulmeld lives in a Double-Chakra-gated block.
+          if (id === 'totem-sm2-name') {
+            ensureChecked(document.getElementById('totem-sm-double'));
+          }
           inp.value = soulmeldName;
           inp.dispatchEvent(new Event('input', { bubbles: true }));
           inp.dispatchEvent(new Event('change', { bubbles: true }));
@@ -364,6 +382,14 @@
       for (const cls of ['.slot-sm-name', '.slot-sm2-name']) {
         const inp = slot.querySelector(cls);
         if (inp && !inp.value.trim()) {
+          // Tick the slot's Soulmeld checkbox so the soulmeld area
+          // (which hosts this input) becomes visible — otherwise the
+          // name lands in a display:none field the user can't see.
+          ensureChecked(slot.querySelector('.slot-soulmeld-check'));
+          // The second soulmeld lives in a Double-Chakra-gated block.
+          if (cls === '.slot-sm2-name') {
+            ensureChecked(slot.querySelector('.slot-sm-double'));
+          }
           inp.value = soulmeldName;
           inp.dispatchEvent(new Event('input', { bubbles: true }));
           inp.dispatchEvent(new Event('change', { bubbles: true }));
