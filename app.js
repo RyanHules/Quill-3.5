@@ -619,6 +619,13 @@
   window.App = window.App || {};
   window.App.showNotification = showNotification;
 
+  // Expose the top-level (whole-character) collect/load pair so the
+  // play-feel save-stability net can fixed-point-test the full blob.
+  // These are the exact functions Save/Load drive, so the test exercises
+  // the real serialization path, not a reconstruction. Read-only use.
+  window.App.collectData = collectData;
+  window.App.loadData = loadData;
+
   // ============================================================
   // Event wiring
   // ============================================================

@@ -1549,6 +1549,278 @@
       'SA-INFO-CR: panel still resolves after a value-only #char-race restore');
   });
 
+  // ============================================================
+  // Class-A save-stability net — AUTO-EXPANDING round-trip tests
+  // ============================================================
+  //
+  // A string of save-loss bugs (companion compType, class _multiclass,
+  // gear-rules crash, bloodline slot, soulmeld checkbox) share one root
+  // cause: a field collectData emits is not restored identically by
+  // loadData (or vice versa). The hand-written SS# regressions above each
+  // guard ONE field; this section guards the WHOLE blob generically, so
+  // NEW fields are covered automatically with no per-field test to add.
+  //
+  // Property under test is a FIXED POINT:
+  //     loadData(x); A = collectData();   // first load normalizes
+  //     loadData(A); B = collectData();   // second must not change it
+  //     assert deepEqual(A, B)
+  // Any field collected-but-not-loaded, loaded-into-a-different-shape, or
+  // dropped breaks the fixed point and names itself in the diff. Two
+  // rounds (not one) so legacy-save migration converges on the first load
+  // and doesn't false-fail.
+  //
+  // Seeded two ways, both auto-expanding: (1) real library saves — every
+  // character you own; new saves + new fields covered for free; (2) a
+  // fuzz-filled synthetic character — covers new plain fields before any
+  // save uses them.
+
+  // Stable (sorted-key) stringify so object key order doesn't read as a diff.
+  function rtStableStringify(v) {
+    return JSON.stringify(v, function (k, val) {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        return Object.keys(val).sort().reduce((o, kk) => { o[kk] = val[kk]; return o; }, {});
+      }
+      return val;
+    });
+  }
+  // First divergence path (or null when equal) — turns a failure into an
+  // actionable "this exact field didn't round-trip".
+  function rtFirstDiff(a, b, path) {
+    path = path || '$';
+    const ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+    const tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+    if (ta !== tb) return `${path}: type ${ta}≠${tb} (${rtStableStringify(a)} vs ${rtStableStringify(b)})`;
+    if (ta === 'object') {
+      for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+        const d = rtFirstDiff(a[k], b[k], `${path}.${k}`);
+        if (d) return d;
+      }
+      return null;
+    }
+    if (ta === 'array') {
+      if (a.length !== b.length) return `${path}: array length ${a.length}≠${b.length}`;
+      for (let i = 0; i < a.length; i++) {
+        const d = rtFirstDiff(a[i], b[i], `${path}[${i}]`);
+        if (d) return d;
+      }
+      return null;
+    }
+    if (a !== b) return `${path}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`;
+    return null;
+  }
+
+  // Collapse benign "absent ↔ empty" differences: null/undefined/''/[]/{}
+  // all canonicalize to "absent" (dropped). A loaded-from-nothing field
+  // that comes back as [] must NOT read as data loss — but a real value
+  // ("RT5") that comes back empty/absent still diffs (value vs dropped).
+  function rtCanonical(v) {
+    if (v === null || v === undefined || v === '') return undefined;
+    if (Array.isArray(v)) {
+      const a = v.map(rtCanonical);
+      return a.length ? a : undefined;     // keep element positions; drop only a wholly-empty array
+    }
+    if (typeof v === 'object') {
+      const o = {};
+      for (const k of Object.keys(v)) {
+        const cv = rtCanonical(v[k]);
+        if (cv !== undefined) o[k] = cv;
+      }
+      return Object.keys(o).length ? o : undefined;
+    }
+    return v;
+  }
+  // Collect up to `limit` divergence paths (not just the first) so one run
+  // gives the full diagnostic instead of whack-a-mole.
+  function rtAllDiffs(a, b, limit, path, out) {
+    limit = limit || 15; path = path || '$'; out = out || [];
+    if (out.length >= limit) return out;
+    const ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+    const tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+    if (ta !== tb) { out.push(`${path}: ${ta}(${JSON.stringify(a)}) vs ${tb}(${JSON.stringify(b)})`); return out; }
+    if (ta === 'object') {
+      for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+        rtAllDiffs(a[k], b[k], limit, `${path}.${k}`, out); if (out.length >= limit) break;
+      }
+      return out;
+    }
+    if (ta === 'array') {
+      if (a.length !== b.length) { out.push(`${path}: array length ${a.length}≠${b.length}`); return out; }
+      for (let i = 0; i < a.length; i++) { rtAllDiffs(a[i], b[i], limit, `${path}[${i}]`, out); if (out.length >= limit) break; }
+      return out;
+    }
+    if (a !== b) out.push(`${path}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`);
+    return out;
+  }
+
+  // DIRECTIONAL loss/mutation walk: report only where `a` (the pre-load
+  // collect) held a value that `b` (post-load) failed to preserve. Fields
+  // `b` GAINS (derived-on-load defaults like history_reconstructed) are
+  // ignored — this guards "did I lose/corrupt what I had", which is the
+  // "field silently not saved" class. Inputs are pre-canonicalized, so
+  // `a` carries only real (non-empty) values.
+  function rtLossDiffs(a, b, limit, path, out) {
+    limit = limit || 15; path = path || '$'; out = out || [];
+    if (out.length >= limit || a === undefined) return out;
+    if (b === undefined) { out.push(`${path}: LOST ${JSON.stringify(a)}`); return out; }
+    const ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+    const tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+    if (ta !== tb) { out.push(`${path}: ${ta}(${JSON.stringify(a)}) → ${tb}(${JSON.stringify(b)})`); return out; }
+    if (ta === 'object') {
+      for (const k of Object.keys(a)) { rtLossDiffs(a[k], b[k], limit, `${path}.${k}`, out); if (out.length >= limit) break; }
+      return out;
+    }
+    if (ta === 'array') {
+      if (a.length !== b.length) { out.push(`${path}: array ${a.length}→${b.length}`); return out; }
+      for (let i = 0; i < a.length; i++) { rtLossDiffs(a[i], b[i], limit, `${path}[${i}]`, out); if (out.length >= limit) break; }
+      return out;
+    }
+    if (a !== b) out.push(`${path}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
+    return out;
+  }
+
+  function appCollect() {
+    if (!(window.App && typeof App.collectData === 'function'))
+      fail('round-trip: window.App.collectData not exposed (app.js)');
+    return App.collectData();
+  }
+  // Deep-copy on the way in: some module loaders mutate the blob they're
+  // given, which would corrupt the A we compare against B.
+  function appLoad(blob) {
+    if (!(window.App && typeof App.loadData === 'function'))
+      fail('round-trip: window.App.loadData not exposed (app.js)');
+    App.loadData(JSON.parse(JSON.stringify(blob)));
+  }
+
+  // The reusable assertion: load → collect (A, normalized) → load A →
+  // collect (B) → A must deep-equal B.
+  async function assertFixedPoint(startBlob, label) {
+    appLoad(startBlob);
+    await wait(70);
+    const A = appCollect();
+    appLoad(A);
+    await wait(70);
+    const B = appCollect();
+    const diff = rtFirstDiff(rtCanonical(A), rtCanonical(B), '$');
+    if (diff) fail(`${label}: not a save/load fixed point → ${diff}`);
+  }
+
+  // Fuzz every plain editable control with a distinctive value so the
+  // fixed-point check runs on a richly non-default character. v1 sets
+  // text/number/select (not checkbox/radio — those cascade panel
+  // creation; the library saves cover that state). Returns count set.
+  function fuzzFillSheet() {
+    // Skip the test panel, modals, and NAVIGATION/ACTION controls that
+    // trigger side effects rather than holding saved data. #character-select
+    // is the load-saved-character dropdown — setting it fires loadCharacter()
+    // which async-clobbers the whole sheet mid-test (it is not a saved field).
+    const SKIP_ANCESTORS = ['[id*="playfeel"]', '#character-select',
+      '#lookup-modal', '#book-filter-modal', '#homebrew-modal',
+      '.modal', '.modal-overlay', '.lookup-overlay'];
+    const inScope = (el) => {
+      if (el.disabled || el.readOnly) return false;
+      if (el.classList.contains('calc-field')) return false;
+      const t = (el.type || 'text').toLowerCase();
+      if (['hidden', 'file', 'button', 'submit', 'reset', 'image', 'color'].includes(t)) return false;
+      for (const sel of SKIP_ANCESTORS) { if (el.closest(sel)) return false; }
+      return true;
+    };
+    let i = 0;
+    for (const el of document.querySelectorAll('input, textarea, select')) {
+      if (!inScope(el)) continue;
+      const tag = el.tagName.toLowerCase();
+      const type = (el.type || 'text').toLowerCase();
+      try {
+        if (tag === 'select') {
+          const opts = Array.from(el.options).filter(o => !o.disabled);
+          if (opts.length <= 1) continue;
+          el.value = opts[opts.length - 1].value;
+        } else if (type === 'checkbox' || type === 'radio') {
+          continue;
+        } else if (type === 'number' || type === 'range') {
+          el.value = String((i % 18) + 1);
+        } else {
+          el.value = 'RT' + i;
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        i++;
+      } catch (e) { /* skip one uncooperative control */ }
+    }
+    return i;
+  }
+
+  regression('SS-RT1: fuzz-filled fields survive a save/load round trip', async () => {
+    // Round-trip FIDELITY (not just a fixed point): a value collectData
+    // emits must come back identical after loadData — that's the "field
+    // silently not saved" class. Compare the pre-load collect against the
+    // post-load collect; absent↔empty normalization is canonicalized away,
+    // so a real value coming back empty/absent still fails.
+    await newCharacter();
+    const n = fuzzFillSheet();
+    if (n < 5) fail(`SS-RT1: fuzz set only ${n} fields — walker found nothing to fill`);
+    const raw = appCollect();
+    appLoad(raw);
+    await wait(90);
+    const after = appCollect();
+    const diffs = rtLossDiffs(rtCanonical(raw), rtCanonical(after), 15);
+    if (diffs.length)
+      fail(`SS-RT1: ${n} fields fuzzed — ${diffs.length} field(s) lost/mutated on reload:\n  ` +
+           diffs.join('\n  '));
+    await newCharacter();
+  });
+
+  regression('SS-RT2: library saves round-trip to a fixed point', async () => {
+    if (!(window.SaveBackend && typeof SaveBackend.list === 'function'))
+      fail('SS-RT2: SaveBackend not available');
+    const all = await SaveBackend.list();
+    const lib = all.filter(e => (e.folder || '').split('/')[0] === 'library');
+    const pool = lib.length ? lib : all;
+    if (!pool.length) { console.log('[playfeel] SS-RT2: no saves to check — skipping'); return; }
+    // Sample for speed in the default run; full sweep = PlayFeel.runSaveRoundTrip().
+    const SAMPLE = 12;
+    const step = Math.max(1, Math.floor(pool.length / SAMPLE));
+    const picked = [];
+    for (let i = 0; i < pool.length && picked.length < SAMPLE; i += step) picked.push(pool[i]);
+    console.log(`[playfeel] SS-RT2: checking ${picked.length} of ${pool.length} library saves ` +
+                `(sampled; PlayFeel.runSaveRoundTrip() runs all)`);
+    const failures = [];
+    for (const entry of picked) {
+      let blob;
+      try { blob = await SaveBackend.load(entry.qualified); }
+      catch (e) { failures.push(`${entry.qualified}: load threw ${e.message}`); continue; }
+      if (!blob) continue;
+      try { await assertFixedPoint(blob, `save "${entry.qualified}"`); }
+      catch (e) { failures.push(e.message); }
+    }
+    await newCharacter();   // leave the sheet clean for downstream tests
+    if (failures.length)
+      fail(`SS-RT2: ${failures.length}/${picked.length} saves not fixed points:\n  ` +
+           failures.slice(0, 6).join('\n  '));
+  });
+
+  // Exhaustive variant — round-trips EVERY library save. Slow; run on
+  // demand from the console, not part of the default suite.
+  async function runSaveRoundTrip() {
+    const all = await SaveBackend.list();
+    const lib = all.filter(e => (e.folder || '').split('/')[0] === 'library');
+    const pool = lib.length ? lib : all;
+    const failures = [];
+    for (const entry of pool) {
+      let blob;
+      try { blob = await SaveBackend.load(entry.qualified); }
+      catch (e) { failures.push(`${entry.qualified}: load threw ${e.message}`); continue; }
+      if (!blob) continue;
+      appLoad(blob); await wait(40); const A = appCollect();
+      appLoad(A);    await wait(40); const B = appCollect();
+      const d = rtFirstDiff(A, B, '$');
+      if (d) failures.push(`${entry.qualified}: ${d}`);
+    }
+    await newCharacter();
+    console.log(`[playfeel] runSaveRoundTrip: ${failures.length} not-fixed-point of ${pool.length}`);
+    if (failures.length) console.log(failures.join('\n'));
+    return { total: pool.length, failures };
+  }
+
   // ---- Per-class application sweep -------------------------------------
   //
   // Iterates every class + PrC in the DB and verifies the sheet can
@@ -1930,7 +2202,7 @@
   // Expose for Node-side preview MCP orchestration. Also keeps the
   // results around for inspection after a run.
   window.PlayFeel = {
-    runAll, runSpec, runClassSweep,
+    runAll, runSpec, runClassSweep, runSaveRoundTrip,
     scenarios, regressions,
     getResults: () => lastResults,
   };
