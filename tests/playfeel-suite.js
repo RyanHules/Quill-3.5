@@ -27,6 +27,17 @@
   const params = new URLSearchParams(location.search);
   if (!params.has('playfeel')) return;
 
+  // ---- Non-blocking dialogs (test mode) ------------------------------
+  // Native confirm()/alert() dialogs HALT the page until dismissed,
+  // which both blocks autonomous runs (the harness can't click "OK")
+  // and freezes any in-flight preview eval into a timeout. While the
+  // playfeel harness is loaded, auto-accept confirms and swallow alerts
+  // so flows like "New Character" (app.js confirms "Start a new
+  // character?"), class/sub-tab removal, etc. never stall a test.
+  // Scoped to `?playfeel=1` only — normal sheet use keeps its prompts.
+  window.confirm = () => true;
+  window.alert = () => {};
+
   // ---- Tiny test framework -----------------------------------------------
 
   const scenarios = [];
@@ -102,15 +113,11 @@
   function $$(sel) { return Array.from(document.querySelectorAll(sel)); }
 
   // Reset the sheet to a known-clean state. Equivalent to clicking
-  // "New" but bypasses the confirm prompt.
+  // "New"; the harness-wide confirm suppressor (top of this file)
+  // auto-accepts the "Start a new character?" prompt, so this never
+  // blocks — even when driven from an autonomous preview eval.
   async function newCharacter() {
-    const origConfirm = window.confirm;
-    window.confirm = () => true;
-    try {
-      $('#btn-new').click();
-    } finally {
-      window.confirm = origConfirm;
-    }
+    $('#btn-new').click();
     await wait(350);
   }
 
