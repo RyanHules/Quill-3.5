@@ -1511,6 +1511,12 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // is wizard-style spell preparation without a spellbook — not a companion
     // grant. Incidental keyword match (it references the Spell Mastery feat).
     'Magewright/Spell Mastery',
+    // 2026-06-07 Dragon Magic v3-walk: the Dragon Lord PrC's "Reckless Devotion"
+    // is a party buff that merely mentions a "cohort or follower (as per the
+    // Leadership feat)" gets double benefit — it does not grant or advance a
+    // companion. (Its "Dragon Leadership" feature only modifies the Leadership
+    // SCORE, also not a companion grant; the keyword filter already passes it.)
+    'Dragon Lord/Reckless Devotion',
   ]);
 
   const rows = execAll(db,
