@@ -2542,37 +2542,41 @@
   // crusader panel and IL 8 on the swordsage panel.
   //
   //   IL = levels in THIS class
-  //      + FULL levels of PrCs that advance THIS class's maneuvers
-  //        (the ToB "add the full prestige class level to your martial
-  //        adept level" rule — Ruby Knight Vindicator and Jade Phoenix
-  //        Mage both add their full class level to IL per their Chapter 5
-  //        write-ups, NOT their even/odd maneuvers-known schedule)
+  //      + FULL levels of EVERY ToB maneuver-advancer PrC (RKV / JPM /
+  //        MoN). Each one's Chapter 5 text reads "add your full <PrC>
+  //        levels to your initiator level" — unqualified, so the boost
+  //        applies to EVERY martial-adept class's IL, not just the one
+  //        entered with (confirmed all-target with Ryan, 2026-06-07).
+  //        The PrC's even/odd `advancing_levels` is the maneuvers-KNOWN
+  //        schedule, NOT an IL schedule — so IL takes the whole class
+  //        level and isn't gated by it (a lone RKV 1, whose first
+  //        maneuver isn't until level 2, still adds its full +1).
   //      + 1/2 of ALL other character levels (other base classes, other
   //        martial-adept classes, non-advancing PrC levels, racial HD),
   //        rounded down.
   //
-  // Worked example (ToB p.39): Crusader 7 / Swordsage 5 →
-  //   crusader IL = 7 + floor(5/2) = 9; swordsage IL = 5 + floor(7/2) = 8.
+  // Worked examples (ToB p.39): Crusader 7 / Swordsage 5 → crusader IL
+  //   7 + floor(5/2) = 9, swordsage 5 + floor(7/2) = 8. Crusader 5 /
+  //   Swordsage 5 / MoN 2 → both 5 + MoN 2 (full) + floor(5/2) = 9.
   //
   // (The "no martial-adept levels → IL = 1/2 character level" clause is
   // for feat-granted maneuvers with no class panel, so it has no UI
   // surface here.) Capped at 20 to match the IL table ceiling.
   function effectiveInitiatorLevel(target) {
-    // Full-LEVEL bumps from PrCs that advance THIS class's maneuvers.
-    // maneuverAdvancesLevels is just the "is a recognized ToB advancer"
-    // gate; the IL contribution is the PrC's whole level (e.level).
+    // Every recognized ToB maneuver-advancer adds its FULL level to this
+    // (and every) martial-adept IL. Detect by registry membership, not
+    // by the per-level advancing schedule, so the schedule never gates
+    // the IL contribution.
     let advBonus = 0;
     for (const e of pickedClasses) {
       if (e === target) continue;
-      if (!e.maneuverAdvancesLevels) continue;
-      const tgt = e.maneuverAdvancesTarget;
-      if (tgt && tgt.toLowerCase() === target.className.toLowerCase()) {
+      if (getManeuverAdvancementSpec(e.className)) {
         advBonus += (e.level || 0);
       }
     }
     // Half-value contribution from every other character level — i.e. all
-    // picked levels except this class's own and the advancing-PrC levels
-    // already counted at full above.
+    // picked levels except this class's own and the full-counted advancer
+    // PrC levels above.
     const totalLevel = pickedClasses.reduce((s, e) => s + (e.level || 0), 0);
     const otherLevels = Math.max(0, totalLevel - target.level - advBonus);
     const il = target.level + advBonus + Math.floor(otherLevels / 2);

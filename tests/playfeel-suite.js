@@ -717,6 +717,37 @@
       'IL-MC: Warblade 5 / Fighter 4 → IL 5 + floor(4/2) = 7');
   });
 
+  regression('IL-MC: maneuver advancer is all-target (MoN advances both)', async () => {
+    // Every ToB IL-advancer adds its FULL level to EVERY martial adept's
+    // IL ("your initiator level", unqualified). Crusader 5 / Swordsage 5
+    // / Master of Nine 2: both panels = 5 + MoN 2 + floor(5/2)=2 = 9
+    // (swordsage was 8 under the old single-target model).
+    await newCharacter();
+    await applyClass('Crusader', 5);
+    await applyClass('Swordsage', 5);
+    await applyClass('Master of Nine', 2);
+    const panelFor = (name) =>
+      [...document.querySelectorAll('[data-caster-type="maneuvers"]')]
+        .find(p => (p.querySelector('.caster-notes')?.value || '')
+          .trim().toLowerCase() === name.toLowerCase());
+    expect(panelFor('Crusader').querySelector('.tom-init-level').value, '9',
+      'IL-MC: crusader IL 9 (MoN full +2)');
+    expect(panelFor('Swordsage').querySelector('.tom-init-level').value, '9',
+      'IL-MC: swordsage ALSO IL 9 (MoN is all-target)');
+  });
+
+  regression('IL-MC: advancer PrC counts full from level 1 (RKV 1)', async () => {
+    // The advancing schedule is the maneuvers-known schedule, not IL —
+    // so a lone RKV 1 (first maneuver not until level 2) still adds its
+    // full +1. Crusader 5 / RKV 1 → IL 5 + 1 + floor(0/2) = 6 (was 5
+    // when the schedule gated the IL contribution).
+    await newCharacter();
+    await applyClass('Crusader', 5);
+    await applyClass('Ruby Knight Vindicator', 1);
+    expectValue('[data-caster-type="maneuvers"] .tom-init-level', '6',
+      'IL-MC: Crusader 5 / RKV 1 → IL 6 (RKV full +1 from level 1)');
+  });
+
   regression('SM: incarnum class copies soulmeld counts to Equipment tab', async () => {
     // Totemist 5 → Equipment soulmeld counters seeded from the class
     // table columns (soulmelds 4, essentia 3, chakra binds 1).
