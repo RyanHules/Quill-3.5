@@ -352,11 +352,11 @@
     // RKV advances casting at L2/3/4/5/7/8/9/10. At RKV 2, +1 → CL 6.
     expectValue('[data-caster-type="spellcasting"] .sc-caster-level',
       '6', 'cleric CL 6 (Cleric 5 + RKV L2 advance)');
-    // RKV also advances martial maneuver progression, but on EVEN
-    // levels only ([2, 4, 6, 8, 10]). At RKV 2, +1 → IL 6
-    // (Crusader 5 + RKV L2 advance). Now wired via the ToB pillar.
+    // ToB IL (p.39): Crusader 5 + RKV's FULL level (+2, per its Chapter 5
+    // write-up) + 1/2 of all OTHER levels (Cleric 5) = floor(5/2) = 2.
+    // IL = 5 + 2 + 2 = 9.
     expectValue('[data-caster-type="maneuvers"] .tom-init-level',
-      '6', 'IL 6 (Crusader 5 + RKV L2 maneuver advance)');
+      '9', 'IL 9 (Crusader 5 + RKV full +2 + floor(5 other/2))');
   });
 
   scenario('Wizard 5 / Warblade 5 / Jade Phoenix Mage 2 — arcane + maneuver advancer', async () => {
@@ -373,10 +373,11 @@
     // JPM advances casting at L2/3/4/5/7/8/9/10. At JPM 2, +1 → Wizard CL 6.
     expectValue('[data-caster-type="spellcasting"] .sc-caster-level',
       '6', 'wizard CL 6 (Wiz 5 + JPM L2 advance)');
-    // JPM advances maneuvers on ODD levels ([1, 3, 5, 7, 9]); at JPM 2
-    // the L1 advance applies → IL 6. Now wired via the ToB pillar.
+    // ToB IL (p.39): Warblade 5 + JPM's FULL level (+2, per its Chapter 5
+    // write-up) + 1/2 of all OTHER levels (Wizard 5) = floor(5/2) = 2.
+    // IL = 5 + 2 + 2 = 9.
     expectValue('[data-caster-type="maneuvers"] .tom-init-level',
-      '6', 'IL 6 (Warblade 5 + JPM maneuver advance)');
+      '9', 'IL 9 (Warblade 5 + JPM full +2 + floor(5 other/2))');
   });
 
   scenario('Crusader 5 / Swordsage 5 / Master of Nine 2 — multi-discipline advancer', async () => {
@@ -388,12 +389,13 @@
 
     expect(classChips().length, 3, 'three chips');
     expectValue('#char-level', '12', 'char level 12');
-    // MoN advances IL at every level ([1, 2, 3, 4, 5]); at MoN 2 that's
-    // +2 → IL 7 on the primary panel. Now wired via the ToB pillar.
-    // We assert on the primary panel's IL; multi-IL handling for
-    // dual martial-adept multiclass is a separate fix.
+    // ToB IL (p.39): Crusader 5 + MoN's FULL level (+2) + 1/2 of OTHER
+    // levels (Swordsage 5) = floor(5/2) = 2. Crusader IL = 5+2+2 = 9.
+    // The first maneuvers panel is the crusader (applied first); each ToB
+    // class now carries its own IL (see the IL-MC regression for the
+    // dual-panel assertion).
     expectValue('[data-caster-type="maneuvers"] .tom-init-level',
-      '7', 'IL 7 (Crusader 5 + MoN 2 maneuver advance)');
+      '9', 'IL 9 (Crusader 5 + MoN full +2 + floor(5 other/2))');
   });
 
   scenario('Cleric 5 / Contemplative 5 / Heirophant 2 — chained PrCs', async () => {
@@ -683,6 +685,36 @@
     await wait(300);
     const orphan = document.querySelector('[data-caster-type="invocations"]');
     expect(orphan, null, 'SA5: Invocations tab removed with the Warlock (no orphan)');
+  });
+
+  regression('IL-MC: multiclass initiator level is per-class (ToB p.39 example)', async () => {
+    // The book's worked example: a 7th-level crusader / 5th-level
+    // swordsage has crusader IL 9 (7 + floor(5/2)) and swordsage IL 8
+    // (5 + floor(7/2)) — each ToB class computes its own IL = its level
+    // + 1/2 of all other character levels.
+    await newCharacter();
+    await applyClass('Crusader', 7);
+    await applyClass('Swordsage', 5);
+    const panelFor = (name) =>
+      [...document.querySelectorAll('[data-caster-type="maneuvers"]')]
+        .find(p => (p.querySelector('.caster-notes')?.value || '')
+          .trim().toLowerCase() === name.toLowerCase());
+    const cru = panelFor('Crusader');
+    const swd = panelFor('Swordsage');
+    if (!cru || !swd) fail('IL-MC: expected both Crusader and Swordsage maneuver panels');
+    expect(cru.querySelector('.tom-init-level').value, '9', 'IL-MC: crusader IL 9');
+    expect(swd.querySelector('.tom-init-level').value, '8', 'IL-MC: swordsage IL 8');
+  });
+
+  regression('IL-MC: single-class IL equals class level', async () => {
+    // No "other levels" → IL = class level (Warblade 5 → IL 5).
+    await newCharacter();
+    await applyClass('Warblade', 5);
+    expectValue('[data-caster-type="maneuvers"] .tom-init-level', '5', 'IL-MC: Warblade IL 5');
+    // Add 4 non-ToB levels → IL = 5 + floor(4/2) = 7.
+    await applyClass('Fighter', 4);
+    expectValue('[data-caster-type="maneuvers"] .tom-init-level', '7',
+      'IL-MC: Warblade 5 / Fighter 4 → IL 5 + floor(4/2) = 7');
   });
 
   // ---- Save-stability regressions (2026-05-17 sweep) -----------------

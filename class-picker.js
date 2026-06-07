@@ -2526,21 +2526,48 @@
     return null;
   }
 
-  // Sum the IL bumps an applied initiator entry receives from advancer
-  // PrCs in pickedClasses. Capped at 20 (ToB IL is bounded by the same
-  // BAB ceiling). Mirror of effectiveSpellLevel.
+  // Initiator level for an applied martial-adept class, per Tome of
+  // Battle p.39. IL is computed PER martial-adept class (this is called
+  // once per target, and refreshAllManeuverTabs writes each result into
+  // its own panel), so a Crusader 7 / Swordsage 5 shows IL 9 on the
+  // crusader panel and IL 8 on the swordsage panel.
+  //
+  //   IL = levels in THIS class
+  //      + FULL levels of PrCs that advance THIS class's maneuvers
+  //        (the ToB "add the full prestige class level to your martial
+  //        adept level" rule — Ruby Knight Vindicator and Jade Phoenix
+  //        Mage both add their full class level to IL per their Chapter 5
+  //        write-ups, NOT their even/odd maneuvers-known schedule)
+  //      + 1/2 of ALL other character levels (other base classes, other
+  //        martial-adept classes, non-advancing PrC levels, racial HD),
+  //        rounded down.
+  //
+  // Worked example (ToB p.39): Crusader 7 / Swordsage 5 →
+  //   crusader IL = 7 + floor(5/2) = 9; swordsage IL = 5 + floor(7/2) = 8.
+  //
+  // (The "no martial-adept levels → IL = 1/2 character level" clause is
+  // for feat-granted maneuvers with no class panel, so it has no UI
+  // surface here.) Capped at 20 to match the IL table ceiling.
   function effectiveInitiatorLevel(target) {
-    let bonus = 0;
+    // Full-LEVEL bumps from PrCs that advance THIS class's maneuvers.
+    // maneuverAdvancesLevels is just the "is a recognized ToB advancer"
+    // gate; the IL contribution is the PrC's whole level (e.level).
+    let advBonus = 0;
     for (const e of pickedClasses) {
       if (e === target) continue;
       if (!e.maneuverAdvancesLevels) continue;
       const tgt = e.maneuverAdvancesTarget;
-      if (!tgt) continue;
-      if (tgt.toLowerCase() === target.className.toLowerCase()) {
-        bonus += e.maneuverAdvancesLevels;
+      if (tgt && tgt.toLowerCase() === target.className.toLowerCase()) {
+        advBonus += (e.level || 0);
       }
     }
-    return Math.min(20, target.level + bonus);
+    // Half-value contribution from every other character level — i.e. all
+    // picked levels except this class's own and the advancing-PrC levels
+    // already counted at full above.
+    const totalLevel = pickedClasses.reduce((s, e) => s + (e.level || 0), 0);
+    const otherLevels = Math.max(0, totalLevel - target.level - advBonus);
+    const il = target.level + advBonus + Math.floor(otherLevels / 2);
+    return Math.min(20, il);
   }
 
   // After every apply/remove: refresh each non-advancer's spells tab to
