@@ -632,6 +632,59 @@
     }
   });
 
+  // ---- Spell-adjacent subsystem sub-tabs (2026-06-07) ----------------
+  //
+  // Beyond native spellcasting + psionics + maneuvers, applying a class
+  // that uses invocations (Warlock / Dragonfire Adept), vestige binding
+  // (Binder), or shadowcasting (Shadowcaster) auto-creates the matching
+  // Spells sub-tab and seeds its level field (and any count column the
+  // class_table carries). Removing the class tears the tab down. Static
+  // guards live in tests/test_pickers.js ('spell-adjacent subsystem
+  // sub-tab wiring' group); these are the runtime checks.
+
+  regression('SA1: Warlock 5 creates an Invocations tab seeded to CL 5', async () => {
+    await newCharacter();
+    await applyClass('Warlock', 5);
+    expectExists('[data-caster-type="invocations"]', 'SA1: Invocations sub-tab created');
+    expectValue('[data-caster-type="invocations"] .invo-level', '5', 'SA1: Invoker Level 5');
+    expectValue('[data-caster-type="invocations"] .invo-caster-level', '5', 'SA1: Caster Level 5');
+    // invocations_known is in the Warlock class_table columns (L5 → 3).
+    expectValue('[data-caster-type="invocations"] .invo-known-count', '3', 'SA1: Invocations Known 3');
+  });
+
+  regression('SA2: Binder 5 creates a Vestige Binding tab seeded to binder level 5', async () => {
+    await newCharacter();
+    await applyClass('Binder', 5);
+    expectExists('[data-caster-type="binding"]', 'SA2: Binding sub-tab created');
+    expectValue('[data-caster-type="binding"] .bind-level', '5', 'SA2: Effective Binder Level 5');
+    // max_vestige_level "3rd" (top-level row field) → 3 at Binder L5.
+    expectValue('[data-caster-type="binding"] .bind-max-vestige', '3', 'SA2: Max Vestige Level 3');
+  });
+
+  regression('SA3: Shadowcaster 5 creates a Shadowcasting tab seeded to CL 5', async () => {
+    await newCharacter();
+    await applyClass('Shadowcaster', 5);
+    expectExists('[data-caster-type="shadowcaster"]', 'SA3: Shadowcasting sub-tab created');
+    expectValue('[data-caster-type="shadowcaster"] .sh-caster-level', '5', 'SA3: Caster Level 5');
+  });
+
+  regression('SA4: Dragonfire Adept 5 creates an Invocations tab', async () => {
+    await newCharacter();
+    await applyClass('Dragonfire Adept', 5);
+    expectExists('[data-caster-type="invocations"]', 'SA4: Invocations sub-tab created');
+    expectValue('[data-caster-type="invocations"] .invo-level', '5', 'SA4: Invoker Level 5');
+  });
+
+  regression('SA5: removing the class tears down its subsystem sub-tab', async () => {
+    await newCharacter();
+    await applyClass('Warlock', 5);
+    expectExists('[data-caster-type="invocations"]', 'SA5: tab present after apply');
+    removeClass('Warlock');
+    await wait(300);
+    const orphan = document.querySelector('[data-caster-type="invocations"]');
+    expect(orphan, null, 'SA5: Invocations tab removed with the Warlock (no orphan)');
+  });
+
   // ---- Save-stability regressions (2026-05-17 sweep) -----------------
   //
   // Each fix in the save-stability sweep gets a regression here that

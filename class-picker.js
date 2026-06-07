@@ -492,10 +492,14 @@
     },
   };
 
-  // Base invocation-using classes — the targets of invocation-advancement
-  // PrCs. Today just Warlock; expand as DFA / Hellfire Warlock / etc. land.
+  // Base invocation-using classes. Two axes use this set: (1) auto-create
+  // an Invocations sub-tab in ensureCasterTab when one is applied, and
+  // (2) resolve the target of invocation-advancement PrCs (Eldritch
+  // Theurge / Eldritch Disciple / Demonbinder). Both Warlock and
+  // Dragonfire Adept (Dragon Magic) are base invocation users; Hellfire
+  // Warlock and the rest are PrCs that require one of these as a base.
   const INVOCATION_USING_CLASSES = new Set([
-    'Warlock',
+    'Warlock', 'Dragonfire Adept',
   ]);
 
   // Mystery-advancement metadata (ToM shadowcaster pillar). Parallels
@@ -518,6 +522,17 @@
   // PrCs. Today just Shadowcaster; expand if future books add more.
   const MYSTERY_USING_CLASSES = new Set([
     'Shadowcaster',
+  ]);
+
+  // Base vestige-binding classes — get a Vestige Binding ("binding")
+  // sub-tab. Today just Binder; the binder PrCs (Anima Mage, Fiendbinder,
+  // Knight of the Sacred Seal, Scion of Dantalion, Tenebrous Apostate,
+  // Witchborn Binder, Nar Demonbinder) all require Binder as their base,
+  // so the base-class wiring covers every vestige character. Parallel to
+  // INVOCATION_USING_CLASSES / MYSTERY_USING_CLASSES / PSIONIC_CLASSES /
+  // MARTIAL_ADEPT_CLASSES; consumed by ensureCasterTab.
+  const VESTIGE_USING_CLASSES = new Set([
+    'Binder',
   ]);
 
   const _FALLBACK_MANEUVER_ADVANCERS = {
@@ -1394,8 +1409,12 @@
         if (row) row.remove();
       });
 
-    // Remove this class's spells tab(s) if any.
-    for (const type of ['spellcasting', 'psionics', 'maneuvers']) {
+    // Remove this class's spells tab(s) if any. Must mirror the set of
+    // sub-tab types ensureCasterTab can auto-create, or removing the
+    // class orphans its tab (e.g. a removed Warlock leaving a stray
+    // Invocations tab).
+    for (const type of ['spellcasting', 'psionics', 'maneuvers',
+                        'invocations', 'binding', 'shadowcaster']) {
       const panel = findExistingCasterPanel(type, className);
       if (!panel) continue;
       const casterIdx = panel.id.replace(/^caster-/, '');
@@ -3201,10 +3220,13 @@
     populateClassFeaturesTab(cls.class, level, cls.class_id);
 
     // If the class has spellcasting at this level (paladin L4+, wizard L1+,
-    // etc.), or is a known psionic/martial-adept class, ensure the
-    // appropriate Spells sub-tab exists and is populated. No tab is
-    // created when the class doesn't grant spell access at this level
-    // (e.g. paladin L1-3) — per the user's "0 or more, not none" rule.
+    // etc.), or uses a spell-adjacent subsystem with its own Spells sub-tab
+    // — psionics (Psion/Wilder/…), maneuvers (Crusader/Warblade/Swordsage),
+    // invocations (Warlock), vestige binding (Binder), or shadowcasting
+    // (Shadowcaster) — ensure the appropriate Spells sub-tab exists and is
+    // populated. No tab is created when the class doesn't grant spell access
+    // at this level (e.g. paladin L1-3) — per the user's "0 or more, not
+    // none" rule.
     const casterPanel = ensureCasterTab(cls.class, level, cls.class_id);
 
     // Refresh effective spell levels in case this class is an advancer
@@ -3469,10 +3491,15 @@
       return upsertSpellcastingPanel(className, classLevel, sc, offset);
     }
     if (PSIONIC_CLASSES.has(className)) {
-      return ensureSimpleCasterTab('psionics', className, classLevel);
+      return ensureSimpleCasterTab('psionics', className, classLevel, {
+        createData: { manifesterLevel: classLevel },
+        levelSelectors: ['.psi-manifester-level'],
+      });
     }
     if (MARTIAL_ADEPT_CLASSES.has(className)) {
-      const panel = ensureSimpleCasterTab('maneuvers', className, classLevel);
+      const panel = ensureSimpleCasterTab('maneuvers', className, classLevel, {
+        levelSelectors: ['.tom-init-level'],
+      });
       // M2 (2026-05-16 play-feel pass): auto-populate the ToB count
       // fields (Initiator Level / Maneuvers Known / Maneuvers Readied
       // / Stances Known) from the class_table's `columns` block. Same
@@ -3481,6 +3508,37 @@
       // user edits clear the marker via event.isTrusted listener.
       if (panel) populateManeuverPanelCounts(panel, className, classLevel);
       return panel;
+    }
+    // Spell-adjacent subsystems with their own Spells sub-tab type but
+    // no spells_per_day progression: Warlock → invocations, Binder →
+    // vestige binding, Shadowcaster → shadowcasting. Same auto-create-
+    // and-level-sync contract as psionics/maneuvers above. The level
+    // seeds the relevant "caster/binder/invoker level" field; available
+    // class_table count columns are prefilled (M2-style) where present.
+    if (INVOCATION_USING_CLASSES.has(className)) {
+      const panel = ensureSimpleCasterTab('invocations', className, classLevel, {
+        createData: { invokerLevel: classLevel, casterLevel: classLevel },
+        levelSelectors: ['.invo-level', '.invo-caster-level'],
+      });
+      if (panel) populateInvocationPanelCounts(panel, className, classLevel, classId);
+      return panel;
+    }
+    if (VESTIGE_USING_CLASSES.has(className)) {
+      const panel = ensureSimpleCasterTab('binding', className, classLevel, {
+        createData: { binderLevel: classLevel },
+        levelSelectors: ['.bind-level'],
+      });
+      if (panel) populateBinderPanelCounts(panel, className, classLevel, classId);
+      return panel;
+    }
+    if (MYSTERY_USING_CLASSES.has(className)) {
+      // Shadowcaster's mystery counts aren't in the class_table columns
+      // (mysteries-known derives from a per-level formula in the class
+      // text), so we seed the caster level only.
+      return ensureSimpleCasterTab('shadowcaster', className, classLevel, {
+        createData: { casterLevel: classLevel },
+        levelSelectors: ['.sh-caster-level'],
+      });
     }
     return null;
   }
@@ -3682,17 +3740,42 @@
     }
   }
 
-  function ensureSimpleCasterTab(type, className, classLevel) {
+  // Create (or re-sync) a non-spellcasting caster sub-tab — psionics,
+  // maneuvers, invocations, vestige binding, shadowcasting. These have
+  // no spells_per_day slot table, so the sub-tab is keyed by class name
+  // and the class level seeds a single "level" field per subsystem.
+  //
+  // opts:
+  //   createData     — extra data keys merged into the addCaster() blob
+  //                    on CREATE, so the panel opens with its level
+  //                    field(s) pre-filled (e.g. { invokerLevel,
+  //                    casterLevel } for Warlock → buildInvocationsHTML).
+  //   levelSelectors — panel input selectors re-synced to classLevel on
+  //                    RE-APPLY (level-up). Must name the SUBSYSTEM's
+  //                    real level inputs — psionics is .psi-manifester-
+  //                    level, maneuvers .tom-init-level, etc. (The old
+  //                    hard-coded '.sc-caster-level, .pp-manifester-level'
+  //                    matched NONE of these, so a re-applied psionic
+  //                    class never bumped its manifester level — fixed by
+  //                    passing the correct selectors from ensureCasterTab.)
+  function ensureSimpleCasterTab(type, className, classLevel, opts) {
+    opts = opts || {};
+    const levelSelectors = opts.levelSelectors
+      || ['.sc-caster-level', '.psi-manifester-level'];
     const existing = findExistingCasterPanel(type, className);
     if (existing) {
-      const cl = existing.querySelector('.sc-caster-level, .pp-manifester-level');
-      if (cl) {
-        cl.value = classLevel;
-        cl.dispatchEvent(new Event('input', { bubbles: true }));
+      for (const sel of levelSelectors) {
+        const cl = existing.querySelector(sel);
+        if (cl) {
+          cl.value = classLevel;
+          cl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
       }
       return existing;
     }
-    Spells.addCaster(type, { name: className, notes: className });
+    const data = Object.assign(
+      { name: className, notes: className }, opts.createData || {});
+    Spells.addCaster(type, data);
     return findExistingCasterPanel(type, className);
   }
 
@@ -3857,26 +3940,27 @@
     }
   }
 
-  // M2: Populate Tome of Battle maneuver/stance counts on the panel
-  // from the class_table's `columns` block. Same setIfEmpty pattern
-  // as populateClassFeaturesTab: only fills empty fields, tags with
-  // data-from-class, clears marker on user edit.
-  function populateManeuverPanelCounts(panel, className, level) {
-    if (!panel) return;
-    // Find the class's classId via the picked-classes list (we know it
-    // was just applied, so it's there).
-    const entry = pickedClasses.find(p => p.className === className);
-    const classId = entry?.classId;
-    if (!classId) return;
-    const table = fetchClassTable(classId);
-    if (!table || !table.length) return;
-    const row = table.find(r => Number(r.level) === Number(level));
-    if (!row || !row.columns) return;
-    const cols = row.columns;
-
-    const setPanelIfEmpty = (sel, val) => {
+  // Shared "fill only if blank, tag with data-from-class, clear the
+  // marker on user edit" setter for class-driven panel auto-fill.
+  // Returns a setIfEmpty(selector, value) closure scoped to `panel` /
+  // `className`. Centralizes the M2 contract — user edits survive
+  // re-apply; removeClass strips untouched auto-fills via the
+  // data-from-class marker — so the maneuver / invocation / binder
+  // count populators below all behave identically.
+  function makeClassFieldSetter(panel, className) {
+    return (sel, val) => {
       const el = panel.querySelector(sel);
-      if (!el || el.value.trim()) return;
+      if (!el) return;
+      // Fill when blank, OR re-sync when the field still carries OUR
+      // auto-fill marker (the player hasn't hand-edited it — a manual
+      // edit clears data-fromClass via the isTrusted listener below).
+      // This lets per-level counts (maneuvers/invocations known, max
+      // vestige level) advance on level-up — e.g. Binder 5→9 bumps Max
+      // Vestige Level 3→5 — while a value the player typed is preserved.
+      // (Programmatic re-fills dispatch a non-trusted input event, so
+      // they never trip the marker-clearing listener.)
+      const stillAuto = el.dataset.fromClass === className;
+      if (el.value.trim() && !stillAuto) return;
       el.value = val;
       el.dataset.fromClass = className;
       if (!el.dataset.fromClassWired) {
@@ -3887,11 +3971,71 @@
       }
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
+  }
 
+  // Resolve the class_table row for `classId` at `level` (or null).
+  // Shared by the count populators below. Different subsystems store
+  // their per-level counts differently — ToB / Warlock under a nested
+  // `columns` block, Binder as a top-level `max_vestige_level` field —
+  // so callers read the row directly rather than assuming a shape.
+  function classTableRowAt(classId, level) {
+    if (!classId) return null;
+    const table = fetchClassTable(classId);
+    if (!table || !table.length) return null;
+    return table.find(r => Number(r.level) === Number(level)) || null;
+  }
+
+  // "3rd" / "1st" / "10th" / 3 → leading integer; null if unparseable.
+  function parseOrdinalInt(v) {
+    if (v == null) return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    const m = String(v).match(/\d+/);
+    return m ? parseInt(m[0], 10) : null;
+  }
+
+  // M2: Populate Tome of Battle maneuver/stance counts on the panel
+  // from the class_table row's `columns` block. setIfEmpty pattern:
+  // only fills empty fields, tags with data-from-class, clears the
+  // marker on user edit.
+  function populateManeuverPanelCounts(panel, className, level) {
+    if (!panel) return;
+    // Find the class's classId via the picked-classes list (we know it
+    // was just applied, so it's there).
+    const entry = pickedClasses.find(p => p.className === className);
+    const row = classTableRowAt(entry?.classId, level);
+    if (!row || !row.columns) return;
+    const cols = row.columns;
+    const setPanelIfEmpty = makeClassFieldSetter(panel, className);
     setPanelIfEmpty('.tom-init-level',     String(level));
     if (cols.maneuvers_known   != null) setPanelIfEmpty('.tom-known-count',   String(cols.maneuvers_known));
     if (cols.maneuvers_readied != null) setPanelIfEmpty('.tom-readied-count', String(cols.maneuvers_readied));
     if (cols.stances_known     != null) setPanelIfEmpty('.tom-stances-count', String(cols.stances_known));
+  }
+
+  // Warlock-style invocation counts. The class_table row's `columns`
+  // block carries invocations_known per level (Warlock L5 → 3). Highest
+  // Grade and the per-grade breakdown aren't in the table (grade access
+  // is a level formula in the class text), so we prefill the known count
+  // only; the player sets Highest Grade. Same setIfEmpty contract.
+  function populateInvocationPanelCounts(panel, className, level, classId) {
+    if (!panel) return;
+    const row = classTableRowAt(classId, level);
+    const known = row?.columns?.invocations_known;
+    if (known == null) return;
+    makeClassFieldSetter(panel, className)('.invo-known-count', String(known));
+  }
+
+  // Binder vestige counts. max_vestige_level is a top-level ordinal
+  // string on the row ("3rd") — parse the leading integer into the
+  // panel's Max Vestige Level field. Max Vestiges Bound isn't a table
+  // column (it's a level rule in the class text), so it's left for the
+  // player. Same setIfEmpty contract.
+  function populateBinderPanelCounts(panel, className, level, classId) {
+    if (!panel) return;
+    const row = classTableRowAt(classId, level);
+    const mv = parseOrdinalInt(row?.max_vestige_level);
+    if (mv == null) return;
+    makeClassFieldSetter(panel, className)('.bind-max-vestige', String(mv));
   }
 
   // Cache parsed class_features per class entry id, same pattern as

@@ -1288,6 +1288,113 @@ test('class-picker: every base spellcaster class is in SPELLCASTING_TYPE', (db) 
     `that type can then target the class.`);
 });
 
+// ---- tests: spell-adjacent subsystem sub-tab wiring ----------------------
+//
+// Beyond native spellcasting, the Spells tab hosts sub-tabs for the
+// spell-adjacent subsystems: psionics, maneuvers, invocations (Warlock),
+// vestige binding (Binder), and shadowcasting (Shadowcaster).
+// ensureCasterTab auto-creates the right sub-tab when a class that uses
+// one of these is applied; removeClass tears it down. These guards keep
+// every such base class wired and the create/teardown sets in sync — a
+// future book that adds a new invocation/vestige/mystery base class must
+// register it, or this fails.
+
+// Extract the string items of a `const NAME = new Set([ '…', '…' ])`
+// literal from source. Parallels extractObjectKeys (which handles object
+// literals); the subsystem class lists are Sets, not objects.
+function extractSetItems(src, varName) {
+  const re = new RegExp(
+    `const\\s+${varName}\\s*=\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)`, 'm');
+  const m = src.match(re);
+  if (!m) return new Set();
+  const items = new Set();
+  const itemRe = /(?:"([^"\n]+?)"|'([^'\n]+?)')/g;
+  let im;
+  while ((im = itemRe.exec(m[1])) !== null) items.add(im[1] || im[2]);
+  return items;
+}
+
+const INVOCATION_USING_KEYS = extractSetItems(CLASS_PICKER_SRC, 'INVOCATION_USING_CLASSES');
+const VESTIGE_USING_KEYS    = extractSetItems(CLASS_PICKER_SRC, 'VESTIGE_USING_CLASSES');
+const MYSTERY_USING_KEYS    = extractSetItems(CLASS_PICKER_SRC, 'MYSTERY_USING_CLASSES');
+
+test('class-picker: subsystem class sets contain the canonical base classes', () => {
+  assert(INVOCATION_USING_KEYS.has('Warlock'),
+    'INVOCATION_USING_CLASSES should contain Warlock');
+  assert(VESTIGE_USING_KEYS.has('Binder'),
+    'VESTIGE_USING_CLASSES should contain Binder');
+  assert(MYSTERY_USING_KEYS.has('Shadowcaster'),
+    'MYSTERY_USING_CLASSES should contain Shadowcaster');
+});
+
+test('class-picker: ensureCasterTab wires every spell-adjacent subsystem', () => {
+  const src = CLASS_PICKER_SRC;
+  // The three subsystems added 2026-06-07. Each must map its class-set
+  // guard to an ensureSimpleCasterTab call of the right sub-tab type.
+  for (const [set, type] of [
+    ['INVOCATION_USING_CLASSES', 'invocations'],
+    ['VESTIGE_USING_CLASSES',    'binding'],
+    ['MYSTERY_USING_CLASSES',    'shadowcaster'],
+  ]) {
+    const re = new RegExp(
+      `${set}\\.has\\(className\\)[\\s\\S]{0,260}?ensureSimpleCasterTab\\(\\s*'${type}'`);
+    assert(re.test(src),
+      `ensureCasterTab must route ${set} → ensureSimpleCasterTab('${type}', …)`);
+  }
+});
+
+test('class-picker: removeClass tears down every auto-created sub-tab type', () => {
+  // The teardown loop must list every type ensureCasterTab can create,
+  // or removing the class orphans its tab (stray Invocations/Binding/
+  // Shadowcasting tab). Pull the array literal that drives the teardown.
+  const m = CLASS_PICKER_SRC.match(
+    /Remove this class's spells tab[\s\S]*?for \(const type of \[([\s\S]*?)\]\)/);
+  assert(m, 'removeClass teardown loop not found');
+  const listed = new Set();
+  const itemRe = /'([^']+)'/g;
+  let im;
+  while ((im = itemRe.exec(m[1])) !== null) listed.add(im[1]);
+  for (const type of ['spellcasting', 'psionics', 'maneuvers',
+                      'invocations', 'binding', 'shadowcaster']) {
+    assert(listed.has(type),
+      `removeClass teardown list missing '${type}' — removing such a ` +
+      `class would orphan its Spells sub-tab.`);
+  }
+});
+
+// DB-driven: every base class whose data signals a spell-adjacent
+// subsystem must be registered in the corresponding class set. Mirrors
+// the "every base spellcaster is in SPELLCASTING_TYPE" audit — catches a
+// future book adding e.g. a second invocation-using base class that's
+// left unwired (it would silently get no Spells sub-tab on apply).
+test('class-picker: every invocation/vestige/mystery base class is wired', (db) => {
+  const rows = execAll(db,
+    "SELECT name, data FROM entry WHERE type = 'class'");
+  const signals = [
+    { set: INVOCATION_USING_KEYS, label: 'INVOCATION_USING_CLASSES',
+      test: (l) => /eldritch blast|least invocation|invocations known/.test(l) },
+    { set: VESTIGE_USING_KEYS, label: 'VESTIGE_USING_CLASSES',
+      test: (l) => /bind a vestige|vestiges bound|max_vestige_level|soul binding/.test(l) },
+    { set: MYSTERY_USING_KEYS, label: 'MYSTERY_USING_CLASSES',
+      test: (l) => /mysteries known|apprentice mysteries|fundamental of shadow/.test(l) },
+  ];
+  const missing = [];
+  for (const r of rows) {
+    const low = (r.data || '').toLowerCase();
+    for (const sig of signals) {
+      if (sig.test(low) && !sig.set.has(r.name)) {
+        missing.push(`${r.name} → ${sig.label}`);
+      }
+    }
+  }
+  assert(missing.length === 0,
+    `${missing.length} base class(es) signal a spell-adjacent subsystem ` +
+    `but aren't registered in the matching set:\n  ` +
+    missing.sort().join('\n  ') +
+    `\nFix: add each to the named Set in class-picker.js so ensureCasterTab ` +
+    `creates its Spells sub-tab on apply (and removeClass tears it down).`);
+});
+
 // ---- tests: DB-side class metadata merge ---------------------------------
 //
 // Centralized 2026-05-15 from class-picker.js hand-coded maps into
