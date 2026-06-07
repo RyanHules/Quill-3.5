@@ -327,16 +327,14 @@
   });
 
   // ---- ToB PrC scenarios -------------------------------------------------
-  // These three exercise PrCs that advance martial maneuvers + IL +
-  // maneuvers-known. The sheet handles spell-progression advancement
-  // (via Source A canonical-marker regex on class_table.special) AND
-  // the parallel maneuver-progression advancement: the ToB pillar
-  // (DB `entry.data.maneuver_advancement` populated by
-  // `_class_metadata.py::MANEUVER_ADVANCEMENT_METADATA`, with
-  // `_FALLBACK_MANEUVER_ADVANCERS` as backup) feeds
-  // detectManeuverAdvancement → effectiveInitiatorLevel, which writes
-  // the bumped IL into each panel's `.tom-init-level`. Both casting
-  // and IL/maneuvers now advance correctly, so these are green.
+  // These three exercise PrCs that advance martial maneuvers + IL. The
+  // sheet handles spell-progression advancement (via Source A canonical-
+  // marker regex on class_table.special) AND the parallel ToB IL pillar:
+  // effectiveInitiatorLevel reads the maneuver-advancer registry
+  // (DB `entry.data.maneuver_advancement` / `_FALLBACK_MANEUVER_ADVANCERS`
+  // via `getManeuverAdvancementSpec`) and adds each advancer's FULL level
+  // to every martial-adept panel's `.tom-init-level`. Both casting and
+  // IL now advance correctly, so these are green.
 
   scenario('Cleric 5 / Crusader 5 / Ruby Knight Vindicator 2 — divine + maneuver advancer', async () => {
     await newCharacter();

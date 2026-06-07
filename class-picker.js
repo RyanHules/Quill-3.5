@@ -1442,12 +1442,8 @@
         e.advancesTargets = e.advancesTargets.map(t =>
           t && t.toLowerCase() === removedKey ? null : t);
       }
-      // ToB maneuver pillar — same pattern. refreshManeuverAdvanceTarget
-      // will re-resolve to another eligible base if one exists.
-      if (e.maneuverAdvancesTarget &&
-          e.maneuverAdvancesTarget.toLowerCase() === removedKey) {
-        e.maneuverAdvancesTarget = null;
-      }
+      // (ToB maneuver pillar needs no per-target cleanup — IL is computed
+      // live from the registry + the current pickedClasses, all-target.)
       // Invocation pillar — same pattern.
       if (e.invocationAdvancesTarget &&
           e.invocationAdvancesTarget.toLowerCase() === removedKey) {
@@ -1652,13 +1648,8 @@
           requiresStyles:         e.requiresStyles,
           allowsMultiAdvance:     e.allowsMultiAdvance,
           advancementSlots:       e.advancementSlots,
-          // ToB maneuver-advancement pillar (RKV / JPM / MoN). Saved
-          // separately from the spell-pillar fields above because RKV
-          // populates BOTH sets (advances divine casting AND maneuvers).
-          maneuverAdvancesLevels:  e.maneuverAdvancesLevels,
-          maneuverAdvancesTarget:  e.maneuverAdvancesTarget,
-          maneuverAdvancingLevels: e.maneuverAdvancingLevels,
-          maneuverDisciplines:     e.maneuverDisciplines,
+          // (No ToB maneuver-advancement fields: IL is recomputed live
+          // from the registry on load, so there's nothing to persist.)
           // Invocation-advancement pillar (ED / ET / Demonbinder).
           // Same dual-pillar pattern: ET populates this AND the spell
           // pillar above.
@@ -1745,10 +1736,6 @@
               requiresStyles:         stub.requiresStyles         || undefined,
               allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
               advancementSlots:       stub.advancementSlots       || undefined,
-              maneuverAdvancesLevels:  stub.maneuverAdvancesLevels  || undefined,
-              maneuverAdvancesTarget:  stub.maneuverAdvancesTarget  || undefined,
-              maneuverAdvancingLevels: stub.maneuverAdvancingLevels || undefined,
-              maneuverDisciplines:     stub.maneuverDisciplines     || undefined,
               invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
               invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
               invocationAdvancingLevels: stub.invocationAdvancingLevels || undefined,
@@ -1780,11 +1767,6 @@
             requiresStyles:         stub.requiresStyles         || undefined,
             allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
             advancementSlots:       stub.advancementSlots       || undefined,
-            // ToB maneuver pillar — see Save side above for context.
-            maneuverAdvancesLevels:  stub.maneuverAdvancesLevels  || undefined,
-            maneuverAdvancesTarget:  stub.maneuverAdvancesTarget  || undefined,
-            maneuverAdvancingLevels: stub.maneuverAdvancingLevels || undefined,
-            maneuverDisciplines:     stub.maneuverDisciplines     || undefined,
             // Invocation pillar.
             invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
             invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
@@ -2478,62 +2460,21 @@
   // ============================================================
   // Maneuver-advancement pillar (Tome of Battle)
   //
-  // Parallels the spell-advancement pillar above but tracks ToB
-  // initiator level (IL) instead of caster level. ToB PrCs (Ruby
-  // Knight Vindicator, Jade Phoenix Mage, Master of Nine, …) advance
-  // IL of a base martial-adept class (Crusader / Swordsage /
-  // Warblade) on a schedule that's INDEPENDENT of any spell-pillar
-  // advancement they may also do — e.g. RKV advances divine
-  // spellcasting at every level except 1 and 6, but advances
-  // maneuvers only on EVEN levels.
+  // ToB PrCs (Ruby Knight Vindicator, Jade Phoenix Mage, Master of Nine)
+  // advance initiator level. Their metadata lives entirely in the
+  // registry (`getManeuverAdvancementSpec` → DB `maneuver_advancement`
+  // or `_FALLBACK_MANEUVER_ADVANCERS`); effectiveInitiatorLevel reads it
+  // directly, so — unlike the spell pillar — there is NO per-entry
+  // target/level stamping to keep in sync or round-trip. Each advancer
+  // adds its FULL level to EVERY martial-adept class's IL (all-target;
+  // see effectiveInitiatorLevel for the rule), and refreshAllManeuverTabs
+  // writes each panel's computed IL into its `.tom-init-level` field.
   //
-  // Data flow:
-  //   - DB / fallback map → maneuver_advancement.advancingLevels
-  //   - detectManeuverAdvancement(name, classId, level) returns a
-  //     count of advancing PrC levels at or below the picked level.
-  //   - applyToSheet stamps `entry.maneuverAdvancesLevels` on the
-  //     advancer entry (and `entry.maneuverAdvancingLevels` for the
-  //     UI / save-roundtrip).
-  //   - effectiveInitiatorLevel(target) sums those bumps for the
-  //     given base initiator entry.
-  //   - refreshAllManeuverTabs writes the result into each ToB
-  //     panel's `.tom-init-level` field.
-  //
-  // Only IL is wired today (matches the failing playfeel scenarios'
-  // contract). Maneuvers-known counts and stances-known counts are
-  // populated by populateManeuverPanelCounts from the BASE class's
-  // class_table for now; per-advance increments are a follow-up.
+  // A homebrew ToB PrC just needs a `maneuver_advancement` registry entry
+  // to participate — no other wiring. (The spec's `advancing_levels` is
+  // the maneuvers-KNOWN gain schedule, available to a future maneuver-
+  // picker via the same accessor; it is NOT an IL schedule.)
   // ============================================================
-
-  function detectManeuverAdvancement(className, classId, level) {
-    const spec = getManeuverAdvancementSpec(className);
-    if (!spec || !Array.isArray(spec.advancingLevels)) return null;
-    // Count how many of the spec's advancing-levels are at or below
-    // the picked PrC level. Each contributes +1 IL to the chosen base.
-    const passed = spec.advancingLevels.filter(lv => lv <= level);
-    if (!passed.length) return null;
-    return {
-      levels: passed.length,
-      advancingLevels: passed.slice(),
-      disciplines: spec.disciplines || [],
-    };
-  }
-
-  // Pick the first martial-adept class in pickedClasses to be the IL
-  // advancement target. Mirrors pickAdvanceTarget for the spell pillar.
-  // ToB doesn't subdivide by "type" — Crusader / Swordsage / Warblade
-  // all use the same IL track, and a PrC's discipline restriction is
-  // about which disciplines the player can pick maneuvers FROM, not
-  // about which base class advances. For multi-base builds (Crusader
-  // + Swordsage + MoN), the first matching base wins; secondary IL
-  // tracking is a follow-up.
-  function pickManeuverAdvanceTarget(advancerEntry) {
-    for (const e of pickedClasses) {
-      if (e === advancerEntry) continue;
-      if (MARTIAL_ADEPT_CLASSES.has(e.className)) return e.className;
-    }
-    return null;
-  }
 
   // Initiator level for an applied martial-adept class, per Tome of
   // Battle p.39. IL is computed PER martial-adept class (this is called
@@ -2589,7 +2530,6 @@
   // …) don't get tabs themselves.
   function refreshAllSpellTabs() {
     for (const e of pickedClasses) refreshAdvanceTargets(e);
-    for (const e of pickedClasses) refreshManeuverAdvanceTarget(e);
     for (const e of pickedClasses) refreshInvocationAdvanceTarget(e);
     for (const e of pickedClasses) refreshMysteryAdvanceTarget(e);
     // After targets settle, resolve auto-lower slots (UM L1/4/7) using
@@ -2630,21 +2570,6 @@
         applyClassSpellAdditions(e);
       }
     }
-  }
-
-  // Resolve maneuverAdvancesTarget for a freshly-applied or reloaded
-  // advancer entry. Picks the first eligible base ToB class in
-  // pickedClasses if none was previously pinned and the previously-
-  // pinned target no longer exists. Mirror of refreshAdvanceTargets
-  // for the maneuver pillar.
-  function refreshManeuverAdvanceTarget(entry) {
-    if (!entry.maneuverAdvancesLevels) return;
-    const stillExists = (name) =>
-      pickedClasses.some(e => e.className.toLowerCase() === name.toLowerCase());
-    if (entry.maneuverAdvancesTarget &&
-        stillExists(entry.maneuverAdvancesTarget)) return;
-    const tgt = pickManeuverAdvanceTarget(entry);
-    entry.maneuverAdvancesTarget = tgt || null;
   }
 
   // ============================================================
@@ -3165,15 +3090,9 @@
         entry.allowsMultiAdvance = adv.allowsMultiAdvance;
       }
     }
-    // Detect ToB maneuver-advancement (parallel pillar — RKV / JPM /
-    // MoN). Independent of the spell-advancement schedule above; an
-    // entry can have BOTH (RKV advances divine casting AND maneuvers).
-    const madv = detectManeuverAdvancement(cls.class, cls.class_id, level);
-    if (madv) {
-      entry.maneuverAdvancesLevels = madv.levels;
-      entry.maneuverAdvancingLevels = madv.advancingLevels;
-      entry.maneuverDisciplines = madv.disciplines;
-    }
+    // ToB maneuver-advancement (RKV / JPM / MoN) needs no per-entry
+    // stamping — effectiveInitiatorLevel reads the registry
+    // (getManeuverAdvancementSpec) directly when computing each panel's IL.
     // Detect invocation-advancement (parallel pillar — Eldritch
     // Disciple, Eldritch Theurge, Demonbinder). Independent of the
     // other pillars; ET populates BOTH spell and invocation.
@@ -3210,11 +3129,6 @@
         const keep = new Set(entry.advancingLevels);
         entry.advancementSlots = prev.advancementSlots
           .filter(s => keep.has(s.prcLevel));
-      }
-      // Preserve user-pinned ToB IL target on re-apply (e.g. user picked
-      // Warblade over Crusader when both are present).
-      if (prev.maneuverAdvancesTarget) {
-        entry.maneuverAdvancesTarget = prev.maneuverAdvancesTarget;
       }
       // Same for the invocation pillar (matters once we extract more
       // than one invocation-using base class).
@@ -3311,10 +3225,14 @@
     } else if (entry.advancesTypes && entry.advancesTypes.length) {
       advParts.push(`${entry.advancesTypes.join('+')} caster — no target found`);
     }
-    if (entry.maneuverAdvancesTarget) {
-      advParts.push(`${entry.maneuverAdvancesTarget} IL`);
-    } else if (entry.maneuverAdvancesLevels) {
-      advParts.push(`maneuvers — no ToB base found`);
+    // ToB IL-advancers (RKV / JPM / MoN) are all-target — they add their
+    // full level to EVERY martial adept's IL — so the note names no
+    // single class.
+    if (getManeuverAdvancementSpec(cls.class)) {
+      const hasBase = pickedClasses.some(e => MARTIAL_ADEPT_CLASSES.has(e.className));
+      advParts.push(hasBase
+        ? 'initiator level'
+        : 'initiator level — no martial adept class');
     }
     if (entry.invocationAdvancesTarget) {
       advParts.push(`${entry.invocationAdvancesTarget} invocations`);
