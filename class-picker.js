@@ -535,6 +535,15 @@
     'Binder',
   ]);
 
+  // Incarnum meldshaper classes (Magic of Incarnum). These don't get a
+  // Spells sub-tab — soulmelds live on the Equipment tab's magic-item
+  // slots — but their class_table carries {soulmelds, essentia,
+  // chakra_binds} per level, which we copy into the Equipment tab's
+  // soulmeld counter fields on apply (populateIncarnumCounts).
+  const INCARNUM_CLASSES = new Set([
+    'Totemist', 'Incarnate', 'Soulborn',
+  ]);
+
   const _FALLBACK_MANEUVER_ADVANCERS = {
     'Ruby Knight Vindicator': {
       advancingLevels: [2, 4, 6, 8, 10],
@@ -3256,6 +3265,14 @@
     // none" rule.
     const casterPanel = ensureCasterTab(cls.class, level, cls.class_id);
 
+    // Incarnum meldshapers (Totemist/Incarnate/Soulborn) have no Spells
+    // sub-tab — their soulmelds live on the Equipment tab — so copy the
+    // class_table's per-level soulmeld / essentia / chakra-bind counts
+    // into the Equipment tab's soulmeld counter fields.
+    if (INCARNUM_CLASSES.has(cls.class)) {
+      populateIncarnumCounts(cls.class, level, cls.class_id);
+    }
+
     // Refresh effective spell levels in case this class is an advancer
     // (Eldritch Knight, Mystic Theurge, …) or in case the just-applied
     // class is the new target of a previously-applied advancer.
@@ -4063,6 +4080,41 @@
     const mv = parseOrdinalInt(row?.max_vestige_level);
     if (mv == null) return;
     makeClassFieldSetter(panel, className)('.bind-max-vestige', String(mv));
+  }
+
+  // Copy an incarnum meldshaper's per-level counts (soulmelds shaped /
+  // essentia pool / chakra binds, all in the class_table row's `columns`
+  // block) into the Equipment tab's soulmeld counter inputs. These
+  // counters live on a different tab (no panel), so we target them by id
+  // off `document`. The Equipment fields default to "0", so unlike the
+  // spell-panel setter we treat "0" as unset too — the first apply fills
+  // them, level-up re-syncs while still auto-marked, and removeClass
+  // strips them via the global data-from-class sweep
+  // (removeAutoFilledClassFeatureFields). A user-typed non-zero value
+  // clears the marker (isTrusted listener) and is preserved.
+  function populateIncarnumCounts(className, level, classId) {
+    const row = classTableRowAt(classId, level);
+    const cols = row && row.columns;
+    if (!cols) return;
+    const set = (sel, val) => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      const cur = (el.value || '').trim();
+      const stillAuto = el.dataset.fromClass === className;
+      if (cur !== '' && cur !== '0' && !stillAuto) return;
+      el.value = String(val);
+      el.dataset.fromClass = className;
+      if (!el.dataset.fromClassWired) {
+        el.dataset.fromClassWired = '1';
+        el.addEventListener('input', (ev) => {
+          if (ev.isTrusted) delete el.dataset.fromClass;
+        });
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    if (cols.soulmelds    != null) set('#sm-max-soulmelds', cols.soulmelds);
+    if (cols.essentia     != null) set('#sm-max-essentia',  cols.essentia);
+    if (cols.chakra_binds != null) set('#sm-max-binds',     cols.chakra_binds);
   }
 
   // Cache parsed class_features per class entry id, same pattern as

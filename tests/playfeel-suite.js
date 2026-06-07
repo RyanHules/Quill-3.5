@@ -717,6 +717,28 @@
       'IL-MC: Warblade 5 / Fighter 4 → IL 5 + floor(4/2) = 7');
   });
 
+  regression('SM: incarnum class copies soulmeld counts to Equipment tab', async () => {
+    // Totemist 5 → Equipment soulmeld counters seeded from the class
+    // table columns (soulmelds 4, essentia 3, chakra binds 1).
+    await newCharacter();
+    await applyClass('Totemist', 5);
+    document.querySelector('.tab[data-tab="tab-equipment"]').click();
+    await wait(150);
+    expectValue('#sm-max-soulmelds', '4', 'SM: Max Soulmelds 4');
+    expectValue('#sm-max-essentia', '3', 'SM: Max Essentia 3');
+    expectValue('#sm-max-binds', '1', 'SM: Max Binds 1');
+    // Level-up re-syncs auto-marked counts (Totemist 8 → soulmelds 5,
+    // essentia 5, chakra binds 2).
+    await applyClass('Totemist', 8);
+    expectValue('#sm-max-soulmelds', '5', 'SM: re-sync soulmelds 5 at L8');
+    expectValue('#sm-max-essentia', '5', 'SM: re-sync essentia 5 at L8');
+    // Removing the class strips the auto-filled counts.
+    removeClass('Totemist');
+    await wait(200);
+    expect((document.querySelector('#sm-max-soulmelds').value || '').trim(), '',
+      'SM: removeClass clears the auto-filled Max Soulmelds');
+  });
+
   // ---- Save-stability regressions (2026-05-17 sweep) -----------------
   //
   // Each fix in the save-stability sweep gets a regression here that

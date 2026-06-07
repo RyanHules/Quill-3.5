@@ -1395,6 +1395,52 @@ test('class-picker: every invocation/vestige/mystery base class is wired', (db) 
     `creates its Spells sub-tab on apply (and removeClass tears it down).`);
 });
 
+// ---- tests: incarnum soulmeld-count auto-fill ----------------------------
+//
+// Incarnum meldshapers (Totemist/Incarnate/Soulborn) have no Spells
+// sub-tab — soulmelds live on the Equipment tab — but applyClass copies
+// their per-level {soulmelds, essentia, chakra_binds} into the Equipment
+// counter fields. Guard the set + the wiring + completeness.
+
+const INCARNUM_KEYS = extractSetItems(CLASS_PICKER_SRC, 'INCARNUM_CLASSES');
+
+test('class-picker: INCARNUM_CLASSES contains the meldshaper base classes', () => {
+  for (const known of ['Totemist', 'Incarnate', 'Soulborn']) {
+    assert(INCARNUM_KEYS.has(known),
+      `INCARNUM_CLASSES should contain '${known}'`);
+  }
+});
+
+test('class-picker: applyClass copies incarnum counts to the Equipment tab', () => {
+  const src = CLASS_PICKER_SRC;
+  // applyClass must invoke populateIncarnumCounts for incarnum classes,
+  // and the populator must target the three Equipment soulmeld inputs.
+  assert(/INCARNUM_CLASSES\.has\([^)]*\)[\s\S]{0,120}?populateIncarnumCounts\(/.test(src),
+    'applyClass must call populateIncarnumCounts for INCARNUM_CLASSES');
+  for (const id of ['#sm-max-soulmelds', '#sm-max-essentia', '#sm-max-binds']) {
+    assert(src.includes(id),
+      `populateIncarnumCounts must write the Equipment field ${id}`);
+  }
+});
+
+// DB-driven completeness: every base class whose class_table carries a
+// `soulmelds` column is a meldshaper and must be registered, or its
+// soulmeld numbers silently won't reach the Equipment tab on apply.
+test('class-picker: every meldshaper base class is in INCARNUM_CLASSES', (db) => {
+  const rows = execAll(db, "SELECT name, data FROM entry WHERE type = 'class'");
+  const missing = [];
+  for (const r of rows) {
+    // The incarnum column key, unambiguous in the class_table JSON.
+    if (/"soulmelds"\s*:/.test(r.data || '') && !INCARNUM_KEYS.has(r.name)) {
+      missing.push(r.name);
+    }
+  }
+  assert(missing.length === 0,
+    `${missing.length} class(es) carry a soulmelds column but aren't in ` +
+    `INCARNUM_CLASSES:\n  ` + missing.sort().join('\n  ') +
+    `\nFix: add each to INCARNUM_CLASSES in class-picker.js.`);
+});
+
 // ---- tests: DB-side class metadata merge ---------------------------------
 //
 // Centralized 2026-05-15 from class-picker.js hand-coded maps into
