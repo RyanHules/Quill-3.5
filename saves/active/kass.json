@@ -168,7 +168,7 @@
   "casters": [],
   "feats": [
     "Dragonwrought (Red)",
-    "Skill Focus (Bluff)",
+    "Skill Focus (Appraise)",
     "Draconic Wings",
     "Dragon Tail"
   ],
@@ -320,8 +320,8 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
-      "misc": "2",
+      "ranks": "5",
+      "misc": "4",
       "index": 0
     },
     {
@@ -334,8 +334,8 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
-      "misc": "2",
+      "ranks": "0",
+      "misc": "0",
       "index": 2
     },
     {
@@ -438,14 +438,14 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "0",
       "misc": "0",
       "index": 16
     },
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "5",
       "misc": "14",
       "index": 17
     },
@@ -613,8 +613,7 @@
       "classSkill": false,
       "ranks": "0",
       "misc": "2",
-      "index": 39,
-      "notes": "-1 in areas of bright light"
+      "index": 39
     },
     {
       "type": "skill",
