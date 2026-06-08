@@ -77,6 +77,9 @@ const Spells = (function () {
       panel.innerHTML = notesHTML + buildInvocationsHTML(idx, data);
       container.appendChild(panel);
       panel._casterData = data;
+      // Stamp the panel's class so invocation-picker can filter to the
+      // invocations this class can take (Warlock vs Dragonfire Adept).
+      if (data.invoClass) panel.dataset.invoClass = data.invoClass;
       buildInvocationLists(idx, panel);
       wireLevelTabs(panel);
     } else if (type === "shadowcaster") {
@@ -1691,9 +1694,18 @@ const Spells = (function () {
   // user does manually (10 + spell-level-equivalent + CHA).
   const INVOCATION_GRADES = ['Least', 'Lesser', 'Greater', 'Dark'];
 
+  // Dragonfire Adept panels get an extra "Breath Effects" tab — those DB
+  // entries are grade='Breath Effect' with a minimum_level, distinct from
+  // the four invocation grades. Warlock panels keep the standard four.
+  function invoGradesFor(data) {
+    return (data && data.invoClass === 'Dragonfire Adept')
+      ? INVOCATION_GRADES.concat(['Breath Effect'])
+      : INVOCATION_GRADES;
+  }
+
   function buildInvocationsHTML(idx, data) {
-    const gradeTabs = INVOCATION_GRADES.map((g, i) =>
-      `<button class="spell-level-tab${i === 0 ? " active" : ""}" data-level="${i}">${g}</button>`
+    const gradeTabs = invoGradesFor(data).map((g, i) =>
+      `<button class="spell-level-tab${i === 0 ? " active" : ""}" data-level="${i}">${g === 'Breath Effect' ? 'Breath Effects' : g}</button>`
     ).join("");
     return `
       <section class="section">
@@ -1717,15 +1729,20 @@ const Spells = (function () {
   function buildInvocationLists(idx, panel) {
     const container = panel.querySelector(".invo-grade-lists");
     const data = panel._casterData || {};
-    INVOCATION_GRADES.forEach((grade, i) => {
+    invoGradesFor(data).forEach((grade, i) => {
       const div = document.createElement("div");
       div.className = `spell-list-content${i === 0 ? " active" : ""}`;
       div.dataset.level = i;
+      const isBreath = grade === 'Breath Effect';
       const key = `invo-${grade.toLowerCase()}`;
+      const heading = isBreath ? 'Breath Effects' : `${grade} Invocations`;
+      const ph = isBreath
+        ? 'Enter known breath effects, one per line...'
+        : `Enter ${grade.toLowerCase()} invocations, one per line...`;
       div.innerHTML = `
-        <h3>${grade} Invocations</h3>
+        <h3>${heading}</h3>
         <textarea class="invo-text" data-grade="${grade.toLowerCase()}" rows="8"
-                  placeholder="Enter ${grade.toLowerCase()} invocations, one per line...">${data[key] || ""}</textarea>
+                  placeholder="${ph}">${data[key] || ""}</textarea>
       `;
       container.appendChild(div);
     });
@@ -2175,13 +2192,14 @@ const Spells = (function () {
         caster.highestGrade = panel.querySelector(".invo-highest-grade")?.value || "";
         caster.knownCount = panel.querySelector(".invo-known-count")?.value || "";
         caster.conditional = panel.querySelector(".invo-conditional")?.value || "";
-        // Per-grade Known textarea, one per Least / Lesser / Greater /
-        // Dark. Stored as `invo-<gradeKey>` for stable round-trip.
-        for (const grade of INVOCATION_GRADES) {
-          const key = `invo-${grade.toLowerCase()}`;
-          caster[key] = panel.querySelector(
-            `.invo-text[data-grade="${grade.toLowerCase()}"]`)?.value || "";
-        }
+        caster.invoClass = panel.dataset.invoClass || "";
+        // Per-grade Known textarea (Least/Lesser/Greater/Dark, plus a
+        // "breath effect" tab on Dragonfire Adept panels). Stored as
+        // `invo-<gradeKey>` for stable round-trip; iterate the panel's
+        // actual textareas so the breath tab persists too.
+        panel.querySelectorAll('.invo-text').forEach((ta) => {
+          caster[`invo-${ta.dataset.grade}`] = ta.value || "";
+        });
       }
 
       data.casters.push(caster);

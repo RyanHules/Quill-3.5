@@ -3493,7 +3493,8 @@
     // class_table count columns are prefilled (M2-style) where present.
     if (INVOCATION_USING_CLASSES.has(className)) {
       const panel = ensureSimpleCasterTab('invocations', className, classLevel, {
-        createData: { invokerLevel: classLevel, casterLevel: classLevel },
+        createData: { invokerLevel: classLevel, casterLevel: classLevel,
+                      invoClass: className },
         levelSelectors: ['.invo-level', '.invo-caster-level'],
       });
       if (panel) populateInvocationPanelCounts(panel, className, classLevel, classId);

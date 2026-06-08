@@ -29,9 +29,10 @@
     const rows = DB.query(
       "SELECT id AS invocation_id, name, source, version, "
       + "json_extract(data, '$.kind')                    AS kind, "
-      + "json_extract(data, '$.warlock_class')           AS warlock_class, "
+      + "json_extract(data, '$.classes')                 AS classes, "
       + "json_extract(data, '$.grade')                   AS grade, "
       + "json_extract(data, '$.spell_level_equivalent')  AS spell_level_equivalent, "
+      + "json_extract(data, '$.minimum_level')           AS minimum_level, "
       + "json_extract(data, '$.subcategory')             AS subcategory, "
       + "json_extract(data, '$.description')             AS description "
       + "FROM entry WHERE type = 'invocation' "
@@ -45,6 +46,10 @@
       if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'invocation'})) continue;
       const key = (r.name || '').toLowerCase();
       if (invocationIndex.has(key)) continue;
+      // `classes` is a JSON array of the classes that can take this
+      // invocation (Warlock / Dragonfire Adept / both).
+      try { r.classes = JSON.parse(r.classes || '[]'); }
+      catch (e) { r.classes = []; }
       invocationIndex.set(key, r);
       if (r.grade) gradeSet.add(r.grade);
       if (r.subcategory) subSet.add(r.subcategory);
@@ -171,9 +176,15 @@
     function refresh() {
       const g = gradeSel.value;
       const s = subSel.value;
+      // Restrict to invocations this panel's class can take. The panel is
+      // stamped with data-invo-class when a Warlock / Dragonfire Adept
+      // class creates it; a manually-added panel has none → show all.
+      const panelClass = panel.dataset.invoClass || '';
       datalist.innerHTML = '';
       const names = [];
       for (const r of invocationIndex.values()) {
+        if (panelClass && Array.isArray(r.classes)
+            && !r.classes.includes(panelClass)) continue;
         if (g && r.grade !== g) continue;
         if (s && r.subcategory !== s) continue;
         const opt = document.createElement('option');
@@ -255,10 +266,11 @@
       `<span style="opacity:.7">(${escapeHtml(r.source || '?')})</span>`;
     const bits = [head];
     const meta = [
-      r.grade && `${r.grade} invocation`,
+      r.grade && `${r.grade}${r.grade === 'Breath Effect' ? '' : ' invocation'}`,
+      r.minimum_level != null ? `min. class level ${r.minimum_level}` : null,
       r.spell_level_equivalent != null
         ? `lvl-equiv ${r.spell_level_equivalent}` : null,
-      r.subcategory,
+      r.subcategory && r.subcategory !== r.grade ? r.subcategory : null,
     ].filter(Boolean).map(escapeHtml).join(' · ');
     if (meta) bits.push(meta);
     let html = bits.join('<br>');
