@@ -2644,6 +2644,27 @@ test('save: Feats.collectData scopes .feat-entry to its container', () => {
   );
 });
 
+test('save: Spells invocation collector saves invoList rows + migrates legacy', () => {
+  const src = readSource('spells.js');
+  const collect = extractFunctionBody(src, 'collectData');
+  assert(collect, "Couldn't extract Spells.collectData body");
+  // Known invocations are structured rows now (mirroring Spells Known):
+  // the collector must read .invo-known-list rows into invoList-<grade>
+  // arrays + persist invoClass. A stale .invo-text textarea collector
+  // would silently drop every known invocation (the textareas are gone).
+  assert(/invoList-/.test(collect) && /invo-known-list/.test(collect),
+    "Spells.collectData must save invocation rows as invoList-<grade> arrays.");
+  assert(!/invo-text/.test(collect),
+    "Spells.collectData still references the removed .invo-text textareas.");
+  assert(/invoClass/.test(collect),
+    "Spells.collectData must persist invoClass (per-class picker filter).");
+  // Pre-Phase-3 saves: buildInvocationLists must migrate the legacy
+  // invo-<grade> textarea string (split per line) when no invoList array.
+  const build = extractFunctionBody(src, 'buildInvocationLists');
+  assert(build && /invoList-/.test(build) && /split\(/.test(build),
+    "buildInvocationLists must migrate the legacy invo-<grade> textarea string.");
+});
+
 test('save: companion.js still uses .feat-entry as a styling class', () => {
   // Sanity check that this collision still exists — the companion
   // module reuses the styling. If someone renames it the test above

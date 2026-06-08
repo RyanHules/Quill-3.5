@@ -1730,22 +1730,121 @@ const Spells = (function () {
     const container = panel.querySelector(".invo-grade-lists");
     const data = panel._casterData || {};
     invoGradesFor(data).forEach((grade, i) => {
+      const gradeKey = grade.toLowerCase();
+      const isBreath = grade === 'Breath Effect';
       const div = document.createElement("div");
       div.className = `spell-list-content${i === 0 ? " active" : ""}`;
       div.dataset.level = i;
-      const isBreath = grade === 'Breath Effect';
-      const key = `invo-${grade.toLowerCase()}`;
       const heading = isBreath ? 'Breath Effects' : `${grade} Invocations`;
-      const ph = isBreath
-        ? 'Enter known breath effects, one per line...'
-        : `Enter ${grade.toLowerCase()} invocations, one per line...`;
+      const addLbl = isBreath ? '+ Add Breath Effect' : '+ Add Invocation';
       div.innerHTML = `
         <h3>${heading}</h3>
-        <textarea class="invo-text" data-grade="${grade.toLowerCase()}" rows="8"
-                  placeholder="${ph}">${data[key] || ""}</textarea>
+        <div class="invo-known-list" data-grade="${gradeKey}"></div>
+        <button class="btn-add invo-add-known" data-grade="${gradeKey}" style="margin-top:0.3rem">${addLbl}</button>
       `;
       container.appendChild(div);
+      // Populate rows: prefer the structured invoList-<grade> array;
+      // migrate a legacy invo-<grade> textarea string (one name per line).
+      const list = div.querySelector(".invo-known-list");
+      let names = [];
+      const arr = data[`invoList-${gradeKey}`];
+      if (Array.isArray(arr)) {
+        names = arr.filter(Boolean);
+      } else if (typeof data[`invo-${gradeKey}`] === "string") {
+        names = data[`invo-${gradeKey}`].split(/\r?\n/)
+          .map(s => s.trim()).filter(Boolean);
+      }
+      names.forEach(n => createInvoRow(list, gradeKey, n));
+      div.querySelector(".invo-add-known").addEventListener("click", () => {
+        const row = createInvoRow(list, gradeKey, "");
+        row.querySelector(".invo-known-name").focus();
+      });
     });
+  }
+
+  // Build a single Known-invocation row (name input + ⓘ rules + ×),
+  // mirroring createKnownRow. The ⓘ panel reads the DB at click time.
+  function createInvoRow(listEl, gradeKey, name) {
+    const row = document.createElement("div");
+    row.className = "sc-known-row invo-known-row";
+    row.innerHTML =
+      `<input type="text" class="invo-known-name" autocomplete="off" ` +
+      `value="${escapeAttr(name)}" placeholder="Invocation name">` +
+      `<button class="btn-feat-info invo-known-info" title="Show rules">&#9432;</button>` +
+      `<button class="btn-remove invo-known-remove" title="Remove">X</button>`;
+    listEl.appendChild(row);
+    const nameInput = row.querySelector(".invo-known-name");
+    const infoBtn   = row.querySelector(".invo-known-info");
+    const rmBtn     = row.querySelector(".invo-known-remove");
+    nameInput.addEventListener("input", () => {
+      const ex = row.querySelector(".invo-known-rules");
+      if (ex) ex.remove();
+      infoBtn.classList.remove("active");
+    });
+    infoBtn.addEventListener("click", () => toggleInvoRules(row, nameInput.value));
+    rmBtn.addEventListener("click", () => row.remove());
+    return row;
+  }
+
+  function toggleInvoRules(row, name) {
+    const existing = row.querySelector(".invo-known-rules");
+    const infoBtn = row.querySelector(".invo-known-info");
+    if (existing) { existing.remove(); infoBtn.classList.remove("active"); return; }
+    if (!(name || "").trim()) return;
+    const rules = document.createElement("div");
+    rules.className = "feat-rules invo-known-rules";
+    rules.innerHTML = renderInvocationRules(name.trim());
+    row.appendChild(rules);
+    infoBtn.classList.add("active");
+  }
+
+  // ⓘ rules panel for an invocation — grade / class access / minimum
+  // level / spell-level-equiv / description. Mirrors renderSpellRules.
+  function renderInvocationRules(name) {
+    if (!window.DB || !DB.isLoaded()) return `<i>DB not loaded.</i>`;
+    let row = DB.queryOne(
+      "SELECT id, data FROM entry WHERE type='invocation' " +
+      "AND name = :n COLLATE NOCASE LIMIT 1", { ":n": name });
+    if (!row) {
+      const stripped = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+      if (stripped && stripped !== name) {
+        row = DB.queryOne(
+          "SELECT id, data FROM entry WHERE type='invocation' " +
+          "AND name = :n COLLATE NOCASE LIMIT 1", { ":n": stripped });
+      }
+    }
+    if (!row) {
+      return `<i>No DB match for <b>${escapeAttr(name)}</b> ` +
+             `(homebrew or unknown invocation).</i>`;
+    }
+    let d;
+    try { d = JSON.parse(row.data); } catch (e) { return `<i>Parse error.</i>`; }
+    const isBreath = d.grade === 'Breath Effect';
+    const bits = [`<b>${escapeAttr(name)}</b>`];
+    const meta = [
+      d.grade && (isBreath ? 'Breath Effect' : `${d.grade} invocation`),
+      d.minimum_level != null ? `min. class level ${d.minimum_level}` : null,
+      d.spell_level_equivalent != null ? `lvl-equiv ${d.spell_level_equivalent}` : null,
+      (d.subcategory && d.subcategory !== d.grade) ? d.subcategory : null,
+    ].filter(Boolean).map(escapeAttr).join(" · ");
+    if (meta) bits.push(meta);
+    let html = bits.join("<br>");
+    if (d.description) {
+      html += `<div style="margin-top:0.4rem">${escapeAttr(d.description)}</div>`;
+    }
+    return html;
+  }
+
+  // Public helper for invocation-picker's "+ Known": add a row to the
+  // matching grade list, de-duped by name. Returns the row (or null).
+  function addInvocationKnown(panel, gradeKey, name) {
+    const list = panel && panel.querySelector(
+      `.invo-known-list[data-grade="${gradeKey}"]`);
+    if (!list || !name) return null;
+    const exists = Array.from(list.querySelectorAll(".invo-known-name"))
+      .some(inp => inp.value.trim().toLowerCase() === name.trim().toLowerCase());
+    if (exists) return null;
+    return createInvoRow(list, gradeKey, name);
   }
 
   // --- Recalculate DCs and slot tracking for all casters ---
@@ -2193,12 +2292,14 @@ const Spells = (function () {
         caster.knownCount = panel.querySelector(".invo-known-count")?.value || "";
         caster.conditional = panel.querySelector(".invo-conditional")?.value || "";
         caster.invoClass = panel.dataset.invoClass || "";
-        // Per-grade Known textarea (Least/Lesser/Greater/Dark, plus a
-        // "breath effect" tab on Dragonfire Adept panels). Stored as
-        // `invo-<gradeKey>` for stable round-trip; iterate the panel's
-        // actual textareas so the breath tab persists too.
-        panel.querySelectorAll('.invo-text').forEach((ta) => {
-          caster[`invo-${ta.dataset.grade}`] = ta.value || "";
+        // Per-grade Known invocations are structured rows (mirroring
+        // Spells Known). Saved as invoList-<gradeKey> arrays; legacy
+        // invo-<gradeKey> textarea strings migrate at build time
+        // (buildInvocationLists). Includes the breath-effect tab.
+        panel.querySelectorAll(".invo-known-list").forEach((list) => {
+          caster[`invoList-${list.dataset.grade}`] = Array.from(
+            list.querySelectorAll(".invo-known-row .invo-known-name"))
+            .map(inp => inp.value.trim()).filter(Boolean);
         });
       }
 
@@ -2522,6 +2623,7 @@ const Spells = (function () {
     loadData,
     addKnownSpell,
     addKnownPower,
+    addInvocationKnown,
     // v2 Phase C structural restructure: the metamagic preparer
     // writes prepared spells as structured rows via this helper
     // (instead of newline-appending to the old textarea).

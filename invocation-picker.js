@@ -228,18 +228,20 @@
       const r = invocationIndex.get(invoIn.value.trim().toLowerCase());
       if (!r) { flash('Pick an invocation first.', '#a66'); return; }
       const grade = (r.grade || '').toLowerCase();
-      if (!grade) { flash(`"${r.name}" has no grade — append manually.`, '#aa8'); return; }
-      const ta = panel.querySelector(`.invo-text[data-grade="${grade}"]`);
-      if (!ta) { flash(`No textarea for grade "${grade}".`, '#a66'); return; }
-      // De-dupe by name (case-insensitive) per-textarea.
-      const lines = String(ta.value || '').split(/\r?\n/);
-      const exists = lines.some(
-        l => l.trim().toLowerCase() === r.name.trim().toLowerCase());
+      // Known invocations are now structured rows (mirroring Spells
+      // Known); route to the matching grade list. Breath effects land in
+      // the Dragonfire Adept panel's "breath effect" list.
+      const list = panel.querySelector(`.invo-known-list[data-grade="${grade}"]`);
+      if (!list) { flash(`No "${r.grade}" list on this panel.`, '#a66'); return; }
+      const exists = Array.from(list.querySelectorAll('.invo-known-name'))
+        .some(inp => inp.value.trim().toLowerCase() === r.name.trim().toLowerCase());
       if (exists) { flash(`"${r.name}" already in ${r.grade}.`, '#aa8'); return; }
-      const existing = String(ta.value || '').replace(/\s+$/, '');
-      ta.value = existing ? `${existing}\n${r.name}` : r.name;
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-      flash(`Added "${r.name}" to ${r.grade}.`, '#7a9');
+      if (typeof Spells !== 'undefined' && Spells.addInvocationKnown) {
+        Spells.addInvocationKnown(panel, grade, r.name);
+        flash(`Added "${r.name}" to ${r.grade}.`, '#7a9');
+      } else {
+        flash('Spells module not ready.', '#a66');
+      }
     }
 
     function flash(msg, color) {
