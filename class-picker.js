@@ -608,7 +608,7 @@
     // even for non-casters (Fighter has class_skills too). Filtering
     // is per-field below.
     const rows = DB.query(
-      "SELECT name, " +
+      "SELECT name, type AS entry_type, " +
       "json_extract(data, '$.spellcasting.class_type')           AS class_type, " +
       "json_extract(data, '$.spellcasting.style')                 AS style, " +
       "json_extract(data, '$.spellcasting.key_ability')           AS key_ability, " +
@@ -674,6 +674,16 @@
           mystadv = { advancingLevels: mystadv.advancing_levels || [] };
         }
       }
+      // Base-class guard. The four advancement pillars (spell / maneuver /
+      // invocation / mystery) each describe a PRESTIGE class advancing some
+      // base class's progression — they are PrC-only by definition; a base
+      // class advances no one. Drop any pillar that got mis-tagged onto a
+      // base class so the "advancer" invariant holds regardless of DB data
+      // quality. (The DB metadata generator stapled an arcane `advancement`
+      // block onto the Dragonfire Adept / Prestige Bard / Prestige Paladin
+      // BASE classes, which made the picker warn "no arcane class to
+      // advance" the moment one was selected.)
+      if (r.entry_type === 'class') { adv = madv = iadv = mystadv = null; }
       _dbMetaCache.set(r.name, {
         classType: ct,
         style: r.style,

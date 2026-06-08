@@ -1491,6 +1491,43 @@ test('class metadata: advancement spec populated for parser-missed advancer PrCs
     `rebuild the DB.`);
 });
 
+// The inverse guard: advancement metadata (spell / maneuver / invocation /
+// mystery pillars) describes a PRESTIGE class advancing some base class's
+// progression — it is PrC-only by definition. A BASE class (type='class')
+// advances no one, so it must never be consumed as an advancer. The DB
+// metadata generator mis-tagged three base classes with an arcane
+// `advancement` block (Dragonfire Adept / Prestige Bard / Prestige Paladin),
+// which made the picker warn "no <type> class to advance" the moment one was
+// selected. loadDbMetadata() neutralizes this by dropping the advancement
+// pillars for type='class' rows. This guards both halves: the source fix is
+// wired, and no NEW base class has quietly acquired an advancement block.
+test('class-picker: base classes are never consumed as spell-advancers (advancement is PrC-only)', (db) => {
+  const src = CLASS_PICKER_SRC;
+  // (1) loadDbMetadata must pull the entry type so it can tell base from PrC.
+  assert(/SELECT name,\s*type AS entry_type/.test(src),
+    'loadDbMetadata must SELECT `type AS entry_type` to distinguish base ' +
+    'classes from PrCs');
+  // (2) ...and must drop every advancement pillar for a base-class row.
+  assert(src.includes("r.entry_type === 'class'"),
+    'loadDbMetadata must branch on a base-class check (r.entry_type === ' +
+    '"class")');
+  assert(/adv\s*=\s*madv\s*=\s*iadv\s*=\s*mystadv\s*=\s*null/.test(src),
+    'loadDbMetadata must null all four advancement pillars for base classes');
+  // (3) Tripwire: the DB still ships the stale blocks until the next rebuild
+  // re-runs _class_metadata.py with them removed. Pin the known-and-
+  // neutralized set so a NEW mis-tag (a future book) gets surfaced here.
+  const KNOWN = new Set(['Dragonfire Adept', 'Prestige Bard', 'Prestige Paladin']);
+  const offenders = execAll(db,
+    "SELECT name FROM entry WHERE type = 'class' " +
+    "AND json_extract(data, '$.advancement') IS NOT NULL").map(r => r.name);
+  const unexpected = offenders.filter(n => !KNOWN.has(n));
+  assert(unexpected.length === 0,
+    `New base class(es) mis-tagged with an advancement block: ` +
+    `${unexpected.join(', ')}. The sheet's loadDbMetadata guard neutralizes ` +
+    `them, but fix the source (remove the advancement entry in ` +
+    `_class_metadata.py) so the DB stops emitting it.`);
+});
+
 // ---- tests: class progression fields are always populated ----------------
 //
 // Mirror of the Python TestClassMetadata test_every_class_has_progression_fields.
