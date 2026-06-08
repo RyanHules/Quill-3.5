@@ -168,7 +168,7 @@
   "casters": [],
   "feats": [
     "Dragonwrought (Red)",
-    "Skill Focus (Appraise)",
+    "Skill Focus (Jump)",
     "Draconic Wings",
     "Dragon Tail"
   ],
@@ -270,7 +270,7 @@
   "rage-used": "",
   "rage-rounds": "",
   "rage-active": false,
-  "notes": "Flaws:\nMurky-Eyed (Disadvantage on concealment)\nShaky (-2 to ranged attacks)\n\nTraits:\nNightsighted (+10 ft to darkvision, -1 to spot in bright light)\nQuick (+10 ft land speed, -1 hp/level)",
+  "notes": "Flaws:\nMurky-Eyed (Disadvantage on concealment)\nShaky (-2 on ranged attack rolls)\n\nTraits:\nNightsighted (+10 ft to darkvision, -1 to spot in bright light)\nQuick (+10 ft land speed, -1 hp/level)",
   "customizations": [],
   "_bloodline": {
     "name": "Red Dragon",
@@ -321,7 +321,7 @@
       "type": "skill",
       "classSkill": true,
       "ranks": "5",
-      "misc": "4",
+      "misc": "2",
       "index": 0
     },
     {
@@ -446,7 +446,7 @@
       "type": "skill",
       "classSkill": true,
       "ranks": "5",
-      "misc": "14",
+      "misc": "17",
       "index": 17
     },
     {
@@ -613,7 +613,8 @@
       "classSkill": false,
       "ranks": "0",
       "misc": "2",
-      "index": 39
+      "index": 39,
+      "notes": "-1 in bright light"
     },
     {
       "type": "skill",

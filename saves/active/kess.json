@@ -188,10 +188,14 @@
       "highestGrade": "Least",
       "knownCount": "1",
       "conditional": "",
-      "invo-least": "Sickening Breath\nBeguiling Influence",
-      "invo-lesser": "",
-      "invo-greater": "",
-      "invo-dark": ""
+      "invoClass": "",
+      "invoList-least": [
+        "Sickening Breath",
+        "Beguiling Influence"
+      ],
+      "invoList-lesser": [],
+      "invoList-greater": [],
+      "invoList-dark": []
     }
   ],
   "feats": [
@@ -211,7 +215,7 @@
     "[Dragonfire Adept 1] least invocations",
     "[Dragonfire Adept 2] Breath effect",
     "[Dragonfire Adept 2] scales +2",
-    "Darkvision (60 ft)",
+    "Darkvision (70 ft)",
     "Low-light Vision"
   ],
   "languages": "Draconic, Common, Undercommon",
@@ -640,7 +644,8 @@
       "classSkill": true,
       "ranks": "5",
       "misc": "3",
-      "index": 39
+      "index": 39,
+      "notes": "-1 in bright light"
     },
     {
       "type": "skill",
