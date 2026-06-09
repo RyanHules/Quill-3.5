@@ -65,7 +65,7 @@
     maneuver: 'Maneuver', power: 'Power', mystery: 'Mystery',
     vestige: 'Vestige', utterance: 'Utterance', invocation: 'Invocation',
     soulmeld: 'Soulmeld', acf: 'ACF', subst_level: 'Subst. level',
-    organization: 'Organization', poison: 'Poison',
+    organization: 'Organization', poison: 'Poison', disease: 'Disease',
     ravage_affliction: 'Ravage/Affliction', skill: 'Skill',
     skill_use: 'Skill use', skill_trick: 'Skill trick',
     condition: 'Condition',
