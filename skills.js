@@ -229,6 +229,13 @@ const Skills = (function () {
     const bloodlineAffinities = Array.isArray(bloodlineSkill.affinities)
       ? bloodlineSkill.affinities : [];
 
+    // Size modifier to Hide checks (PHB p.76 / SRD: a creature's size
+    // modifies its Hide checks — Fine +16 … Medium +0 … Colossal −16).
+    // Pulled from DND35.sizes[size].hideMod so the whole size table is
+    // honored, not just Small. Applied to the Hide row only, below.
+    const charSize = $("#char-size")?.value || "Medium";
+    const hideSizeMod = (DND35.sizes[charSize] && DND35.sizes[charSize].hideMod) || 0;
+
     // First pass: gather all skill ranks for synergy calculation
     const rankMap = {};
     $$("#skills-body-left tr, #skills-body-right tr").forEach((row) => {
@@ -329,9 +336,11 @@ const Skills = (function () {
         ? baseName.toLowerCase() : null;
       const bloodlineBonus = (bloodlineSkill.direct[blKey] || 0)
         + (blBaseKey ? (bloodlineSkill.direct[blBaseKey] || 0) : 0);
+      // Size modifier — Hide only. Can be negative (Large+ creatures).
+      const sizeBonus = (skillName === "Hide") ? hideSizeMod : 0;
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
-        + equipBonus + ifamBonus + bloodlineBonus;
+        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");
@@ -365,6 +374,12 @@ const Skills = (function () {
             `<span class="synergy-badge" style="background:rgba(200,140,60,0.16);border-color:rgba(200,140,60,0.5)" ` +
             `title="Bloodline skill bonus (UA Bloodlines)">` +
             `+${bloodlineBonus} bloodline</span>`);
+        }
+        if (sizeBonus !== 0) {
+          badges.push(
+            `<span class="synergy-badge" style="background:rgba(120,170,210,0.16);border-color:rgba(120,170,210,0.5)" ` +
+            `title="Size modifier to Hide (${charSize})">` +
+            `${sizeBonus > 0 ? "+" : ""}${sizeBonus} size</span>`);
         }
         synInfoEl.innerHTML = badges.join("");
       }
