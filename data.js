@@ -529,6 +529,64 @@ const DND35 = {
     "Colossal": { acMod: -8, grappleMod: 16, hideMod: -16, carryMult: 16 },
   },
 
+  // Categorize a list of structured skill-bonus rows (the canonical
+  // `bonuses` shape used by races / creatures / — once reshaped —
+  // templates) into the form skills.js consumes. A row is
+  //   { bonus_type:'skill', target:<skill name>, amount:N,
+  //     bonus_category:<'racial'|…>, condition:<text|null> }.
+  // Returns { direct:{skill_lower: amount}, global:N, situational:[…] }:
+  //   - condition non-null   → SITUATIONAL (rendered as a per-skill note,
+  //                            never added to a total).
+  //   - target "all skills" / "all skill checks" / "*"  → GLOBAL (applies
+  //                            to every skill row — e.g. a Paragon +N).
+  //   - otherwise            → DIRECT, keyed by lower-cased target. A
+  //                            "Base (subtype)" target (e.g. "Knowledge
+  //                            (nature)") keys by its full lower name so
+  //                            skills.js lands it on the matching subtype
+  //                            row.
+  // Same-type racial bonuses to one skill do NOT stack, so duplicates
+  // (e.g. a variant inheriting a base bonus it also re-lists) collapse —
+  // FIRST occurrence wins (mergeBonuses lists the variant's row first, so
+  // a variant override beats the base, mirroring senses / natural armor).
+  // Skips rows whose target isn't a real skill only implicitly — an
+  // unmatched key simply lands on no row, so non-skill targets like
+  // "Bardic Knowledge" degrade gracefully rather than needing a denylist.
+  categorizeSkillBonuses(bonuses) {
+    const out = { direct: {}, global: 0, situational: [] };
+    if (!Array.isArray(bonuses)) return out;
+    const GLOBAL = new Set(['all', 'all skills', 'all skill checks', 'skills', '*']);
+    // The only skills that take a parenthetical SUBTYPE. On any other skill
+    // a parenthetical is a CONDITION baked into the name ("Hide (sandy
+    // area)", "Survival (find water)") — promote it to the condition so the
+    // bonus becomes a situational note rather than a direct key that matches
+    // no row.
+    const SUBTYPE_BASES = new Set(['craft', 'knowledge', 'perform', 'profession']);
+    for (const b of bonuses) {
+      if (!b || b.bonus_type !== 'skill') continue;
+      const target = String(b.target == null ? '' : b.target).trim();
+      const amount = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!target || !amount || isNaN(amount)) continue;
+      let cond = (b.condition == null) ? '' : String(b.condition).trim();
+      let skill = target;
+      const paren = target.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+      if (paren && !SUBTYPE_BASES.has(paren[1].trim().toLowerCase())) {
+        skill = paren[1].trim();
+        if (!cond) cond = paren[2].trim();   // the paren WAS the condition
+      }
+      if (cond) {
+        out.situational.push({ skill, amount, condition: cond });
+        continue;
+      }
+      const lower = skill.toLowerCase();
+      if (GLOBAL.has(lower)) {
+        if (!out.global) out.global = amount;     // first-wins (no same-type stack)
+        continue;
+      }
+      if (!(lower in out.direct)) out.direct[lower] = amount;  // first-wins
+    }
+    return out;
+  },
+
   // Carrying capacity by STR score (light load max, medium load max, heavy load max)
   carryingCapacity: {
     1: [3, 6, 10],

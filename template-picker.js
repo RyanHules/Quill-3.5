@@ -714,9 +714,48 @@
     if (db) init();
   });
 
+  // Current template skill bonuses (consumed by skills.js recalc). Runs the
+  // SAME generic categorizer (DND35.categorizeSkillBonuses) over each applied
+  // template's structured `bonuses` array. Templates carry NO structured
+  // skill bonuses in the DB today — they live as free-text inside
+  // special_qualities_added — so this is a graceful no-op now and lights up
+  // automatically once the DB reshape adds the structured rows. By design
+  // there is no prose parser here; see the DB project's TODO
+  // "Template singled-out mechanics → structured bonuses".
+  function getActiveSkillBonuses() {
+    const merged = { direct: {}, global: 0, situational: [] };
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
+    if (typeof DND35 === 'undefined' || !DND35.categorizeSkillBonuses) return merged;
+    for (const t of appliedTemplates) {
+      let row = null;
+      if (t.templateId != null) {
+        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
+      }
+      if (!row && t.name) {
+        row = DB.queryOne(
+          "SELECT data FROM entry WHERE type='template' AND name=? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
+      }
+      if (!row) continue;
+      let parsed = {};
+      try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
+      const cat = DND35.categorizeSkillBonuses(parsed.bonuses);
+      // Sum across templates (different templates' bonuses are typically
+      // different-typed and DO stack). Refining same-type non-stacking
+      // needs the bonus_category, which the categorizer drops — defer that
+      // to the DB-reshape session, since no template carries structured
+      // skill bonuses yet.
+      for (const [k, v] of Object.entries(cat.direct)) merged.direct[k] = (merged.direct[k] || 0) + v;
+      merged.global += cat.global;
+      merged.situational.push(...cat.situational);
+    }
+    return merged;
+  }
+
   window.TemplatePicker = {
     getApplied: () => appliedTemplates.slice(),
     apply: applyTemplate,
     remove: removeTemplate,
+    getActiveSkillBonuses,
   };
 })();

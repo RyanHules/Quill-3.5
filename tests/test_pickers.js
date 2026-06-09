@@ -4418,6 +4418,105 @@ test('book-filter: SQL query against entry table is filter-shape compatible', (d
   }
 });
 
+// ---- tests: racial / template skill bonuses (2026-06-09) ------------------
+// Races (and, once the DB reshape lands, templates) auto-apply their
+// structured `bonuses` skill rows to the Skills tab. The categorizer lives
+// in data.js (DND35.categorizeSkillBonuses); RacePicker.getActiveSkillBonuses
+// layers variant-base inheritance + free-text negation on top; skills.js
+// folds the result into per-skill totals + situational notes.
+
+test('skillbonus: categorizeSkillBonuses sorts direct / global / situational', () => {
+  const D = loadData();
+  const cat = D.categorizeSkillBonuses([
+    { bonus_type: 'skill', target: 'Listen', amount: 2, condition: null },
+    { bonus_type: 'skill', target: 'Listen', amount: 2, condition: null },            // dup → first-wins
+    { bonus_type: 'skill', target: 'Knowledge (nature)', amount: 2, condition: null },// subtype → direct
+    { bonus_type: 'skill', target: 'Hide (sandy area)', amount: 4, condition: null }, // cond-in-target
+    { bonus_type: 'skill', target: 'Craft', amount: 2, condition: 'related to stone or metal' },
+    { bonus_type: 'skill', target: 'all skill checks', amount: 10, condition: null }, // global
+    { bonus_type: 'ac', target: 'natural armor', amount: 3, condition: null },        // not a skill → ignored
+  ]);
+  assert(cat.direct['listen'] === 2, 'plain skill → direct');
+  assert(cat.direct['knowledge (nature)'] === 2, 'subtype target → direct (full key)');
+  assert(!('hide (sandy area)' in cat.direct), 'condition-in-target is NOT a direct key');
+  assert(cat.global === 10, 'all-skills → global');
+  assert(Object.keys(cat.direct).length === 2, 'only the 2 unconditional non-global rows are direct');
+  const hideSit = cat.situational.find(s => s.skill === 'Hide');
+  assert(hideSit && hideSit.amount === 4 && /sandy area/.test(hideSit.condition),
+    'Hide (sandy area) → situational keyed to skill "Hide"');
+  const craftSit = cat.situational.find(s => s.skill === 'Craft');
+  assert(craftSit && /stone or metal/.test(craftSit.condition), 'conditioned Craft → situational');
+});
+
+test('skillbonus: categorizeSkillBonuses tolerates junk / non-arrays', () => {
+  const D = loadData();
+  const empty = D.categorizeSkillBonuses(null);
+  assert(empty && empty.direct && empty.global === 0 && Array.isArray(empty.situational),
+    'null input → empty shape');
+  const c = D.categorizeSkillBonuses([
+    { bonus_type: 'skill', target: '', amount: 2 },      // no target → skip
+    { bonus_type: 'skill', target: 'Spot', amount: 0 },  // 0 amount → skip
+    { bonus_type: 'skill', target: 'Spot' },             // no amount → skip
+  ]);
+  assert(Object.keys(c.direct).length === 0 && c.situational.length === 0, 'junk rows skipped');
+});
+
+test('skillbonus: DB — Elf carries structured Listen/Search/Spot skill bonuses', (db) => {
+  const row = execAll(db,
+    "SELECT data FROM entry WHERE type='race' AND name='Elf' "
+    + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1")[0];
+  assert(row, 'Elf race entry exists');
+  const skills = (JSON.parse(row.data).bonuses || [])
+    .filter(b => b.bonus_type === 'skill').map(b => String(b.target).toLowerCase());
+  for (const s of ['listen', 'search', 'spot']) {
+    assert(skills.includes(s), `Elf has a structured ${s} skill bonus (got: ${skills.join(', ')})`);
+  }
+});
+
+test('skillbonus: DB — a UA variant still carries a "No racial bonus" negation trait', (db) => {
+  // Arctic Elf negates Elf's inherited Search bonus via free text. If that
+  // negation phrasing changes, RacePicker.parseSkillNegations needs a look.
+  const row = execAll(db,
+    "SELECT data FROM entry WHERE type='race' AND name='Arctic Elf' LIMIT 1")[0];
+  assert(row, 'Arctic Elf entry exists');
+  const blob = JSON.stringify(JSON.parse(row.data).traits || []);
+  assert(/no\s+racial bonus on/i.test(blob),
+    'Arctic Elf still has a "No racial bonus on …" negation trait');
+});
+
+test('skillbonus: data.js exposes categorizeSkillBonuses', () => {
+  assert(/categorizeSkillBonuses\s*\(/.test(readSource('data.js')),
+    'DND35.categorizeSkillBonuses defined');
+});
+
+test('skillbonus: race-picker exposes getActiveSkillBonuses + dispatches race-changed', () => {
+  const src = readSource('race-picker.js');
+  assert(/window\.RacePicker\s*=\s*\{[\s\S]*getActiveSkillBonuses/.test(src),
+    'race-picker exports getActiveSkillBonuses');
+  assert(/new CustomEvent\(['"]race-changed['"]\)/.test(src),
+    'race-picker dispatches race-changed');
+  assert(/parseSkillNegations/.test(src) && /applySkillNegations/.test(src),
+    'race-picker has variant negation parse + apply');
+});
+
+test('skillbonus: template-picker exposes a (generic) getActiveSkillBonuses', () => {
+  const src = readSource('template-picker.js');
+  assert(/getActiveSkillBonuses/.test(src), 'template-picker defines getActiveSkillBonuses');
+  assert(/categorizeSkillBonuses/.test(src),
+    'template consumer uses the shared categorizer (no bespoke prose parser)');
+});
+
+test('skillbonus: skills.js recalc consumes race + template skill bonuses', () => {
+  const src = readSource('skills.js');
+  assert(/RacePicker\.getActiveSkillBonuses/.test(src), 'skills.js reads RacePicker bonuses');
+  assert(/TemplatePicker\.getActiveSkillBonuses/.test(src), 'skills.js reads TemplatePicker bonuses');
+});
+
+test('skillbonus: app.js wires race-changed → recalc', () => {
+  assert(/addEventListener\(["']race-changed["']/.test(readSource('app.js')),
+    'app.js listens for race-changed');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

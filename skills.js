@@ -236,6 +236,22 @@ const Skills = (function () {
     const charSize = $("#char-size")?.value || "Medium";
     const hideSizeMod = (DND35.sizes[charSize] && DND35.sizes[charSize].hideMod) || 0;
 
+    // Racial + template skill bonuses (structured `bonuses` rows, decoded
+    // by DND35.categorizeSkillBonuses). `direct` per-skill bonuses fold into
+    // the total; `global` applies to every skill (e.g. a Paragon template);
+    // `situational` (conditional) bonuses render as per-skill notes, never
+    // added — mirroring the bloodline affinity treatment. RacePicker handles
+    // variant-base inheritance + negations internally; TemplatePicker
+    // contributes nothing until the DB reshape adds templates' structured
+    // rows (graceful no-op today).
+    const raceSkill = (typeof RacePicker !== "undefined" && RacePicker.getActiveSkillBonuses)
+      ? RacePicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    const tmplSkill = (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSkillBonuses)
+      ? TemplatePicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    const racialSituational = [].concat(
+      Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
+      Array.isArray(tmplSkill.situational) ? tmplSkill.situational : []);
+
     // First pass: gather all skill ranks for synergy calculation
     const rankMap = {};
     $$("#skills-body-left tr, #skills-body-right tr").forEach((row) => {
@@ -338,9 +354,16 @@ const Skills = (function () {
         + (blBaseKey ? (bloodlineSkill.direct[blBaseKey] || 0) : 0);
       // Size modifier — Hide only. Can be negative (Large+ creatures).
       const sizeBonus = (skillName === "Hide") ? hideSizeMod : 0;
+      // Racial / template DIRECT skill bonuses. Match the full skill name
+      // (blKey) and — like bloodline — the subtype base (blBaseKey), plus the
+      // global all-skills bonus. raceBonus can be negative (e.g. a -2 racial).
+      const raceBonus = (raceSkill.direct[blKey] || 0)
+        + (blBaseKey ? (raceSkill.direct[blBaseKey] || 0) : 0) + (raceSkill.global || 0);
+      const tmplBonus = (tmplSkill.direct[blKey] || 0)
+        + (blBaseKey ? (tmplSkill.direct[blBaseKey] || 0) : 0) + (tmplSkill.global || 0);
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
-        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus;
+        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");
@@ -381,6 +404,18 @@ const Skills = (function () {
             `title="Size modifier to Hide (${charSize})">` +
             `${sizeBonus > 0 ? "+" : ""}${sizeBonus} size</span>`);
         }
+        if (raceBonus !== 0) {
+          badges.push(
+            `<span class="synergy-badge" style="background:rgba(110,180,120,0.16);border-color:rgba(110,180,120,0.5)" ` +
+            `title="Racial skill bonus">` +
+            `${raceBonus > 0 ? "+" : ""}${raceBonus} race</span>`);
+        }
+        if (tmplBonus !== 0) {
+          badges.push(
+            `<span class="synergy-badge" style="background:rgba(180,150,210,0.16);border-color:rgba(180,150,210,0.5)" ` +
+            `title="Template skill bonus">` +
+            `${tmplBonus > 0 ? "+" : ""}${tmplBonus} template</span>`);
+        }
         synInfoEl.innerHTML = badges.join("");
       }
 
@@ -404,6 +439,17 @@ const Skills = (function () {
           if (affSkills.includes(blKey)
               || (blBaseKey && affSkills.includes(blBaseKey))) {
             parts.push(`+${aff.value} vs ${aff.vs} (bloodline affinity)`);
+          }
+        }
+        // Racial / template SITUATIONAL (conditional) skill bonuses → notes,
+        // never added to the total (same treatment as the bloodline affinity
+        // above). Match the full skill name or its subtype base, so a "Craft"
+        // restriction note lands on every Craft subtype row.
+        for (const sit of racialSituational) {
+          const sl = String(sit.skill || "").toLowerCase();
+          if (sl === blKey || (blBaseKey && sl === blBaseKey)) {
+            const sign = sit.amount > 0 ? "+" : "";
+            parts.push(`${sign}${sit.amount} ${sit.condition} (racial)`);
           }
         }
         const synNotes = parts.filter(Boolean).join("; ");

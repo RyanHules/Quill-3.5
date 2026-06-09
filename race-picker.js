@@ -25,6 +25,11 @@
   // Map from lowercase race name → race_id, populated once the DB is ready.
   let raceIndex = new Map();
 
+  // Cache of the last-computed racial skill bonuses, keyed by #char-race
+  // value, so the per-keystroke skills recalc doesn't re-query the DB.
+  // Dropped in populate() (DB-ready + book-filter change).
+  let _skillBonusCache = null;
+
   function init() {
     const raceInput = document.getElementById('char-race');
     if (!raceInput) {
@@ -133,6 +138,10 @@
           { typedFilter: raceInput.value.trim() });
       }
       console.log(`[race-picker] ${kept}/${races.length} races available`);
+      // The index just (re)built — a race may have entered/left book scope,
+      // so drop the skill-bonus cache and recompute on the next recalc.
+      _skillBonusCache = null;
+      document.dispatchEvent(new CustomEvent('race-changed'));
     }
     populate();
     document.addEventListener('book-filter-changed', populate);
@@ -344,6 +353,12 @@
     } else {
       populateSpecialAbilities(traits);
     }
+
+    // Racial skill bonuses are pull-based (skills.js reads
+    // getActiveSkillBonuses on recalc), so just invalidate the cache and
+    // poke a recalc — app.js listens for race-changed → recalcAll.
+    _skillBonusCache = null;
+    document.dispatchEvent(new CustomEvent('race-changed'));
   }
 
   // Auto-populate Special Abilities from racial traits.
@@ -706,9 +721,104 @@
         if (row) row.remove();
       });
     }
+    // Race cleared / switched away — drop its skill bonuses on the next recalc.
+    _skillBonusCache = null;
+    document.dispatchEvent(new CustomEvent('race-changed'));
   }
 
-  window.RacePicker = { resetWrites, applyByName: onRaceChosen, variantBaseName };
+  // ============================================================
+  // Racial skill bonuses (consumed by skills.js recalc)
+  // ============================================================
+  // Parse the variant-only "No racial bonus on X" negation traits into a
+  // list of lower-cased skill fragments. Free-text → best-effort. A
+  // fragment that matches no inherited bonus is a no-op (the base never
+  // granted it), so we don't fabricate notes for those.
+  function parseSkillNegations(traits) {
+    const out = [];
+    if (!Array.isArray(traits)) return out;
+    const re = /no\s+(?:\+?\d+\s+)?racial bonus on\s+([^.;]+?)(?:\s+checks?)?\s*(?:[.;]|$)/gi;
+    for (const t of traits) {
+      const text = (((t && t.name) || '') + '. ' + ((t && t.description) || ''));
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        m[1].split(/\s*(?:,|\bor\b|\band\b)\s*/i).forEach((part) => {
+          const s = part.trim().toLowerCase().replace(/\s+checks?$/, '').trim();
+          // Drop non-skill negations (attacks / saves / etc.); they can't
+          // match a skill bonus anyway, and excluding them keeps intent clear.
+          if (s && !/\b(attack|damage|saving|save|initiative|will|fort|ref|armor)\b/.test(s)) {
+            out.push(s);
+          }
+        });
+      }
+    }
+    return out;
+  }
+
+  // Remove negated skills from a categorized result. Matches by full name,
+  // or — for a subtyped negation like "Profession (mining)" vs an inherited
+  // "Profession (miner)" — by base skill name, so the book's wording
+  // mismatch doesn't leak a bonus the variant explicitly drops.
+  function applySkillNegations(cat, negations) {
+    if (!negations || !negations.length) return cat;
+    const baseOf = (s) => s.replace(/\s*\(.*\)\s*$/, '').trim();
+    for (const neg of negations) {
+      const negBase = baseOf(neg);
+      if (neg in cat.direct) {
+        delete cat.direct[neg];
+      } else {
+        Object.keys(cat.direct).forEach((k) => {
+          if (k === negBase || baseOf(k) === negBase) delete cat.direct[k];
+        });
+      }
+      cat.situational = cat.situational.filter((s) => {
+        const sl = s.skill.toLowerCase();
+        return !(sl === neg || sl === negBase || baseOf(sl) === negBase);
+      });
+    }
+    return cat;
+  }
+
+  function computeRaceSkillBonuses(typedName) {
+    const empty = { direct: {}, global: 0, situational: [] };
+    const name = (typedName || '').trim()
+      .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
+    if (!name) return empty;
+    const raceId = raceIndex.get(name.toLowerCase());
+    if (raceId === undefined) return empty;
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return empty;
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return empty; }
+    // Variant races inherit the base's skill bonuses (delta model), then
+    // negate some via free text — mirror the natural-armor merge.
+    const baseParsed = resolveVariantBase(parsed);
+    const merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    const cat = DND35.categorizeSkillBonuses(merged);
+    if (baseParsed) applySkillNegations(cat, parseSkillNegations(parsed.traits));
+    return cat;
+  }
+
+  // Public: current racial skill bonuses for #char-race. Pull-based (reads
+  // the live field) so a save/reload picks it up on the post-load recalc
+  // with no persisted state. Cached by race name to keep per-keystroke
+  // recalc cheap; the cache is dropped in populate() (DB-ready + book
+  // filter) and on apply/clear. Returns the empty shape UNCACHED until the
+  // DB is ready, so it self-heals once the catalog exists.
+  function getActiveSkillBonuses() {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) {
+      return { direct: {}, global: 0, situational: [] };
+    }
+    const input = document.getElementById('char-race');
+    const name = ((input && input.value) || '').trim();
+    if (_skillBonusCache && _skillBonusCache.key === name) return _skillBonusCache.result;
+    const result = computeRaceSkillBonuses(name);
+    _skillBonusCache = { key: name, result };
+    return result;
+  }
+
+  window.RacePicker = {
+    resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
+  };
 
   // Wait for DB to load, then init.
   DB.ready.then((db) => {

@@ -755,6 +755,11 @@
   // change the auto-applied ability bumps, so re-aggregate + recalc.
   document.addEventListener("bloodline-changed", recalcAll);
 
+  // Race-changed: applying / clearing a race (or a book-filter change that
+  // moves it in/out of scope) changes its auto-applied skill bonuses, which
+  // skills.js pulls from RacePicker.getActiveSkillBonuses on recalc.
+  document.addEventListener("race-changed", recalcAll);
+
   // Initial population is async; fire-and-forget — recalcAll doesn't
   // depend on it. The dropdown will fill in once SaveBackend resolves
   // (server probe takes <50 ms typically).
