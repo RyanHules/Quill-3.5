@@ -136,6 +136,23 @@
     }
   }
 
+  // Multi-bloodline (2026-06-09) helpers. The strength <select> and slot
+  // tracker are now PER-BLOODLINE blocks under #bloodline-blocks (no single
+  // #bloodline-strength / #bloodline-thresholds), and clearing the name input
+  // no longer removes a selection — you remove via the chip ×.
+  function setBloodlineStrength(value, idx = 0) {
+    const sel = document.querySelectorAll('#bloodline-blocks .bloodline-strength')[idx];
+    if (!sel) throw new Error(`setBloodlineStrength: no select at block ${idx}`);
+    sel.value = value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function removeBloodlineChip(idx = 0) {
+    const x = document.querySelectorAll(
+      '#bloodline-applied-list .bloodline-chip-remove')[idx];
+    if (!x) throw new Error(`removeBloodlineChip: no chip at ${idx}`);
+    x.click();
+  }
+
   // Apply a class via the class-picker UI. Waits for the apply to
   // settle (class-changed event listeners + recalcAll).
   async function applyClass(name, level) {
@@ -886,9 +903,9 @@
     await wait(50);
     set('char-race', 'Bugbear');                         // unified Race field; racial-HD row + race-col adj + tagged specials
     await wait(350);
-    Bloodline.loadData({ _bloodline: {                   // bloodline state object + DOM panel
+    Bloodline.loadData({ _bloodlines: [{                 // bloodline state + DOM panel
       name: 'Fireclaw', source: 'Diamond Soul (Homebrew)',
-      strength: 'major', slotsPaid: [true], notes: '' } });
+      strength: 'major', slotsPaid: [true], notes: '' }] });
     await wait(50);
 
     // Sanity: the seeding actually took (else the post-reset asserts are vacuous).
@@ -896,7 +913,7 @@
       fail('RESET: precondition — expected classes + racial-HD row seeded');
     expect(ClassFeatures.getCustomizations().length, 1,
       'RESET: precondition — a customization was seeded');
-    if (!Bloodline.collectData()._bloodline)
+    if (!Bloodline.collectData()._bloodlines)
       fail('RESET: precondition — a bloodline was seeded');
 
     // --- New Character, then assert nothing bled through ---
@@ -908,8 +925,8 @@
       leaks.push(`ClassPicker retains ${ClassPicker.getState().length} class/racial-HD row(s)`);
     if (ClassFeatures.getCustomizations().length)
       leaks.push(`ClassFeatures retains ${ClassFeatures.getCustomizations().length} customization(s)`);
-    if (Bloodline.collectData()._bloodline)
-      leaks.push(`Bloodline retains selection "${Bloodline.collectData()._bloodline.name}"`);
+    if (Bloodline.collectData()._bloodlines)
+      leaks.push(`Bloodline retains ${Bloodline.collectData()._bloodlines.length} selection(s)`);
     if (v('char-race') && v('char-race').trim())
       leaks.push(`#char-race not cleared: "${v('char-race')}"`);
     if (nonzero(v('str-race')))
@@ -953,9 +970,9 @@
     await wait(100);
     set('bloodline-name', 'Fireclaw');
     await wait(250);
-    expectValue('#bloodline-strength', 'major',
+    expect(Bloodline._getStates()[0] && Bloodline._getStates()[0].strength, 'major',
       'SS-BL: strength defaults to the only column (major)');
-    expectVisible('#bloodline-progression',
+    expectVisible('#bloodline-blocks .bloodline-progression',
       'SS-BL: trait progression renders on selection');
     // L2: the first ability bump (CHA) is at L3, so nothing active yet.
     expect(JSON.stringify(Bloodline.getActiveBonuses().abilities), '{}',
@@ -983,11 +1000,11 @@
       'SS-BL: Fireclaw "+2 Tumble (Skill Boost)" homebrew skill bonus parses');
     // --- round-trip ---
     const blob = Bloodline.collectData();
-    expect(blob._bloodline.name, 'Fireclaw', 'SS-BL: collectData persists name');
-    expect(blob._bloodline.strength, 'major', 'SS-BL: collectData persists strength');
+    expect(blob._bloodlines[0].name, 'Fireclaw', 'SS-BL: collectData persists name');
+    expect(blob._bloodlines[0].strength, 'major', 'SS-BL: collectData persists strength');
     await newCharacter();                       // clears via Bloodline.loadData({})
     await wait(150);
-    expect(Bloodline.collectData()._bloodline, null,
+    expect(Bloodline.collectData()._bloodlines, null,
       'SS-BL: New Character clears the bloodline selection');
     expect(JSON.stringify(Bloodline.getActiveBonuses().abilities), '{}',
       'SS-BL: no stale bumps survive New Character');
@@ -995,8 +1012,12 @@
     // the catalog still includes Fireclaw for the reload.
     Bloodline.loadData(blob);
     await wait(250);
-    expectValue('#bloodline-name', 'Fireclaw', 'SS-BL: loadData restores the name');
-    expectValue('#bloodline-strength', 'major', 'SS-BL: loadData restores the strength');
+    // Multi-bloodline: the name input is an add-box (cleared after add), so
+    // the restored selection lives in the state/chip, not the input.
+    expect(Bloodline._getStates()[0] && Bloodline._getStates()[0].name, 'Fireclaw',
+      'SS-BL: loadData restores the name');
+    expect(Bloodline._getStates()[0] && Bloodline._getStates()[0].strength, 'major',
+      'SS-BL: loadData restores the strength');
     set('char-level', '8');
     await wait(100);
     expect(Bloodline.getActiveBonuses().abilities.CON, 1,
@@ -1022,10 +1043,10 @@
     // Major has 3 thresholds (L3/6/12). The tracker lives on Feats & Abilities.
     document.querySelector('[data-tab="tab-feats"]').click();
     await wait(150);
-    set('bloodline-strength', 'major');
+    setBloodlineStrength('major');
     await wait(200);
     const boxAt = (i) => document.querySelector(
-      `#bloodline-thresholds .bloodline-slot-paid[data-slot="${i}"]`);
+      `#bloodline-blocks .bloodline-slot-paid[data-slot="${i}"]`);
     expect(!!boxAt(0) && !!boxAt(2), true,
       'SS-BL3: major bloodline shows the 3 slot checkboxes');
     // Check Bloodline 1 (slot 0) + Bloodline 3 (slot 2). render() rebuilds the
@@ -1037,21 +1058,22 @@
     boxAt(2).dispatchEvent(new Event('change', { bubbles: true }));
     await wait(150);
     const blob = Bloodline.collectData();
-    expect(JSON.stringify(blob._bloodline.slotsPaid), '[true,false,true]',
+    expect(JSON.stringify(blob._bloodlines[0].slotsPaid), '[true,false,true]',
       'SS-BL3: collectData persists the checked bloodline-level slots');
     // (1) save → New Character → reload.
     await newCharacter();
     await wait(150);
     Bloodline.loadData(blob);
     await wait(250);
-    expect(JSON.stringify(Bloodline.collectData()._bloodline.slotsPaid),
+    expect(JSON.stringify(Bloodline.collectData()._bloodlines[0].slotsPaid),
       '[true,false,true]', 'SS-BL3: slots survive a save/clear/load round-trip');
     // (2) load-before-resolve: a selection whose entry does NOT resolve must
-    // preserve slotsPaid (guards the load-before-DB-ready wipe).
+    // preserve slotsPaid (guards the load-before-DB-ready wipe). Also
+    // exercises the legacy single-`_bloodline` → stack migration on load.
     Bloodline.loadData({ _bloodline: { name: '__nope_unresolved_bloodline__',
       source: '', strength: 'major', slotsPaid: [true, false, true], notes: '' } });
     await wait(150);
-    expect(JSON.stringify(Bloodline.collectData()._bloodline.slotsPaid),
+    expect(JSON.stringify(Bloodline.collectData()._bloodlines[0].slotsPaid),
       '[true,false,true]',
       'SS-BL3: an unresolved selection preserves slotsPaid (load-before-DB-ready guard)');
   });
@@ -1074,12 +1096,14 @@
     await wait(250);
     document.querySelector('[data-tab="tab-feats"]').click();
     await wait(100);
-    set('bloodline-strength', 'major');
+    setBloodlineStrength('major');
     await wait(200);
     // Parsed bonuses.
     const skb = Bloodline.getActiveSkillBonuses();
     expect(skb.direct['sense motive'], 2, 'SS-BL4: direct "+2 Sense Motive" parsed');
-    expect(skb.affinity && skb.affinity.value, 6, 'SS-BL4: affinity scales to +6 at L20');
+    const celAff = (skb.affinities || []).find(a => /celestial/i.test(a.vs));
+    expect(celAff && celAff.value, 6,
+      'SS-BL4: Celestial affinity scales to +6 at L20 (one entry per bloodline)');
     // Read skill totals on the Skills tab.
     document.querySelector('[data-tab="tab-skills"]').click();
     await wait(200);
@@ -1104,7 +1128,7 @@
     // (which only had the note) must be unchanged.
     document.querySelector('[data-tab="tab-character"]').click();
     await wait(100);
-    set('bloodline-name', '');
+    removeBloodlineChip();   // multi: clear via the chip ×, not by emptying the input
     await wait(250);
     document.querySelector('[data-tab="tab-skills"]').click();
     await wait(150);
@@ -1132,7 +1156,7 @@
     await wait(250);
     document.querySelector('[data-tab="tab-feats"]').click();
     await wait(100);
-    set('bloodline-strength', 'major');
+    setBloodlineStrength('major');
     await wait(250);
     document.querySelector('[data-tab="tab-character"]').click();
     await wait(150);
@@ -1147,11 +1171,79 @@
     expectText('#str-tplbl', '',
       'SS-BL5: STR (no Celestial bump) stays blank in the column');
     // Clearing the bloodline hides the column again and resets the total.
-    set('bloodline-name', '');
+    removeBloodlineChip();   // multi: clear via the chip ×, not by emptying the input
     await wait(250);
     expect(table().classList.contains('hide-tplbl-col'), true,
       'SS-BL5: column hides again when the bloodline clears');
     expectText('#wis-total', '10', 'SS-BL5: WIS total back to base on clear');
+  });
+
+  regression('SS-BL6: multiple bloodlines stack — bumps sum, removal is independent, round-trip', async () => {
+    // Multi-bloodline (2026-06-09): a character can carry more than one
+    // bloodline (UA frames it singular but doesn't forbid it; "independent
+    // tracks"). Ability bumps + direct skill bonuses SUM across all; removing
+    // one leaves the others; the stack round-trips as `_bloodlines`.
+    await newCharacter();
+    await waitForDb();
+    await wait(200);
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    set('char-level', '20');
+    // Two published UA bloodlines, both major where available. Celestial
+    // (major) bumps WIS/CHA/CON; pair it with a second to prove summing.
+    set('bloodline-name', 'Celestial');
+    await wait(200);
+    set('bloodline-name', 'Demon');
+    await wait(250);
+    expect(Bloodline._getStates().length, 2, 'SS-BL6: two bloodlines on the stack');
+    expect(document.querySelectorAll('#bloodline-applied-list .bloodline-chip').length, 2,
+      'SS-BL6: two chips render on the Character tab');
+    // Pick major on each block (Celestial idx 0, Demon idx 1) so both
+    // contribute their full progression.
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(150);
+    setBloodlineStrength('major', 0);
+    await wait(150);
+    setBloodlineStrength('major', 1);
+    await wait(200);
+    expect(document.querySelectorAll('#bloodline-blocks .bloodline-block').length, 2,
+      'SS-BL6: two bloodline blocks render on the Feats tab');
+    // Both bloodlines' active ability bumps are present and summed (no key
+    // collisions). Capture the combined set, then remove one.
+    const both = Bloodline.getActiveBonuses().abilities;
+    const combinedKeys = Object.keys(both).length;
+    if (combinedKeys < 1)
+      fail('SS-BL6: expected at least one ability bump from the two bloodlines');
+    // Every UA bloodline grants an affinity vs ITS creature type — distinct,
+    // non-overlapping conditions — so two bloodlines yield TWO affinity notes,
+    // not one collapsed value.
+    const affs = Bloodline.getActiveSkillBonuses().affinities;
+    expect(affs.length, 2, 'SS-BL6: two bloodlines surface two distinct affinities');
+    const vsSet = affs.map(a => a.vs).join('|').toLowerCase();
+    expect(/celestial/.test(vsSet) && /demon/.test(vsSet), true,
+      'SS-BL6: the two affinities are vs their own creature types (celestials + demons)');
+    // Round-trip the stack.
+    const blob = Bloodline.collectData();
+    expect(Array.isArray(blob._bloodlines) && blob._bloodlines.length, 2,
+      'SS-BL6: collectData emits a 2-element _bloodlines array');
+    await newCharacter();
+    await wait(150);
+    Bloodline.loadData(blob);
+    await wait(250);
+    set('char-level', '20');
+    await wait(150);
+    expect(Bloodline._getStates().map(s => s.name).sort().join(','), 'Celestial,Demon',
+      'SS-BL6: both bloodlines survive the round-trip');
+    expect(JSON.stringify(Bloodline.getActiveBonuses().abilities),
+      JSON.stringify(both),
+      'SS-BL6: summed ability bumps re-derive identically after reload');
+    // Remove Celestial (idx 0) — Demon must remain with its own bumps.
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(100);
+    removeBloodlineChip(0);
+    await wait(200);
+    expect(Bloodline._getStates().map(s => s.name).join(','), 'Demon',
+      'SS-BL6: removing one bloodline leaves the other');
   });
 
   regression('AB-TEMP: Temp is a score delta (+ round-trips); Misc hides when empty', async () => {
@@ -1245,7 +1337,7 @@
     // (b) Class & Level box gains the bloodline once a slot is taken.
     document.querySelector('[data-tab="tab-feats"]').click();
     await wait(150);
-    const slot0 = $('#bloodline-thresholds .bloodline-slot-paid');
+    const slot0 = $('#bloodline-blocks .bloodline-slot-paid');
     if (!slot0) fail('SS-BL2: slot checkbox missing in the tracker');
     slot0.checked = true;
     slot0.dispatchEvent(new Event('change', { bubbles: true }));

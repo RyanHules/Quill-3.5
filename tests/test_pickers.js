@@ -3960,19 +3960,35 @@ test('bloodline: app.js wires save/load + the ability-bump bonus layer', () => {
     '— bloodline ability bumps would never reach the ability modifiers.');
 });
 
-test('bloodline: _bloodline persists name+source, not a brittle DB id', () => {
+test('bloodline: _bloodlines persists name+source per entry, not a brittle DB id', () => {
   // Save-stability rule #7: entry ids renumber on every DB rebuild, so
-  // the save must resolve by a human-meaningful identifier.
+  // the save must resolve by a human-meaningful identifier. (Multi-bloodline
+  // 2026-06-09: collectData now maps over a stack, so the per-entry loop var
+  // is the subject — assert the invariant shape-agnostically, not pinned to
+  // the old single `state.*`.)
   const src = readSource('bloodline.js');
   const collectBody = extractFunctionBody(src, 'collectData');
-  assert(/name:\s*state\.name/.test(collectBody)
-      && /source:\s*state\.source/.test(collectBody),
-    'bloodline.js#collectData must persist name + source.');
-  assert(!/\bid:\s*/.test(collectBody),
+  assert(/name:\s*\w+\.name/.test(collectBody)
+      && /source:\s*\w+\.source/.test(collectBody),
+    'bloodline.js#collectData must persist name + source per bloodline.');
+  assert(!/\bid:\s*\w+\.id\b/.test(collectBody),
     'bloodline.js#collectData must NOT persist a DB id (renumbers on rebuild).');
   assert(/resolveSelection/.test(src),
     'bloodline.js must resolve the saved selection against the catalog ' +
     'by name/source (resolveSelection).');
+});
+
+test('bloodline: multi-stack save shape — _bloodlines array + legacy _bloodline migration', () => {
+  // Multi-bloodline (2026-06-09): the canonical save key is the `_bloodlines`
+  // ARRAY; loadData must still accept a legacy single `_bloodline` object and
+  // migrate it forward to a one-element stack so pre-existing saves survive.
+  const src = readSource('bloodline.js');
+  const collectBody = extractFunctionBody(src, 'collectData');
+  const loadBody = extractFunctionBody(src, 'loadData');
+  assert(/_bloodlines/.test(collectBody),
+    'bloodline.js#collectData must emit the _bloodlines array.');
+  assert(/_bloodlines/.test(loadBody) && /_bloodline\b/.test(loadBody),
+    'bloodline.js#loadData must read _bloodlines AND migrate legacy _bloodline.');
 });
 
 test('save: bloodline.js syncSlots preserves slotsPaid when unresolved (load-before-DB-ready)', () => {
@@ -3987,13 +4003,15 @@ test('save: bloodline.js syncSlots preserves slotsPaid when unresolved (load-bef
   const body = extractFunctionBody(src, 'syncSlots');
   assert(body, 'syncSlots not found in bloodline.js');
   const retIdx = body.search(/\breturn\b/);
-  const assignIdx = body.search(/state\.slotsPaid\s*=/);
+  // Multi-bloodline: syncSlots now operates on a per-bloodline state arg, so
+  // the subject is `<var>.slotsPaid =` rather than the old single `state.`.
+  const assignIdx = body.search(/\w+\.slotsPaid\s*=/);
   assert(retIdx !== -1,
     'bloodline.js#syncSlots has no early-return guard — a load-before-DB-' +
     'ready wipes slotsPaid (bloodline-level checkboxes do not survive reload).');
   assert(assignIdx !== -1 && retIdx < assignIdx,
     'bloodline.js#syncSlots must guard (return) BEFORE overwriting ' +
-    'state.slotsPaid, so an unresolved strength preserves the saved flags.');
+    'slotsPaid, so an unresolved strength preserves the saved flags.');
 });
 
 test('bloodline: skill bonuses — direct folds into total, affinity is a note', () => {
@@ -4008,8 +4026,9 @@ test('bloodline: skill bonuses — direct folds into total, affinity is a note',
   assert(/window\.Bloodline\s*=[\s\S]*getActiveSkillBonuses/.test(bl)
       || /getActiveSkillBonuses,/.test(bl),
     'getActiveSkillBonuses is not exported on window.Bloodline.');
-  assert(/\bdirect\b/.test(bl) && /\baffinity\b/.test(bl),
-    'getActiveSkillBonuses must return a {direct, affinity} split.');
+  assert(/\bdirect\b/.test(bl) && /\baffinities\b/.test(bl),
+    'getActiveSkillBonuses must return a {direct, affinities[]} split ' +
+    '(one affinity per bloodline — every UA bloodline grants one).');
   const sk = readSource('skills.js');
   assert(/Bloodline\.getActiveSkillBonuses\s*\(/.test(sk),
     'skills.js#recalc does not consult Bloodline.getActiveSkillBonuses — ' +

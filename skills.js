@@ -223,9 +223,11 @@ const Skills = (function () {
     // bloodline — surfaced as a per-skill note, never added to the total.
     const bloodlineSkill = (typeof Bloodline !== "undefined"
       && Bloodline.getActiveSkillBonuses)
-      ? Bloodline.getActiveSkillBonuses() : { direct: {}, affinity: null };
-    const affinitySkillsLower = bloodlineSkill.affinity
-      ? bloodlineSkill.affinity.skills.map(s => s.toLowerCase()) : [];
+      ? Bloodline.getActiveSkillBonuses() : { direct: {}, affinities: [] };
+    // One affinity per bloodline, each vs a DIFFERENT creature type (they
+    // never overlap), so a social skill can carry several distinct notes.
+    const bloodlineAffinities = Array.isArray(bloodlineSkill.affinities)
+      ? bloodlineSkill.affinities : [];
 
     // First pass: gather all skill ranks for synergy calculation
     const rankMap = {};
@@ -377,14 +379,17 @@ const Skills = (function () {
           ? situational.map(s => `+${s.bonus} ${s.note} (${s.from} synergy)`).join("; ")
           : "";
         toggleBtn.dataset.rankSynergy = rankSyn;
-        // Bloodline AFFINITY: situational social bonus vs creatures of the
+        // Bloodline AFFINITY: situational social bonus vs creatures of a
         // bloodline — a note on the 5 social skills, NEVER added to the total.
+        // One note per bloodline whose affinity covers this skill (each is a
+        // separate, non-overlapping condition vs its own creature type).
         const parts = [rankSyn];
-        if (bloodlineSkill.affinity
-            && (affinitySkillsLower.includes(blKey)
-                || (blBaseKey && affinitySkillsLower.includes(blBaseKey)))) {
-          parts.push(`+${bloodlineSkill.affinity.value} vs `
-            + `${bloodlineSkill.affinity.vs} (bloodline affinity)`);
+        for (const aff of bloodlineAffinities) {
+          const affSkills = aff.skills.map(s => s.toLowerCase());
+          if (affSkills.includes(blKey)
+              || (blBaseKey && affSkills.includes(blBaseKey))) {
+            parts.push(`+${aff.value} vs ${aff.vs} (bloodline affinity)`);
+          }
         }
         const synNotes = parts.filter(Boolean).join("; ");
         toggleBtn.dataset.synergy = synNotes;

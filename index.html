@@ -149,12 +149,10 @@
                        autocomplete="off" placeholder="e.g. Fireclaw">
                 <datalist id="bloodline-options"></datalist>
               </div>
-              <div class="field field-sm" id="bloodline-strength-row"
-                   style="display:none; flex:0 0 8rem">
-                <label>Strength</label>
-                <select id="bloodline-strength"></select>
-              </div>
+              <button type="button" id="bloodline-add"
+                      class="btn-add btn-add-inline">+ Add Bloodline</button>
             </div>
+            <div id="bloodline-applied-list"></div>
             <div id="bloodline-pick-summary" class="bloodline-pick-summary"
                  style="display:none"></div>
           </details>
@@ -478,15 +476,12 @@
             below your character level are active; ability bumps and
             bonus feats auto-apply, the rest is tracked for reference.
           </p>
-          <div id="bloodline-header" class="bloodline-header"
-               style="display:none"></div>
-          <div id="bloodline-thresholds" style="display:none"></div>
-          <div id="bloodline-progression" style="display:none"></div>
+          <div id="bloodline-blocks"></div>
           <div id="bloodline-empty"
                style="font-size:0.85em;color:#888;font-style:italic;padding:0.3rem 0">
             No bloodline selected. Use the <b>Bloodline Lookup</b> on the
-            Character tab (homebrew bloodlines appear once enabled in the
-            🏠 filter).
+            Character tab to add one or more (homebrew bloodlines appear
+            once enabled in the 🏠 filter).
           </div>
         </section>
       </div>
