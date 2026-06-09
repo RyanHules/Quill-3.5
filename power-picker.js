@@ -114,7 +114,8 @@
       + "json_extract(data, '$.power_resistance')   AS power_resistance, "
       + "json_extract(data, '$.power_points')       AS power_points, "
       + "json_extract(data, '$.augment')            AS augment, "
-      + "json_extract(data, '$.description')        AS description "
+      + "json_extract(data, '$.description')        AS description, "
+      + "json_extract(data, '$.tables')             AS tables_json "
       + "FROM entry WHERE type = 'power' "
       + "ORDER BY name COLLATE NOCASE, "
       + "CASE version WHEN '3.5' THEN 0 ELSE 1 END"
@@ -145,6 +146,7 @@
         power_points: r.power_points,
         augment: r.augment,
         description: r.description,
+        tables_json: r.tables_json,
       };
       powerIndex.set(key, rec);
       if (levelMap && typeof levelMap === 'object') {
@@ -518,6 +520,14 @@
       const d = rec.description.length > 350
         ? rec.description.slice(0, 350) + '…' : rec.description;
       bits.push(escapeHtml(d));
+    }
+    // Structured data tables (Object Reading study times, Remote
+    // Viewing save modifiers).
+    if (rec.tables_json && window.RichText) {
+      try {
+        const tablesHtml = RichText.renderTables(JSON.parse(rec.tables_json));
+        if (tablesHtml) bits.push(tablesHtml);
+      } catch (e) { /* malformed tables JSON — skip */ }
     }
     return bits.join('<br>');
   }

@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260609m';
+    window.CACHE_VERSION = '20260609o';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -791,6 +791,12 @@
       // Replaces single-tag <select> dropdowns in pickers that
       // support tag filtering. Must load BEFORE those pickers.
       'tag-filter.js',
+      // rich-text.js — shared structured-table renderer + long-form
+      // feature-text formatter (RichText global). Consumed by the
+      // pickers, lookup.js, and feats.js ⓘ panels; pure string
+      // helpers, so order only needs to precede first user
+      // interaction — kept here with the other shared picker aids.
+      'rich-text.js',
       'race-picker.js', 'deity-picker.js',
       'template-picker.js', 'class-spell-additions.js',
       'class-variants.js', 'class-picker.js', 'metamagic-catalog.js',

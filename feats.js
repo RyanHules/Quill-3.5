@@ -178,7 +178,8 @@ const Feats = (function () {
       "  json_extract(e.data, '$.benefit')       AS benefit, " +
       "  json_extract(e.data, '$.normal')        AS normal, " +
       "  json_extract(e.data, '$.special')       AS special, " +
-      "  json_extract(e.data, '$.description')   AS description " +
+      "  json_extract(e.data, '$.description')   AS description, " +
+      "  json_extract(e.data, '$.tables')        AS tables_json " +
       "FROM entry e " +
       "WHERE e.type IN " + TYPES + " AND LOWER(e.name) = LOWER(?) " +
       "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
@@ -194,7 +195,8 @@ const Feats = (function () {
           "  json_extract(e.data, '$.benefit')       AS benefit, " +
           "  json_extract(e.data, '$.normal')        AS normal, " +
           "  json_extract(e.data, '$.special')       AS special, " +
-          "  json_extract(e.data, '$.description')   AS description " +
+          "  json_extract(e.data, '$.description')   AS description, " +
+          "  json_extract(e.data, '$.tables')        AS tables_json " +
           "FROM entry e " +
           "WHERE e.type IN " + TYPES + " AND LOWER(e.name) = LOWER(?) " +
           "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
@@ -222,6 +224,15 @@ const Feats = (function () {
     if (row.special)       bits.push(`<b>Special:</b> ${escapeHtml(row.special)}`);
     if (row.description && !row.benefit) {
       bits.push(`<b>Description:</b> ${escapeHtml(row.description)}`);
+    }
+    // Structured data tables (Track's DC-by-surface, Investigate's
+    // three modifier tables, Draconic Heritage's kind/energy map, …)
+    // — rendered as real HTML tables via the shared RichText module.
+    if (row.tables_json && window.RichText) {
+      try {
+        const tablesHtml = RichText.renderTables(JSON.parse(row.tables_json));
+        if (tablesHtml) bits.push(tablesHtml);
+      } catch (e) { /* malformed tables JSON — skip silently */ }
     }
     let html = bits.join("<br>");
     // Homebrew add-on: Item Familiar campaign rules (Progressive Bond
@@ -433,8 +444,16 @@ const Feats = (function () {
       ` <span style="opacity:.7">(${escapeHtml(row.name)}` +
       (feat.level_acquired ? ` ${feat.level_acquired}` : "") +
       `)</span>`);
-    if (feat.description) {
-      bits.push(escapeHtml(feat.description));
+    // Prefer raw_text (verbatim corpus) over description (old
+    // summary) — same divergence the lookup modal fixed after the
+    // Wilder Wild Surge case (2026-05-25): description can be a
+    // 200-char summary while the full mechanics sit in raw_text.
+    // RichText.formatFeatureText keeps the longer verbatim readable
+    // (<br> structure, sub-heading bolding, 3000+ char auto-collapse).
+    const body = feat.raw_text || feat.description;
+    if (body) {
+      bits.push(window.RichText
+        ? RichText.formatFeatureText(body) : escapeHtml(body));
     }
     // Class features live inside the class blob — their errata doesn't
     // map to a single feature, so no badge (entryId: null).

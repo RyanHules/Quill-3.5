@@ -1757,6 +1757,59 @@ textarea {
   margin-bottom: 0.4rem;
   font-style: italic;
 }
+/* === rich-text.js shared renderers ===
+   Tables emitted by RichText carry BOTH .rt-table and
+   .lookup-rule-table (the rules above are unscoped, so picker info
+   panels inherit the same look). Below: the rt-only extras. */
+.rt-table-span {
+  text-align: center;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.rt-table-freeform {
+  white-space: pre-wrap;
+  font-size: 0.85em;
+  margin: 0.2rem 0;
+}
+/* Long-feature auto-collapse (formatFeatureText): native <details>
+   whose <summary> holds the lead sentences + a gold "show full text"
+   hint. No JS wiring needed, so the same markup works in the lookup
+   modal, picker info panels, and the Feats-tab ⓘ panels. */
+.rt-collapse {
+  display: block;
+  margin: 0.15rem 0;
+}
+.rt-collapse > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.rt-collapse > summary::-webkit-details-marker { display: none; }
+.rt-collapse-hint {
+  color: #c8a14a;
+  font-style: italic;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.rt-collapse > summary:hover .rt-collapse-hint { opacity: 1; }
+.rt-collapse[open] .rt-collapse-hint { display: none; }
+.rt-collapse[open] > summary::after {
+  content: " ▴ collapse";
+  color: #c8a14a;
+  font-style: italic;
+  opacity: 0.85;
+}
+/* Collapsed-by-default data-tables disclosure (class-picker preview —
+   companion / favored-enemy tables run 20+ rows). */
+.rt-tables-details {
+  margin-top: 0.4rem;
+}
+.rt-tables-details > summary {
+  cursor: pointer;
+  color: #c8a14a;
+  font-size: 0.88em;
+  opacity: 0.85;
+}
+.rt-tables-details > summary:hover { opacity: 1; }
 .lookup-rule-see-also {
   margin: 0.5rem 0;
   font-size: 0.88em;

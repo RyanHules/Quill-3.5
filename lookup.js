@@ -385,6 +385,9 @@
       bits.push(renderDescription(d, type));
     }
     bits.push(renderTypeSpecific(d, type));
+    // Structured data tables for every non-rule type (rules render
+    // theirs inside renderRuleExtra, ordered before See-also).
+    if (type !== 'rule') bits.push(renderEntryTables(d));
     bits.push(renderTags(d));
     return bits.filter(Boolean).join('');
   }
@@ -1054,11 +1057,19 @@
       // the rules were missing, when actually the verbatim was
       // already in the DB on a different field. Falls back to
       // description for features that haven't been swept yet.
+      // Body runs through RichText.formatFeatureText (2026-06-09):
+      //   - newlines render as <br> instead of collapsing to spaces,
+      //   - line-start sub-headings ("Calling a Spell:") bold,
+      //   - 3000+ char walls (Geomancer Drift 7k, Binder Soul
+      //     Binding 4.6k, ~23 total DB-wide) auto-collapse into a
+      //     native <details> "show full text" expander.
       const feats = d.class_features.map(f => {
         const lvl = f.level_acquired != null
           ? `L${f.level_acquired} ` : '';
         const body = f.raw_text || f.description || '';
-        const desc = body ? `: ${escapeHtml(body)}` : '';
+        const bodyHtml = window.RichText
+          ? RichText.formatFeatureText(body) : escapeHtml(body);
+        const desc = body ? `: ${bodyHtml}` : '';
         return `<div class="lookup-class-feature">` +
                `<b>${escapeHtml(lvl + (f.name || ''))}</b>${desc}</div>`;
       }).join('');
@@ -1708,37 +1719,31 @@
     return `<div class="lookup-detail-extra">${parts.join('')}</div>`;
   }
 
-  // Render one table entry into HTML. Handles structured
-  // {name, headers, rows[], notes} (new shape, 2026-05-24) and legacy
-  // {caption|title, ...} / freeform string variants.
+  // Render one table entry into HTML. Delegates to the shared
+  // RichText renderer (rich-text.js), which normalizes BOTH key
+  // dialects — {caption, columns, rows} (the 439-table walk shape)
+  // and {name, headers, rows} (the 2026-05-24 Core rules shape) —
+  // plus the notes/footnotes/footnote/note and spanning-`header`
+  // extras. The pre-RichText local renderer only understood the
+  // `headers` dialect, so the `columns` dialect (42 rule tables —
+  // Epic Spell development, Siege Engines, …) fell through to a
+  // raw-JSON <pre> dump.
   function renderRuleTable(t) {
-    const cap = t.name || t.caption || t.title || '';
-    const notes = t.notes || '';
-    if (Array.isArray(t.rows) && Array.isArray(t.headers)) {
-      const head = `<tr>${t.headers.map(h =>
-        `<th>${escapeHtml(String(h))}</th>`).join('')}</tr>`;
-      const body = t.rows.map(row => {
-        if (Array.isArray(row)) {
-          return `<tr>${row.map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`;
-        }
-        if (typeof row === 'object') {
-          return `<tr>${t.headers.map(h =>
-            `<td>${escapeHtml(String(row[h] ?? ''))}</td>`).join('')}</tr>`;
-        }
-        return '';
-      }).join('');
-      return (
-        (cap ? `<div class="lookup-rule-table-caption">${escapeHtml(cap)}</div>` : '') +
-        `<table class="lookup-rule-table">${head}${body}</table>` +
-        (notes ? `<div class="lookup-rule-table-notes">${escapeHtml(notes)}</div>` : '')
-      );
-    }
-    // Freeform: just show whatever string representation we have.
-    const text = typeof t === 'string' ? t : (t.text || JSON.stringify(t));
-    return (
-      (cap ? `<div class="lookup-rule-table-caption">${escapeHtml(cap)}</div>` : '') +
-      `<pre style="white-space:pre-wrap;font-size:0.85em;margin:0.2rem 0">${escapeHtml(text)}</pre>`
-    );
+    if (window.RichText) return RichText.renderTable(t);
+    console.warn('[lookup] RichText module missing — table dropped');
+    return '';
+  }
+
+  // Generic structured-tables block for NON-rule entries (items,
+  // templates, creatures, feats, skills, …— 17 types carry `tables`
+  // today). Rule entries render their tables inside renderRuleExtra
+  // instead, where they sit between Mechanics and See-also.
+  function renderEntryTables(d) {
+    if (!window.RichText) return '';
+    const html = RichText.renderTables(d.tables);
+    return html
+      ? `<div class="lookup-detail-extra lookup-entry-tables">${html}</div>`
+      : '';
   }
 
   // Recursive renderer for the `mechanics` dict. Dicts → <dl>;
@@ -1855,6 +1860,10 @@
     } else {
       extras = renderTypeSpecific(data, type);
     }
+    // Tables are content (not navigation), so unlike see_also /
+    // raw_text they stay visible in the nested view. Rule entries
+    // already include theirs via renderRuleExtra above.
+    if (type !== 'rule') extras += renderEntryTables(data);
     return `<div class="lookup-nested-expansion" data-nested-name="${escapeHtml(name)}">` +
       head + desc + extras + `</div>`;
   }

@@ -178,14 +178,17 @@
 
   function fullFeatRow(featId) {
     // The picker uses {prerequisites, benefit, normal, special,
-    // description} — all live inside entry.data as JSON.
+    // description} — all live inside entry.data as JSON. tables is
+    // the structured data-table list (Track, Investigate, …) that
+    // RichText renders below the prose.
     const row = DB.queryOne(
       "SELECT id AS feat_id, name, source, version, types_csv, "
       + "json_extract(data, '$.prerequisites') AS prerequisites, "
       + "json_extract(data, '$.benefit')       AS benefit, "
       + "json_extract(data, '$.normal')        AS normal, "
       + "json_extract(data, '$.special')       AS special, "
-      + "json_extract(data, '$.description')   AS description "
+      + "json_extract(data, '$.description')   AS description, "
+      + "json_extract(data, '$.tables')        AS tables_json "
       + "FROM entry WHERE id = ?", [featId]);
     return row;
   }
@@ -431,6 +434,13 @@
       }
       if (full.special && full.special.trim()) {
         bits.push(`<b>Special:</b> ${escapeHtml(full.special)}`);
+      }
+      // Structured data tables (Track DCs, Investigate modifiers, …).
+      if (full.tables_json && window.RichText) {
+        try {
+          const tablesHtml = RichText.renderTables(JSON.parse(full.tables_json));
+          if (tablesHtml) bits.push(tablesHtml);
+        } catch (e) { /* malformed tables JSON — skip */ }
       }
       // Required by — feats whose prereq chain includes this one.
       // Same pill UX as the prereq feats above; they share the

@@ -197,7 +197,8 @@
       + "json_extract(data, '$.damage_medium')         AS damage_medium, "
       + "json_extract(data, '$.damage_small')          AS damage_small, "
       + "json_extract(data, '$.critical')              AS critical, "
-      + "json_extract(data, '$.range_increment')       AS range_increment "
+      + "json_extract(data, '$.range_increment')       AS range_increment, "
+      + "json_extract(data, '$.tables')                AS tables_json "
       + "FROM entry WHERE id = ?", [itemId]);
   }
 
@@ -618,6 +619,14 @@
           ? full.description.slice(0, 400) + '…'
           : full.description;
         bits.push(`<b>Description:</b> ${escapeHtml(trimmed)}`);
+      }
+      // Structured data tables (Bag of Holding types, Ioun Stones,
+      // Rod of Wonder effects, material cost-modifier tables, …).
+      if (full.tables_json && window.RichText) {
+        try {
+          const tablesHtml = RichText.renderTables(JSON.parse(full.tables_json));
+          if (tablesHtml) bits.push(tablesHtml);
+        } catch (e) { /* malformed tables JSON — skip */ }
       }
       info.innerHTML = bits.join('<br>');
       // Activate see-also pill clicks (Craft feats + spell names in

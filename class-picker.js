@@ -3036,7 +3036,33 @@
       bits.push(`<i style="opacity:.7">No data for level ${level} in this table</i>`);
     }
 
-    panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
+    let html = bits.join(' &nbsp;·&nbsp; ');
+
+    // Structured data tables (Druid's animal companions, Ranger's
+    // favored enemies, Monk unarmed damage by size, DFA breath
+    // effects, …). Collapsed behind a <details> line — these run to
+    // 20+ rows and the preview strip is deliberately compact (the
+    // 2026-06-03 "lookups eat too much real estate" pass). Fetched
+    // per-render like the requirements / proficiencies pulls above.
+    if (window.RichText) {
+      const tRow = DB.queryOne(
+        "SELECT json_extract(data, '$.tables') AS t " +
+        "FROM entry WHERE id = ?", [cls.class_id]
+      );
+      if (tRow && tRow.t) {
+        try {
+          const tables = JSON.parse(tRow.t);
+          const tablesHtml = RichText.renderTables(tables);
+          if (tablesHtml) {
+            html += `<details class="rt-tables-details">` +
+              `<summary>Data tables (${tables.length})</summary>` +
+              `${tablesHtml}</details>`;
+          }
+        } catch (e) { /* malformed tables JSON — skip */ }
+      }
+    }
+
+    panel.innerHTML = html;
     // Activate see-also pill clicks (feat names inside Requirements).
     if (window.Lookup && Lookup.wireSeeAlsoPills) {
       Lookup.wireSeeAlsoPills(panel);

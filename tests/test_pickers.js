@@ -4599,6 +4599,197 @@ test('shadowcaster: spells.js recalc refreshes shadowcaster DCs with the bonus-a
     'shadowcaster panels are refreshed with _getAbilityMod (the bonus-aware mod fn), not a bare getAbilityMod');
 });
 
+// ---- tests: rich-text.js (shared tables renderer + long-text formatter) ----
+//
+// Added 2026-06-09 with the readability pass (structured-tables
+// rendering everywhere + long class-feature auto-collapse). The DB
+// carries TWO table dialects — {caption, columns, rows} (439 tables)
+// and {name, headers, rows} (16) — and the pre-RichText lookup
+// renderer only understood the second, so the first rendered as a
+// raw JSON <pre> dump. These tests run the REAL renderer over EVERY
+// table in the DB so a future extraction that introduces a third
+// dialect goes red here instead of silently JSON-dumping in the UI.
+
+function loadRichText() {
+  const src = fs.readFileSync(path.join(ROOT, 'rich-text.js'), 'utf8');
+  const fn = new Function('window', src + '\nreturn window.RichText;');
+  return fn({});
+}
+
+test('richtext: module evaluates in Node and exposes the API', () => {
+  const RT = loadRichText();
+  assert(typeof RT.renderTable === 'function', 'renderTable missing');
+  assert(typeof RT.renderTables === 'function', 'renderTables missing');
+  assert(typeof RT.formatFeatureText === 'function', 'formatFeatureText missing');
+  assert(typeof RT.escapeHtml === 'function', 'escapeHtml missing');
+});
+
+test('richtext: DB-wide — every structured table renders as a real <table>', (db) => {
+  // Both dialects, all 17 types. A table falling through to the
+  // freeform <pre> fallback (the old JSON-dump failure mode) fails
+  // this test; so does a table shape with no rows/columns at all.
+  const RT = loadRichText();
+  const rows = execAll(db,
+    "SELECT name, type, data FROM entry " +
+    "WHERE json_extract(data, '$.tables') IS NOT NULL");
+  let entries = 0, tables = 0;
+  for (const r of rows) {
+    const tb = JSON.parse(r.data).tables;
+    if (!Array.isArray(tb) || !tb.length) continue;
+    entries++;
+    for (const t of tb) {
+      tables++;
+      const html = RT.renderTable(t);
+      assert(html.includes('<table'),
+        `${r.type}:${r.name} — table did not render as <table>: ` +
+        `keys=${Object.keys(t).join(',')}`);
+      assert(!html.includes('rt-table-freeform'),
+        `${r.type}:${r.name} — table hit the freeform JSON fallback`);
+    }
+  }
+  // Audited 2026-06-09: 320 entries / 498 tables. Floor well below
+  // that so DB content shifts don't false-fail, but high enough that
+  // a broken json_extract or shape change is obvious.
+  assertGE(entries, 250, `only ${entries} entries with non-empty tables`);
+  assertGE(tables, 400, `only ${tables} tables rendered`);
+});
+
+test('richtext: both caption dialects + notes variants normalize', () => {
+  const RT = loadRichText();
+  // Walk dialect: caption / columns / rows + footnotes list.
+  const a = RT.renderTable({
+    caption: 'Cap A', columns: ['X', 'Y'], rows: [['1', '2']],
+    footnotes: ['note one', 'note two'],
+  });
+  assert(a.includes('Cap A') && a.includes('<th>X</th>')
+    && a.includes('<td>1</td>'), 'walk dialect broken');
+  assert(a.includes('note one') && a.includes('note two'),
+    'footnotes list dropped');
+  // Core-rules dialect: name / headers / rows + notes string.
+  const b = RT.renderTable({
+    name: 'Cap B', headers: ['H1'], rows: [['v']], notes: 'a note',
+  });
+  assert(b.includes('Cap B') && b.includes('<th>H1</th>')
+    && b.includes('a note'), 'core-rules dialect broken');
+  // Spanning group-header line (rare `header` key).
+  const c = RT.renderTable({
+    caption: 'Cap C', header: 'Span | Group', columns: ['A', 'B'],
+    rows: [['1', '2']],
+  });
+  assert(c.includes('colspan="2"') && c.includes('Span | Group'),
+    'spanning header line dropped');
+  // Null cells render as empty, not "null".
+  const d = RT.renderTable({ columns: ['A'], rows: [[null]] });
+  assert(!d.includes('null'), 'null cell rendered as "null"');
+});
+
+test('richtext: formatFeatureText collapses 3000+ chars into <details>', () => {
+  const RT = loadRichText();
+  const sentence = 'This is a reasonably long sentence about drift. ';
+  const long = sentence.repeat(80); // ~3900 chars, no newlines
+  const html = RT.formatFeatureText(long);
+  assert(html.includes('<details class="rt-collapse">'),
+    'long text did not collapse');
+  assert(html.includes('rt-collapse-lead') && html.includes('rt-collapse-rest'),
+    'collapse structure missing lead/rest');
+  assert(html.includes('show full text'), 'collapse hint missing');
+  // Short text renders inline with no details wrapper.
+  const short = RT.formatFeatureText('Just a short feature.');
+  assert(!short.includes('<details'), 'short text wrongly collapsed');
+  // Nothing of the original text may be lost: lead + rest together
+  // must cover the input (whitespace-insensitive).
+  const squash = (s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, '');
+  const inputSquashed = squash(RT.escapeHtml(long));
+  const outputSquashed = squash(html).replace(/…showfulltext▾/, '');
+  assert(outputSquashed.includes(inputSquashed.slice(0, 200)),
+    'collapsed output lost leading text');
+  assert(outputSquashed.endsWith(inputSquashed.slice(-200)),
+    'collapsed output lost trailing text');
+});
+
+test('richtext: sub-heading bolding fires on newline texts only', () => {
+  const RT = loadRichText();
+  const structured = 'Intro line.\nCalling a Spell: do the thing.\n' +
+    'Spellpool Debt: pay it back.';
+  const html = RT.formatFeatureText(structured);
+  assert(html.includes('<b>Calling a Spell:</b>'),
+    'line-start heading not bolded');
+  assert(html.includes('<b>Spellpool Debt:</b>'),
+    'second heading not bolded');
+  // Flat blob (no newlines): NO heading heuristics, even with a
+  // colon-terminated phrase present mid-text.
+  const flat = 'A flat blob where Stage One: appears inline mid-sentence.';
+  assert(!RT.formatFeatureText(flat).includes('<b>'),
+    'flat blob wrongly got heading bolding');
+});
+
+test('richtext: all rendered output is HTML-escaped', () => {
+  const RT = loadRichText();
+  const t = RT.renderTable({
+    caption: '<script>x</script>', columns: ['<b>'], rows: [['<i>']],
+    notes: '<u>',
+  });
+  assert(!t.includes('<script>') && !t.includes('<b>')
+    && !t.includes('<i>') && !t.includes('<u>'),
+    'table renderer emitted unescaped input HTML');
+  const f = RT.formatFeatureText('<script>alert(1)</script>');
+  assert(!f.includes('<script>'), 'formatter emitted unescaped input HTML');
+});
+
+test('richtext: lookup.js delegates renderRuleTable to RichText', () => {
+  // The local pre-RichText renderer only understood the `headers`
+  // dialect — the `columns` dialect (42 rule tables) JSON-dumped.
+  // Guard the delegation so the bug can't quietly come back.
+  const src = readSource('lookup.js');
+  const body = extractFunctionBody(src, 'renderRuleTable');
+  assert(body && body.includes('RichText.renderTable'),
+    'lookup.js renderRuleTable no longer delegates to RichText');
+  const detail = extractFunctionBody(src, 'renderDetailHtml');
+  assert(detail && detail.includes('renderEntryTables'),
+    'lookup.js renderDetailHtml no longer renders non-rule entry tables');
+});
+
+test('richtext: feats.js class-feature ⓘ prefers raw_text over description', () => {
+  // The Wilder Wild Surge divergence (2026-05-25): description is a
+  // summary; raw_text is the full verbatim mechanics. The ⓘ panel
+  // must read raw_text first or players see truncated rules.
+  // NB: extractFunctionBody can't parse this function — its parameter
+  // list is a destructuring pattern (`({ className, abilityName })`),
+  // so the brace-matcher grabs the params as the "body". Source-level
+  // regex instead.
+  const src = readSource('feats.js');
+  assert(/feat\.raw_text\s*\|\|\s*feat\.description/.test(src),
+    'feats.js renderClassFeatureRules must prefer feat.raw_text');
+});
+
+test('richtext: picker detail queries pull $.tables', () => {
+  // Every picker whose entry types carry structured tables today.
+  // template-picker parses the whole data blob instead of a
+  // json_extract column, so it's checked for the parsed-field read.
+  for (const file of ['feat-picker.js', 'item-picker.js',
+                      'spell-picker.js', 'power-picker.js',
+                      'class-picker.js', 'feats.js']) {
+    const src = readSource(file);
+    assert(src.includes("'$.tables'"),
+      `${file} detail query no longer selects $.tables`);
+    assert(src.includes('RichText.renderTables'),
+      `${file} no longer renders tables via RichText`);
+  }
+  const tpl = readSource('template-picker.js');
+  assert(tpl.includes('parsed.tables') &&
+         tpl.includes('RichText.renderTables'),
+    'template-picker.js no longer surfaces parsed.tables via RichText');
+});
+
+test('richtext: index.html loads rich-text.js with the shared picker aids', () => {
+  const html = readSource('index.html');
+  const rtIdx = html.indexOf("'rich-text.js'");
+  assert(rtIdx > 0, 'rich-text.js missing from the module loader list');
+  const firstPicker = html.indexOf("'race-picker.js'");
+  assert(firstPicker > rtIdx,
+    'rich-text.js must load before the pickers that consume it');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

@@ -197,6 +197,11 @@
       // OR the free-form armor_class text ("Natural armor +N", "+N natural").
       natural_armor_bonus: deriveNaturalArmor(parsed),
       description: parsed.description || null,
+      // Structured data tables (Half-Dragon breath weapon by variety,
+      // Lycanthrope forms, slam-damage-by-size, …) — rendered below
+      // the one-line preview strip via RichText.
+      tables: Array.isArray(parsed.tables) && parsed.tables.length
+        ? parsed.tables : null,
     };
 
     // ability_changes: dict like {Str: "+4", Cha: "+2"} → list of
@@ -416,7 +421,18 @@
         : '';
       bits.push(`<b>Traits:</b> ${t}${more}`);
     }
-    panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
+    let html = bits.join(' &nbsp;·&nbsp; ');
+    // Structured data tables render as block content below the
+    // compact meta strip (Half-Dragon's breath-weapon table, etc.).
+    // NB: templateDetail returns { tpl, mods, traits, … } with the
+    // entry fields NESTED under .tpl — the top-level detail object
+    // is the derived-lists bundle.
+    const detailTables = detail.tpl && detail.tpl.tables;
+    if (detailTables && window.RichText) {
+      const tablesHtml = RichText.renderTables(detailTables);
+      if (tablesHtml) html += `<div style="margin-top:0.4rem">${tablesHtml}</div>`;
+    }
+    panel.innerHTML = html;
     if (window.ErrataBadge) ErrataBadge.attach(panel, tpl.template_id);
     if (window.VersionBadge) VersionBadge.attach(panel, tpl.version);
     panel.style.display = 'block';

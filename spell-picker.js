@@ -240,7 +240,8 @@
       + "json_extract(e.data, '$.duration')          AS duration, "
       + "json_extract(e.data, '$.saving_throw')      AS saving_throw, "
       + "json_extract(e.data, '$.spell_resistance')  AS spell_resistance, "
-      + "json_extract(e.data, '$.description')       AS description "
+      + "json_extract(e.data, '$.description')       AS description, "
+      + "json_extract(e.data, '$.tables')            AS tables_json "
       + "FROM entry e "
       + "LEFT JOIN book b ON b.name = e.source "
       + "WHERE e.type = 'spell' AND e.name = ? COLLATE NOCASE "
@@ -880,6 +881,23 @@
       if (full.description) {
         html += `<div class="sp-info-desc" style="margin-top:0.4rem;` +
                 `line-height:1.4">${escapeHtml(full.description)}</div>`;
+      }
+      // Structured data tables (Prismatic Sphere colors, Summon
+      // Undead list, Detect-spell aura strengths, …). `full` can be
+      // an index row that predates the tables_json column — refetch
+      // the full record in that case.
+      if (window.RichText) {
+        const tablesJson = (full.tables_json !== undefined)
+          ? full.tables_json
+          : (spellByName(full.name) || {}).tables_json;
+        if (tablesJson) {
+          try {
+            const tablesHtml = RichText.renderTables(JSON.parse(tablesJson));
+            if (tablesHtml) {
+              html += `<div style="margin-top:0.4rem">${tablesHtml}</div>`;
+            }
+          } catch (e) { /* malformed tables JSON — skip */ }
+        }
       }
       info.innerHTML = html;
       if (window.ErrataBadge) ErrataBadge.attach(info, full.spell_id);
