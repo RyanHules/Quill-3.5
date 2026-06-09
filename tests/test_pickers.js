@@ -4566,6 +4566,43 @@ test('sla: DC spell-level lookup resolves via Sorcerer/Wizard -> Cleric -> Druid
   assert(resolve('faerie fire') === 1, 'Faerie Fire → Druid level 1 (no arcane/cleric)');
 });
 
+test('sla: sla.js exposes the source-injection API', () => {
+  const src = readSource('sla.js');
+  assert(/return \{[\s\S]*syncSource[\s\S]*clearSourcePrefix/.test(src),
+    'sla.js exports syncSource + clearSourcePrefix');
+  assert(/data-from-source/.test(src), 'rows are source-tagged for reconciliation');
+});
+
+test('sla: race-picker auto-populates the SLA tab from structured spell_likes', () => {
+  const src = readSource('race-picker.js');
+  assert(/buildRaceSLAEntries/.test(src), 'race-picker builds SLA entries from spell_likes');
+  assert(/SLA\.syncSource/.test(src), 'race-picker injects via SLA.syncSource');
+  assert(/SLA\.clearSourcePrefix\(['"]Race:['"]\)/.test(src), 'race-picker reconciles Race: SLA rows');
+  assert(src.includes('spell-?like'), 'race-picker filters the SLA trait out of Special Abilities');
+  assert(/resolveSLACasterLevel/.test(src) && /resolveSLAAbility/.test(src) && /resolveSLAFreq/.test(src),
+    'race-picker resolves caster-level / ability / frequency formulas');
+});
+
+test('sla: DB — structured spell_likes races carry consumable SLA data', (db) => {
+  // Phase 1b auto-pops races with a non-empty structured spell_likes array.
+  // Guard the contract on a known one (Drow); a future rebuild that drops or
+  // reshapes it should fail here, not silently stop auto-populating.
+  // Drow has multiple source entries (Drow of the Underdark has no
+  // spell_likes; FRCS carries the 3 SLAs the picker resolves). Assert that
+  // at least one Drow entry carries the structured data the feature consumes.
+  const rows = execAll(db, "SELECT data FROM entry WHERE type='race' AND name='Drow'");
+  assertNotEmpty(rows, 'Drow race entries exist');
+  const withSL = rows
+    .map((r) => JSON.parse(r.data).spell_likes)
+    .filter((sl) => Array.isArray(sl) && sl.length);
+  assert(withSL.length, 'at least one Drow entry has a non-empty structured spell_likes');
+  const sl = withSL[0];
+  assert(sl.some((e) => (e.spell_name || '').toLowerCase() === 'darkness'),
+    'Drow spell_likes includes darkness');
+  assert(sl.every((e) => 'frequency' in e && 'caster_level_formula' in e),
+    'spell_likes rows carry frequency + caster_level_formula');
+});
+
 // ---- tests: Shadowcaster mystery DC fix (2026-06-09) ----------------------
 // Mystery save DC = 10 + mystery level + ability mod. The ability mod must
 // come from the bonus-aware mod fn Spells.recalc hands in via

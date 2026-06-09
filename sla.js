@@ -217,6 +217,76 @@ const SLA = (function () {
     panel.querySelectorAll(".sla-entry").forEach((e) => recalcDC(e));
   }
 
+  // ============================================================
+  // Auto-population from sources (race now; templates/classes later)
+  // ============================================================
+  // SLA rows are PUSH-based, not pull-based: each row carries usage state
+  // that must persist, so a source (e.g. a race) injects real rows tagged
+  // data-from-source and reconciles them on change — mirroring how
+  // race-picker manages Special Abilities (data-from-race) and bonus feats.
+
+  function findOrCreatePanel() {
+    let panel = document.querySelector("[data-caster-type='sla']");
+    if (!panel && typeof Spells !== "undefined" && Spells.addCaster) {
+      Spells.addCaster("sla");
+      panel = document.querySelector("[data-caster-type='sla']");
+    }
+    return panel;
+  }
+
+  // Drop transient fully-blank rows (no name, no source, not source-tagged)
+  // so a freshly auto-created tab doesn't show an empty row above injected ones.
+  function removeBlankRows(list) {
+    list.querySelectorAll(".sla-entry").forEach((e) => {
+      const hasName = (e.querySelector(".sla-name")?.value || "").trim();
+      const hasSrc = (e.querySelector(".sla-source")?.value || "").trim();
+      if (!hasName && !hasSrc && !e.dataset.fromSource) e.remove();
+    });
+  }
+
+  // Remove auto-rows whose source tag exactly matches / starts with X.
+  function clearSource(label) {
+    document.querySelectorAll("[data-caster-type='sla'] .sla-entry").forEach((e) => {
+      if (e.dataset.fromSource === label) e.remove();
+    });
+  }
+  function clearSourcePrefix(prefix) {
+    document.querySelectorAll("[data-caster-type='sla'] .sla-entry").forEach((e) => {
+      if ((e.dataset.fromSource || "").startsWith(prefix)) e.remove();
+    });
+  }
+
+  // Inject (replacing any rows already under this exact label) the SLAs for a
+  // source. entries: [{spell, freq, casterLevel, ability, source?}]. DC is left
+  // to auto-compute. No-op (and no tab created) when entries is empty.
+  function syncSource(label, entries) {
+    clearSource(label);
+    if (!entries || !entries.length) return;
+    const panel = findOrCreatePanel();
+    if (!panel) return;
+    const list = panel.querySelector(".sla-list");
+    if (!list) return;
+    removeBlankRows(list);
+    for (const e of entries) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = slaRow({
+        spell: e.spell || "",
+        freq: e.freq || "1",
+        casterLevel: e.casterLevel || "",
+        ability: e.ability || "CHA",
+        dc: "",
+        dcAuto: true,
+        source: e.source || label,
+        fromSource: label,
+        used: 0,
+      });
+      const entry = wrap.firstElementChild;
+      list.appendChild(entry);
+      wireEntry(entry);
+    }
+    refreshDCs(panel, _getMod);
+  }
+
   function collect(panel) {
     const slas = [];
     panel.querySelectorAll(".sla-entry").forEach((entry) => {
@@ -242,5 +312,5 @@ const SLA = (function () {
     return { slas };
   }
 
-  return { buildHTML, wire, collect, refreshDCs };
+  return { buildHTML, wire, collect, refreshDCs, syncSource, clearSource, clearSourcePrefix };
 })();

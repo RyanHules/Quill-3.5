@@ -346,12 +346,29 @@
     // Archon "Aura of Menace") — instead of the walk's coarse bundled traits
     // ("Special Qualities"). PC races keep their per-trait list. Either path
     // tags rows data-from-race so resetWrites cleans them up on a race switch.
+    // Spell-Like Abilities → dedicated SLA sub-tab (structured `spell_likes`;
+    // a variant inherits the base race's when it carries none of its own).
+    // Push-based: inject real rows tagged "Race: <name>" so usage state
+    // persists, reconciling on every race change (clear the Race: prefix first).
+    const slaEntries = buildRaceSLAEntries(parsed, baseParsed);
+    if (typeof SLA !== 'undefined') {
+      if (SLA.clearSourcePrefix) SLA.clearSourcePrefix('Race:');
+      if (SLA.syncSource && slaEntries.length) {
+        SLA.syncSource('Race: ' + race.name, slaEntries);
+      }
+    }
+
     const creatureSpecials = (race.racial_hd && race.racial_hd > 0)
       ? creatureAbilityRows(race.name) : [];
     if (creatureSpecials.length) {
       populateCreatureSpecials(creatureSpecials);
     } else {
-      populateSpecialAbilities(traits);
+      // When the SLAs went to the SLA tab, drop the "Spell-Like Abilities"
+      // trait from the Special Abilities dump so it isn't double-listed.
+      const traitsForSpecials = slaEntries.length
+        ? traits.filter((t) => !/spell-?like/i.test((t && t.name) || ''))
+        : traits;
+      populateSpecialAbilities(traitsForSpecials);
     }
 
     // Racial skill bonuses are pull-based (skills.js reads
@@ -721,6 +738,11 @@
         if (row) row.remove();
       });
     }
+    // Drop any race-injected Spell-Like Ability rows (covers race→creature /
+    // race→other teardown; race→race is also handled in onRaceChosen).
+    if (typeof SLA !== 'undefined' && SLA.clearSourcePrefix) {
+      SLA.clearSourcePrefix('Race:');
+    }
     // Race cleared / switched away — drop its skill bonuses on the next recalc.
     _skillBonusCache = null;
     document.dispatchEvent(new CustomEvent('race-changed'));
@@ -814,6 +836,61 @@
     const result = computeRaceSkillBonuses(name);
     _skillBonusCache = { key: name, result };
     return result;
+  }
+
+  // ============================================================
+  // Racial Spell-Like Abilities (structured `spell_likes` → SLA tab rows)
+  // ============================================================
+  function raceCharLevel() {
+    const v = parseInt(document.getElementById('char-level')?.value, 10);
+    return (isNaN(v) || v < 1) ? 0 : v;
+  }
+  // Resolve a caster_level_formula to a row value. "character_level" → blank
+  // (the row's CL defaults to character level, and stays correct as the PC
+  // levels up); a fixed integer → itself; "max(3, 2*HD)" → computed at the
+  // current level; anything else → blank.
+  function resolveSLACasterLevel(formula) {
+    if (formula == null) return '';
+    const f = String(formula).trim();
+    if (f === 'character_level') return '';
+    if (/^\d+$/.test(f)) return f;
+    const m = f.match(/^max\(\s*(\d+)\s*,\s*2\s*\*\s*HD\s*\)$/i);
+    if (m) return String(Math.max(parseInt(m[1], 10), 2 * (raceCharLevel() || 1)));
+    return '';
+  }
+  // Pull the key ability out of a save_dc_formula ("10 + spell_level + Wis"),
+  // defaulting to Cha (the SLA default) when unspecified.
+  function resolveSLAAbility(dcFormula) {
+    if (!dcFormula) return 'CHA';
+    const m = String(dcFormula).match(/\b(Str|Dex|Con|Int|Wis|Cha)\b/i);
+    return m ? m[1].toUpperCase() : 'CHA';
+  }
+  function resolveSLAFreq(frequency) {
+    if (!frequency) return '1';
+    const f = String(frequency).toLowerCase();
+    if (/at\s*will/.test(f)) return 'at will';
+    const m = f.match(/(\d+)\s*\/?\s*day/);
+    if (m) return m[1];
+    if (/^\d+$/.test(f.trim())) return f.trim();
+    return '1';
+  }
+  // Build SLA-tab row entries from a race's structured `spell_likes`. A variant
+  // race with no spell_likes of its own inherits the base's (delta model, like
+  // natural armor). Returns [] when there's no structured SLA data.
+  function buildRaceSLAEntries(parsed, baseParsed) {
+    let sl = (parsed && Array.isArray(parsed.spell_likes) && parsed.spell_likes.length)
+      ? parsed.spell_likes : null;
+    if (!sl && baseParsed && baseParsed.data && Array.isArray(baseParsed.data.spell_likes)) {
+      sl = baseParsed.data.spell_likes;
+    }
+    if (!Array.isArray(sl) || !sl.length) return [];
+    return sl.map((e) => ({
+      spell: e.spell_name || '',
+      freq: resolveSLAFreq(e.frequency),
+      casterLevel: resolveSLACasterLevel(e.caster_level_formula),
+      ability: resolveSLAAbility(e.save_dc_formula),
+      source: 'Race',
+    })).filter((e) => e.spell);
   }
 
   window.RacePicker = {
