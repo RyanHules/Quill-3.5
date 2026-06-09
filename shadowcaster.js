@@ -6,6 +6,13 @@ const Shadowcaster = (function () {
 
   const int = (v) => parseInt(v) || 0;
 
+  // Bonus-aware ability-mod fn, handed in by Spells.recalc via refreshDCs
+  // (the same getModWithBonuses the rest of the Spells tab uses). NOT
+  // window.getAbilityMod — app.js never exposes that globally, so the old
+  // reliance on it silently computed every mystery DC with mod = 0. Falls
+  // back to 0 until the first recalc seeds it.
+  let _getMod = null;
+
   // Default uses/day per group. Fundamentals start at 3/day and become
   // at-will at shadowcaster 14 — user flips the dropdown to "Unlimited"
   // at that point. Apprentice/Initiate/Master default to 1/day.
@@ -127,16 +134,16 @@ const Shadowcaster = (function () {
   }
 
   // Compute and stamp the mystery DC (10 + level + ability mod). The
-  // ability mod is read from the global Character recalc system via
-  // window.getAbilityMod (set by app.js); we fall back gracefully if
-  // it's not available.
+  // ability mod comes from the bonus-aware mod fn handed in by Spells.recalc
+  // via refreshDCs (see _getMod above). We fall back to 0 gracefully until
+  // it's seeded.
   function recalcDC(entry, abilityCode) {
     const dcEl = entry.querySelector(".sh-myst-dc");
     if (!dcEl) return;
     const level = int(entry.querySelector(".sh-myst-level")?.value);
     let mod = 0;
-    if (abilityCode && typeof window.getAbilityMod === "function") {
-      try { mod = window.getAbilityMod(abilityCode) || 0; }
+    if (abilityCode && typeof _getMod === "function") {
+      try { mod = _getMod(abilityCode) || 0; }
       catch (e) { mod = 0; }
     }
     dcEl.textContent = String(10 + level + mod);
@@ -145,6 +152,14 @@ const Shadowcaster = (function () {
   function recalcAllDCs(panel) {
     const ability = panel.querySelector(".sh-ability")?.value || "";
     panel.querySelectorAll(".sh-mystery").forEach((entry) => recalcDC(entry, ability));
+  }
+
+  // Re-compute every mystery DC (called from Spells.recalc when ability
+  // scores change, so a Cha/Wis/Int bump flows into the DCs). Seeds the
+  // module's bonus-aware mod fn that recalcDC reads. Mirrors SLA.refreshDCs.
+  function refreshDCs(panel, getMod) {
+    if (typeof getMod === "function") _getMod = getMod;
+    recalcAllDCs(panel);
   }
 
   function wire(panel) {
@@ -217,5 +232,5 @@ const Shadowcaster = (function () {
     return caster;
   }
 
-  return { buildHTML, wire, collect };
+  return { buildHTML, wire, collect, refreshDCs };
 })();

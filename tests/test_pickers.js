@@ -4566,6 +4566,39 @@ test('sla: DC spell-level lookup resolves via Sorcerer/Wizard -> Cleric -> Druid
   assert(resolve('faerie fire') === 1, 'Faerie Fire → Druid level 1 (no arcane/cleric)');
 });
 
+// ---- tests: Shadowcaster mystery DC fix (2026-06-09) ----------------------
+// Mystery save DC = 10 + mystery level + ability mod. The ability mod must
+// come from the bonus-aware mod fn Spells.recalc hands in via
+// Shadowcaster.refreshDCs (the same getModWithBonuses the rest of the Spells
+// tab uses) — NOT window.getAbilityMod, which app.js never exposes, so the
+// old code silently computed every DC with mod = 0 (a 1st-level mystery
+// always showed DC 11 regardless of Cha). Mirrors the SLA fix above.
+
+test('shadowcaster: module exposes refreshDCs in its public API', () => {
+  const src = readSource('shadowcaster.js');
+  assert(/function refreshDCs/.test(src), 'shadowcaster.js defines refreshDCs');
+  assert(/return \{[\s\S]*buildHTML[\s\S]*wire[\s\S]*collect[\s\S]*refreshDCs/.test(src),
+    'shadowcaster.js exports refreshDCs alongside buildHTML/wire/collect');
+});
+
+test('shadowcaster: recalcDC reads the seeded mod fn, not window.getAbilityMod', () => {
+  const src = readSource('shadowcaster.js');
+  // Guard against *using* it (call or typeof/=== compare) — a mention in the
+  // explanatory comment is fine, so match window.getAbilityMod followed by
+  // '(' or '=' (after optional whitespace), not a bare reference.
+  assert(!/window\.getAbilityMod\s*[(=]/.test(src),
+    'shadowcaster.js must NOT call/compare window.getAbilityMod (app.js never sets it → DC mod silently 0)');
+  assert(/typeof _getMod === "function"/.test(src),
+    'recalcDC gates on the module-level _getMod fn seeded by refreshDCs');
+});
+
+test('shadowcaster: spells.js recalc refreshes shadowcaster DCs with the bonus-aware mod fn', () => {
+  const src = readSource('spells.js');
+  assert(/Shadowcaster\.refreshDCs/.test(src), 'recalc refreshes Shadowcaster DCs');
+  assert(/\[data-caster-type='shadowcaster'\][\s\S]*Shadowcaster\.refreshDCs\(panel, _getAbilityMod\)/.test(src),
+    'shadowcaster panels are refreshed with _getAbilityMod (the bonus-aware mod fn), not a bare getAbilityMod');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

@@ -2141,6 +2141,15 @@ const Spells = (function () {
       // runs inside recalcEpicAndBinding(), which has no getAbilityMod param.
       $$("[data-caster-type='sla']").forEach((panel) => SLA.refreshDCs(panel, _getAbilityMod));
     }
+
+    // Shadowcaster sub-tabs: re-compute every mystery DC so an ability-score
+    // change (e.g. a Cha bump) flows into the DCs. Same latent-bug fix as SLA
+    // — the old recalcDC read window.getAbilityMod, which app.js never sets,
+    // so every mystery DC computed with mod = 0. _getAbilityMod is the
+    // bonus-aware mod fn captured by recalc().
+    if (typeof Shadowcaster !== "undefined" && Shadowcaster.refreshDCs) {
+      $$("[data-caster-type='shadowcaster']").forEach((panel) => Shadowcaster.refreshDCs(panel, _getAbilityMod));
+    }
   }
 
   // No-op stub for app.js backward compat

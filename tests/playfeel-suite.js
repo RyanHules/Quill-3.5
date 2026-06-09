@@ -709,6 +709,42 @@
     expect(orphan, null, 'SA5: Invocations tab removed with the Warlock (no orphan)');
   });
 
+  // Shadowcaster mystery DC = 10 + mystery level + ability mod (2026-06-09).
+  // Runtime guard for the latent bug fixed this session: recalcDC used to read
+  // window.getAbilityMod (never set by app.js) so every DC computed with mod 0
+  // (a 1st-level mystery always showed DC 11 regardless of Cha). The fix routes
+  // the bonus-aware mod fn through Shadowcaster.refreshDCs from Spells.recalc.
+  // Static guards live in tests/test_pickers.js ('shadowcaster:' group); this
+  // drives the actual numbers and proves they track an ability-score change.
+  regression('SC-DC: shadowcaster mystery DC = 10 + level + ability mod, tracks Cha', async () => {
+    await newCharacter();
+    await applyClass('Shadowcaster', 5);
+    const panel = document.querySelector('[data-caster-type="shadowcaster"]');
+    if (!panel) fail('SC-DC: no shadowcaster panel after applying Shadowcaster 5');
+    // Mystery ability = Cha (the default); set it explicitly for robustness.
+    const abil = panel.querySelector('.sh-ability');
+    abil.value = 'CHA';
+    abil.dispatchEvent(new Event('change', { bubbles: true }));
+    // Default mysteries per group: fund L0, app L1, init L4, mast L7.
+    const dc = (group) => panel
+      .querySelector(`.sh-mystery[data-group="${group}"] .sh-myst-dc`).textContent;
+
+    setAbilities({ CHA: 18 });            // mod +4
+    await wait(50);
+    expect(dc('fund'), '14', 'SC-DC: Fundamentals L0 → 10+0+4=14 at Cha 18');
+    expect(dc('app'), '15',
+      'SC-DC: Apprentice L1 → 10+1+4=15 at Cha 18 (the mod-0 bug would give 11)');
+    expect(dc('mast'), '21', 'SC-DC: Master L7 → 10+7+4=21 at Cha 18');
+
+    setAbilities({ CHA: 20 });            // mod +5
+    await wait(50);
+    expect(dc('app'), '16', 'SC-DC: Apprentice L1 DC tracks Cha 20 → 16');
+
+    setAbilities({ CHA: 8 });             // mod -1
+    await wait(50);
+    expect(dc('app'), '10', 'SC-DC: Apprentice L1 DC tracks Cha 8 → 10');
+  });
+
   regression('IL-MC: multiclass initiator level is per-class (ToB p.39 example)', async () => {
     // The book's worked example: a 7th-level crusader / 5th-level
     // swordsage has crusader IL 9 (7 + floor(5/2)) and swordsage IL 8
