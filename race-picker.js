@@ -189,6 +189,14 @@
     let parsed = {};
     try { parsed = JSON.parse(row.data || '{}'); }
     catch (e) { console.warn('[race-picker] bad data JSON', e); }
+    // Environmental / variant races (Unearthed Arcana: Arctic Kobold, Desert
+    // Dwarf, Aquatic Elf, …) are printed as "standard <base> racial traits
+    // with the following modifications." They carry their OWN final ability
+    // mods / size / speed / languages (already merged — do NOT re-apply the
+    // base's, that double-counts), but only their DELTA traits, senses, and
+    // bonuses. Resolve the base race so we can fold its descriptive traits +
+    // senses + natural armor in below, where the variant doesn't override.
+    const baseParsed = resolveVariantBase(parsed);
     // Races use ONE canonical shape (unified 2026-05-29 by the DB project's
     // normalize_schema.py): top-level `creature_type` (bare string),
     // `base_speed_ft` (int), `senses` (list of {sense, range_ft?, multiplier?}),
@@ -204,7 +212,10 @@
       level_adjustment: parsed.level_adjustment,
       favored_class: parsed.favored_class,
       description: parsed.description,
-      senses: Array.isArray(parsed.senses) ? parsed.senses : [],
+      // Variant senses union the base's (darkvision etc.), variant winning.
+      senses: mergeSenses(parsed.senses, baseParsed && baseParsed.data.senses),
+      // Base race name when this is a variant, for the info-panel label.
+      variant_of: baseParsed ? baseParsed.name : null,
       // Racial Hit Dice — monster races (Ogre, Troll, …) carry extra racial HD
       // on top of class levels; canonical top-level fields since 2026-06-03.
       // Default 0 for PC-style races so existing entries (PHB, etc.) don't break.
@@ -225,12 +236,10 @@
       ? parsed.ability_mods : [];
     const languages   = Array.isArray(parsed.languages)
       ? parsed.languages : [];
-    const traits = (Array.isArray(parsed.traits) ? parsed.traits : [])
-      .map(t => ({
-        name: t?.name || '',
-        description: t?.description || '',
-        tag: t?.tag || null,
-      }));
+    // For a variant race, present the base race's traits first, then the
+    // variant's own modification traits (dropping the bare pointer line).
+    // For a normal race this is just the race's own traits.
+    const traits = buildTraitList(parsed.traits, baseParsed && baseParsed.data);
 
     // 1. Type field
     if (race.creature_type) {
@@ -290,7 +299,10 @@
     // #ac-natural with ownership so it propagates into AC and a later race
     // switch clears only what we wrote (the field is shared with equipment
     // and monster-class extensions).
-    const racialNA = naturalArmorFromBonuses(parsed.bonuses);
+    // Variant races inherit the base's natural armor when they don't carry
+    // their own (Arctic Kobold has empty bonuses but is still a +1-NA kobold).
+    const racialNA = naturalArmorFromBonuses(
+      mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses));
     if (racialNA != null && racialNA > 0) {
       raceSetOwned('ac-natural', String(racialNA), 'input', true);
     }
@@ -423,6 +435,11 @@
     if (!panel) return;
     const bits = [];
 
+    // Variant-of label — makes it explicit that the traits below combine
+    // the base race's kit with this variant's modifications.
+    if (race.variant_of) {
+      bits.push(`<b>Variant of:</b> ${escapeHtml(race.variant_of)}`);
+    }
     // Ability mods
     if (abilityMods.length) {
       const fmt = abilityMods.map(a =>
@@ -519,6 +536,93 @@
     return parts.join(', ');
   }
 
+  // --- Variant (environmental) race inheritance ---------------------------
+  // UA variant races store a "standard <base> racial traits …" pointer trait
+  // instead of duplicating the base's descriptive traits / senses / natural
+  // armor. We resolve the base race at pick time and fold those in. The
+  // base name is the capture group of this pattern; feats.js re-derives it
+  // the same way for the ⓘ resolver, so keep the two in sync.
+  const VARIANT_BASE_RE = /\b(?:all\s+)?standard\s+(.+?)\s+racial\s+traits/i;
+
+  // Return the base race name a variant points at, or null. Reads the
+  // pointer out of a traits list (canonical {name, description} shape).
+  function variantBaseName(traits) {
+    if (!Array.isArray(traits)) return null;
+    for (const t of traits) {
+      const m = VARIANT_BASE_RE.exec((t && t.name) || '');
+      if (m) return m[1].trim();
+    }
+    return null;
+  }
+
+  function isVariantPointer(trait) {
+    return !!(trait && VARIANT_BASE_RE.test((trait.name) || ''));
+  }
+
+  // Resolve a variant's base race to {name, data} (parsed JSON), or null
+  // when `parsed` isn't a variant / the base can't be found. Reuses the
+  // picker's own raceIndex so resolution matches what the user could pick
+  // (3.5-preferred, newest source).
+  function resolveVariantBase(parsed) {
+    const baseName = variantBaseName(parsed && parsed.traits);
+    if (!baseName) return null;
+    const baseId = raceIndex.get(baseName.toLowerCase());
+    if (baseId === undefined) return null;
+    const brow = DB.queryOne('SELECT name, data FROM entry WHERE id = ?', [baseId]);
+    if (!brow) return null;
+    let bdata = {};
+    try { bdata = JSON.parse(brow.data || '{}'); }
+    catch (e) { return null; }
+    return { name: brow.name, data: bdata };
+  }
+
+  // Variant senses are FULL-when-present, not additive: every UA variant
+  // that lists its own senses lists the complete set ([low_light_vision]),
+  // replacing the base's (the bright-environment variants trade darkvision
+  // FOR low-light — "replaces darkvision"). So if the variant carries any
+  // senses, those are authoritative; otherwise inherit the base's wholesale
+  // (Arctic Kobold has no senses of its own and is still a darkvision race).
+  // Contrast with bonuses (mergeBonuses), which ARE delta-style.
+  function mergeSenses(variantSenses, baseSenses) {
+    const v = Array.isArray(variantSenses) ? variantSenses.filter(s => s && s.sense) : [];
+    if (v.length) return v;
+    return Array.isArray(baseSenses) ? baseSenses.filter(s => s && s.sense) : [];
+  }
+
+  // Concatenate variant bonuses ahead of the base's. naturalArmorFromBonuses
+  // returns the first natural-armor match, so the variant's value (if any)
+  // wins and the base's is the fallback.
+  function mergeBonuses(variantBonuses, baseBonuses) {
+    return [].concat(
+      Array.isArray(variantBonuses) ? variantBonuses : [],
+      Array.isArray(baseBonuses) ? baseBonuses : []
+    );
+  }
+
+  // Build the displayed trait list. For a variant race: base traits first,
+  // then the variant's own modification traits, dropping the "standard
+  // <base> racial traits" pointer (the base traits it points at are now
+  // shown explicitly). Dedup by lowercased name with the variant winning,
+  // so a restated trait shows the variant's version once. For a normal race
+  // (baseData null) this is just the race's own traits, pointer-free.
+  function buildTraitList(parsedTraits, baseData) {
+    const norm = (t) => ({
+      name: (t && t.name) || '',
+      description: (t && t.description) || '',
+      tag: (t && t.tag) || null,
+    });
+    const variantTraits = (Array.isArray(parsedTraits) ? parsedTraits : [])
+      .filter(t => !isVariantPointer(t))
+      .map(norm);
+    if (!baseData) return variantTraits;
+    const variantNames = new Set(
+      variantTraits.map(t => t.name.trim().toLowerCase()).filter(Boolean));
+    const baseTraits = (Array.isArray(baseData.traits) ? baseData.traits : [])
+      .filter(t => !variantNames.has(((t && t.name) || '').trim().toLowerCase()))
+      .map(norm);
+    return baseTraits.concat(variantTraits);
+  }
+
   // Find a typed bonus row in the canonical bonuses list and return its
   // amount (or, for boolean-style rows, true). Returns null if absent.
   function extractBonus(bonuses, bonusType) {
@@ -604,7 +708,7 @@
     }
   }
 
-  window.RacePicker = { resetWrites, applyByName: onRaceChosen };
+  window.RacePicker = { resetWrites, applyByName: onRaceChosen, variantBaseName };
 
   // Wait for DB to load, then init.
   DB.ready.then((db) => {

@@ -471,9 +471,35 @@ const Feats = (function () {
     const firstLine = text.split(/\r?\n/)[0];
     const candidate = firstLine.split(/:\s/)[0].trim().toLowerCase();
     if (!candidate) return null;
-    const trait = traits.find(
+    let trait = traits.find(
       t => (t && t.name || "").trim().toLowerCase() === candidate
     );
+    // Label the trait by the race that actually owns it — for an
+    // environmental variant (Arctic Kobold, …) the row may be one of the
+    // BASE race's traits that race-picker folded in at pick time, which
+    // won't be in the variant's own `traits` list.
+    let sourceRaceName = row.name;
+    if (!trait) {
+      // Reuse race-picker's single source of truth for the pointer pattern
+      // (window.RacePicker.variantBaseName) so the two can't drift; skip the
+      // base fallback gracefully if the picker module isn't present.
+      const baseName = (window.RacePicker && RacePicker.variantBaseName)
+        ? RacePicker.variantBaseName(traits) : null;
+      if (baseName) {
+        const brow = DB.queryOne(
+          "SELECT name, json_extract(data, '$.traits') AS t " +
+          "FROM entry WHERE type='race' AND name = ? COLLATE NOCASE " +
+          "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
+          [baseName]
+        );
+        let bt = [];
+        if (brow && brow.t) { try { bt = JSON.parse(brow.t) || []; } catch (e) {} }
+        const bm = bt.find(
+          t => (t && t.name || "").trim().toLowerCase() === candidate
+        );
+        if (bm) { trait = bm; sourceRaceName = brow.name; }
+      }
+    }
     if (!trait) return null;
     const tag = (trait.tag || "").trim();
     const tagHtml = tag
@@ -481,7 +507,7 @@ const Feats = (function () {
     const verBadge = (window.VersionBadge ? VersionBadge.html(row.version) : "");
     const bits = [];
     bits.push(`<b>${escapeHtml(trait.name)}</b>${tagHtml}${verBadge}` +
-      ` <span style="opacity:.7">(${escapeHtml(row.name)} racial trait)</span>`);
+      ` <span style="opacity:.7">(${escapeHtml(sourceRaceName)} racial trait)</span>`);
     if (trait.description && trait.description.trim()) {
       bits.push(escapeHtml(trait.description));
     } else {
