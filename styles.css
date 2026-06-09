@@ -2453,6 +2453,14 @@ textarea {
 .sh-myst-name { flex: 2; min-width: 200px; } .sh-extra-wrap { flex: 0 0 80px; }
 .sh-myst-checks { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; min-width: 60px; }
 .sh-myst-checks .sh-use-check { margin: 0; } .sh-unlimited { font-size: 1.4em; color: #8af; } .sh-no-uses { color: #777; }
+/* === Spell-Like Abilities sub-tab === */
+.sla-note { font-size: 0.8rem; color: #999; margin: 0.2rem 0 0.5rem; line-height: 1.4; }
+.sla-list { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.5rem; }
+.sla-entry { border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.35rem; }
+.sla-row { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+.sla-name-wrap { flex: 2; min-width: 180px; } .sla-src-wrap { flex: 1; min-width: 120px; }
+.sla-checks { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; min-width: 60px; padding-bottom: 0.4rem; }
+.sla-checks .sla-use-check { margin: 0; } .sla-unlimited { font-size: 1.4em; color: #8af; } .sla-no-uses { color: #777; }
 /* === Print === */
 @media print {
   header, .tabs { position: static; }

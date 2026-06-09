@@ -4517,6 +4517,55 @@ test('skillbonus: app.js wires race-changed → recalc', () => {
     'app.js listens for race-changed');
 });
 
+// ---- tests: Spell-Like Abilities sub-tab (2026-06-09) ---------------------
+// A Spells-tab sub-tab (type "sla") delegating to the SLA module
+// (sla.js), mirroring the shadowcaster pattern. Per-entry caster level /
+// key ability / save DC (sources differ); usage tracking via checkboxes;
+// DC auto-computes from the mimicked spell's level (Sorcerer/Wizard →
+// Cleric → Druid) + ability mod, with manual override.
+
+test('sla: module exposes its public API', () => {
+  const src = readSource('sla.js');
+  assert(/function buildHTML/.test(src), 'sla.js defines buildHTML');
+  assert(/function wire/.test(src), 'sla.js defines wire');
+  assert(/function collect/.test(src), 'sla.js defines collect');
+  assert(/function refreshDCs/.test(src), 'sla.js defines refreshDCs');
+  assert(/return \{[\s\S]*buildHTML[\s\S]*wire[\s\S]*collect[\s\S]*refreshDCs/.test(src),
+    'sla.js exports the public API');
+});
+
+test('sla: spells.js wires the sla caster type (build + collect + default name + DC refresh)', () => {
+  const src = readSource('spells.js');
+  assert(/type === "sla"/.test(src), 'addCaster + collectData branch on "sla"');
+  assert(/SLA\.buildHTML/.test(src) && /SLA\.wire/.test(src), 'addCaster delegates to SLA');
+  assert(/SLA\.collect/.test(src), 'collectData delegates to SLA.collect');
+  assert(/sla:\s*"Spell-Like Abilities"/.test(src), 'DEFAULT_NAMES includes sla');
+  assert(/SLA\.refreshDCs/.test(src), 'recalc refreshes SLA DCs');
+});
+
+test('sla: app.js + index.html wire the add button + register the module', () => {
+  assert(/btn-add-sla/.test(readSource('app.js')), 'app.js wires btn-add-sla');
+  const html = readSource('index.html');
+  assert(/id="btn-add-sla"/.test(html), 'index.html has the + SLA button');
+  assert(/'sla\.js'/.test(html), 'index.html registers sla.js in the module list');
+});
+
+test('sla: DC spell-level lookup resolves via Sorcerer/Wizard -> Cleric -> Druid', (db) => {
+  // Mirrors SLA.lookupSpellLevel's query + class priority.
+  const resolve = (name) => {
+    const rows = execAll(db,
+      "SELECT scl.class_name AS cls, scl.level AS lvl FROM entry e "
+      + "JOIN spell_class_level scl ON scl.entry_id = e.id "
+      + "WHERE e.type='spell' AND LOWER(e.name)=?", [name]);
+    const byClass = {};
+    for (const r of rows) if (!(r.cls in byClass) || r.lvl < byClass[r.cls]) byClass[r.cls] = r.lvl;
+    for (const cls of ['Sorcerer', 'Wizard', 'Cleric', 'Druid']) if (cls in byClass) return byClass[cls];
+    return rows.length ? Math.min.apply(null, rows.map(r => r.lvl)) : null;
+  };
+  assert(resolve('darkness') === 2, 'Darkness → arcane level 2');
+  assert(resolve('faerie fire') === 1, 'Faerie Fire → Druid level 1 (no arcane/cleric)');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

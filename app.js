@@ -648,6 +648,7 @@
   $("#btn-add-epic").addEventListener("click", () => Spells.addCaster("epic"));
   $("#btn-add-binding").addEventListener("click", () => Spells.addCaster("binding"));
   $("#btn-add-shadowcaster").addEventListener("click", () => Spells.addCaster("shadowcaster"));
+  $("#btn-add-sla").addEventListener("click", () => Spells.addCaster("sla"));
   $("#btn-add-companion").addEventListener("click", () => Companion.addCompanion());
   $("#btn-add-attack").addEventListener("click", () => Character.addAttack());
   $("#btn-add-feat").addEventListener("click", () => Feats.addFeat());

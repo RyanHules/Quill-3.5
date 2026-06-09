@@ -18,7 +18,7 @@ const Spells = (function () {
   // --- Add a caster sub-tab (spellcasting or psionics) ---
   function addCaster(type, data = {}) {
     const idx = casterIndex++;
-    const DEFAULT_NAMES = { spellcasting: "Spellcasting", psionics: "Psionics", maneuvers: "Maneuvers", epic: "Epic Spellcasting", binding: "Binding", shadowcaster: "Shadowcasting", invocations: "Invocations" };
+    const DEFAULT_NAMES = { spellcasting: "Spellcasting", psionics: "Psionics", maneuvers: "Maneuvers", epic: "Epic Spellcasting", binding: "Binding", shadowcaster: "Shadowcasting", invocations: "Invocations", sla: "Spell-Like Abilities" };
     const defaultName = DEFAULT_NAMES[type] || type;
     const name = data.name || defaultName;
 
@@ -86,6 +86,10 @@ const Spells = (function () {
       panel.innerHTML = notesHTML + Shadowcaster.buildHTML(idx, data);
       container.appendChild(panel);
       Shadowcaster.wire(panel);
+    } else if (type === "sla") {
+      panel.innerHTML = notesHTML + SLA.buildHTML(idx, data);
+      container.appendChild(panel);
+      SLA.wire(panel);
     }
 
     // Add remove button to tab
@@ -2128,6 +2132,15 @@ const Spells = (function () {
         lastVisibleTab.click();
       }
     });
+
+    // SLA sub-tabs: re-compute each ability's auto save DC so an ability-
+    // score change (e.g. a Cha bump) flows into the DCs. Manual overrides
+    // are respected inside refreshDCs.
+    if (typeof SLA !== "undefined" && SLA.refreshDCs) {
+      // _getAbilityMod is the bonus-aware mod fn captured by recalc(); this
+      // runs inside recalcEpicAndBinding(), which has no getAbilityMod param.
+      $$("[data-caster-type='sla']").forEach((panel) => SLA.refreshDCs(panel, _getAbilityMod));
+    }
   }
 
   // No-op stub for app.js backward compat
@@ -2271,6 +2284,8 @@ const Spells = (function () {
         }));
       } else if (type === "shadowcaster") {
         Object.assign(caster, Shadowcaster.collect(panel));
+      } else if (type === "sla") {
+        Object.assign(caster, SLA.collect(panel));
       } else if (type === "binding") {
         caster.binderLevel = panel.querySelector(".bind-level")?.value || "";
         caster.maxVestige = panel.querySelector(".bind-max-vestige")?.value || "";

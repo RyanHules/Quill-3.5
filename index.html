@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260609h';
+    window.CACHE_VERSION = '20260609k';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -649,6 +649,7 @@
       <button id="btn-add-epic" class="btn-add-tab" title="Add Epic Spellcasting">+ Epic</button>
       <button id="btn-add-binding" class="btn-add-tab" title="Add Vestige Binding">+ Binding</button>
       <button id="btn-add-shadowcaster" class="btn-add-tab" title="Add Shadowcaster">+ Shadowcaster</button>
+      <button id="btn-add-sla" class="btn-add-tab" title="Add Spell-Like Abilities (racial / feat / class SLAs)">+ Spell-Like Abilities</button>
     </div>
     <div id="spells-content"></div>
   </div>
@@ -752,7 +753,7 @@
     const modules = [
       // -- Core UI modules: per-tab + coordinator.
       'data.js', 'skills.js', 'character.js', 'equipment.js',
-      'shadowcaster.js', 'spells.js', 'metamagic-preparer.js',
+      'shadowcaster.js', 'sla.js', 'spells.js', 'metamagic-preparer.js',
       // item-familiar.js must load BEFORE companion.js — companion's
       // buildCompanionHTML / wireCompanion / collectData branch on
       // `ItemFamiliar.isItemFamiliarType()`. Loading order matters
