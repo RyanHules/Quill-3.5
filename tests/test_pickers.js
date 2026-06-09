@@ -932,9 +932,13 @@ test('lookup: tag fanout query returns rows per entry', (db) => {
 });
 
 test('lookup: errata badge index covers known applied entries', (db) => {
-  // The badge module queries `SELECT entry_id, applied FROM errata`
-  // at first use and builds two Sets. Make sure the table has both
-  // applied + advisory records, and no orphan FKs.
+  // The badge module's buildIndex JOINs errata to entry (it needs
+  // type/version/name for the cross-printing family map). Run the
+  // verbatim query, and keep the table-health + orphan-FK checks.
+  const idx = execAll(db,
+    "SELECT er.entry_id, er.applied, e.type, e.version, e.name "
+    + "FROM errata er JOIN entry e ON e.id = er.entry_id");
+  assertGE(idx.length, 100);
   const counts = execOne(db,
     "SELECT " +
     "  COUNT(*) AS total, " +
@@ -952,14 +956,15 @@ test('lookup: errata badge index covers known applied entries', (db) => {
 });
 
 test('lookup: errata popover query returns ordered records', (db) => {
-  // openPopover() runs this query — verbatim. The ORDER BY puts
+  // openPopover() runs this query with a dynamic IN over the
+  // same-(type, version, name) family ids. The ORDER BY puts
   // applied rows first, then groups by kind+field for readability.
   const firstEntryWithErrata = execOne(db,
     "SELECT entry_id FROM errata WHERE applied = 1 LIMIT 1");
   assert(firstEntryWithErrata, 'expected at least one applied errata');
   const records = execAll(db,
     "SELECT source, kind, field, from_text, to_text, applied, note " +
-    "FROM errata WHERE entry_id = ? " +
+    "FROM errata WHERE entry_id IN (?) " +
     "ORDER BY applied DESC, kind, field",
     [firstEntryWithErrata.entry_id]);
   assertNotEmpty(records);
@@ -4854,6 +4859,74 @@ test('errata: power-picker attaches the badge with rec.id (not rec.power_id)', (
     'rebuildIndex rec defines `id`, not `power_id`');
   assert(!/ErrataBadge\.attach\(info,\s*rec\.power_id\)/.test(src),
     'power-picker regressed to rec.power_id (undefined on the rec)');
+});
+
+// ---- tests: errata-badge advisory default + cross-printing (2026-06-10) ----
+//
+// Ryan's policy: advisory errata must surface everywhere — there is
+// no way to know whether the information is relevant to the user, so
+// it has to be AVAILABLE. Two behaviors carry it:
+//   1. hasErrata defaults to advisory-INCLUSIVE (opts.applied===true
+//      is the explicit applied-only filter; nobody uses it today).
+//   2. Cross-printing fallback: records attach to one entry row, but
+//      the same item can be printed in several books — Astral
+//      Construct's errata hangs on the XPH row while the power-
+//      picker's name-dedupe resolves the Complete Psionic row. The
+//      family key includes VERSION deliberately (3.0/3.5 same-name
+//      union would be the Dimensional Lock edition-conflation trap).
+// These evaluate the REAL module in Node against the REAL DB.
+
+function loadErrataBadge(db) {
+  const src = fs.readFileSync(path.join(ROOT, 'errata-badge.js'), 'utf8');
+  const dbStub = {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+    queryOne: (sql, params) => execOne(db, sql, params),
+  };
+  const windowStub = { DB: dbStub };
+  const documentStub = { addEventListener: () => {} };
+  const fn = new Function('window', 'document', 'DB',
+    src + '\nreturn window.ErrataBadge;');
+  return fn(windowStub, documentStub, dbStub);
+}
+
+test('errata: hasErrata defaults advisory-inclusive', (db) => {
+  const EB = loadErrataBadge(db);
+  // XPH Astral Construct carries ONLY advisory records (applied=0).
+  const xph = execOne(db,
+    "SELECT id FROM entry WHERE type='power' AND name='Astral Construct' " +
+    "AND source='Expanded Psionics Handbook'");
+  assert(xph, 'XPH Astral Construct missing — revisit this test, do not assume');
+  assert(EB.hasErrata(xph.id) === true,
+    'advisory-only entry must report hasErrata under the default');
+  assert(EB.hasErrata(xph.id, { applied: true }) === false,
+    'opts.applied=true must still filter to applied-only records');
+});
+
+test('errata: cross-printing fallback unites same-(type,version,name) rows', (db) => {
+  const EB = loadErrataBadge(db);
+  const cpsi = execOne(db,
+    "SELECT id FROM entry WHERE type='power' AND name='Astral Construct' " +
+    "AND source='Complete Psionic'");
+  assert(cpsi, 'CPsi Astral Construct missing — revisit this test, do not assume');
+  // No errata attach to the CPsi row directly…
+  const direct = execOne(db,
+    "SELECT COUNT(*) AS n FROM errata WHERE entry_id = ?", [cpsi.id]);
+  assert(direct.n === 0,
+    'precondition shifted: CPsi row now has direct errata — update test');
+  // …but the XPH printing's records must surface through the family.
+  assert(EB.hasErrata(cpsi.id) === true,
+    'same-version sibling printing must surface the XPH errata');
+  // Family with zero applied records stays false under applied-only.
+  assert(EB.hasErrata(cpsi.id, { applied: true }) === false,
+    'applied-only filter must apply at the family level too');
+});
+
+test('errata: popover aggregates the printing family (static)', () => {
+  const src = readSource('errata-badge.js');
+  assert(src.includes('errataIdsFor(entryId)') &&
+         /entry_id IN \(/.test(src),
+    'openPopover must query the cross-printing id family via errataIdsFor');
 });
 
 // ---- runner ---------------------------------------------------------------

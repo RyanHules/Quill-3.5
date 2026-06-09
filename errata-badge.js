@@ -1,6 +1,6 @@
 // errata-badge.js — Reusable ✦ badge that surfaces errata records
 // attached to any `entry`. Used by the universal lookup modal and
-// (eventually) by every per-picker info panel.
+// every per-picker info panel.
 //
 // Public API:
 //
@@ -10,12 +10,27 @@
 //   ErrataBadge.badge(entryId, opts?) → DOMNode | null
 //       full button that opens a popover with the diff list
 //
-// `opts.applied` (default true): when true, only renders if the
-// entry has at least one mechanically-applied errata record. When
-// false, renders for any errata record (including advisory-only
-// metadata edits).
+// `opts.applied` (default FALSE as of 2026-06-10): when true, only
+// renders if the entry has at least one mechanically-applied errata
+// record. Default surfaces ANY record, advisory-only included —
+// Ryan's call: there's no way to know whether advisory info is
+// relevant to the user, so it must be available everywhere it can
+// be. (The popover labels each record applied / advisory, so no
+// information is lost by showing the badge.)
 //
 // `opts.label` (default '✦'): the text inside the badge.
+//
+// CROSS-PRINTING LOOKUP (2026-06-10): errata records attach to ONE
+// entry row, but the same item can be printed in several books
+// (Astral Construct: XPH and Complete Psionic, both 3.5 — the XPH
+// errata hangs on the XPH row while the power-picker's name-dedupe
+// resolves the CPsi row). hasErrata / badge / the popover therefore
+// fall back to "any entry with the same (type, version, name)"
+// when the given id has no records of its own, and the popover
+// aggregates records across those printings. Version is part of
+// the key DELIBERATELY: uniting 3.0/3.5 same-name entries would be
+// exactly the Dimensional Lock-style edition conflation the
+// VersionBadge work (2026-05-19) exists to prevent.
 
 (function () {
   if (!window.DB) {
@@ -25,29 +40,79 @@
 
   // Build the index lazily on first use so we don't block init.
   // Set<entry_id> for entries with at least one applied errata; same
-  // for any errata (incl. advisory).
+  // for any errata (incl. advisory). Plus a same-printing-family
+  // map: 'type|version|lowername' → Set<entry_id> of errata-bearing
+  // rows, for the cross-printing fallback.
   let appliedIds = null;
   let anyIds = null;
+  let familyToIds = null;   // Map<famKey, Set<entry_id>> (errata-bearing only)
+  let appliedFams = null;   // Set<famKey> with >=1 applied record
+  const idToFamCache = new Map();  // entry_id → famKey (lazy, all entries)
+
+  function famKeyOf(type, version, name) {
+    return `${type || ''}|${version || ''}|${String(name || '').toLowerCase()}`;
+  }
 
   function buildIndex() {
     if (appliedIds !== null) return;
     appliedIds = new Set();
     anyIds = new Set();
+    familyToIds = new Map();
+    appliedFams = new Set();
     if (!DB.isLoaded()) return;
-    const rows = DB.query("SELECT entry_id, applied FROM errata");
+    const rows = DB.query(
+      "SELECT er.entry_id, er.applied, e.type, e.version, e.name "
+      + "FROM errata er JOIN entry e ON e.id = er.entry_id");
     for (const r of rows) {
       anyIds.add(r.entry_id);
       if (r.applied) appliedIds.add(r.entry_id);
+      const fam = famKeyOf(r.type, r.version, r.name);
+      if (!familyToIds.has(fam)) familyToIds.set(fam, new Set());
+      familyToIds.get(fam).add(r.entry_id);
+      if (r.applied) appliedFams.add(fam);
     }
+  }
+
+  // famKey for ANY entry id (not just errata-bearing ones) — one
+  // small query per distinct id, cached. Used by the cross-printing
+  // fallback when the direct id carries no records.
+  function famKeyForId(id) {
+    if (idToFamCache.has(id)) return idToFamCache.get(id);
+    let key = null;
+    if (DB.isLoaded()) {
+      const row = DB.queryOne(
+        "SELECT type, version, name FROM entry WHERE id = ?", [id]);
+      if (row) key = famKeyOf(row.type, row.version, row.name);
+    }
+    idToFamCache.set(id, key);
+    return key;
   }
 
   function hasErrata(entryId, opts = {}) {
     buildIndex();
     if (entryId == null) return false;
     const id = Number(entryId);
-    return opts.applied === false
-      ? anyIds.has(id)
-      : appliedIds.has(id);
+    const appliedOnly = opts.applied === true;
+    // Direct hit on this row.
+    if (appliedOnly ? appliedIds.has(id) : anyIds.has(id)) return true;
+    // Cross-printing fallback: same type+version+name, different row.
+    const fam = famKeyForId(id);
+    if (!fam || !familyToIds.has(fam)) return false;
+    return appliedOnly ? appliedFams.has(fam) : true;
+  }
+
+  // All errata-bearing entry ids relevant to this id (itself +
+  // same-family printings). Used by the popover query.
+  function errataIdsFor(entryId) {
+    buildIndex();
+    const id = Number(entryId);
+    const ids = new Set();
+    if (anyIds.has(id)) ids.add(id);
+    const fam = famKeyForId(id);
+    if (fam && familyToIds.has(fam)) {
+      for (const fid of familyToIds.get(fam)) ids.add(fid);
+    }
+    return [...ids];
   }
 
   function indicator(entryId, opts = {}) {
@@ -90,10 +155,17 @@
 
   function openPopover(anchor, entryId) {
     closePopover();
+    // Aggregate across same-(type, version, name) printings so e.g.
+    // the Complete Psionic row of Astral Construct surfaces the
+    // records attached to the XPH row. Each record's `source` names
+    // the errata document, so provenance stays visible.
+    const ids = errataIdsFor(entryId);
+    if (!ids.length) return;
+    const placeholders = ids.map(() => '?').join(',');
     const records = DB.query(
       "SELECT source, kind, field, from_text, to_text, applied, note "
-      + "FROM errata WHERE entry_id = ? "
-      + "ORDER BY applied DESC, kind, field", [entryId]
+      + "FROM errata WHERE entry_id IN (" + placeholders + ") "
+      + "ORDER BY applied DESC, kind, field", ids
     );
     if (!records.length) return;
     popoverEl = document.createElement('div');
@@ -217,11 +289,11 @@
   // `<b>Ability:</b>` instead of a name — for those we fall back to
   // prepending the badge at the top of the panel.
   //
-  // Defaults to `{applied: false}` (show for advisory errata too) —
-  // matches the universal lookup modal.
+  // Advisory-inclusive by default — that's now the module-wide
+  // default in hasErrata, so no per-call opt-in is needed.
   function attach(infoEl, entryId, opts) {
     if (!infoEl || entryId == null) return;
-    const o = opts || { applied: false };
+    const o = opts || {};
     // Avoid duplicates on repeated renders (some pickers re-run
     // updateInfo() on every keystroke).
     infoEl.querySelectorAll('.errata-badge-inline').forEach(b => b.remove());
