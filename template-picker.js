@@ -29,6 +29,16 @@
 
   let templateIndex = new Map(); // lower(name) → row
   let appliedTemplates = [];     // [{ name, templateId, version, ...reversal info }]
+  // The character's creature type BEFORE any template was applied (e.g. the
+  // race's "Humanoid"). Captured when the first template lands; restored when
+  // the last is removed. Creature type can't be reversed by delta the way
+  // ability mods can (it's a string, not additive), so instead of snapshotting
+  // a per-template "type before me" — which restores a STALE value when a lower
+  // template is removed from a stack — we recompute the live type from the
+  // remaining stack (recomputeCreatureType): the most-recently-applied template
+  // that specifies a type change wins, else this base. Null when no template
+  // is applied. Persisted as `_templateBaseType`.
+  let baseCreatureType = null;
 
   const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
 
@@ -144,6 +154,18 @@
   function lookupTemplate(typedName) {
     if (!typedName) return null;
     return templateIndex.get(typedName.trim().toLowerCase()) || null;
+  }
+
+  // Re-derive a template's cleaned type change from the DB by name — used to
+  // migrate old saves that stored per-template `creatureTypeBefore` but no
+  // `typeChange`. Returns null when the template can't be resolved (DB not
+  // loaded yet, book-filtered out, renamed entry) — the template then simply
+  // doesn't drive a type recompute, which is the safe degradation.
+  function deriveTypeChangeForName(name) {
+    const idx = lookupTemplate(name);
+    if (!idx) return null;
+    const detail = templateDetail(idx.template_id);
+    return (detail && detail.tpl && detail.tpl.new_creature_type_clean) || null;
   }
 
   function templateDetail(templateId) {
@@ -418,6 +440,13 @@
     // the full record including derived fields like natural_armor_bonus.
     const full = detail.tpl;
 
+    // Capture the pre-template base creature type the first time a template
+    // lands, so removing the whole stack restores it (see baseCreatureType).
+    if (!appliedTemplates.length) {
+      const tf0 = document.getElementById('char-type');
+      baseCreatureType = tf0 ? (tf0.value || '') : '';
+    }
+
     // Track contributions for clean removal.
     const reversal = {
       name: full.name,
@@ -425,7 +454,9 @@
       version: full.version,
       abilityMods: {},          // ability → amount we added
       naturalArmorAdded: 0,
-      creatureTypeBefore: null,
+      // This template's own cleaned type change (or null). Used to recompute
+      // the live #char-type from the stack on any apply/remove.
+      typeChange: full.new_creature_type_clean || null,
     };
 
     // 1. Stack ability mods into the Template column.
@@ -450,24 +481,14 @@
       }
     }
 
-    // 3. Override creature type if specified. Use the cleaned form
-    // (e.g. "Augmented (Dragon)" instead of the raw "Augmented
-    // (dragon) base creature" the SRD wording uses) so #char-type
-    // stays readable. Skip if cleanup decided there's no real type
-    // change (templates with type_change == "Template" placeholder).
-    if (full.new_creature_type_clean) {
-      const tf = document.getElementById('char-type');
-      if (tf) {
-        reversal.creatureTypeBefore = tf.value || '';
-        tf.value = full.new_creature_type_clean;
-        tf.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-
     // 4. Populate Special Abilities with this template's traits.
     populateTemplateTraits(tpl.name, detail.traits);
 
     appliedTemplates.push(reversal);
+    // 3 (deferred to here). Recompute creature type from the full stack now
+    // that this template is on it — the cleaned form (e.g. "Augmented
+    // (Dragon)") of the topmost template that specifies one, else the base.
+    recomputeCreatureType();
     renderAppliedList();
     if (typeof window.recalcAll === 'function') {
       try { window.recalcAll(); } catch (e) { /* non-fatal */ }
@@ -510,21 +531,14 @@
         na.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
-    // 3. Restore creature type only if it still equals what we set
-    //    (i.e. user hasn't manually changed it since).
-    if (reversal.creatureTypeBefore !== null) {
-      const tf = document.getElementById('char-type');
-      if (tf) {
-        // We don't know what the current template wanted to set it to
-        // exactly without re-querying, but since this template was
-        // most recently applied to it we restore. If the user has
-        // manually changed it, this still attempts the restore — they
-        // can re-edit. (Conservative behavior preferred to elaborate
-        // checks since multiple templates can stack their type changes.)
-        tf.value = reversal.creatureTypeBefore;
-        tf.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
+    // 3. Recompute creature type from the templates that REMAIN — the
+    //    topmost remaining type-changer wins, else the base. This is
+    //    order-independent: removing a lower template no longer restores a
+    //    stale snapshot that clobbers an upper template's type change.
+    recomputeCreatureType();
+    // When the stack empties, forget the base so the next first-applied
+    // template re-captures a fresh one.
+    if (!appliedTemplates.length) baseCreatureType = null;
     // 4. Strip this template's traits.
     document
       .querySelectorAll(`[data-from-template="${cssEscape(reversal.name)}"]`)
@@ -536,6 +550,21 @@
     if (typeof window.recalcAll === 'function') {
       try { window.recalcAll(); } catch (e) { /* non-fatal */ }
     }
+  }
+
+  // Set #char-type from the current template stack: the most-recently-applied
+  // template that specifies a (cleaned) type change wins; if none do, fall
+  // back to the captured pre-template base type. Order-independent, so it's
+  // correct no matter which template in a multi-template stack is removed.
+  function recomputeCreatureType() {
+    const tf = document.getElementById('char-type');
+    if (!tf) return;
+    let val = baseCreatureType || '';
+    for (let i = appliedTemplates.length - 1; i >= 0; i--) {
+      if (appliedTemplates[i].typeChange) { val = appliedTemplates[i].typeChange; break; }
+    }
+    tf.value = val;
+    tf.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   function populateTemplateTraits(templateName, traits) {
@@ -618,14 +647,18 @@
           version: t.version,
           abilityMods: t.abilityMods,
           naturalArmorAdded: t.naturalArmorAdded,
-          creatureTypeBefore: t.creatureTypeBefore,
+          typeChange: t.typeChange || null,
         }));
+        // The pre-template base type — not derivable from any template, so it
+        // must round-trip for a later full-stack removal to restore it.
+        out._templateBaseType = baseCreatureType;
       }
       return out;
     };
     Character.loadData = function (data) {
       const ret = origLoad.apply(this, arguments);
       appliedTemplates = [];
+      baseCreatureType = null;
       if (data && Array.isArray(data._templates)) {
         for (const t of data._templates) {
           appliedTemplates.push({
@@ -634,10 +667,30 @@
             version: t.version || '3.5',
             abilityMods: t.abilityMods || {},
             naturalArmorAdded: t.naturalArmorAdded || 0,
-            creatureTypeBefore: t.creatureTypeBefore || null,
+            // New saves carry typeChange; old saves had per-template
+            // creatureTypeBefore (no typeChange) — re-derive the cleaned
+            // type from the DB so removal recompute still works.
+            typeChange: (t.typeChange != null)
+              ? t.typeChange
+              : deriveTypeChangeForName(t.name),
           });
         }
+        if (appliedTemplates.length) {
+          if (typeof data._templateBaseType === 'string') {
+            baseCreatureType = data._templateBaseType;
+          } else if (data._templates[0]
+                     && data._templates[0].creatureTypeBefore != null) {
+            // Migration: the first-applied template's "type before me" IS the
+            // pre-template base type in the old per-template-snapshot scheme.
+            baseCreatureType = data._templates[0].creatureTypeBefore;
+          } else {
+            baseCreatureType = '';
+          }
+        }
       }
+      // Note: #char-type itself round-trips as a normal Character field, so we
+      // do NOT recompute it here — the saved value is already the correct
+      // final type. We only restore the stack + base so future removals work.
       renderAppliedList();
       return ret;
     };
