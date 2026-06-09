@@ -4608,6 +4608,29 @@ test('sla: DB — structured spell_likes races carry consumable SLA data', (db) 
     'spell_likes rows carry frequency + caster_level_formula');
 });
 
+test('race-picker: raceIndex resolution is newest-source-wins (first-wins)', () => {
+  // The populate loop orders rows newest-first (3.5 before 3.0, then
+  // publication_date DESC), so it must set raceIndex only on the FIRST
+  // occurrence per name. Setting it every iteration is last-set-wins, which
+  // silently inverts the tiebreak to oldest-source-wins (the bug fixed
+  // 2026-06-10 that made Drow resolve FRCS over Drow of the Underdark).
+  const src = readSource('race-picker.js');
+  assert(
+    /if \(!raceIndex\.has\(r\.name\.toLowerCase\(\)\)\) \{[\s\S]*?raceIndex\.set\(r\.name\.toLowerCase\(\), r\.race_id\);[\s\S]*?\}/.test(src),
+    'raceIndex.set is guarded by !raceIndex.has (first/newest wins)');
+});
+
+test('sla: race auto-pop borrows spell_likes from a sibling printing when the winner lacks them', () => {
+  // Newest-wins resolves the most recent printing, which may lack the
+  // structured spell_likes an older one carries (Drow of the Underdark /
+  // Planar Handbook). The sibling-fallback keeps Aasimar/Drow/Tiefling
+  // auto-populating until the DB reshape structures every printing.
+  const src = readSource('race-picker.js');
+  assert(/function siblingSpellLikes/.test(src), 'race-picker defines siblingSpellLikes');
+  assert(/sl = siblingSpellLikes\(raceName\)/.test(src),
+    'buildRaceSLAEntries falls back to a sibling printing');
+});
+
 // ---- tests: Shadowcaster mystery DC fix (2026-06-09) ----------------------
 // Mystery save DC = 10 + mystery level + ability mod. The ability mod must
 // come from the bonus-aware mod fn Spells.recalc hands in via

@@ -117,20 +117,31 @@
       raceIndex = new Map();
       datalist.innerHTML = '';
       const browseNames = [];
+      const seenOpt = new Set();
       let kept = 0;
       for (const r of races) {
         if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'race'})) continue;
-        const opt = document.createElement('option');
-        // Show version in the dropdown for disambiguation
-        opt.value = r.version === '3.5' ? r.name : `${r.name} (${r.version})`;
-        datalist.appendChild(opt);
-        // The chip wall stores the canonical (3.5-preferred) name so
-        // clicking sets a clean value; 3.0-only races render as
-        // "Race (3.0)" in both datalist and chips for parity.
-        if (!raceIndex.has(r.name.toLowerCase())) {
-          browseNames.push(opt.value);
+        // Show version in the dropdown for disambiguation; 3.0-only races
+        // render as "Race (3.0)" so they stay distinct from a 3.5 namesake.
+        const optValue = r.version === '3.5' ? r.name : `${r.name} (${r.version})`;
+        // Dedup the datalist by display value (a race printed in several
+        // 3.5 books would otherwise add identical "Drow" suggestions).
+        if (!seenOpt.has(optValue)) {
+          seenOpt.add(optValue);
+          const opt = document.createElement('option');
+          opt.value = optValue;
+          datalist.appendChild(opt);
         }
-        raceIndex.set(r.name.toLowerCase(), r.race_id);
+        // FIRST occurrence per name wins. The query orders best-first (3.5
+        // before 3.0, then publication_date DESC), so the first row for a
+        // name is the most recent printing — "newest source wins", matching
+        // every other picker's tiebreak. (Was `raceIndex.set` every
+        // iteration → last-set-wins, which silently inverted it to
+        // oldest-source-wins.)
+        if (!raceIndex.has(r.name.toLowerCase())) {
+          browseNames.push(optValue);
+          raceIndex.set(r.name.toLowerCase(), r.race_id);
+        }
         kept++;
       }
       if (raceResults) {
@@ -350,7 +361,7 @@
     // a variant inherits the base race's when it carries none of its own).
     // Push-based: inject real rows tagged "Race: <name>" so usage state
     // persists, reconciling on every race change (clear the Race: prefix first).
-    const slaEntries = buildRaceSLAEntries(parsed, baseParsed);
+    const slaEntries = buildRaceSLAEntries(parsed, baseParsed, race.name);
     if (typeof SLA !== 'undefined') {
       if (SLA.clearSourcePrefix) SLA.clearSourcePrefix('Race:');
       if (SLA.syncSource && slaEntries.length) {
@@ -874,15 +885,43 @@
     if (/^\d+$/.test(f.trim())) return f.trim();
     return '1';
   }
+  // Return the first non-empty structured `spell_likes` among ALL same-name
+  // race printings (3.5 first). The structured-SLA extraction only covered
+  // some books, so the newest printing the picker resolves (e.g. Drow of the
+  // Underdark, Planar Handbook) may lack the SLAs that an older one (FRCS)
+  // carries. Borrowing keeps the iconic SLA races (Aasimar/Drow/Tiefling)
+  // auto-populating until the DB reshape structures every printing; self-heals
+  // once they all carry it.
+  function siblingSpellLikes(raceName) {
+    if (!raceName || typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return null;
+    let rows;
+    try {
+      rows = DB.query(
+        "SELECT data FROM entry WHERE type='race' AND LOWER(name)=? "
+        + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END",
+        [String(raceName).trim().toLowerCase()]);
+    } catch (e) { return null; }
+    for (const r of (rows || [])) {
+      try {
+        const d = JSON.parse(r.data || '{}');
+        if (Array.isArray(d.spell_likes) && d.spell_likes.length) return d.spell_likes;
+      } catch (e) { /* skip bad row */ }
+    }
+    return null;
+  }
+
   // Build SLA-tab row entries from a race's structured `spell_likes`. A variant
   // race with no spell_likes of its own inherits the base's (delta model, like
-  // natural armor). Returns [] when there's no structured SLA data.
-  function buildRaceSLAEntries(parsed, baseParsed) {
+  // natural armor); failing that, borrow from a same-name printing that has
+  // them (sibling-fallback). Returns [] when there's no structured SLA data.
+  function buildRaceSLAEntries(parsed, baseParsed, raceName) {
     let sl = (parsed && Array.isArray(parsed.spell_likes) && parsed.spell_likes.length)
       ? parsed.spell_likes : null;
-    if (!sl && baseParsed && baseParsed.data && Array.isArray(baseParsed.data.spell_likes)) {
+    if (!sl && baseParsed && baseParsed.data && Array.isArray(baseParsed.data.spell_likes)
+        && baseParsed.data.spell_likes.length) {
       sl = baseParsed.data.spell_likes;
     }
+    if (!sl) sl = siblingSpellLikes(raceName);
     if (!Array.isArray(sl) || !sl.length) return [];
     return sl.map((e) => ({
       spell: e.spell_name || '',
