@@ -136,6 +136,7 @@
           onPick: (name) => {
             deityInput.value = name;
             onDeityChosen(name);
+            updateInfoBtnVisibility();
             deityInput.focus();
           },
         })
@@ -176,6 +177,9 @@
           { typedFilter: deityInput.value.trim() });
       }
       console.log(`[deity-picker] ${kept}/${deities.length} deities available`);
+      // A book-filter change can pull the current deity in/out of scope —
+      // keep the ⓘ button's visibility in sync with deityIndex.
+      updateInfoBtnVisibility();
     }
     populate();
     document.addEventListener('book-filter-changed', populate);
@@ -184,7 +188,7 @@
     //    fill alignment. Only re-render the info panel when it's
     //    already open — the panel is now toggle-driven (default
     //    closed) since deity details are rarely needed during play.
-    const onChange = () => onDeityChosen(deityInput.value);
+    const onChange = () => { onDeityChosen(deityInput.value); updateInfoBtnVisibility(); };
     deityInput.addEventListener('change', onChange);
     deityInput.addEventListener('input', () => {
       // Re-narrow the chip wall as the user types — substring filter
@@ -200,6 +204,8 @@
         // User has cleared / mistyped — clear the now-stale info.
         hideInfo();
       }
+      // Show/hide the ⓘ button to match whether there's anything to show.
+      updateInfoBtnVisibility();
     });
 
     // Re-render the info panel on book-filter change ONLY if it's
@@ -210,6 +216,13 @@
         onChange();
       }
     });
+
+    // A mid-session character load sets #char-deity.value directly (no
+    // input/change event), so the input listeners above never fire to
+    // re-derive the ⓘ button's visibility. recalcAll() fires
+    // `audit-refresh` after every load, so piggy-back on it to keep the
+    // button in sync. Cheap (one Map lookup) and idempotent.
+    document.addEventListener('audit-refresh', updateInfoBtnVisibility);
 
     // Rehydrate on init: if a saved character already has a deity
     // typed, auto-fill alignment immediately. The info panel stays
@@ -420,6 +433,25 @@
       btn.setAttribute('aria-expanded', 'false');
       btn.classList.remove('info-btn-active');
     }
+  }
+
+  // Show the ⓘ button only when the typed deity matches an in-scope DB
+  // entry. The DB carries only the FRCS deities, so a non-Realms /
+  // homebrew deity has no record and opening the panel would render an
+  // empty box (the original "dead button" complaint). Keyed off
+  // deityIndex, which BookFilter already prunes — so a deity that's out
+  // of campaign scope hides the button too, consistent with the panel
+  // having nothing to show.
+  function updateInfoBtnVisibility() {
+    const btn = document.getElementById('deity-info-btn');
+    if (!btn) return;
+    const input = document.getElementById('char-deity');
+    const key = ((input && input.value) || '').trim().toLowerCase();
+    const hasMatch = !!key && deityIndex.has(key);
+    btn.style.display = hasMatch ? '' : 'none';
+    // No match → make sure a stale panel isn't left open behind the
+    // now-hidden button.
+    if (!hasMatch) hideInfo();
   }
 
   function escapeHtml(s) {
