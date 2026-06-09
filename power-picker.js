@@ -411,7 +411,11 @@
       if (window.Lookup && Lookup.wireSeeAlsoPills) {
         Lookup.wireSeeAlsoPills(info);
       }
-      if (window.ErrataBadge) ErrataBadge.attach(info, rec.power_id);
+      // NB: the index query aliases `id AS power_id`, but rebuildIndex
+      // renames it to `rec.id` — attaching with rec.power_id passed
+      // undefined and the badge NEVER rendered (caught 2026-06-10; 26
+      // powers carry errata records, incl. Astral Construct ×2).
+      if (window.ErrataBadge) ErrataBadge.attach(info, rec.id);
     }
 
     function appendKnown() {

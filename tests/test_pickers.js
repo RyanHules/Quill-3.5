@@ -4790,6 +4790,35 @@ test('richtext: index.html loads rich-text.js with the shared picker aids', () =
     'rich-text.js must load before the pickers that consume it');
 });
 
+// ---- tests: power-picker errata badge (2026-06-10) -------------------------
+//
+// The index query aliases `id AS power_id`, but rebuildIndex builds
+// rec objects with `id:` — so `ErrataBadge.attach(info, rec.power_id)`
+// passed undefined and the badge NEVER rendered in the power-picker
+// info panel. The bug hid behind a wrong assumption ("no power errata
+// records exist" — read off a stale coverage summary instead of the
+// table); in fact 26 powers carry errata. Two guards: the data-level
+// one kills the assumption, the static one pins the field name to
+// the one the rec actually defines.
+
+test('errata: powers DO carry errata records (>= 10)', (db) => {
+  const r = execOne(db,
+    "SELECT COUNT(DISTINCT e.id) AS n FROM errata er " +
+    "JOIN entry e ON e.id = er.entry_id WHERE e.type = 'power'");
+  assertGE(r.n, 10,
+    `only ${r.n} powers with errata — if a DB rebuild really removed ` +
+    `them, update this floor deliberately, don't assume`);
+});
+
+test('errata: power-picker attaches the badge with rec.id (not rec.power_id)', () => {
+  const src = readSource('power-picker.js');
+  assert(src.includes('ErrataBadge.attach(info, rec.id)'),
+    'power-picker must attach the errata badge with rec.id — the ' +
+    'rebuildIndex rec defines `id`, not `power_id`');
+  assert(!/ErrataBadge\.attach\(info,\s*rec\.power_id\)/.test(src),
+    'power-picker regressed to rec.power_id (undefined on the rec)');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {
