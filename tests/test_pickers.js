@@ -1274,7 +1274,13 @@ test('class-picker: every base spellcaster class is in SPELLCASTING_TYPE', (db) 
   // Classes we DELIBERATELY exclude from the check — they have
   // spell-related data but aren't valid advancement targets:
   //   - "Generic Spellcaster": UA placeholder, not a real class.
-  const EXCLUDE = new Set(['Generic Spellcaster']);
+  //   - "Kobold Paragon" (Races of the Dragon): its "Spells Per Day"
+  //     column reads "+1 sorcerer level" — sorcerer-casting ADVANCEMENT
+  //     notation, not a native spell progression. KP is an advancer, not
+  //     a native caster, so it's correctly absent from SPELLCASTING_TYPE
+  //     (no native panel: ensureCasterTab keys on the numeric table,
+  //     which the string value doesn't produce).
+  const EXCLUDE = new Set(['Generic Spellcaster', 'Kobold Paragon']);
 
   const missing = [];
   for (const r of rows) {
