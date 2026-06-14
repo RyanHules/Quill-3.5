@@ -1657,6 +1657,16 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // familiar to the flux adept") — false positive on the
     // KEYWORDS regex.
     'Flux Adept/Taste of Truth (Ex)',
+    // 2026-06-13 Complete Warrior v3 walk: Justiciar's "Exotic Weapon
+    // Proficiency (Manacles)" opens "Intimately familiar with the capture
+    // of criminals" — "familiar" as a plain adjective, not a familiar pet.
+    'Justiciar/Exotic Weapon Proficiency (Manacles)',
+    // 2026-06-14 Tome of Magic v3 walk: Child of Night's "Mysteries/
+    // Spellcasting" is the standard PrC caster-advancement clause whose
+    // boilerplate mentions "improved familiar for wizard or sorcerer" in
+    // the NEGATIVE ("you do not, however, gain any other benefit...") —
+    // it grants no familiar. Explicit non-grant (None in _companion_metadata).
+    'Child of Night/Mysteries/Spellcasting',
     // 2026-05-22 Dscape Dungeon Lord re-extraction (corpus-first
     // audit fix): "Dungeon Dependency" describes the PrC's
     // requirement to remain in a specific dungeon — "you can be
