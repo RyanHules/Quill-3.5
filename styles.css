@@ -542,7 +542,22 @@ textarea {
 
 .skills-table td { padding: 0.15rem 0.2rem;border-bottom: 1px solid rgba(255,255,255,0.03);}
 
-.skill-class-col { width: 40px; text-align: center; }
+.skill-class-col { width: 46px; text-align: center; position: relative; }
+/* Marks a skill that is a class skill via a PRIOR class only (not the
+   current/last-in-timeline class): the checkbox is off, but the skill still
+   counts toward max ranks. Hover for the originating class(es). Absolutely
+   positioned at the cell's right edge so it never shifts the centered checkbox
+   out of column alignment with the unmarked rows. */
+.prior-class-skill-mark {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #c8924b;
+  font-size: 0.6rem;
+  cursor: help;
+  line-height: 1;
+}
 .skill-name-col { text-align: left; overflow: hidden; }
 .skill-ability-col { width: 50px; text-align: center; }
 .skill-total-col { width: 60px; text-align: center; }

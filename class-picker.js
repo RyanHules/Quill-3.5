@@ -877,6 +877,13 @@
       if (pickedClasses.length) applyAggregatesToSheet();
     });
 
+    // Build-timeline-changed: the "current class" is the last class in the
+    // timeline, so re-point the class-skill checkboxes + prior markers when
+    // the timeline's class order changes (add/remove level, change a level's
+    // class). See reconcileCurrentClassSkills.
+    document.addEventListener('build-timeline-changed',
+      reconcileCurrentClassSkills);
+
     // 4. Apply button writes calculated values into the sheet.
     applyBtn.addEventListener('click', () => {
       applyToSheet(classInput.value, levelInput.value, infoPanel);
@@ -1495,6 +1502,7 @@
     // Untick class-skill checkboxes whose ONLY remaining source was
     // this class. Boxes claimed by other applied classes stay ticked.
     removeClassSkills(className);
+    reconcileCurrentClassSkills();
     applyAggregatesToSheet();
     refreshAllSpellTabs();
     renderClassList();
@@ -1829,6 +1837,7 @@
       if (pickedClasses.length) {
         setTimeout(() => {
           for (const e of pickedClasses) applyClassSkills(e.className);
+          reconcileCurrentClassSkills();
         }, 0);
       }
       return ret;
@@ -3201,8 +3210,10 @@
     const cumulative = dedupSpecials(levelsUpTo(cls.class_id, level));
     populateSpecialAbilities(cls.class, cumulative);
 
-    // Tick class-skill checkboxes (idempotent on re-apply).
+    // Tick class-skill checkboxes (idempotent on re-apply), then point the
+    // checkbox at the current class + stamp prior-class markers.
     applyClassSkills(cls.class);
+    reconcileCurrentClassSkills();
 
     // Auto-populate the Class Features tab (turn-undead, rage, etc.) for
     // classes whose features map onto existing UI fields. Only fills
@@ -4135,6 +4146,104 @@
       });
   }
 
+  // ============================================================
+  // Current-class-skill reconciliation (2026-06-16, Ryan's call)
+  // ============================================================
+  //
+  // applyClassSkills/removeClassSkills (above) maintain
+  // dataset.classSkillSources = the UNION of every applied class that claims
+  // each skill. That's the right input for "is this a class skill for ANY
+  // class" (= max-rank eligibility), but it doesn't distinguish the CURRENT
+  // class (skills you can buy at 1 pt/rank now) from a PRIOR class (skills
+  // that still count toward your max ranks but cost 2 pt/rank now).
+  //
+  // Ryan's model: the checkbox reflects the CURRENT (last-in-timeline) class
+  // only; skills that are class skills SOLELY via an earlier class get a
+  // separate "prior" marker. Everything here is DERIVED from classSkillSources
+  // (rebuilt on load) + the build timeline's last class — no new persisted
+  // field. Legacy saves whose `classSkill` booleans hold the old union migrate
+  // forward automatically: on load applyClassSkills re-sources the rows, then
+  // reconcile re-points the checkbox to the current class and stamps the marks.
+
+  // The "current" class = the last class in the build timeline (Ryan: "use the
+  // class skills for the last class in the timeline").
+  //
+  // Subtlety: the timeline is AUTO-RECONSTRUCTED from the picker (in picker
+  // order) on every `classes-changed`, so an auto timeline ALWAYS ends in the
+  // last PICKED class. But that reconstruction fires AFTER a fresh apply's
+  // reconcile, so reading the auto timeline mid-apply yields the PREVIOUS
+  // class (a one-cycle lag). Therefore: trust the timeline only when the user
+  // has actually CURATED it (a row without `_reconstructed`) — that's the case
+  // where it can legitimately diverge from picker order; otherwise use the
+  // always-fresh last picked class (identical to a fresh auto timeline, no lag).
+  //
+  // CharacterHistory is a top-level `const` global (accessible by name, NOT as
+  // window.CharacterHistory). Mirror how build-timeline.js references it.
+  function getCurrentClassName() {
+    let timelineLast = null, userCurated = false;
+    try {
+      const hist = (typeof CharacterHistory !== 'undefined' && CharacterHistory.get)
+        ? CharacterHistory.get() : [];
+      if (Array.isArray(hist) && hist.length) {
+        let last = hist[0];
+        for (const e of hist) if ((e.level || 0) >= (last.level || 0)) last = e;
+        timelineLast = (last && last.class_taken) ? last.class_taken : null;
+        // BuildTimeline edits DELETE `_reconstructed` (rather than set false),
+        // so any row missing it means the user touched the timeline.
+        userCurated = hist.some(e => e && !e._reconstructed);
+      }
+    } catch (e) { /* fall through to picker order */ }
+    if (userCurated && timelineLast) return timelineLast;
+    if (pickedClasses.length) return pickedClasses[pickedClasses.length - 1].className;
+    return timelineLast;
+  }
+
+  // Render (or clear) the small "prior class skill" marker beside a
+  // class-skill checkbox. `priorSources` = the earlier classes that make this
+  // a class skill, or null/[] to remove the marker.
+  function setPriorClassSkillMark(cb, priorSources) {
+    const cell = cb.closest('td') || cb.parentElement;
+    if (!cell) return;
+    let mark = cell.querySelector('.prior-class-skill-mark');
+    if (priorSources && priorSources.length) {
+      if (!mark) {
+        mark = document.createElement('span');
+        mark.className = 'prior-class-skill-mark';
+        mark.textContent = '◆'; // ◆
+        cb.insertAdjacentElement('afterend', mark);
+      }
+      mark.title = 'Class skill via a previous class (' + priorSources.join(', ')
+        + ') — counts toward your maximum skill ranks, but costs 2 points per '
+        + 'rank to buy at your current class.';
+    } else if (mark) {
+      mark.remove();
+    }
+  }
+
+  // Reconcile every auto-managed class-skill checkbox against the CURRENT
+  // class: tick it only when the current class claims the skill, and stamp a
+  // prior-class marker when an EARLIER class (but not the current one) does.
+  // Manual ticks (checkboxes with no classSkillSources) are left untouched.
+  function reconcileCurrentClassSkills() {
+    const tab = document.getElementById('tab-skills');
+    if (!tab) return;
+    const current = getCurrentClassName();
+    tab.querySelectorAll('.skill-class-check[data-class-skill-sources]')
+      .forEach(cb => {
+        const sources = (cb.dataset.classSkillSources || '')
+          .split(',').filter(Boolean);
+        if (!sources.length) return;
+        // No resolvable current class → degrade to union (any source ticks).
+        const isCurrent = current ? sources.includes(current) : true;
+        const priorOnly = current ? sources.filter(s => s !== current) : [];
+        if (cb.checked !== isCurrent) cb.checked = isCurrent;
+        const showPrior = !isCurrent && priorOnly.length > 0;
+        if (showPrior) cb.dataset.priorClassSkill = priorOnly.join(',');
+        else delete cb.dataset.priorClassSkill;
+        setPriorClassSkillMark(cb, showPrior ? priorOnly : null);
+      });
+  }
+
   // Auto-populate Special Abilities from cumulative class features.
   // Tags entries with data-from-class="<className>" so subsequent applies
   // of the same class clean up only that class's entries (preserving
@@ -4244,5 +4353,9 @@
     addRacialHD,
     removeRacialHD,
     hasMonsterClassFor,
+    // Re-point class-skill checkboxes at the current (last-in-timeline) class
+    // and stamp prior-class markers. Exposed for the timeline + tests.
+    reconcileCurrentClassSkills,
+    getCurrentClassName,
   };
 })();

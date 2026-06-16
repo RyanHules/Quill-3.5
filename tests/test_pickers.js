@@ -3013,6 +3013,33 @@ test('save: class-picker installs persistence hooks at module load', () => {
     `${installCount} invocation(s).`);
 });
 
+test('save: class-skill checkbox tracks current class + prior markers (2026-06-16)', () => {
+  // Regression guard for the current-vs-prior class-skill split (Ryan's
+  // Option B). The class-skill checkbox reflects the CURRENT (last-in-
+  // timeline) class; skills that are class skills only via a PRIOR class get
+  // a separate marker (so they still count toward max ranks). Derived from
+  // classSkillSources + the build timeline — wired on apply/remove/load and
+  // on build-timeline-changed.
+  const cp = readSource('class-picker.js');
+  assert(/function reconcileCurrentClassSkills\b/.test(cp),
+    'class-picker.js: reconcileCurrentClassSkills missing.');
+  assert(/function getCurrentClassName\b/.test(cp),
+    'class-picker.js: getCurrentClassName missing.');
+  // current class is sourced from the build timeline (CharacterHistory).
+  assert(/CharacterHistory\.get/.test(cp),
+    'class-picker.js: getCurrentClassName must read the build timeline.');
+  // reconcile must run after apply, remove, load, and on timeline change.
+  assert(/addEventListener\(\s*'build-timeline-changed'\s*,\s*reconcileCurrentClassSkills/.test(cp),
+    'class-picker.js: reconcile not wired to build-timeline-changed.');
+  // the prior marker is stamped, not persisted as its own field.
+  assert(/priorClassSkill/.test(cp),
+    'class-picker.js: prior-class marker (priorClassSkill) missing.');
+  // the timeline broadcasts the change.
+  const bt = readSource('build-timeline.js');
+  assert(/build-timeline-changed/.test(bt),
+    'build-timeline.js: does not dispatch build-timeline-changed.');
+});
+
 test('rebuild-killer: money weight counted in character.js load calc', () => {
   // Pre-2026-05-17 character.js summed gear + armor + shield but
   // skipped money. equipment.js wrote the (money-inclusive) total to

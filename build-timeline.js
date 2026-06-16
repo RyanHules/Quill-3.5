@@ -206,10 +206,20 @@ const BuildTimeline = (function () {
     // refresh the summary line in place + the global badge.
     refreshRowSummary(level);
     refreshGlobalBadge();
+    if (patch && 'class_taken' in patch) notifyChanged();
   }
 
   function anyReconstructed(history) {
     return (history || []).some(e => e._reconstructed);
+  }
+
+  // Broadcast a timeline change so dependent UIs refresh. Today the
+  // class-picker listens to re-point the Skills tab's class-skill checkboxes
+  // at the new "current" (last-in-timeline) class. Fire only when the class
+  // ORDER could have changed (add/remove level, change a level's class) —
+  // not on every notes/HP keystroke.
+  function notifyChanged() {
+    document.dispatchEvent(new CustomEvent('build-timeline-changed'));
   }
 
   function refreshRowSummary(level) {
@@ -247,6 +257,7 @@ const BuildTimeline = (function () {
     CharacterHistory.set(history, { reconstructed: anyReconstructed(history) });
     expandedLevels.add(newLevel);
     render();
+    notifyChanged();
   }
 
   function removeLevelAndAbove(level) {
@@ -266,6 +277,7 @@ const BuildTimeline = (function () {
     expandedLevels.delete(level);
     CharacterHistory.set(trimmed, { reconstructed: anyReconstructed(trimmed) });
     render();
+    notifyChanged();
   }
 
   function escapeHtml(s) {
