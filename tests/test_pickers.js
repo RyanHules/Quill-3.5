@@ -90,10 +90,11 @@ test('count of spells > 2500', (db) => {
 });
 
 test('count of feats > 1000', (db) => {
-  // feat-picker covers feat + acf; skill_trick moved to
-  // special-ability-picker (2026-05-17).
+  // feat-picker covers type='feat' only now — ACFs relocated to
+  // class-variants and skill_tricks to special-ability-picker
+  // (2026-05-17 / 2026-06-16).
   const r = execOne(db, "SELECT COUNT(*) AS n FROM entry "
-    + "WHERE type IN ('feat','acf')");
+    + "WHERE type = 'feat'");
   assertGE(r.n, 1000);
 });
 
@@ -126,19 +127,49 @@ test('no per-type compat views remain', (db) => {
 // ---- tests: feat-picker.js ------------------------------------------------
 
 test('feat-picker: list query (init)', (db) => {
+  // Mirrors feat-picker.js buildIndex: player-selectable feats only —
+  // no ACFs (those live in class-variants), no Monstrous Variant sidebars.
   const rows = execAll(db,
     "SELECT id AS feat_id, name, version, types_csv FROM entry "
-    + "WHERE type IN ('feat', 'acf') "
+    + "WHERE type = 'feat' "
+    + "AND (types_csv IS NULL OR types_csv NOT LIKE '%Monstrous Variant%') "
     + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END, "
     + "name COLLATE NOCASE");
   assertGE(rows.length, 1000);
   assert(rows[0].name && rows[0].feat_id != null);
 });
 
+test('feat-picker: excludes ACFs + Monstrous Variant sets (2026-06-16)', (db) => {
+  // Regression for the 2026-06-16 narrowing (Ryan): the Feats list shows
+  // ONLY player-selectable feats. ACFs belong to class-variants; the
+  // Dungeonscape "Alternative Feats: <monster>" sidebars (types_csv
+  // 'Monstrous Variant') are monster-customization SETS, not feats. Real
+  // monster feats ('Monstrous' / 'Monster') deliberately stay.
+  const src = readSource('feat-picker.js');
+  assert(!/IN \(\s*'feat'\s*,\s*'acf'\s*\)/.test(src),
+    "feat-picker still queries type IN ('feat','acf') — ACFs leak in.");
+  assert(/NOT LIKE '%Monstrous Variant%'/.test(src),
+    'feat-picker is missing the Monstrous Variant exclusion.');
+  // The excluded rows still EXIST (in their proper homes)...
+  assertGE(execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='acf'").n, 1);
+  assertGE(execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type='feat' "
+    + "AND types_csv LIKE '%Monstrous Variant%'").n, 1);
+  // ...but the mirrored picker query returns none of them.
+  const picked = execAll(db,
+    "SELECT type, types_csv FROM entry "
+    + "WHERE type = 'feat' "
+    + "AND (types_csv IS NULL OR types_csv NOT LIKE '%Monstrous Variant%')");
+  assert(picked.every(r => r.type === 'feat'), 'picker leaked a non-feat type');
+  assert(picked.every(r => !/Monstrous Variant/.test(r.types_csv || '')),
+    'picker leaked a Monstrous Variant set');
+});
+
 test('feat-picker: detail query (onSelect)', (db) => {
   const list = execAll(db,
     "SELECT id AS feat_id FROM entry "
-    + "WHERE type IN ('feat','acf') LIMIT 1");
+    + "WHERE type = 'feat' "
+    + "AND (types_csv IS NULL OR types_csv NOT LIKE '%Monstrous Variant%') LIMIT 1");
   const detail = execOne(db,
     "SELECT id AS feat_id, name, source, version, types_csv, "
     + "json_extract(data, '$.prerequisites') AS prerequisites, "
@@ -630,7 +661,7 @@ test('feat-picker: tag filter (combat-maneuver feats >= 60)', (db) => {
   const rows = execAll(db,
     "SELECT COUNT(*) AS n FROM entry e "
     + "JOIN tag t ON t.entry_id = e.id "
-    + "WHERE e.type IN ('feat','acf') "
+    + "WHERE e.type = 'feat' "
     + "AND t.tag = 'combat-maneuver'");
   assertGE(rows[0].n, 60);
 });

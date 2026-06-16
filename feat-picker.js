@@ -65,7 +65,8 @@
     const rows = DB.query(
       "SELECT t.tag, t.entry_id FROM tag t "
       + "JOIN entry e ON e.id = t.entry_id "
-      + "WHERE e.type IN ('feat', 'acf')"
+      + "WHERE e.type = 'feat' "
+      + "AND (e.types_csv IS NULL OR e.types_csv NOT LIKE '%Monstrous Variant%')"
     );
     for (const r of rows) {
       if (!tagIndex.has(r.tag)) tagIndex.set(r.tag, new Set());
@@ -75,18 +76,26 @@
   }
 
   function buildIndex() {
-    // Query the unified `entry` table. Skill tricks moved out to the
-    // Special Abilities picker (2026-05-17) since they're not feats and
-    // belong in a different list. ACFs stay here for now — they're a
-    // class-feature swap; we'll relocate them to a class-context picker
-    // (Class Features tab / class-picker info panel) when that lands.
+    // Query the unified `entry` table for PLAYER-SELECTABLE feats only.
+    //   * Skill tricks moved to the Special Abilities picker (2026-05-17).
+    //   * ACFs (type='acf') are NOT feats — they're class-feature swaps,
+    //     surfaced in their proper home (class-variants.js → class-picker
+    //     info panel). Excluded here 2026-06-16 (Ryan) so they stop
+    //     masquerading as feats in this list.
+    //   * Dungeonscape "Alternative Feats: <monster>" sidebars carry
+    //     types_csv='Monstrous Variant' — they're monster-customization
+    //     feat SETS, not selectable feats. Filtered out (same change).
+    //     NB: this is deliberately narrow — real monster feats
+    //     (types_csv 'Monstrous' / 'Monster' / 'Monstrous, Dragon') stay,
+    //     since monster PCs take them.
     // Ties between same-named feats resolve to 3.5 first, then newest
     // publication date.
     const rows = DB.query(
       "SELECT e.id AS feat_id, e.name, e.version, e.types_csv, e.source " +
       "FROM entry e " +
       "LEFT JOIN book b ON b.name = e.source " +
-      "WHERE e.type IN ('feat', 'acf') " +
+      "WHERE e.type = 'feat' " +
+      "AND (e.types_csv IS NULL OR e.types_csv NOT LIKE '%Monstrous Variant%') " +
       "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
       "         b.publication_date DESC, " +
       "         e.name COLLATE NOCASE"
