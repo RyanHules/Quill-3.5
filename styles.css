@@ -112,6 +112,9 @@ header h1 { font-size: 1.3rem; color: var(--accent); letter-spacing: 1px; white-
 
 .field-sm { min-width: 80px; max-width: 140px; }
 .field-lg { min-width: 200px; flex: 2; }
+/* Campaign field — spans the combined width of the Race (lg) + Type fields
+   it swapped places with in the Character Information grid (2026-06-16). */
+.field-xl { min-width: 320px; flex: 3; }
 
 /* Spellcasting sub-tab two-column layout: spell list / prepared on
    the LEFT (the main interaction area); slots/DC table on the RIGHT

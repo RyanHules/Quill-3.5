@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260610e';
+    window.CACHE_VERSION = '20260616a';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -66,8 +66,7 @@
       <div class="info-grid">
         <div class="field field-lg"><label>Character Name</label><input type="text" id="char-name"></div>
         <div class="field"><label>Player</label><input type="text" id="char-player"></div>
-        <div class="field field-lg"><label>Race</label><input type="text" id="char-race" placeholder="e.g. Elf, Dwarf, Bugbear, Ogre"></div>
-        <div class="field"><label>Type</label><input type="text" id="char-type" placeholder="e.g. Humanoid, Outsider"></div>
+        <div class="field field-xl"><label>Campaign</label><input type="text" id="char-campaign"></div>
         <div class="field">
           <label>Alignment</label>
           <select id="char-alignment">
@@ -106,7 +105,8 @@
         <div class="field field-sm"><label>Eyes</label><input type="text" id="char-eyes"></div>
         <div class="field field-sm"><label>Hair</label><input type="text" id="char-hair"></div>
         <div class="field field-sm"><label>Skin</label><input type="text" id="char-skin"></div>
-        <div class="field field-lg"><label>Campaign</label><input type="text" id="char-campaign"></div>
+        <div class="field field-lg"><label>Race</label><input type="text" id="char-race" placeholder="e.g. Elf, Dwarf, Bugbear, Ogre"></div>
+        <div class="field"><label>Type</label><input type="text" id="char-type" placeholder="e.g. Humanoid, Outsider"></div>
         <div class="field field-sm"><label>Experience Points</label><input type="number" id="char-xp" min="0" step="1"></div>
         <div class="field field-sm"><label>To Next Level</label><span id="xp-progress" class="calc-field">--</span></div>
       </div>
@@ -240,7 +240,6 @@
             <div class="field"><label>Current HP</label><input type="number" id="hp-current"></div>
             <div class="field"><label>Temp HP</label><input type="number" id="hp-temp" min="0"></div>
             <div class="field"><label>Nonlethal Damage</label><input type="number" id="hp-nonlethal" min="0"></div>
-            <div class="field"><label>Damage Reduction</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
           </div>
           <div class="hp-row">
             <div class="field"><label>Speed (base)</label><input type="text" id="char-speed" placeholder="e.g. 30 ft."></div>
@@ -319,6 +318,7 @@
             <div class="field"><label>Touch AC</label><span id="ac-touch" class="calc-field">10</span></div>
             <div class="field"><label>Flat-Footed AC</label><span id="ac-flatfooted" class="calc-field">10</span></div>
             <div class="field"><label>Spell Resistance</label><input type="number" id="spell-resistance" min="0"></div>
+            <div class="field"><label>Damage Reduction</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
             <div class="field" title="Percentage chance an incoming attack misses entirely (before the to-hit roll is compared to AC). Sources: concealment (20%), total concealment (50%), incorporeal (50% vs non-magic), blink (50%), mirror image, displacement (50%), etc. Stack via the highest single source — they don't add. Enter as a percentage (e.g. 20 for 20%) or as multiple sources separated by / (e.g. 50/20 → highest wins at 50)."><label>Miss Chance %</label><input type="text" id="ac-miss-chance" value="" class="misc-expr" placeholder="e.g. 20 or 50/20"></div>
           </div>
           <!-- Catch-all defense notes — situational immunities, layered DR
