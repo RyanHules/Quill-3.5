@@ -3680,6 +3680,31 @@ test('monster-class: class-picker wiring is present + persists monsterExt', () =
     'pickedClasses entries.');
 });
 
+test('monster-class: overlap NA stacking (DFA) uses max, not add (2026-06-16)', (db) => {
+  // Regression for the kobold-DFA bug: an `overlap`-stacking class NA (DFA
+  // "Scales") must take max(base NA, class value), not add. Kobold base NA 1 +
+  // DFA Scales 2 should be max(1,2)=2, not 3.
+  // DB: DFA is overlap, Dragon Shaman is additive (no flag).
+  const dfa = execOne(db, "SELECT json_extract(data,'$.natural_armor_stacking') AS s "
+    + "FROM entry WHERE name='Dragonfire Adept' AND type IN ('class','prc') LIMIT 1");
+  assert(dfa && dfa.s === 'overlap',
+    `Dragonfire Adept should be natural_armor_stacking='overlap', got ${dfa && dfa.s}`);
+  const ds = execOne(db, "SELECT json_extract(data,'$.natural_armor_stacking') AS s "
+    + "FROM entry WHERE name='Dragon Shaman' AND type IN ('class','prc') LIMIT 1");
+  assert(!ds || ds.s == null,
+    `Dragon Shaman should be additive (no overlap flag), got ${ds && ds.s}`);
+  // Source: the apply path reads the flag + applies max(), tracking appliedNA.
+  const src = readSource('class-picker.js');
+  assert(/fetchNaStacking\s*\(/.test(src),
+    'class-picker.js: fetchNaStacking helper missing.');
+  assert(/naStacking\s*===\s*'overlap'/.test(src),
+    'class-picker.js: applyMonsterClassExtensions does not branch on overlap.');
+  assert(/Math\.max\(0,\s*ext\.naturalArmor\s*-\s*preClassNA\)/.test(src),
+    'class-picker.js: overlap NA is not computed as max(0, value - preClassNA).');
+  assert(/appliedNA/.test(src),
+    'class-picker.js: net applied NA not tracked (removal would be wrong).');
+});
+
 test('rebuild-killer: textarea auto-expand has details/visibility fallback', () => {
   // The pre-2026-05-17 autoExpand wrote scrollHeight unconditionally;
   // textareas in closed <details> or inactive tabs report 0 → showed

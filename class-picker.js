@@ -1997,6 +1997,21 @@
     return arr;
   }
 
+  // `natural_armor_stacking` ("overlap" = use-higher, vs the default additive)
+  // for a class, cached. Drives the overlap-vs-add decision in
+  // applyMonsterClassExtensions (DFA "Scales" overlaps the racial NA; Dragon
+  // Shaman / Ogre add).
+  const naStackingCache = new Map();
+  function fetchNaStacking(classId) {
+    if (naStackingCache.has(classId)) return naStackingCache.get(classId);
+    const row = DB.queryOne(
+      "SELECT json_extract(data, '$.natural_armor_stacking') AS s "
+      + "FROM entry WHERE id = ?", [classId]);
+    const v = (row && row.s) ? String(row.s) : null;
+    naStackingCache.set(classId, v);
+    return v;
+  }
+
   // Stringify a per-row spells_per_day value into the JSON the rest of
   // class-picker.js expects ("spells_per_day_json" used to be a TEXT
   // column with a JSON array). Same for spells_known.
@@ -2075,7 +2090,8 @@
       if (r.size) size = r.size;
       if (r.racial_hd != null) racialHD = Number(r.racial_hd) || 0;
     }
-    return { abilityMods, naturalArmor, size, racialHD };
+    return { abilityMods, naturalArmor, size, racialHD,
+             naStacking: fetchNaStacking(classId) };
   }
 
   // Apply (or re-apply) monster-class extensions to the sheet. Diffs
@@ -2102,15 +2118,35 @@
       el.dispatchEvent(new Event('input', { bubbles: true }));
     }
     // Natural armor → #ac-natural.
-    const prevNA = (prevExt && prevExt.naturalArmor) || 0;
-    const deltaNA = ext.naturalArmor - prevNA;
-    if (deltaNA !== 0) {
-      const na = document.getElementById('ac-natural');
-      if (na) {
-        const cur = parseInt(na.value, 10) || 0;
-        na.value = String(cur + deltaNA);
-        na.dispatchEvent(new Event('input', { bubbles: true }));
-      }
+    //   * Default (additive): the class IMPROVES natural armor — Ogre, Dragon
+    //     Shaman ("Natural Armor (Ex)"). Contribution = the raw cumulative value.
+    //   * "overlap" stacking: the class's NA does NOT stack with the creature's
+    //     existing NA — you use the higher (DFA "Scales"). Per Ryan's rule
+    //     (2026-06-12): effective NA = max(base NA, overlap value) + enhancements.
+    //     So this class's NET contribution = max(0, value − preClassNA), where
+    //     preClassNA is the NA already present from everything else (race /
+    //     template / other classes) = current field minus what THIS class
+    //     previously contributed. Without this, a kobold (NA 1) taking DFA got
+    //     1 + 2 = 3 instead of max(1, 2) = 2.
+    // `ext.appliedNA` records the net amount actually written so re-level and
+    // removal subtract exactly that (and old saves without it fall back to the
+    // raw value they applied additively — migration-safe).
+    const na = document.getElementById('ac-natural');
+    const prevApplied = (prevExt && prevExt.appliedNA != null)
+      ? prevExt.appliedNA
+      : ((prevExt && prevExt.naturalArmor) || 0);
+    let appliedNA = ext.naturalArmor;
+    if (ext.naStacking === 'overlap' && na) {
+      const curVal = parseInt(na.value, 10) || 0;
+      const preClassNA = curVal - prevApplied;        // NA from all other sources
+      appliedNA = Math.max(0, ext.naturalArmor - preClassNA);
+    }
+    ext.appliedNA = appliedNA;
+    const deltaNA = appliedNA - prevApplied;
+    if (deltaNA !== 0 && na) {
+      const cur = parseInt(na.value, 10) || 0;
+      na.value = String(cur + deltaNA);
+      na.dispatchEvent(new Event('input', { bubbles: true }));
     }
     // Size → #char-size, but only if either (a) this class owns the
     // current value (data-from-class === className) so we can refresh
@@ -2148,11 +2184,15 @@
       el.value = String(cur - mod);
       el.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    if (ext.naturalArmor) {
+    // Subtract the NET amount this class actually contributed (appliedNA).
+    // Old saves predating the overlap fix have no appliedNA → fall back to the
+    // raw cumulative value, which is what they added additively.
+    const naApplied = (ext.appliedNA != null) ? ext.appliedNA : (ext.naturalArmor || 0);
+    if (naApplied) {
       const na = document.getElementById('ac-natural');
       if (na) {
         const cur = parseInt(na.value, 10) || 0;
-        na.value = String(cur - ext.naturalArmor);
+        na.value = String(cur - naApplied);
         na.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
