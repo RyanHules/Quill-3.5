@@ -291,6 +291,17 @@
           <label>Level</label>
           <input type="number" class="pp-level" min="1" max="9" placeholder="any">
         </div>
+        <div class="field field-sm" style="width:6.5rem">
+          <label>Display</label>
+          <select class="pp-display" title="Filter by the power's Display — how its manifestation is perceived (Auditory / Material / Mental / Olfactory / Visual).">
+            <option value="">Any</option>
+            <option value="Auditory">Auditory</option>
+            <option value="Material">Material</option>
+            <option value="Mental">Mental</option>
+            <option value="Olfactory">Olfactory</option>
+            <option value="Visual">Visual</option>
+          </select>
+        </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Power</label>
           <input type="text" class="pp-power" list="${dlId}"
@@ -313,6 +324,7 @@
   function wirePicker(panel, picker, dlId) {
     const classSel = picker.querySelector('.pp-class');
     const lvlIn    = picker.querySelector('.pp-level');
+    const displaySel = picker.querySelector('.pp-display');
     const pwrIn    = picker.querySelector('.pp-power');
     const info     = picker.querySelector('.pp-info');
     const addK     = picker.querySelector('.pp-add-known');
@@ -373,7 +385,15 @@
       : null;
 
     function refresh() {
-      const list = currentList();
+      let list = currentList();
+      // Display filter (Auditory / Material / Mental / Olfactory / Visual).
+      // A power's `display` can name two ("Material and visual"), so match by
+      // substring rather than equality.
+      const disp = displaySel ? displaySel.value.toLowerCase() : '';
+      if (disp) {
+        list = list.filter(({ rec }) =>
+          String(rec.display || '').toLowerCase().includes(disp));
+      }
       datalist.innerHTML = '';
       const seen = new Set();
       const names = [];
@@ -480,6 +500,7 @@
 
     classSel.addEventListener('change', () => { refresh(); updateInfo(); });
     lvlIn.addEventListener('input',    () => { refresh(); updateInfo(); });
+    if (displaySel) displaySel.addEventListener('change', () => { refresh(); updateInfo(); });
     // pwrIn input: refresh BOTH the info panel AND the chip wall —
     // typing in the power name narrows the chips by substring match.
     pwrIn.addEventListener('input',    () => { updateInfo(); refresh(); });

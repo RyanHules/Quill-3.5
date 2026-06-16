@@ -299,6 +299,46 @@
     }
   }
 
+  // Component → Set<spell_id> for the component filter (V / S / M / F / DF /
+  // XP). The candidate-building queries don't carry `components`, so we index
+  // spell_id → token-set once, mirroring the tag index. Exotic book-specific
+  // tokens (Sacrifice, Coldfire, …) are ignored — the filter only offers the
+  // six standard components.
+  const spellComponentIndex = new Map(); // spell_id → Set<'V'|'S'|'M'|'F'|'DF'|'XP'>
+  let spellComponentsBuilt = false;
+
+  // Standard component tokens from a `components` string ("V, S, M (sand)").
+  function spellComponentTokens(str) {
+    const out = new Set();
+    for (let part of String(str || '').split(',')) {
+      part = part.replace(/\(.*?\)/g, '').trim().toUpperCase();
+      const m = part.match(/^(DF|XP|V|S|M|F)\b/);  // DF/XP before single letters
+      if (m) out.add(m[1]);
+    }
+    return out;
+  }
+
+  function buildSpellComponentIndex() {
+    if (spellComponentsBuilt) return;
+    spellComponentsBuilt = true;
+    const rows = DB.query(
+      "SELECT id, json_extract(data, '$.components') AS comp "
+      + "FROM entry WHERE type = 'spell'");
+    for (const r of rows) {
+      if (!r.comp) continue;
+      const toks = spellComponentTokens(r.comp);
+      if (toks.size) spellComponentIndex.set(r.id, toks);
+    }
+  }
+
+  // "V" → has Verbal; "-V" → lacks Verbal (castable while silenced, etc.).
+  function spellPassesComponentFilter(filter, spellId) {
+    if (!filter) return true;
+    const toks = spellComponentIndex.get(spellId) || EMPTY_SET;
+    return filter[0] === '-' ? !toks.has(filter.slice(1)) : toks.has(filter);
+  }
+  const EMPTY_SET = new Set();
+
   function injectPicker(panel) {
     if (!panel || panel.querySelector('.spell-picker')) return;
     const tabsEl = panel.querySelector('.spell-list-tabs');
@@ -306,6 +346,7 @@
 
     buildSharedClassDatalist();
     buildSpellTagIndex();
+    buildSpellComponentIndex();
 
     const dlId = `spell-picker-spells-${++datalistCounter}`;
     // Top tags only — keep the dropdown tractable. Alphabetical so
@@ -337,6 +378,21 @@
         <div class="field" style="flex:1 1 14rem;min-width:11rem">
           <label>Tags</label>
           <div class="sp-tag-host"></div>
+        </div>
+        <div class="field field-sm" style="width:7rem">
+          <label>Component</label>
+          <select class="sp-component" title="Filter by spell component. 'Has X' shows spells with that component; 'No X' shows spells castable without it (e.g. No Verbal while silenced, No Somatic while grappled).">
+            <option value="">Any</option>
+            <option value="V">Has Verbal</option>
+            <option value="S">Has Somatic</option>
+            <option value="M">Has Material</option>
+            <option value="F">Has Focus</option>
+            <option value="DF">Has Divine Focus</option>
+            <option value="XP">Has XP cost</option>
+            <option value="-V">No Verbal</option>
+            <option value="-S">No Somatic</option>
+            <option value="-M">No Material</option>
+          </select>
         </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Spell</label>
@@ -376,6 +432,7 @@
   function wirePicker(panel, picker, dlId, sortedTags) {
     const classInput = picker.querySelector('.sp-class');
     const levelInput = picker.querySelector('.sp-level');
+    const componentSelect = picker.querySelector('.sp-component');
     // Multi-tag chip-input filter (replaces the old single-tag <select>).
     // Pool comes from the per-picker `sortedTags` computed at inject
     // time; TagFilter handles autocomplete + AND/OR + chip-removal UX.
@@ -489,14 +546,15 @@
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
       const tagF = buildTagFilter();
+      const componentFilter = componentSelect ? componentSelect.value : '';
       datalist.innerHTML = '';
       currentSpells = [];
       currentByName = new Map();
-      // If neither class nor level nor tag is set, fall back to the
-      // global #spell-options datalist (full DB autocomplete) — matches
+      // If neither class nor level nor tag nor component is set, fall back to
+      // the global #spell-options datalist (full DB autocomplete) — matches
       // the UX of the other pickers and lets a user type a spell name
       // directly without first narrowing.
-      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || tagF;
+      const haveFilter = (cls && canonical.has(cls)) || lvlFilter || tagF || componentFilter;
       if (!haveFilter) {
         spellInput.setAttribute('list', 'spell-options');
         const globalDl = document.getElementById('spell-options');
@@ -575,15 +633,38 @@
             "         b.publication_date DESC, e.name COLLATE NOCASE"
           );
         }
+      } else if (componentFilter) {
+        // Component-only path — no class / level / tag. Query every spell;
+        // the per-row component test below narrows it (mirrors the
+        // all-negative tag path).
+        candidates = DB.query(
+          "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
+          "       e.source, b.publication_date " +
+          "FROM entry e LEFT JOIN book b ON b.name = e.source " +
+          "WHERE e.type = 'spell' " +
+          "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+          "         b.publication_date DESC, e.name COLLATE NOCASE"
+        );
       }
       currentSpells = candidates;
       // Dedupe by case-insensitive name; prefer 3.5 over 3.0 since the
-      // ORDER BY in spellsFor puts 3.5 rows first. Apply tag + book filters.
+      // ORDER BY puts 3.5 rows first. Apply tag + book filters per-candidate
+      // (any-printing, matching the existing tag behavior). The COMPONENT
+      // filter is canonical-only: it tests the printing that will actually be
+      // DISPLAYED (the first tag+book-passing one = source-recency winner) and
+      // rejects the whole name if that fails — so a spell whose canonical
+      // printing needs Verbal can't slip into "No Verbal" via an older or
+      // mis-extracted printing whose components differ.
+      const rejectedByComponent = new Set();
       for (const s of currentSpells) {
         if (!spellPassesTagFilter(tagF, s.spell_id)) continue;
         if (window.BookFilter && !window.BookFilter.allowsEntry({...s, type: 'spell'})) continue;
         const k = s.name.toLowerCase();
-        if (currentByName.has(k)) continue;
+        if (currentByName.has(k) || rejectedByComponent.has(k)) continue;
+        if (componentFilter && !spellPassesComponentFilter(componentFilter, s.spell_id)) {
+          rejectedByComponent.add(k);  // canonical fails → drop the name entirely
+          continue;
+        }
         currentByName.set(k, s);
         const opt = document.createElement('option');
         opt.value = s.name;
@@ -604,6 +685,11 @@
           .filter(Boolean);
         for (const e of negatives) parts.push('−' + e.name);
         if (parts.length) suffix = ` (tag:${parts.join(' ')})`;
+      }
+      if (componentFilter) {
+        const lbl = componentFilter[0] === '-'
+          ? 'no ' + componentFilter.slice(1) : componentFilter;
+        suffix += ` (${lbl})`;
       }
       const lvlLabel = lvlFilter
         ? (lvlFilter.min === lvlFilter.max
@@ -909,6 +995,7 @@
     levelInput.addEventListener('input', refreshSpellList);
     levelInput.addEventListener('input', refreshMetamagicRow);
     levelInput.addEventListener('input', refreshTagCounts);
+    if (componentSelect) componentSelect.addEventListener('change', refreshSpellList);
     // (Tag changes are now wired via TagFilter's onChange callback above.)
     spellInput.addEventListener('input', updateInfoPanel);
     spellInput.addEventListener('input', renderResults);

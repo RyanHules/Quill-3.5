@@ -857,6 +857,43 @@ test('spell-picker: tag filter (mind-affecting spells >= 100)', (db) => {
   assertGE(rows[0].n, 100);
 });
 
+test('spell-picker: component filter (data + wiring, 2026-06-16)', (db) => {
+  // Component data is present, and the picker wires a component <select> +
+  // an index + a has/lacks test.
+  const withComp = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type='spell' "
+    + "AND json_extract(data,'$.components') IS NOT NULL");
+  assertGE(withComp.n, 2000);
+  const noVerbal = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type='spell' "
+    + "AND json_extract(data,'$.components') IS NOT NULL "
+    + "AND json_extract(data,'$.components') NOT LIKE '%V%'");
+  assertGE(noVerbal.n, 50);  // there ARE spells castable without Verbal
+  const src = readSource('spell-picker.js');
+  assert(/class="sp-component"/.test(src),
+    'spell-picker.js: no component <select> in the filter bar.');
+  assert(/function buildSpellComponentIndex/.test(src),
+    'spell-picker.js: buildSpellComponentIndex missing.');
+  assert(/spellPassesComponentFilter/.test(src),
+    'spell-picker.js: component has/lacks test missing.');
+});
+
+test('power-picker: display filter (data + wiring, 2026-06-16)', (db) => {
+  const withDisp = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type='power' "
+    + "AND json_extract(data,'$.display') IS NOT NULL");
+  assertGE(withDisp.n, 300);
+  const visual = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type='power' "
+    + "AND LOWER(json_extract(data,'$.display')) LIKE '%visual%'");
+  assertGE(visual.n, 100);
+  const src = readSource('power-picker.js');
+  assert(/class="pp-display"/.test(src),
+    'power-picker.js: no display <select> in the filter bar.');
+  assert(/rec\.display/.test(src),
+    'power-picker.js: refresh() does not filter on rec.display.');
+});
+
 // ---- tests: NEW capabilities (tags, errata, spell-access provenance) ------
 
 test('tags: query feats by combat-maneuver tag', (db) => {
