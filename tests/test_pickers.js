@@ -1756,9 +1756,11 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // grants fear immunity to existing cohorts/followers — modifies,
     // doesn't grant/advance, nothing for the companion engine to do.
     'Legendary Leader/To Hell and Back (Ex)',
-    // 2026-05-18 Stormwrack extraction: Legendary Captain's
-    // "Leadership" feature buffs the Leadership feat's LCL bonus —
-    // doesn't grant/advance a companion/mount/familiar itself.
+    // 2026-06-20 Stormwrack v3-walk REPLACE: Legendary Captain's L10
+    // "Fleet Admiral" feature aids the crews of allies' ships ("crews"/
+    // "fleet" trip the keyword) but grants/advances no companion. None
+    // in _companion_metadata. (Legacy emitted "Leadership" here instead.)
+    'Legendary Captain/Fleet Admiral',
     'Legendary Captain/Leadership',
     // 2026-05-19 Dungeonscape extraction: Beast Heart Adept's
     // "Alternative Monstrous Companion" just adds higher-HD
