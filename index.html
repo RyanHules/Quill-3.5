@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260616h';
+    window.CACHE_VERSION = '20260620b';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -225,10 +225,8 @@
           </table>
           <div class="ability-to-ac-section">
             <label class="ability-to-ac-label">Add to AC:</label>
-            <label class="mi-toggle"><input type="checkbox" id="con-to-ac"> CON <select id="con-to-ac-type" class="ac-type-select"><option>Untyped</option><option>Dodge</option><option>Insight</option></select></label>
-            <label class="mi-toggle"><input type="checkbox" id="int-to-ac"> INT <select id="int-to-ac-type" class="ac-type-select"><option>Untyped</option><option>Dodge</option><option>Insight</option></select></label>
-            <label class="mi-toggle"><input type="checkbox" id="wis-to-ac"> WIS <select id="wis-to-ac-type" class="ac-type-select"><option>Untyped</option><option>Dodge</option><option>Insight</option></select></label>
-            <label class="mi-toggle"><input type="checkbox" id="cha-to-ac"> CHA <select id="cha-to-ac-type" class="ac-type-select"><option>Untyped</option><option>Deflection</option><option>Dodge</option><option>Insight</option></select></label>
+            <div id="ability-ac-list" class="ability-ac-list"></div>
+            <button type="button" id="add-ability-ac" class="btn-add-ac-ability">+ Ability</button>
           </div>
         </section>
 

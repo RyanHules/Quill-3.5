@@ -2735,6 +2735,54 @@ test('save: Feats.collectData scopes .feat-entry to its container', () => {
   );
 });
 
+test('save: Character ability-to-AC list is scoped, RAW-typed, and migrates legacy keys', () => {
+  const src = readSource('character.js');
+
+  // --- collectData: new array key, scoped to its container -------------
+  const collect = extractFunctionBody(src, 'collectData');
+  assert(collect, "Couldn't extract Character.collectData body");
+  assert(/ability-ac-bonuses/.test(collect),
+    "Character.collectData must persist ability-to-AC rows under the " +
+    "'ability-ac-bonuses' array key.");
+  assert(/#ability-ac-list\s+\.ability-ac-row/.test(collect),
+    "Character.collectData must scope its ability-ac row query to " +
+    "#ability-ac-list (an unscoped global `.ability-ac-row` is brittle).");
+
+  // --- loadData: forward-migrate the pre-2026-06-20 fixed toggle keys ---
+  // Old saves stored con/int/wis/cha-to-ac booleans + -to-ac-type strings
+  // (e.g. bean_uisce's cha-to-ac:true / Deflection). Dropping the
+  // migration would silently wipe an in-play character's bonus.
+  const load = extractFunctionBody(src, 'loadData');
+  assert(load, "Couldn't extract Character.loadData body");
+  assert(/ability-ac-bonuses/.test(load) && /-to-ac-type/.test(load) &&
+         /-to-ac\b/.test(load),
+    "Character.loadData must migrate the legacy con/int/wis/cha-to-ac " +
+    "toggle keys into the dynamic ability-ac list.");
+
+  // --- recalc: reads the list, gives Natural Armor RAW touch semantics -
+  // (recalc has a `bonuses = {}` default param, which defeats the brace-
+  // matched body extractor, so these patterns are asserted against the
+  // full source — they're unique to the recalc area regardless.)
+  assert(/#ability-ac-list\s+\.ability-ac-row/.test(src),
+    "Character.recalc must read ability-to-AC bonuses from the dynamic " +
+    "#ability-ac-list rows (not the removed con/int/wis/cha-to-ac checkboxes).");
+  assert(/touch:\s*!isNatural/.test(src),
+    "Character.recalc must treat 'Natural Armor' ability-to-AC bonuses as " +
+    "touch:false (natural armor never applies against touch attacks).");
+  // The removed per-ability checkbox read must be gone.
+  assert(!/-to-ac['"`]\s*\)\s*\?\.checked/.test(src),
+    "Character.recalc still reads the removed `#<ab>-to-ac` checkboxes.");
+  // Natural-armor ability bonuses set to STACK must route through the
+  // additive accumulators (an "increase to natural armor"), not just the
+  // highest-applies bucket. Guards the stack toggle's whole point.
+  assert(/STACKING_TYPES\.includes\(item\.type\)\s*\|\|\s*item\.stacks/.test(src),
+    "Character.recalc must sum `item.stacks` natural-armor bonuses (the " +
+    "stack toggle) alongside the always-stacking dodge/circumstance/untyped types.");
+  assert(/stacks\s*=\s*isNatural\s*&&/.test(src),
+    "Character.recalc must only let Natural Armor rows stack (stacks flag " +
+    "gated on isNatural).");
+});
+
 test('save: Spells invocation collector saves invoList rows + migrates legacy', () => {
   const src = readSource('spells.js');
   const collect = extractFunctionBody(src, 'collectData');

@@ -871,6 +871,78 @@
       'SS1: old "Familiar" display-text compType migrates to "familiar" key on load');
   });
 
+  regression('SS-AC: ability-to-AC stacks/overlaps NA, round-trips + migrates legacy', async () => {
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+
+    // --- Natural Armor math: stack (increase) vs overlap (highest) -------
+    // DEX 14 (+2), WIS 18 (+4), manual natural armor 2, Medium size.
+    set('dex-score', 14);
+    set('wis-score', 18);
+    set('ac-natural', 2);
+    Character.addAbilityAcRow({ ability: 'WIS', type: 'Natural Armor' }); // stack ON by default
+    $('#ability-ac-list').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(50);
+    // Stacks: NA = 2 (manual) + 4 (WIS) = 6 -> total 18, touch 12 (NA off touch), FF 16.
+    expectText('#ac-total', '18', 'SS-AC: stacking NA adds to the manual field (2+4)');
+    expectText('#ac-touch', '12', 'SS-AC: natural armor never applies to touch');
+    expectText('#ac-flatfooted', '16', 'SS-AC: stacking NA applies flat-footed');
+    // Uncheck stack -> overlap: NA = highest(2,4) = 4 -> total 16, FF 14.
+    const cb = $('#ability-ac-list .ability-ac-stack-cb');
+    if (!cb) fail('SS-AC: stack toggle checkbox not found on the Natural Armor row');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(50);
+    expectText('#ac-total', '16', 'SS-AC: overlap NA takes the highest of (2,4)');
+    expectText('#ac-flatfooted', '14', 'SS-AC: overlap NA flat-footed reflects highest');
+
+    // --- Round-trip incl. stack flag + duplicate ability ----------------
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    Character.addAbilityAcRow({ ability: 'WIS', type: 'Natural Armor', stack: true });
+    Character.addAbilityAcRow({ ability: 'WIS', type: 'Dodge' });
+    await wait(50);
+    const blob = Character.collectData();
+    expect((blob['ability-ac-bonuses'] || []).length, 2,
+      'SS-AC: collectData emits both ability-to-AC rows');
+    expect(blob['ability-ac-bonuses'][0].type, 'Natural Armor',
+      'SS-AC: first row type persisted');
+    expect(blob['ability-ac-bonuses'][0].stack, true,
+      'SS-AC: stack flag persisted on the Natural Armor row');
+    // New character clears the list, then reload restores the rows in order.
+    await newCharacter();
+    expect($$('#ability-ac-list .ability-ac-row').length, 0,
+      'SS-AC: new character clears the ability-to-AC list');
+    Character.loadData(blob);
+    await wait(100);
+    const rows = $$('#ability-ac-list .ability-ac-row')
+      .map(r => r.querySelector('.ability-ac-ability').value + '/' +
+                r.querySelector('.ability-ac-type').value);
+    expect(rows.join(', '), 'WIS/Natural Armor, WIS/Dodge',
+      'SS-AC: loadData restores both rows in order');
+    expect($('#ability-ac-list .ability-ac-row .ability-ac-stack-cb').checked, true,
+      'SS-AC: restored Natural Armor row keeps its stack toggle checked');
+
+    // Legacy migration — bean_uisce's exact shape: cha-to-ac true / Deflection,
+    // the rest off. Only the checked one becomes a row; in-play characters
+    // must not silently lose their bonus.
+    await newCharacter();
+    Character.loadData({
+      'con-to-ac': false, 'con-to-ac-type': 'Untyped',
+      'int-to-ac': false, 'int-to-ac-type': 'Untyped',
+      'wis-to-ac': false, 'wis-to-ac-type': 'Untyped',
+      'cha-to-ac': true,  'cha-to-ac-type': 'Deflection',
+    });
+    await wait(100);
+    const migrated = $$('#ability-ac-list .ability-ac-row')
+      .map(r => r.querySelector('.ability-ac-ability').value + '/' +
+                r.querySelector('.ability-ac-type').value);
+    expect(migrated.join(', '), 'CHA/Deflection',
+      'SS-AC: legacy cha-to-ac:Deflection migrates to exactly one row');
+  });
+
   regression('SS-CR: monster race (race-picker) applies RHD + NA and round-trips', async () => {
     // Monster race via the MAIN race-picker. Bugbear migrated from a creature
     // as_character block to a type=race entry in the MM I v3 walk, so it now

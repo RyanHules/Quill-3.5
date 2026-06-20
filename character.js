@@ -180,18 +180,36 @@ const Character = (function () {
     $("#ac-dex").textContent = fmt(cappedDexMod);
     $("#ac-size").textContent = fmt(acSize);
 
-    // Ability-to-AC bonuses (e.g. Monk WIS, Paladin CHA)
+    // Ability-to-AC bonuses (e.g. Monk WIS untyped, Paladin CHA deflection,
+    // a class feature adding CON as natural armor). A dynamic list of rows;
+    // the SAME ability may appear more than once under different bonus types.
     const abilityACItems = [];
-    ["CON", "INT", "WIS", "CHA"].forEach((ab) => {
-      const lower = ab.toLowerCase();
-      if ($(`#${lower}-to-ac`)?.checked) {
-        const abMod = getAbilityMod(ab);
-        if (abMod > 0) {
-          const type = $(`#${lower}-to-ac-type`)?.value || "Untyped";
-          // Ability-to-AC applies to touch and flat-footed (dodge doesn't apply to FF)
-          abilityACItems.push({ type, ac: abMod, touch: true, flatfooted: type !== "Dodge" });
-        }
-      }
+    $$("#ability-ac-list .ability-ac-row").forEach((row) => {
+      const type = row.querySelector(".ability-ac-type")?.value || "Untyped";
+      // The stack toggle only applies to Natural Armor; keep its visibility
+      // synced to the chosen type (recalc fires on every row change).
+      const isNatural = type === "Natural Armor";
+      const stackLabel = row.querySelector(".ability-ac-stack");
+      if (stackLabel) stackLabel.style.display = isNatural ? "" : "none";
+      const ab = row.querySelector(".ability-ac-ability")?.value;
+      if (!ab) return;
+      const abMod = getAbilityMod(ab);
+      if (abMod <= 0) return;
+      // A natural-armor bonus that's set to STACK is an "increase to natural
+      // armor" — it adds on top of the manual field and any other natural
+      // armor (routed through the stacking accumulators below). Unchecked, it
+      // overlaps (highest-applies) like a plain natural armor bonus. Natural
+      // armor never applies against touch; dodge is the only type lost when
+      // flat-footed.
+      const stacks = isNatural &&
+        (row.querySelector(".ability-ac-stack-cb")?.checked ?? false);
+      abilityACItems.push({
+        type,
+        ac: abMod,
+        touch: !isNatural,
+        flatfooted: type !== "Dodge",
+        stacks,
+      });
     });
 
     // Resolve protective item bonuses with D&D 3.5 stacking rules
@@ -211,7 +229,10 @@ const Character = (function () {
     let stackingTotal = 0, stackingTouch = 0, stackingFF = 0;
 
     protItems.forEach((item) => {
-      if (STACKING_TYPES.includes(item.type)) {
+      // STACKING_TYPES (dodge / circumstance / untyped) always sum; an
+      // ability natural-armor bonus flagged `stacks` (an increase to NA)
+      // also sums, on top of the highest-applies Natural Armor bucket.
+      if (STACKING_TYPES.includes(item.type) || item.stacks) {
         stackingTotal += item.ac;
         if (item.touch) stackingTouch += item.ac;
         if (item.flatfooted) stackingFF += item.ac;
@@ -364,6 +385,43 @@ const Character = (function () {
   // ============================================================
   // Attacks
   // ============================================================
+  // Ability-to-AC list. Each row contributes one ability modifier to AC
+  // under a chosen bonus type. The same ability can be added multiple
+  // times (separate rows) — e.g. WIS as a dodge bonus and WIS as insight.
+  const AC_ABILITY_OPTIONS = ["CON", "INT", "WIS", "CHA"];
+  const AC_TYPE_OPTIONS = ["Untyped", "Dodge", "Insight", "Deflection", "Natural Armor"];
+
+  function addAbilityAcRow(data = {}) {
+    const container = $("#ability-ac-list");
+    if (!container) return;
+    const ability = (data.ability || "WIS").toUpperCase();
+    const type = data.type || "Untyped";
+    // Natural-armor ability bonuses default to STACKING (an "increase to
+    // natural armor", e.g. Dragon Disciple / Bear Warrior — they add on top
+    // of existing natural armor). Unchecking makes it overlap (highest of it
+    // and the manual Natural Armor field applies). Only meaningful for the
+    // Natural Armor type; ignored otherwise.
+    const stack = data.stack ?? true;
+    const abilityOpts = AC_ABILITY_OPTIONS.map(
+      (a) => `<option value="${a}"${a === ability ? " selected" : ""}>${a}</option>`
+    ).join("");
+    const typeOpts = AC_TYPE_OPTIONS.map(
+      (t) => `<option value="${t}"${t === type ? " selected" : ""}>${t}</option>`
+    ).join("");
+    const row = document.createElement("div");
+    row.className = "ability-ac-row";
+    const stackHidden = type === "Natural Armor" ? "" : ' style="display:none"';
+    row.innerHTML =
+      `<select class="ability-ac-ability ac-type-select">${abilityOpts}</select>` +
+      `<span class="ability-ac-as">as</span>` +
+      `<select class="ability-ac-type ac-type-select">${typeOpts}</select>` +
+      `<label class="ability-ac-stack"${stackHidden} title="Stack with (increase) existing natural armor. Uncheck to overlap instead (highest applies).">` +
+        `<input type="checkbox" class="ability-ac-stack-cb"${stack ? " checked" : ""}> stack</label>` +
+      `<button type="button" class="ability-ac-remove" title="Remove">&times;</button>`;
+    container.appendChild(row);
+    return row;
+  }
+
   function addAttack(data = {}) {
     const container = $("#attacks-container");
     const div = document.createElement("div");
@@ -431,10 +489,17 @@ const Character = (function () {
       if (el) data[id] = el.value;
     });
 
-    // Ability-to-AC toggles
-    ["con", "int", "wis", "cha"].forEach((ab) => {
-      data[`${ab}-to-ac`] = $(`#${ab}-to-ac`)?.checked || false;
-      data[`${ab}-to-ac-type`] = $(`#${ab}-to-ac-type`)?.value || "Untyped";
+    // Ability-to-AC bonuses (dynamic list; the same ability may repeat
+    // under different bonus types). Scoped to the list container so it
+    // can't collide with other `select` elements on the tab. See loadData
+    // for migration of the pre-2026-06-20 fixed con/int/wis/cha-to-ac keys.
+    data["ability-ac-bonuses"] = [];
+    $$("#ability-ac-list .ability-ac-row").forEach((row) => {
+      data["ability-ac-bonuses"].push({
+        ability: row.querySelector(".ability-ac-ability")?.value || "",
+        type: row.querySelector(".ability-ac-type")?.value || "Untyped",
+        stack: !!row.querySelector(".ability-ac-stack-cb")?.checked,
+      });
     });
     data["ignore-encumbrance"] = $("#ignore-encumbrance")?.checked || false;
 
@@ -506,11 +571,27 @@ const Character = (function () {
       }
     });
 
-    // Ability-to-AC toggles
-    ["con", "int", "wis", "cha"].forEach((ab) => {
-      if (data[`${ab}-to-ac`] !== undefined) $(`#${ab}-to-ac`).checked = data[`${ab}-to-ac`];
-      if (data[`${ab}-to-ac-type`] !== undefined) $(`#${ab}-to-ac-type`).value = data[`${ab}-to-ac-type`];
-    });
+    // Ability-to-AC bonuses (dynamic list). Rebuild rows from the saved
+    // list. When the new key is absent (older saves), migrate the fixed
+    // con/int/wis/cha-to-ac toggle keys forward — only the ones that were
+    // checked become rows, preserving each one's saved bonus type (e.g.
+    // bean_uisce's CHA → Deflection).
+    if ($("#ability-ac-list")) {
+      $("#ability-ac-list").innerHTML = "";
+      let acBonuses = data["ability-ac-bonuses"];
+      if (!Array.isArray(acBonuses)) {
+        acBonuses = [];
+        ["con", "int", "wis", "cha"].forEach((ab) => {
+          if (data[`${ab}-to-ac`]) {
+            acBonuses.push({
+              ability: ab.toUpperCase(),
+              type: data[`${ab}-to-ac-type`] || "Untyped",
+            });
+          }
+        });
+      }
+      acBonuses.forEach((b) => addAbilityAcRow(b));
+    }
     if (data["ignore-encumbrance"] !== undefined && $("#ignore-encumbrance")) {
       $("#ignore-encumbrance").checked = !!data["ignore-encumbrance"];
     }
@@ -537,5 +618,5 @@ const Character = (function () {
   // ============================================================
   // Public API
   // ============================================================
-  return { recalc, addAttack, collectData, loadData, resetAttacks };
+  return { recalc, addAttack, addAbilityAcRow, collectData, loadData, resetAttacks };
 })();

@@ -724,9 +724,19 @@
   $("#ignore-encumbrance")?.addEventListener("change", recalcAll);
   $("#shield-touch-ac").addEventListener("change", recalcAll);
   $("#rage-active").addEventListener("change", recalcAll);
-  ["con","int","wis","cha"].forEach(ab => {
-    $(`#${ab}-to-ac`)?.addEventListener("change", recalcAll);
-    $(`#${ab}-to-ac-type`)?.addEventListener("change", recalcAll);
+  // Ability-to-AC dynamic list: add button, plus delegated change/remove
+  // on the list (rows are created at runtime, so delegation is required).
+  $("#add-ability-ac")?.addEventListener("click", () => {
+    Character.addAbilityAcRow();
+    recalcAll();
+  });
+  $("#ability-ac-list")?.addEventListener("change", recalcAll);
+  $("#ability-ac-list")?.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest(".ability-ac-remove");
+    if (removeBtn) {
+      removeBtn.closest(".ability-ac-row")?.remove();
+      recalcAll();
+    }
   });
   document.addEventListener("change", (e) => {
     if (e.target.closest("#tab-equipment") || e.target.closest("#tab-spells")) recalcAll();
