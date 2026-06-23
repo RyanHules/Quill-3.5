@@ -457,6 +457,43 @@ test('domain-picker: Celerity domain has spell list and granted power', (db) => 
   assertGE(Object.keys(spells).length, 5);
 });
 
+// ---- tests: mantle-picker.js ----------------------------------------------
+
+test('mantle-picker: list query (init)', (db) => {
+  const rows = execAll(db,
+    "SELECT id AS mantle_id, name, source, version, "
+    + "json_extract(data, '$.granted_power')    AS granted_power, "
+    + "json_extract(data, '$.powers')           AS powers_json, "
+    + "json_extract(data, '$.divine_mind_aura') AS aura, "
+    + "json_extract(data, '$.deities')          AS deities_json "
+    + "FROM entry WHERE type = 'mantle' "
+    + "ORDER BY name COLLATE NOCASE, "
+    + "CASE version WHEN '3.5' THEN 0 ELSE 1 END");
+  assertGE(rows.length, 30);
+  const withPower = rows.filter(r => r.granted_power).length;
+  assertGE(withPower, 30);
+});
+
+test('mantle-picker: Chaos mantle has powers list, granted power, aura, deities', (db) => {
+  const r = execOne(db,
+    "SELECT name, "
+    + "json_extract(data, '$.granted_power')    AS granted_power, "
+    + "json_extract(data, '$.powers')           AS powers_json, "
+    + "json_extract(data, '$.divine_mind_aura') AS aura, "
+    + "json_extract(data, '$.deities')          AS deities_json "
+    + "FROM entry WHERE type = 'mantle' AND name = 'Chaos'");
+  assert(r && r.granted_power, 'Chaos mantle has granted_power');
+  const powers = JSON.parse(r.powers_json);
+  assert(Array.isArray(powers) && powers.length >= 1,
+    'Chaos.powers is a non-empty list (not domain\'s dict)');
+  assert(powers[0].level != null && powers[0].name,
+    'mantle powers rows are {level, name}');
+  assert(r.aura, 'Chaos has divine_mind_aura');
+  const deities = JSON.parse(r.deities_json);
+  assert(Array.isArray(deities) && deities.length >= 1,
+    'Chaos.deities is a non-empty list');
+});
+
 // ---- tests: maneuver-picker.js --------------------------------------------
 
 test('maneuver-picker: list query (init)', (db) => {

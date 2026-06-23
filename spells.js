@@ -59,6 +59,8 @@ const Spells = (function () {
       container.appendChild(panel);
       buildPsiPowerLists(idx, panel);
       wireLevelTabs(panel);
+      wireMantleEntries(panel, data);
+      wireMantleToggle(panel);
     } else if (type === "maneuvers") {
       panel.innerHTML = notesHTML + buildManeuversHTML(idx, data);
       container.appendChild(panel);
@@ -1208,6 +1210,53 @@ const Spells = (function () {
 
     addBtn.addEventListener("click", () => addDomainEntry(container));
   }
+  // --- Mantle Access (Complete Psionic) — mirrors Domain Access. A mantle is a
+  // domain-analogue (granted ability + a leveled power list) for the Ardent /
+  // Divine Mind, and for any psionic character with the Tap Mantle feat. The
+  // mantle-picker (mantle-picker.js) autocompletes the name + fills the granted
+  // ability + a power-list info line, exactly as domain-picker does for domains.
+  function addMantleEntry(container, data = {}) {
+    const div = document.createElement("div");
+    div.className = "mantle-entry domain-entry";  // reuse domain-entry CSS grid
+    div.innerHTML = `
+      <div class="field"><label>Mantle</label><input type="text" class="psi-mantle-name" value="${data.name || ""}"></div>
+      <div class="field"><label>Granted Ability</label><textarea class="psi-mantle-power" rows="2">${data.power || ""}</textarea></div>
+      <button class="btn-remove psi-remove-mantle" title="Remove">X</button>
+    `;
+    container.appendChild(div);
+    div.querySelector(".psi-remove-mantle").addEventListener("click", () => {
+      const entries = container.querySelectorAll(".mantle-entry");
+      if (entries.length <= 1) {
+        div.querySelector(".psi-mantle-name").value = "";
+        div.querySelector(".psi-mantle-power").value = "";
+        return;
+      }
+      div.remove();
+    });
+    const ta = div.querySelector(".psi-mantle-power");
+    if (window.autoExpand) window.autoExpand(ta);
+  }
+  function wireMantleEntries(panel, data = {}) {
+    const container = panel.querySelector(".psi-mantle-list");
+    const addBtn = panel.querySelector(".psi-add-mantle");
+    if (!container || !addBtn) return;
+    const mantles = data.mantles || [];
+    if (mantles.length) {
+      mantles.forEach(m => addMantleEntry(container, m));
+    } else {
+      addMantleEntry(container);
+    }
+    addBtn.addEventListener("click", () => addMantleEntry(container));
+  }
+  function wireMantleToggle(panel) {
+    const toggle = panel.querySelector(".psi-mantle-toggle");
+    const section = panel.querySelector(".psi-mantle-section");
+    if (toggle && section) {
+      toggle.addEventListener("change", () => {
+        section.style.display = toggle.checked ? "" : "none";
+      });
+    }
+  }
   // --- Psionics HTML builder ---
   // Base PP cost by power level (XPH Table 3-3)
   const PP_COSTS = [0, 1, 3, 5, 7, 9, 11, 13, 15, 17];
@@ -1246,6 +1295,13 @@ const Spells = (function () {
           <div class="field field-sm"><label>PP Remaining</label><span class="psi-pp-remaining calc-field">--</span></div>
           <div class="field field-sm"><label>Powers Known <span class="psi-known-count"></span></label><input type="number" class="psi-powers-known" min="0" value="${data.powersKnown || ""}"></div>
           <div class="field field-sm"><label>Max Power Level</label><input type="number" class="psi-max-level" min="1" max="9" value="${data.maxLevel || ""}"></div>
+        </div>
+        <div class="spell-header" style="margin-top:0.5rem">
+          <label class="mi-toggle"><input type="checkbox" class="psi-mantle-toggle" ${data.mantleAccess ? "checked" : ""}> Mantle Access</label>
+        </div>
+        <div class="psi-mantle-section" style="${data.mantleAccess ? "" : "display:none"}">
+          <div class="psi-mantle-list"></div>
+          <button class="btn-add psi-add-mantle" style="margin-top:0.3rem">+ Add Mantle</button>
         </div>
         <div class="spellcasting-2col">
           <div class="spellcasting-list-col">
@@ -2252,6 +2308,11 @@ const Spells = (function () {
         caster.ppSpent = panel.querySelector(".psi-pp-spent")?.value || "0";
         caster.powersKnown = panel.querySelector(".psi-powers-known")?.value || "";
         caster.ability = panel.querySelector(".psi-ability")?.value || "";
+        caster.mantleAccess = panel.querySelector(".psi-mantle-toggle")?.checked || false;
+        caster.mantles = Array.from(panel.querySelectorAll(".mantle-entry")).map(entry => ({
+          name: entry.querySelector(".psi-mantle-name")?.value || "",
+          power: entry.querySelector(".psi-mantle-power")?.value || "",
+        }));
         const psiMax = int(panel.querySelector(".psi-dc-table")?.dataset.maxLevel || 9);
         caster.maxLevel = psiMax;
         // v2 Phase D (2026-05-21): Known powers is now a structured
