@@ -267,6 +267,25 @@
     return { include, exclude };
   }
 
+  // Armor/Shield property APPLICABILITY overlap (Ryan 2026-06-23): a property usable on
+  // BOTH armor and shields carries BOTH the `armor-property` and `shield-property` tags,
+  // so filtering the Type dropdown by "Armor Property" / "Shield Property" matches the
+  // corresponding applicability TAG (= that-slot-only + both-applicable) rather than the
+  // exact category. Every other type matches exactly as before.
+  const PROPERTY_TYPE_TAG = {
+    'Armor Property': 'armor-property',
+    'Shield Property': 'shield-property',
+  };
+  function typeMatches(entry, chosenType) {
+    if (!chosenType) return true;
+    const tag = PROPERTY_TYPE_TAG[chosenType];
+    if (tag) {
+      const ids = tagIndex.get(tag);
+      return !!ids && ids.has(entry.primaryRow.item_id);
+    }
+    return entry.primaryRow.type === chosenType;
+  }
+
   function refreshDatalist(datalist, chosenType, positives, negatives,
                            tagMode, costFilter) {
     datalist.innerHTML = '';
@@ -275,7 +294,7 @@
     for (const display of displayNames) {
       const entry = itemIndex.get(display.toLowerCase());
       if (!entry) continue;
-      if (chosenType && entry.primaryRow.type !== chosenType) continue;
+      if (!typeMatches(entry, chosenType)) continue;
       // Tag filter (positives + negatives + mode). Untagged items
       // pass the negatives check trivially because they're not in
       // any tag's id set.
