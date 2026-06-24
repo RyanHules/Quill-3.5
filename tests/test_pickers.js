@@ -3907,11 +3907,19 @@ test('creature-race-picker: list query returns legacy as_character creatures', (
   // SHRINKING set — each walked book migrates its as_character creatures to
   // type=race entries (see the migration note above). Assert a floor, not an
   // exact count, and don't name specific creatures (they migrate book-by-book).
-  assertGE(rows.length, 20);
-  // Monster Manual I's as_character data moved to type=race, so no MM I
-  // creature should still carry an as_character block.
+  // Floor lowered 20 -> 5 on 2026-06-24 when the Monster Manual III v3 walk
+  // migrated its as_character creatures to type=race; 9 remain across the still-
+  // unwalked Frostburn / MM IV / MM V / Draconomicon / Drow / Sandstorm. Lower
+  // again as those walk (the set trends to 0; the picker stays exercised by the
+  // type=race 'X as Characters' entries the walk produces).
+  assertGE(rows.length, 5);
+  // Walked books' as_character data moved to type=race, so no creature from a
+  // walked book should still carry an as_character block.
   assert(!rows.some(r => r.source === 'Monster Manual'),
     'Monster Manual I creatures should no longer carry as_character ' +
+    '(migrated to type=race by the v3 walk REPLACE)');
+  assert(!rows.some(r => r.source === 'Monster Manual III'),
+    'Monster Manual III creatures should no longer carry as_character ' +
     '(migrated to type=race by the v3 walk REPLACE)');
 });
 
