@@ -1228,7 +1228,14 @@ test('lookup: formatSLAs renders both row shapes + string', (db) => {
     'grouped rows render freq: abilities');
   assert(L.formatSLAs('At will: obscuring mist') === 'At will: obscuring mist',
     'string passes through');
-  assert(!/\[object Object\]/.test(perAbility + grouped),
+  // Canonical structured spell_likes keys (spell_name / save_dc_formula).
+  const spellLikes = L.formatSLAs([
+    { spell_name: 'confusion', frequency: '1/day', save_dc_formula: 'DC 16',
+      caster_level_formula: 10 },
+  ]);
+  assert(/confusion \(1\/day, DC 16\)/.test(spellLikes),
+    'spell_likes-shape rows render (spell_name + save_dc_formula)');
+  assert(!/\[object Object\]/.test(perAbility + grouped + spellLikes),
     'no [object Object] leak');
 });
 

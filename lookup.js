@@ -535,10 +535,14 @@
         const freq = row.frequency ? `${escapeHtml(row.frequency)}: ` : '';
         return `${freq}${ab}`;
       }
-      const name = escapeHtml(row.ability || row.spell || '');
+      // Per-ability row. Accept both the spell_like_abilities keys
+      // (ability/spell, dc) and the canonical structured spell_likes keys
+      // (spell_name, save_dc_formula like "DC 16", caster_level_formula).
+      const name = escapeHtml(String(row.ability || row.spell || row.spell_name || ''));
       const bits = [];
       if (row.frequency) bits.push(escapeHtml(String(row.frequency)));
       if (row.dc != null) bits.push('DC ' + escapeHtml(String(row.dc)));
+      else if (row.save_dc_formula) bits.push(escapeHtml(String(row.save_dc_formula)));
       return bits.length ? `${name} (${bits.join(', ')})` : name;
     }).filter(Boolean).join('; ');
   }
@@ -1715,8 +1719,12 @@
     }
     if (d.special_attacks)    lines.push(`<b>Special attacks:</b> ${escapeHtml(formatValue(d.special_attacks))}`);
     if (d.special_qualities)  lines.push(`<b>Special qualities:</b> ${escapeHtml(formatValue(d.special_qualities))}`);
-    if (d.spell_like_abilities) {
-      lines.push(`<b>SLAs:</b> ${formatSLAs(d.spell_like_abilities)}`);
+    // Prefer the legacy spell_like_abilities field; fall back to the
+    // canonical structured spell_likes (the 2026-06 standard) so creatures
+    // whose SLAs live there (e.g. Infernal Conflagration Ooze) still show.
+    const slaData = d.spell_like_abilities || d.spell_likes;
+    if (slaData) {
+      lines.push(`<b>SLAs:</b> ${formatSLAs(slaData)}`);
     }
     if (d.feats)          lines.push(`<b>Feats:</b> ${escapeHtml(formatValue(d.feats))}`);
     if (d.skills)         lines.push(`<b>Skills:</b> ${escapeHtml(formatValue(d.skills))}`);
