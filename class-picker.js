@@ -2999,16 +2999,22 @@
       ` <span style="opacity:.7">(${escapeHtml(cls.version || '?')})</span>`);
     // PrC requirements — pull from the entry data and render via
     // Lookup with the Feats sub-field as clickable pills. Goes first
-    // because it gates entry to the class.
-    if (window.Lookup && Lookup.renderRequirementsWithPills) {
+    // because it gates entry to the class. Parse the whole `data` blob
+    // and hand it to renderEntryRequirements so every shape resolves:
+    // Capitalized dict, lowercase/snake walked dict, labeled string,
+    // and the `prerequisites` string fallback. (The old code
+    // json_extract'd just `$.requirements` and JSON.parse'd it, which
+    // THREW on string-shaped requirements — the walked-book PrCs —
+    // and silently dropped them.)
+    if (window.Lookup && Lookup.renderEntryRequirements) {
       const reqRow = DB.queryOne(
-        "SELECT json_extract(data, '$.requirements') AS req " +
-        "FROM entry WHERE id = ?", [cls.class_id]
+        "SELECT data FROM entry WHERE id = ?", [cls.class_id]
       );
-      if (reqRow && reqRow.req) {
+      if (reqRow && reqRow.data) {
         try {
-          const req = JSON.parse(reqRow.req);
-          const reqHtml = Lookup.renderRequirementsWithPills(req);
+          const reqHtml = Lookup.renderEntryRequirements(
+            JSON.parse(reqRow.data)
+          );
           if (reqHtml) bits.push(reqHtml);
         } catch (e) { /* malformed JSON — skip */ }
       }

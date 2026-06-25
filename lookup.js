@@ -518,6 +518,31 @@
     return String(v);
   }
 
+  // Render a creature's `spell_like_abilities`. The DB canon (2026-06-25)
+  // is a structured list, but two row shapes exist: per-ability
+  // ({ability, frequency, caster_level?, dc?}) and frequency-grouped
+  // ({frequency, abilities:[...]}). Older/odd entries may still be a
+  // plain string (a couple of misfiled ones). Returns ESCAPED HTML.
+  function formatSLAs(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return escapeHtml(v);
+    if (!Array.isArray(v)) return escapeHtml(formatValue(v));
+    return v.map(row => {
+      if (row == null) return '';
+      if (typeof row === 'string') return escapeHtml(row);
+      if (Array.isArray(row.abilities)) {
+        const ab = row.abilities.map(a => escapeHtml(String(a))).join(', ');
+        const freq = row.frequency ? `${escapeHtml(row.frequency)}: ` : '';
+        return `${freq}${ab}`;
+      }
+      const name = escapeHtml(row.ability || row.spell || '');
+      const bits = [];
+      if (row.frequency) bits.push(escapeHtml(String(row.frequency)));
+      if (row.dc != null) bits.push('DC ' + escapeHtml(String(row.dc)));
+      return bits.length ? `${name} (${bits.join(', ')})` : name;
+    }).filter(Boolean).join('; ');
+  }
+
   // Per-type meta fields, in display order. The first key in each
   // tuple is the label; the second is the key (or list of keys) on
   // the entry/data dict.
@@ -819,9 +844,9 @@
   // `opts.allowedTypes` controls which DB entry types can pillify;
   // default `['feat']` (works for feat prereqs). Item creation prereqs
   // pass `['feat', 'spell']` so spell names in "Craft Wondrous Item,
-  // haste" pillify too. PrC requirements use the dict-shaped renderer
-  // below (renderRequirementsWithPills) instead — that one knows the
-  // Feats / Skills / Race / etc. categories already.
+  // haste" pillify too. PrC requirements use renderRequirementsWithPills
+  // below instead — that one normalizes the Feats / Skills / Race / etc.
+  // categories across every dict and string shape in the DB.
   //
   // `opts.skipExpansionsContainer` (default false) — when nested
   // inside another already-has-expansions container, skip the
@@ -863,42 +888,185 @@
         `<div class="lookup-see-also-expansions"></div>`);
   }
 
-  // Render a PrC `requirements` dict as a labeled block, with the
-  // Feats sub-category pillified and the rest rendered as plain text.
-  // Input shape (from PrC stat blocks):
-  //   {Race: "Elf or half-elf.", Feats: "Power Attack, Cleave.",
-  //    Skills: "Tumble 8 ranks.", Alignment: "Any chaotic.", ...}
-  // The container has .lookup-rule-see-also so the pill click handler
-  // finds the .lookup-see-also-expansions sibling we tack on at the end.
+  // Render a PrC/class entry's requirements as a labeled block, with
+  // feat names pillified (clickable inline-expand) and the rest as
+  // plain text. The container carries .lookup-rule-see-also so the
+  // pill click handler finds the .lookup-see-also-expansions sibling.
+  //
+  // Requirements come in FOUR shapes across the DB, because different
+  // extraction passes serialized them differently:
+  //   1. dict, Capitalized keys   {Race:"…", Feats:"…", Skills:"…"}
+  //        — hand-keyed core books (DMG).
+  //   2. dict, lowercase/snake    {race:"…", base_attack_bonus:"…",
+  //        feats:"…", special:"…"} — v3-walked books (Stormwrack &c).
+  //   3. string, labeled prose    "Alignment: … Skills: … Feats: …"
+  //        — XPH, parts of Complete Warrior, Libris Mortis, &c.
+  //   4. string under `prerequisites` instead of `requirements`
+  //        (Dragon Compendium) — reached via renderEntryRequirements.
+  // Shapes 3 & 4 used to render NOTHING (this fn bailed on non-objects),
+  // and shape 2 rendered raw "base_attack_bonus:" labels with feats
+  // that weren't clickable — the bug the walked-book PrCs surfaced.
+  // renderRequirementsWithPills now normalizes all of them: `req` may
+  // be a dict (1/2) OR a labeled string (3/4).
   function renderRequirementsWithPills(req) {
-    if (!req || typeof req !== 'object') return '';
-    const keys = Object.keys(req);
-    if (!keys.length) return '';
-    // Preferred display order — matches stat-block convention.
-    const PRIORITY = [
-      'Alignment', 'Race', 'Base Attack Bonus', 'Skills', 'Feats',
-      'Spells', 'Spellcasting', 'Class', 'Weapon Proficiency',
-      'Special',
-    ];
-    const ordered = keys.slice().sort((a, b) => {
-      const aIdx = PRIORITY.indexOf(a);
-      const bIdx = PRIORITY.indexOf(b);
-      return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-    });
-    const lines = ordered.map(k => {
-      const v = req[k];
-      if (v == null || v === '') return '';
-      const valueHtml = (k === 'Feats')
-        ? renderPrereqWithPills(String(v), {
-            allowedTypes: ['feat'],
-            skipExpansionsContainer: true,
-          })
-        : escapeHtml(String(v));
-      return `<div><b>${escapeHtml(k)}:</b> ${valueHtml}</div>`;
-    }).filter(Boolean).join('');
-    if (!lines) return '';
+    let rows;
+    if (req && typeof req === 'object' && !Array.isArray(req)) {
+      rows = reqRowsFromDict(req);
+    } else if (typeof req === 'string' && req.trim()) {
+      rows = reqRowsFromString(req);
+    } else {
+      return '';
+    }
+    return emitRequirementsBlock(rows);
+  }
+
+  // Field-fallback dispatcher: requirements → prerequisites →
+  // prerequisite, first non-empty. Lives here (rather than at each
+  // call site) so the lookup detail panel and the class-picker info
+  // panel resolve the same way. Accepts the parsed entry `data` object.
+  function renderEntryRequirements(d) {
+    if (!d) return '';
+    if (d.requirements != null && d.requirements !== '')
+      return renderRequirementsWithPills(d.requirements);
+    if (typeof d.prerequisites === 'string' && d.prerequisites.trim())
+      return renderRequirementsWithPills(d.prerequisites);
+    if (typeof d.prerequisite === 'string' && d.prerequisite.trim())
+      return renderRequirementsWithPills(d.prerequisite);
+    return '';
+  }
+
+  // Canonical display labels for requirement keys. Maps the
+  // lowercase/snake_case variants the walk engine emits onto the
+  // book-print form. Anything not listed falls through to a generic
+  // snake→Title-Case / capitalize transform in prettyReqLabel.
+  const REQ_LABEL_MAP = {
+    'bab': 'Base Attack Bonus',
+    'base_attack_bonus': 'Base Attack Bonus',
+    'base_save_bonus': 'Base Save Bonus',
+    'base_save_bonuses': 'Base Save Bonuses',
+    'base_will_save': 'Base Will Save',
+    'base_will_save_bonus': 'Base Will Save Bonus',
+    'base_fort_save': 'Base Fortitude Save',
+    'base_fortitude_save': 'Base Fortitude Save',
+    'base_ref_save': 'Base Reflex Save',
+    'base_reflex_save': 'Base Reflex Save',
+    'essentia_pool': 'Essentia Pool',
+    'skill_tricks': 'Skill Tricks',
+    'martial_maneuvers': 'Martial Maneuvers',
+    'martial_stances': 'Martial Stances',
+    'natural_armor_bonus': 'Natural Armor Bonus',
+    'weapon_proficiency': 'Weapon Proficiency',
+    'patron_deity': 'Patron Deity',
+  };
+
+  function prettyReqLabel(k) {
+    const key = String(k).trim();
+    const low = key.toLowerCase();
+    if (REQ_LABEL_MAP[low]) return REQ_LABEL_MAP[low];
+    if (key.indexOf('_') !== -1) {
+      return key.split('_').filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+    // Single lowercased word ("skills", "feats", "race", "special").
+    if (/^[a-z]/.test(key)) return key.charAt(0).toUpperCase() + key.slice(1);
+    return key; // already a Capitalized phrase (DMG core / string labels)
+  }
+
+  // Display order — matches the stat-block convention. Keyed on the
+  // canonicalized (pretty, lowercased) label so dict shapes 1 & 2 sort
+  // identically regardless of original casing.
+  const REQ_PRIORITY = [
+    'alignment', 'race', 'gender', 'base attack bonus', 'base save bonus',
+    'base fortitude save', 'base reflex save', 'base will save',
+    'skills', 'feats', 'spells', 'spellcasting', 'psionics', 'powers',
+    'class', 'weapon proficiency', 'special',
+  ];
+  function reqKeyRank(k) {
+    const i = REQ_PRIORITY.indexOf(prettyReqLabel(k).toLowerCase());
+    return i === -1 ? 99 : i;
+  }
+
+  // Is this row's key a feats category (so its value should pillify)?
+  // Catches Feats / feats / Feat / feat / Epic Feats / Epic Feat.
+  function isFeatReqKey(key) {
+    return /^(epic\s+)?feats?$/i.test(String(key || ''));
+  }
+
+  // Shape 1 & 2: dict → ordered rows. `_`-prefixed keys are internal
+  // markers (e.g. a homebrew progressive-bond stub) and are skipped.
+  function reqRowsFromDict(req) {
+    const rows = [];
+    Object.keys(req)
+      .filter(k => k && k[0] !== '_')
+      .sort((a, b) => reqKeyRank(a) - reqKeyRank(b))
+      .forEach(k => {
+        const v = req[k];
+        if (v == null || v === '') return;
+        const value = formatValue(v);
+        if (value === '') return;
+        rows.push({ key: k, label: prettyReqLabel(k), value });
+      });
+    return rows;
+  }
+
+  // Shape 3 & 4: labeled prose string → rows. A label is a Capitalized
+  // word-phrase followed by ": " at the start of the string or after a
+  // sentence break (". "). Everything before the first label — or the
+  // whole string when there are no labels (Dragon Compendium's bare
+  // comma-list prereqs) — becomes an unlabeled lead row that pillifies
+  // feats AND spells. Trailing periods on each value are trimmed.
+  function reqRowsFromString(raw) {
+    const s = String(raw).trim();
+    const re = /(?:^|\.\s+)([A-Z][A-Za-z][A-Za-z '()\/-]*?):\s+/g;
+    const marks = [];
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      marks.push({
+        label: m[1].trim(),
+        valueStart: m.index + m[0].length,
+        labelStart: m.index,
+      });
+    }
+    const rows = [];
+    const leadEnd = marks.length ? marks[0].labelStart : s.length;
+    const lead = s.slice(0, leadEnd).trim().replace(/[.;]\s*$/, '').trim();
+    if (lead) rows.push({ key: '_lead', label: null, value: lead });
+    for (let i = 0; i < marks.length; i++) {
+      const end = (i + 1 < marks.length) ? marks[i + 1].labelStart : s.length;
+      const value = s.slice(marks[i].valueStart, end).trim()
+        .replace(/[.;]\s*$/, '').trim();
+      if (value) rows.push({
+        key: marks[i].label, label: prettyReqLabel(marks[i].label), value,
+      });
+    }
+    return rows;
+  }
+
+  // Emit the requirements block from normalized rows. Feat-labeled
+  // rows (and the unlabeled lead blob) get pill rendering; everything
+  // else is plain escaped text. One .lookup-see-also-expansions sink
+  // serves every pill in the block (the click handler walks up to the
+  // enclosing .lookup-rule-see-also to find it).
+  function emitRequirementsBlock(rows) {
+    if (!rows || !rows.length) return '';
+    const body = rows.map(r => {
+      let valueHtml;
+      if (isFeatReqKey(r.key)) {
+        valueHtml = renderPrereqWithPills(r.value,
+          { allowedTypes: ['feat'], skipExpansionsContainer: true });
+      } else if (r.key === '_lead') {
+        valueHtml = renderPrereqWithPills(r.value,
+          { allowedTypes: ['feat', 'spell'], skipExpansionsContainer: true });
+      } else {
+        valueHtml = escapeHtml(r.value);
+      }
+      return r.label
+        ? `<div><b>${escapeHtml(r.label)}:</b> ${valueHtml}</div>`
+        : `<div>${valueHtml}</div>`;
+    }).join('');
+    if (!body) return '';
     return `<div class="lookup-class-requirements lookup-rule-see-also">` +
-      `<b>Requirements</b>${lines}` +
+      `<b>Requirements</b>${body}` +
       `<div class="lookup-see-also-expansions"></div>` +
       `</div>`;
   }
@@ -1003,11 +1171,11 @@
     const lines = [];
     // PrC requirements — render as a labeled block with feat-name
     // pills (Race / Alignment / Skills / etc. plain text). Goes
-    // first because it gates entry to the class.
-    if (d.requirements && typeof d.requirements === 'object') {
-      const reqHtml = renderRequirementsWithPills(d.requirements);
-      if (reqHtml) lines.push(reqHtml);
-    }
+    // first because it gates entry to the class. Handles every shape
+    // (Capitalized dict, lowercase/snake walked dict, labeled string,
+    // and the `prerequisites` string fallback) via the dispatcher.
+    const reqHtml = renderEntryRequirements(d);
+    if (reqHtml) lines.push(reqHtml);
     if (d.spellcasting && typeof d.spellcasting === 'object') {
       const sc = d.spellcasting;
       const parts = [];
@@ -1548,7 +1716,7 @@
     if (d.special_attacks)    lines.push(`<b>Special attacks:</b> ${escapeHtml(formatValue(d.special_attacks))}`);
     if (d.special_qualities)  lines.push(`<b>Special qualities:</b> ${escapeHtml(formatValue(d.special_qualities))}`);
     if (d.spell_like_abilities) {
-      lines.push(`<b>SLAs:</b> ${escapeHtml(formatValue(d.spell_like_abilities))}`);
+      lines.push(`<b>SLAs:</b> ${formatSLAs(d.spell_like_abilities)}`);
     }
     if (d.feats)          lines.push(`<b>Feats:</b> ${escapeHtml(formatValue(d.feats))}`);
     if (d.skills)         lines.push(`<b>Skills:</b> ${escapeHtml(formatValue(d.skills))}`);
@@ -2675,6 +2843,8 @@
     renderSiblingsRow,
     renderPrereqWithPills,
     renderRequirementsWithPills,
+    renderEntryRequirements,
+    formatSLAs,
     findFeatsRequiring,
     wireSeeAlsoPills,
     renderNestedExpansion,

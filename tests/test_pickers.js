@@ -1083,6 +1083,170 @@ test('lookup: errata popover query returns ordered records', (db) => {
   }
 });
 
+// Load the REAL lookup.js render functions in Node. The module is an
+// IIFE that defers init() when document.readyState === 'loading', so a
+// stub document with that readyState lets us pull window.Lookup without
+// a DOM. Pill resolution (renderPrereqWithPills → resolveSeeAlsoEntry)
+// hits DB, so we back the stub with the real sql.js handle.
+let _lookupReqCache = null;
+function loadLookupReqRenderer(db) {
+  if (_lookupReqCache) return _lookupReqCache;
+  const dbStub = {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+    queryOne: (sql, params) => execOne(db, sql, params),
+    ready: Promise.resolve(),
+  };
+  const win = { DB: dbStub };
+  const doc = {
+    readyState: 'loading',          // defers init() — no DOM needed
+    addEventListener: () => {}, removeEventListener: () => {},
+    querySelector: () => null, getElementById: () => null,
+    createElement: () => ({ style: {}, classList: { add() {}, toggle() {} },
+      setAttribute() {}, appendChild() {}, addEventListener() {} }),
+    body: { appendChild: () => {} },
+  };
+  const src = fs.readFileSync(path.join(ROOT, 'lookup.js'), 'utf8');
+  const fn = new Function('window', 'document', 'DB',
+    src + '\n;return window.Lookup;');
+  _lookupReqCache = fn(win, doc, dbStub);
+  return _lookupReqCache;
+}
+
+// PrC/class entry requirements ship in several shapes (Capitalized
+// dict, lowercase/snake walked dict, labeled string, a `prerequisites`
+// fallback). The string shapes used to render NOTHING in both the
+// lookup modal and the class-picker info panel — the "walked-book PrC
+// requirements don't show up" bug (2026-06-24).
+//
+// The CURE was build-side: normalize_schema.py now canonicalizes
+// requirements to a Cap-keyed dict DB-wide, so string/snake shapes no
+// longer exist in shipped data. The read-side renderer KEEPS its shape
+// tolerance as defense-in-depth (homebrew / post-build entries can
+// still be strings). This test verifies BOTH: every DB requirements
+// renders, AND the renderer still tolerates a synthetic string input.
+test('lookup: renderEntryRequirements renders every shape', (db) => {
+  const L = loadLookupReqRenderer(db);
+  assert(typeof L.renderEntryRequirements === 'function',
+    'Lookup.renderEntryRequirements must be exported');
+  // 1. Every prc/class entry that has requirements renders a block,
+  //    with no raw-object leak. (Filter in JS — SQLite json1 is
+  //    stricter than JS JSON.parse and throws on a few blobs.)
+  const rows = execAll(db,
+    "SELECT name, data FROM entry WHERE type IN ('prc','class')");
+  let nReq = 0;
+  for (const r of rows) {
+    let d; try { d = JSON.parse(r.data || '{}'); } catch { continue; }
+    const hasReq = (d.requirements && typeof d.requirements === 'object'
+        && Object.keys(d.requirements).some(k => k[0] !== '_'
+            && d.requirements[k] != null && d.requirements[k] !== ''))
+      || (typeof d.requirements === 'string' && d.requirements.trim())
+      || (typeof d.prerequisites === 'string' && d.prerequisites.trim());
+    if (!hasReq) continue;
+    nReq++;
+    const html = L.renderEntryRequirements(d) || '';
+    assert(html.includes('lookup-class-requirements'),
+      `${r.name}: requirements should render a block`);
+    assert(!html.includes('[object Object]'), `${r.name}: no raw object leak`);
+  }
+  assertGE(nReq, 300);
+  // 2. Read-side tolerance is still in place: a synthetic string and a
+  //    snake-keyed dict both render (defense-in-depth for homebrew /
+  //    post-build entries the build-side canon never touched).
+  const fromStr = L.renderEntryRequirements(
+    { requirements: 'Alignment: Any lawful. Skills: Tumble 5 ranks. '
+      + 'Feats: Dodge, Mobility.' }) || '';
+  assert(/<b>Skills:<\/b>/.test(fromStr) && /lookup-see-also-pill/.test(fromStr),
+    'renderer must still parse a labeled string into a pilled block');
+  const fromSnake = L.renderEntryRequirements(
+    { requirements: { base_attack_bonus: '+5', feats: 'Iron Will' } }) || '';
+  assert(/<b>Base Attack Bonus:<\/b>/.test(fromSnake),
+    'renderer must still pretty-label a snake-keyed dict');
+});
+
+test('lookup: requirements never leak snake_case labels', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const rows = execAll(db,
+    "SELECT name, data FROM entry WHERE type IN ('prc','class')");
+  for (const r of rows) {
+    let d; try { d = JSON.parse(r.data || '{}'); } catch { continue; }
+    const html = L.renderEntryRequirements(d) || '';
+    assert(!/<b>[a-z_]+_[a-z_]+:<\/b>/.test(html),
+      `${r.name}: snake_case label leaked into output`);
+  }
+});
+
+test('lookup: walked lowercase-dict requirements pretty-label + pillify feats', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const r = execOne(db,
+    "SELECT data FROM entry WHERE name='Leviathan Hunter' "
+    + "AND type='prc' LIMIT 1");
+  assert(r, 'Leviathan Hunter (Stormwrack walked PrC) should exist');
+  const html = L.renderEntryRequirements(JSON.parse(r.data)) || '';
+  assert(/<b>Base Attack Bonus:<\/b>/.test(html),
+    'base_attack_bonus should render as "Base Attack Bonus:"');
+  assert(/lookup-see-also-pill/.test(html), 'lowercase feats should pillify');
+});
+
+test('lookup: requirements falls back to prerequisites string field', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const r = execOne(db,
+    "SELECT data FROM entry WHERE name='Cerebrex' LIMIT 1");
+  assert(r, 'Cerebrex (Dragon Compendium, prerequisites-only) should exist');
+  const html = L.renderEntryRequirements(JSON.parse(r.data)) || '';
+  assert(html.includes('lookup-class-requirements'),
+    'prerequisites string should render when requirements is absent');
+});
+
+test('lookup: empty requirements dict renders nothing (no bare header)', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const r = execOne(db,
+    "SELECT data FROM entry WHERE name='Warlock' AND type='class' LIMIT 1");
+  assert(r, 'Warlock base class should exist');
+  const html = L.renderEntryRequirements(JSON.parse(r.data)) || '';
+  assert(html.trim() === '',
+    'base class with {} requirements must render no Requirements block');
+});
+
+// creature.spell_like_abilities canon is a structured list (2026-06-25),
+// but two row shapes exist (per-ability + frequency-grouped) and a couple
+// of misfiled entries are still strings. formatSLAs must render all three
+// without leaking "[object Object]" (the bug the old formatValue path had).
+test('lookup: formatSLAs renders both row shapes + string', (db) => {
+  const L = loadLookupReqRenderer(db);
+  assert(typeof L.formatSLAs === 'function', 'Lookup.formatSLAs exported');
+  const perAbility = L.formatSLAs([
+    { ability: 'aid', frequency: '3/day' },
+    { ability: 'poison', frequency: '1/day', dc: 18 },
+  ]);
+  assert(/aid \(3\/day\)/.test(perAbility) && /poison \(1\/day, DC 18\)/.test(perAbility),
+    'per-ability rows render ability (freq, DC)');
+  const grouped = L.formatSLAs([
+    { frequency: '1/day (CL 20th)', abilities: ['blasphemy (DC 23)', 'desecrate'] },
+  ]);
+  assert(/1\/day \(CL 20th\): blasphemy/.test(grouped),
+    'grouped rows render freq: abilities');
+  assert(L.formatSLAs('At will: obscuring mist') === 'At will: obscuring mist',
+    'string passes through');
+  assert(!/\[object Object\]/.test(perAbility + grouped),
+    'no [object Object] leak');
+});
+
+// DB-wide: every structured spell_like_abilities renders cleanly.
+test('lookup: DB spell_like_abilities all render without object leak', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const rows = execAll(db, "SELECT name, data FROM entry WHERE type='creature'");
+  let nStruct = 0;
+  for (const r of rows) {
+    let d; try { d = JSON.parse(r.data || '{}'); } catch { continue; }
+    if (!d.spell_like_abilities) continue;
+    const out = L.formatSLAs(d.spell_like_abilities);
+    assert(!/\[object Object\]/.test(out), `${r.name}: SLA render leaked object`);
+    if (Array.isArray(d.spell_like_abilities)) nStruct++;
+  }
+  assertGE(nStruct, 150);  // 200 structured today
+});
+
 // ---- tests: class-picker multiclass advancement metadata -----------------
 //
 // Failure modes these tests guard against (real bugs we hit in May 2026):
