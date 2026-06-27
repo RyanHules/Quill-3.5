@@ -330,6 +330,33 @@ const Character = (function () {
     $("#grapple-size").textContent = fmt(grappleSize);
     $("#grapple-total").textContent = fmt(bab1 + strMod + grappleSize + expr($("#grapple-misc").value));
 
+    // Per-attack bonus calculators. The size modifier to attack rolls is the
+    // same value as the size modifier to AC (sizeData.acMod) in 3.5. Each
+    // attack entry computes BAB + size + chosen-ability mod + an "other" expr;
+    // when its "fill bonus" box is checked the total drives the (then
+    // read-only) Attack Bonus field, else the field stays free-text.
+    const atkSizeMod = sizeData.acMod;
+    $$("#attacks-container .attack-entry").forEach((entry) => {
+      const abilSel = entry.querySelector(".atk-calc-ability");
+      if (!abilSel) return; // defensive: pre-calculator render
+      const abilMod = getAbilityMod(abilSel.value || "STR");
+      const misc = expr(entry.querySelector(".atk-calc-misc")?.value || "");
+      const total = bab1 + atkSizeMod + abilMod + misc;
+      entry.querySelector(".atk-calc-bab").textContent = fmt(bab1);
+      entry.querySelector(".atk-calc-size").textContent = fmt(atkSizeMod);
+      entry.querySelector(".atk-calc-abilmod").textContent = fmt(abilMod);
+      entry.querySelector(".atk-calc-total").textContent = fmt(total);
+      const bonusInput = entry.querySelector(".atk-bonus");
+      if (entry.querySelector(".atk-calc-auto-cb")?.checked) {
+        bonusInput.value = fmt(total);
+        bonusInput.readOnly = true;
+        bonusInput.classList.add("atk-bonus-auto");
+      } else {
+        bonusInput.readOnly = false;
+        bonusInput.classList.remove("atk-bonus-auto");
+      }
+    });
+
     // Max skill ranks
     const level = int($("#char-level").value) || 1;
     $("#max-class-ranks").textContent = level + 3;
@@ -391,6 +418,11 @@ const Character = (function () {
   const AC_ABILITY_OPTIONS = ["CON", "INT", "WIS", "CHA"];
   const AC_TYPE_OPTIONS = ["Untyped", "Dodge", "Insight", "Deflection", "Natural Armor"];
 
+  // Attack-bonus calculator: which ability feeds the attack roll. STR (melee)
+  // and DEX (ranged / Weapon Finesse) are the usual two; the rest cover the
+  // odd feat/PrC (Zen Archery WIS, a CHA-to-attack class feature, etc.).
+  const ATK_ABILITY_OPTIONS = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+
   function addAbilityAcRow(data = {}) {
     const container = $("#ability-ac-list");
     if (!container) return;
@@ -428,6 +460,11 @@ const Character = (function () {
     div.className = "attack-entry";
     div.dataset.attackIndex = attackCount++;
 
+    const calcAbility = (data.calcAbility || "STR").toUpperCase();
+    const atkAbilOpts = ATK_ABILITY_OPTIONS.map(
+      (a) => `<option value="${a}"${a === calcAbility ? " selected" : ""}>${a}</option>`
+    ).join("");
+
     div.innerHTML = `
       <div class="attack-row">
         <div class="field" style="flex:2"><label>Weapon</label><input type="text" class="atk-name" value="${data.name || ""}"></div>
@@ -440,6 +477,19 @@ const Character = (function () {
         <div class="field field-sm"><label>Type</label><input type="text" class="atk-type" value="${data.type || ""}"></div>
         <div class="field" style="flex:2"><label>Notes</label><input type="text" class="atk-notes" value="${data.notes || ""}"></div>
         <button class="btn-remove" onclick="this.closest('.attack-entry').remove()">Remove</button>
+      </div>
+      <div class="attack-row attack-calc-row" title="Attack-bonus calculator: BAB + size modifier + ability mod + other">
+        <span class="atk-calc-label">Calc</span>
+        <span class="atk-calc-term"><span class="atk-calc-k">BAB</span><span class="calc-field atk-calc-bab">+0</span></span>
+        <span class="atk-calc-op">+</span>
+        <span class="atk-calc-term"><span class="atk-calc-k">Size</span><span class="calc-field atk-calc-size">+0</span></span>
+        <span class="atk-calc-op">+</span>
+        <span class="atk-calc-term"><select class="atk-calc-ability">${atkAbilOpts}</select><span class="calc-field atk-calc-abilmod">+0</span></span>
+        <span class="atk-calc-op">+</span>
+        <span class="atk-calc-term"><span class="atk-calc-k">Other</span><input type="text" class="atk-calc-misc" value="${data.calcMisc || ""}" placeholder="0"></span>
+        <span class="atk-calc-op">=</span>
+        <span class="calc-field atk-calc-total atk-calc-total-big">+0</span>
+        <label class="atk-calc-auto" title="Auto-fill the Attack Bonus field above from this total"><input type="checkbox" class="atk-calc-auto-cb"${data.calcAuto ? " checked" : ""}> fill bonus</label>
       </div>
     `;
     container.appendChild(div);
@@ -528,6 +578,9 @@ const Character = (function () {
         range: entry.querySelector(".atk-range").value,
         type: entry.querySelector(".atk-type").value,
         notes: entry.querySelector(".atk-notes").value,
+        calcAbility: entry.querySelector(".atk-calc-ability")?.value || "STR",
+        calcMisc: entry.querySelector(".atk-calc-misc")?.value || "",
+        calcAuto: entry.querySelector(".atk-calc-auto-cb")?.checked || false,
       });
     });
 

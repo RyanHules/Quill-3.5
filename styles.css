@@ -490,6 +490,27 @@ textarea {
 .attack-entry .field { min-width: 80px; }
 .attack-entry .btn-remove { align-self: flex-end; }
 
+/* Per-attack bonus calculator (3rd row): BAB + size + ability + other = total.
+   A muted inline formula separated from the manual fields above by a dashed rule. */
+.attack-entry .attack-calc-row {
+  align-items: center;
+  gap: 0.3rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.4rem;
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
+}
+.atk-calc-label { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.04em; margin-right: 0.15rem; }
+.atk-calc-term { display: inline-flex; align-items: center; gap: 0.25rem; }
+.atk-calc-k { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.atk-calc-op { color: var(--text-muted); font-weight: 700; }
+.attack-calc-row .calc-field { padding: 0.1rem 0.4rem; min-width: 26px; font-size: 0.8rem; }
+.attack-calc-row .atk-calc-total-big { font-size: 0.95rem; padding: 0.15rem 0.5rem; }
+.attack-calc-row .atk-calc-ability { padding: 0.1rem 0.2rem; font-size: 0.75rem; min-width: 56px; }
+.attack-calc-row .atk-calc-misc { width: 64px; padding: 0.1rem 0.3rem; font-size: 0.8rem; }
+.atk-calc-auto { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-muted); font-size: 0.72rem; margin-left: auto; cursor: pointer; white-space: nowrap; }
+input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700; }
+
 .btn-add {
   background: var(--btn-bg);
   color: var(--accent);
