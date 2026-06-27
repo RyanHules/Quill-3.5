@@ -3176,7 +3176,7 @@ test('pickers: spell-adjacent tag-filter parity', () => {
     'picker-tag-filter.js: must export { attach, parseLevel }.');
   // Each picker that has reached parity wires the tag filter + VersionBadge.
   // Extend this list as each picker is upgraded.
-  const DONE = ['vestige-picker.js', 'invocation-picker.js'];
+  const DONE = ['vestige-picker.js', 'invocation-picker.js', 'mystery-picker.js'];
   for (const f of DONE) {
     const src = readSource(f);
     assert(/PickerTagFilter\.attach\(/.test(src),
@@ -3184,6 +3184,18 @@ test('pickers: spell-adjacent tag-filter parity', () => {
     assert(/VersionBadge/.test(src),
       `${f}: info panel does not render a VersionBadge.`);
   }
+  // Regression for the silent-injection bug found 2026-06-27: mystery groups
+  // are nested in .shadowcaster-2col (NOT direct panel children), so
+  // `panel.insertBefore(wrap, firstGroup)` threw NotFoundError and the
+  // MutationObserver swallowed it — the picker never appeared. It must insert
+  // relative to the group's actual parent.
+  const myp = readSource('mystery-picker.js');
+  assert(!/panel\.insertBefore\(\s*wrap\s*,\s*firstGroup\s*\)/.test(myp),
+    'mystery-picker.js: reverted to panel.insertBefore(wrap, firstGroup) — '
+    + 'firstGroup is inside .shadowcaster-2col, not a panel child, so this '
+    + 'throws and the picker silently never injects.');
+  assert(/anchorParent\.insertBefore/.test(myp),
+    'mystery-picker.js: lost the anchorParent-relative insert.');
 });
 
 test('sla: ⓘ panel renders spell rules via Spells.renderSpellRules', () => {

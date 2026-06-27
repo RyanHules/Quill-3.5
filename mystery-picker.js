@@ -171,11 +171,18 @@
   }
 
   function injectPicker(panel) {
-    // The first group section is `.sh-group[data-group="fund"]`.
-    // Inject the picker before that so it sits right under the
-    // top-level "Shadowcasting" section.
+    // The mystery groups (`.sh-group[data-group="fund"]`, …) are nested
+    // inside a `.shadowcaster-2col` grid, NOT direct children of the panel —
+    // so inject the picker bar before that grid (or before the first group's
+    // actual parent) so it sits above the groups. (Inserting at the PANEL
+    // level relative to firstGroup threw NotFoundError because firstGroup
+    // isn't a child of the panel — the bar silently never appeared; the
+    // MutationObserver swallowed the error.)
     const firstGroup = panel.querySelector('.sh-group');
     if (!firstGroup) return;
+    const anchor = panel.querySelector('.shadowcaster-2col') || firstGroup;
+    const anchorParent = anchor.parentElement;
+    if (!anchorParent) return;
 
     const dlId = `mystery-picker-options-${++datalistCounter}`;
     const pathOptions = paths
@@ -207,6 +214,10 @@
             <option value="Master">Master (7-9)</option>
           </select>
         </div>
+        <div class="field" style="flex:1 1 11rem;min-width:9rem">
+          <label>Tags</label>
+          <div class="myp-tag-host"></div>
+        </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Mystery</label>
           <input type="text" class="myp-mystery" list="${dlId}"
@@ -222,7 +233,7 @@
            style="display:none;font-size:0.85em;color:#ccc;margin-top:0.4rem">
       </div>
     `;
-    panel.insertBefore(wrap, firstGroup);
+    anchorParent.insertBefore(wrap, anchor);
     wirePicker(panel, wrap, dlId);
   }
 
@@ -233,6 +244,16 @@
     const info     = picker.querySelector('.myp-info');
     const addBtn   = picker.querySelector('.myp-add');
     const datalist = picker.querySelector(`#${dlId}`);
+    const tagHost  = picker.querySelector('.myp-tag-host');
+
+    // Shared tag-filter (chip widget + per-type index + contextual counts).
+    const tags = (window.PickerTagFilter)
+      ? PickerTagFilter.attach(tagHost, {
+          type: 'mystery',
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refresh(),
+        })
+      : null;
 
     // Shared browsing-chip helper. Chip click: set value + show info
     // DIRECTLY without dispatching 'input' (which would narrow the
@@ -251,11 +272,16 @@
     function refresh() {
       const path = pathSel.value;
       const prog = progSel.value;
+      const tagF = tags ? tags.buildFilter() : null;
       datalist.innerHTML = '';
       const names = [];
+      // preTagIds = passing every filter EXCEPT tags, for contextual counts.
+      const preTagIds = new Set();
       for (const m of mysteryIndex.values()) {
         if (path && m.path !== path) continue;
         if (prog && m.progression !== prog) continue;
+        preTagIds.add(m.mystery_id);
+        if (tagF && !tags.passes(tagF, m.mystery_id)) continue;
         const opt = document.createElement('option');
         opt.value = m.name;
         // No opt.label — Firefox renders it as visible suggestion text.
@@ -267,6 +293,7 @@
         ? `${n} myster${n === 1 ? 'y' : 'ies'}`
         : '(no matches)';
       if (results) results.render(names, { typedFilter: mysIn.value.trim() });
+      if (tags) tags.refreshCounts(preTagIds);
     }
 
     function updateInfo() {
@@ -324,7 +351,8 @@
   }
 
   function renderInfo(m) {
-    const head = `<b>${escapeHtml(m.name)}</b> ` +
+    const verBadge = (window.VersionBadge ? VersionBadge.html(m.version) : '');
+    const head = `<b>${escapeHtml(m.name)}</b>${verBadge} ` +
       `<span style="opacity:.7">(${escapeHtml(m.source || '?')})</span>`;
     const bits = [head];
     const meta = [
