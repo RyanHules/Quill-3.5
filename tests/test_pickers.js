@@ -1788,42 +1788,41 @@ test('class metadata: advancement spec populated for parser-missed advancer PrCs
 // selected. loadDbMetadata() neutralizes this by dropping the advancement
 // pillars for type='class' rows. This guards both halves: the source fix is
 // wired, and no NEW base class has quietly acquired an advancement block.
-test('class-picker: base classes are never consumed as spell-advancers (advancement is PrC-only)', (db) => {
+test('class-picker: base-class spell advancement is an explicit allowlist (else PrC-only)', (db) => {
   const src = CLASS_PICKER_SRC;
   // (1) loadDbMetadata must pull the entry type so it can tell base from PrC.
   assert(/SELECT name,\s*type AS entry_type/.test(src),
     'loadDbMetadata must SELECT `type AS entry_type` to distinguish base ' +
     'classes from PrCs');
-  // (2) ...and must drop every advancement pillar for a base-class row.
+  // (2) Base classes never advance maneuvers/invocations/mysteries, and never
+  // advance SPELLS either — EXCEPT an explicit allowlist (the UA caster-race
+  // racial paragons genuinely advance the character's casting at their 2nd/3rd
+  // levels, book-verified). Everything else mis-tagged onto a base class is dropped.
   assert(src.includes("r.entry_type === 'class'"),
-    'loadDbMetadata must branch on a base-class check (r.entry_type === ' +
-    '"class")');
-  assert(/adv\s*=\s*madv\s*=\s*iadv\s*=\s*mystadv\s*=\s*null/.test(src),
-    'loadDbMetadata must null all four advancement pillars for base classes');
-  // (3) Tripwire: the DB still ships the stale blocks until the next rebuild
-  // re-runs _class_metadata.py with them removed. Pin the known-and-
-  // neutralized set so a NEW mis-tag (a future book) gets surfaced here.
-  // The first three are stale mis-tags to be removed from _class_metadata.py.
-  // The five UA racial paragons are a DIFFERENT, legitimate case: the caster-race
-  // paragons (Drow/Elf/Gnome/Half-Elf/Human) genuinely advance the character's
-  // existing spellcasting at their 2nd/3rd levels (UA, book-verified 2026-06-27),
-  // so their advancement block is CORRECT. The sheet's base-class guard still
-  // neutralizes it (advancement is PrC-only in the picker), so a paragon's caster-
-  // level boost isn't auto-applied — a known sheet limitation, not a data error.
-  const KNOWN = new Set([
-    'Dragonfire Adept', 'Prestige Bard', 'Prestige Paladin',
+    'loadDbMetadata must branch on a base-class check (r.entry_type === "class")');
+  assert(/madv\s*=\s*iadv\s*=\s*mystadv\s*=\s*null/.test(src),
+    'base classes must null the maneuver/invocation/mystery pillars');
+  assert(/BASE_CLASS_SPELL_ADVANCERS/.test(src) &&
+         /!BASE_CLASS_SPELL_ADVANCERS\.has\(r\.name\)\)\s*adv\s*=\s*null/.test(src),
+    'the base-class SPELL pillar must be nulled UNLESS the class is in the ' +
+    'BASE_CLASS_SPELL_ADVANCERS allowlist');
+  // (3) Every base class carrying an advancement block must be either HONORED
+  // (legitimately advances casting — kept by the allowlist) or a STALE mis-tag
+  // to remove from _class_metadata.py. Anything else is a NEW mis-tag to triage.
+  const HONORED = new Set([   // MIRROR of BASE_CLASS_SPELL_ADVANCERS in class-picker.js
     'Drow Paragon', 'Elf Paragon', 'Gnome Paragon',
     'Half-Elf Paragon', 'Human Paragon',
   ]);
+  const STALE = new Set(['Dragonfire Adept']);  // mis-tagged; neutralized, remove at source
   const offenders = execAll(db,
     "SELECT name FROM entry WHERE type = 'class' " +
     "AND json_extract(data, '$.advancement') IS NOT NULL").map(r => r.name);
-  const unexpected = offenders.filter(n => !KNOWN.has(n));
+  const unexpected = offenders.filter(n => !HONORED.has(n) && !STALE.has(n));
   assert(unexpected.length === 0,
-    `New base class(es) mis-tagged with an advancement block: ` +
-    `${unexpected.join(', ')}. The sheet's loadDbMetadata guard neutralizes ` +
-    `them, but fix the source (remove the advancement entry in ` +
-    `_class_metadata.py) so the DB stops emitting it.`);
+    `New base class(es) with an advancement block: ${unexpected.join(', ')}. ` +
+    `If it legitimately advances casting, add it to BASE_CLASS_SPELL_ADVANCERS ` +
+    `in class-picker.js AND the HONORED set here; if it's a mis-tag, remove the ` +
+    `advancement entry in _class_metadata.py.`);
 });
 
 // ---- tests: class progression fields are always populated ----------------

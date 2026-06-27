@@ -625,6 +625,16 @@
       "json_extract(data, '$.mystery_advancement')                AS mystery_advancement " +
       "FROM entry WHERE type IN ('class','prc')"
     );
+    // Base classes advance no one BY DEFAULT (the advancement pillars are a
+    // PrC concept). EXCEPTION: the UA caster-race racial paragons genuinely
+    // advance the character's existing spellcasting at their 2nd/3rd levels
+    // ("gains new spells per day as if she had also gained a level in [her
+    // spellcasting class]", UA — book-verified 2026-06-27). Honor THEIR spell
+    // pillar; everything else mis-tagged onto a base class still gets dropped.
+    const BASE_CLASS_SPELL_ADVANCERS = new Set([
+      'Drow Paragon', 'Elf Paragon', 'Gnome Paragon',
+      'Half-Elf Paragon', 'Human Paragon',
+    ]);
     for (const r of rows) {
       let ct = r.class_type;
       // class_type may be JSON-encoded (array shape: '["arcane","divine"]')
@@ -687,7 +697,10 @@
       // block onto the Dragonfire Adept / Prestige Bard / Prestige Paladin
       // BASE classes, which made the picker warn "no arcane class to
       // advance" the moment one was selected.)
-      if (r.entry_type === 'class') { adv = madv = iadv = mystadv = null; }
+      if (r.entry_type === 'class') {
+        madv = iadv = mystadv = null;   // base classes never advance these
+        if (!BASE_CLASS_SPELL_ADVANCERS.has(r.name)) adv = null;  // ...nor spells, except the allowlist
+      }
       _dbMetaCache.set(r.name, {
         classType: ct,
         style: r.style,
