@@ -249,9 +249,14 @@
             ${discOptions}
           </select>
         </div>
-        <div class="field field-sm" style="width:5rem">
+        <div class="field field-sm" style="width:5.5rem">
           <label>Level</label>
-          <input type="number" class="mp-level" min="1" max="9" placeholder="any">
+          <input type="text" class="mp-level" placeholder="1-9 or ≤N"
+                 title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
+        </div>
+        <div class="field" style="flex:1 1 11rem;min-width:9rem">
+          <label>Tags</label>
+          <div class="mp-tag-host"></div>
         </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Maneuver</label>
@@ -285,6 +290,16 @@
     const addK    = picker.querySelector('.mp-add-known');
     const addR    = picker.querySelector('.mp-add-readied');
     const datalist = picker.querySelector(`#${dlId}`);
+    const tagHost = picker.querySelector('.mp-tag-host');
+
+    // Shared tag-filter (chip widget + per-type index + contextual counts).
+    const tags = (window.PickerTagFilter)
+      ? PickerTagFilter.attach(tagHost, {
+          type: 'maneuver',
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refresh(),
+        })
+      : null;
 
     // Shared browsing-chip helper. Chip click sets value + shows info
     // DIRECTLY without dispatching 'input' — that would narrow the
@@ -302,25 +317,34 @@
 
     function refresh() {
       const disc = discSel.value || '';
-      const lvl  = parseInt(lvlIn.value, 10);
-      const wantLevel = Number.isFinite(lvl) && lvl > 0;
+      const lvlF = window.PickerTagFilter
+        ? PickerTagFilter.parseLevel(lvlIn.value) : null;
+      const tagF = tags ? tags.buildFilter() : null;
       const list = disc ? (byDiscipline.get(disc) || []) :
                           [...maneuverIndex.values()];
-      const filtered = list.filter(m =>
-        !wantLevel || Number(m.level) === lvl);
       datalist.innerHTML = '';
       const names = [];
-      for (const m of filtered) {
+      // preTagIds = passing discipline + level (but NOT tags), for the counts.
+      const preTagIds = new Set();
+      for (const m of list) {
+        if (lvlF) {
+          const L = Number(m.level);
+          if (!(L >= lvlF.min && L <= lvlF.max)) continue;
+        }
+        preTagIds.add(m.id);
+        if (tagF && !tags.passes(tagF, m.id)) continue;
         const opt = document.createElement('option');
         opt.value = m.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
         names.push(m.name);
       }
-      manIn.placeholder = filtered.length
-        ? `${filtered.length} maneuver${filtered.length === 1 ? '' : 's'}`
+      const n = names.length;
+      manIn.placeholder = n
+        ? `${n} maneuver${n === 1 ? '' : 's'}`
         : '(no matches)';
       if (results) results.render(names, { typedFilter: manIn.value.trim() });
+      if (tags) tags.refreshCounts(preTagIds);
     }
 
     function updateInfo() {
@@ -340,7 +364,7 @@
       if (window.Lookup && Lookup.wireSeeAlsoPills) {
         Lookup.wireSeeAlsoPills(info);
       }
-      if (window.ErrataBadge) ErrataBadge.attach(info, m.maneuver_id);
+      if (window.ErrataBadge) ErrataBadge.attach(info, m.id);
     }
 
     function appendToKnown() {
@@ -407,8 +431,9 @@
   // action / range / target / duration / save / prereq / classes),
   // then the rules description on its own line below.
   function renderInfo(m) {
+    const verBadge = (window.VersionBadge ? VersionBadge.html(m.version) : '');
     const bits = [];
-    bits.push(`<b>${escapeHtml(m.name)}</b> ` +
+    bits.push(`<b>${escapeHtml(m.name)}</b>${verBadge} ` +
       `<span style="opacity:.7">(${escapeHtml(m.source || '?')})</span>`);
     if (m.discipline)        bits.push(`<b>Discipline:</b> ${escapeHtml(m.discipline)}`);
     if (m.type)              bits.push(`<b>Type:</b> ${escapeHtml(m.type)}`);
