@@ -287,9 +287,10 @@
             ${renderClassOptions()}
           </select>
         </div>
-        <div class="field field-sm" style="width:5rem">
+        <div class="field field-sm" style="width:5.5rem">
           <label>Level</label>
-          <input type="number" class="pp-level" min="1" max="9" placeholder="any">
+          <input type="text" class="pp-level" placeholder="1-9 or ≤N"
+                 title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
         </div>
         <div class="field field-sm" style="width:6.5rem">
           <label>Display</label>
@@ -301,6 +302,10 @@
             <option value="Olfactory">Olfactory</option>
             <option value="Visual">Visual</option>
           </select>
+        </div>
+        <div class="field" style="flex:1 1 11rem;min-width:9rem">
+          <label>Tags</label>
+          <div class="pp-tag-host"></div>
         </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Power</label>
@@ -329,11 +334,23 @@
     const info     = picker.querySelector('.pp-info');
     const addK     = picker.querySelector('.pp-add-known');
     const datalist = picker.querySelector(`#${dlId}`);
+    const tagHost  = picker.querySelector('.pp-tag-host');
+
+    // Shared tag-filter (chip widget + per-type index + contextual counts).
+    const tags = (window.PickerTagFilter)
+      ? PickerTagFilter.attach(tagHost, {
+          type: 'power',
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refresh(),
+        })
+      : null;
 
     function currentList() {
       const cls = classSel.value;
-      const lvl = parseInt(lvlIn.value, 10);
-      const wantLevel = Number.isFinite(lvl) && lvl > 0;
+      const lvlF = window.PickerTagFilter
+        ? PickerTagFilter.parseLevel(lvlIn.value) : null;
+      const inRange = (L) =>
+        !lvlF || (L != null && L >= lvlF.min && L <= lvlF.max);
       if (cls) {
         // Composite classes (Ardent / Divine Mind / Erudite) fan
         // out across their underlying keys; native classes just
@@ -344,7 +361,7 @@
         const items = [];
         for (const key of keys) {
           for (const entry of (byClass.get(key) || [])) {
-            if (wantLevel && entry.level !== lvl) continue;
+            if (!inRange(entry.level)) continue;
             if (seen.has(entry.rec.id)) continue;
             seen.add(entry.rec.id);
             items.push({ rec: entry.rec, level: entry.level });
@@ -352,16 +369,16 @@
         }
         return items;
       }
-      // No class filter: list all powers; if a level was given, pick
-      // the minimum level for each power that matches.
+      // No class filter: list all powers; show the lowest in-range level
+      // for each power that has one (or its minimum level when unfiltered).
       const out = [];
       for (const rec of powerIndex.values()) {
         const lvls = Object.values(rec.levelMap || {});
-        const minLvl = lvls.length ? Math.min(...lvls) : null;
-        if (wantLevel) {
-          if (lvls.includes(lvl)) out.push({ rec, level: lvl });
+        if (lvlF) {
+          const inR = lvls.filter(L => L >= lvlF.min && L <= lvlF.max);
+          if (inR.length) out.push({ rec, level: Math.min(...inR) });
         } else {
-          out.push({ rec, level: minLvl });
+          out.push({ rec, level: lvls.length ? Math.min(...lvls) : null });
         }
       }
       return out;
@@ -394,23 +411,32 @@
         list = list.filter(({ rec }) =>
           String(rec.display || '').toLowerCase().includes(disp));
       }
+      const tagF = tags ? tags.buildFilter() : null;
       datalist.innerHTML = '';
       const seen = new Set();
       const names = [];
-      for (const { rec, level } of list) {
+      // preTagIds = passing class+level+display (but NOT tags), deduped by
+      // name, for the contextual tag counts.
+      const preTagIds = new Set();
+      let shown = 0;
+      for (const { rec } of list) {
         const k = rec.name.toLowerCase();
         if (seen.has(k)) continue;
         seen.add(k);
+        preTagIds.add(rec.id);
+        if (tagF && !tags.passes(tagF, rec.id)) continue;
         const opt = document.createElement('option');
         opt.value = rec.name;
         // No opt.label — Firefox renders it as visible suggestion text.
         datalist.appendChild(opt);
         names.push(rec.name);
+        shown++;
       }
-      pwrIn.placeholder = list.length
-        ? `${list.length} power${list.length === 1 ? '' : 's'}`
+      pwrIn.placeholder = shown
+        ? `${shown} power${shown === 1 ? '' : 's'}`
         : '(no matches)';
       if (results) results.render(names, { typedFilter: pwrIn.value.trim() });
+      if (tags) tags.refreshCounts(preTagIds);
     }
 
     function updateInfo() {
@@ -522,7 +548,8 @@
   }
 
   function renderInfo(rec) {
-    const head = `<b>${escapeHtml(rec.name)}</b> ` +
+    const verBadge = (window.VersionBadge ? VersionBadge.html(rec.version) : '');
+    const head = `<b>${escapeHtml(rec.name)}</b>${verBadge} ` +
       `<span style="opacity:.7">(${escapeHtml(rec.source || '?')})</span>`;
     const bits = [head];
     const meta = [

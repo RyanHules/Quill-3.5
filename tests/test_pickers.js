@@ -3177,7 +3177,7 @@ test('pickers: spell-adjacent tag-filter parity', () => {
   // Each picker that has reached parity wires the tag filter + VersionBadge.
   // Extend this list as each picker is upgraded.
   const DONE = ['vestige-picker.js', 'invocation-picker.js', 'mystery-picker.js',
-                'maneuver-picker.js'];
+                'maneuver-picker.js', 'power-picker.js'];
   for (const f of DONE) {
     const src = readSource(f);
     assert(/PickerTagFilter\.attach\(/.test(src),
