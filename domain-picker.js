@@ -216,7 +216,9 @@
       entry.appendChild(info);
     }
     info.innerHTML = renderInfo(dom);
-    if (window.ErrataBadge) ErrataBadge.attach(info, dom.domain_id);
+    // The index record stores the entry id as `id` (not domain_id), so the
+    // badge never attached when this read dom.domain_id (undefined).
+    if (window.ErrataBadge) ErrataBadge.attach(info, dom.id);
   }
 
   function renderInfo(dom) {

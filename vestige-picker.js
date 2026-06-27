@@ -313,7 +313,9 @@
       if (!v) { info.style.display = 'none'; info.innerHTML = ''; return; }
       info.style.display = 'block';
       info.innerHTML = renderInfo(v);
-      if (window.ErrataBadge) ErrataBadge.attach(info, v.vestige_id);
+      // The index record stores the entry id as `id` (not vestige_id), so the
+      // badge never attached when this read v.vestige_id (undefined).
+      if (window.ErrataBadge) ErrataBadge.attach(info, v.id);
     }
 
     function bind() {
