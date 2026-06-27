@@ -1001,6 +1001,55 @@
     expect(o.querySelector('.atk-calc-auto-cb').checked, false, 'SS-ATK: legacy attack auto off');
   });
 
+  regression('SS-CF: class-feature special abilities keep their origin marker + dont duplicate', async () => {
+    await newCharacter();
+    document.querySelector('[data-tab="tab-feats"]').click();
+    await wait(100);
+
+    // A class-derived ability (tagged with its origin class) + a plain one.
+    Feats.addSpecialAbility('[Fighter 1] Bonus Feat', 'Fighter');
+    Feats.addSpecialAbility('Improved Grab (custom)');
+
+    // collectData must persist the marker (object shape) for class entries and
+    // keep plain abilities as bare strings.
+    const blob = Feats.collectData();
+    expect(blob.specialAbilities.some(a => a && typeof a === 'object' && a.fromClass === 'Fighter'), true,
+      'SS-CF: collectData persists the fromClass marker as { text, fromClass }');
+    expect(blob.specialAbilities.some(a => a === 'Improved Grab (custom)'), true,
+      'SS-CF: a plain user-typed ability stays a bare string');
+
+    // loadData must restore the marker — without it (the pre-fix bug) a later
+    // class re-apply can't find its own entries and re-adds them on top.
+    Feats.loadData(blob);
+    await wait(50);
+    expect($$('#special-abilities-container [data-from-class="Fighter"]').length, 1,
+      'SS-CF: the data-from-class marker is restored on load');
+
+    // End-to-end dedup: replicate populateSpecialAbilities step-1 over a mix
+    // that includes a LEGACY untagged entry (pre-fix save). Both the tagged and
+    // the "[Fighter " prefixed entries must be removed; other class + custom kept.
+    Feats.loadData({ specialAbilities: [
+      { text: '[Fighter 1] Bonus Feat', fromClass: 'Fighter' },
+      '[Fighter 2] Bravery',            // legacy untagged — caught by the prefix backstop
+      '[Wizard 1] Scribe Scroll',       // different class — kept
+      'Improved Grab (custom)'          // user-typed — kept
+    ]});
+    await wait(50);
+    const cont = $('#special-abilities-container');
+    const tag = 'Fighter', prefix = '[Fighter ';
+    cont.querySelectorAll('.special-ability-entry').forEach(ta => {
+      if (ta.dataset.fromClass === tag || (ta.value || '').startsWith(prefix)) {
+        const row = ta.closest('.feat-row'); if (row) row.remove();
+      }
+    });
+    const remaining = $$('#special-abilities-container .special-ability-entry')
+      .map(t => t.value).sort().join(' | ');
+    const expected = ['[Wizard 1] Scribe Scroll', 'Improved Grab (custom)'].sort().join(' | ');
+    expect(remaining, expected,
+      'SS-CF: dedup removes BOTH the tagged and the legacy-prefixed Fighter ' +
+      'entries and keeps the other class + custom ability');
+  });
+
   regression('SS-CR: monster race (race-picker) applies RHD + NA and round-trips', async () => {
     // Monster race via the MAIN race-picker. Bugbear migrated from a creature
     // as_character block to a type=race entry in the MM I v3 walk, so it now

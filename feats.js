@@ -253,7 +253,7 @@ const Feats = (function () {
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  function addSpecialAbility(text = "") {
+  function addSpecialAbility(text = "", fromClass = null) {
     const container = $("#special-abilities-container");
     const div = document.createElement("div");
     div.className = "feat-row";
@@ -262,6 +262,12 @@ const Feats = (function () {
     ta.placeholder = "Ability name & description";
     ta.rows = 1;
     ta.value = text;
+    // Class-picker stamps auto-added class features with their origin class
+    // so a later level-up / re-apply can dedupe its own entries. That marker
+    // MUST round-trip through save/load — without it, loaded class features
+    // lose the tag and the next class apply re-adds the whole cumulative set
+    // on top (the "applying a class re-adds all features" duplication bug).
+    if (fromClass) ta.dataset.fromClass = String(fromClass);
     // ⓘ button toggles a collapsible panel below the row showing the
     // class-feature's full rules text from the DB. Class-picker stamps
     // entries as `[ClassName Level] AbilityName` — we parse that prefix
@@ -768,7 +774,15 @@ const Feats = (function () {
     data.specialAbilities = [];
     if (specRoot) {
       specRoot.querySelectorAll(".special-ability-entry")
-        .forEach((input) => data.specialAbilities.push(input.value));
+        .forEach((input) => {
+          // Preserve the class-origin marker (see addSpecialAbility) so a
+          // later class re-apply can dedupe its own entries. Plain user-typed
+          // abilities stay as bare strings for backward-compat with old saves.
+          const fromClass = input.dataset.fromClass;
+          data.specialAbilities.push(
+            fromClass ? { text: input.value, fromClass } : input.value
+          );
+        });
     }
     data.languages = $("#languages").value;
     return data;
@@ -790,10 +804,16 @@ const Feats = (function () {
     // Always show at least one empty row so the user has a place to type.
     if (!realFeats.length) addFeat();
     $("#special-abilities-container").innerHTML = "";
+    // Entries are either a bare string (user-typed / legacy) or a
+    // { text, fromClass } object (class-derived, carrying its origin marker).
+    const specText = (a) => (typeof a === "string" ? a : (a && a.text) || "");
     const realSpec = (data.specialAbilities || []).filter(
-      (a) => a != null && String(a).trim() !== ""
+      (a) => a != null && String(specText(a)).trim() !== ""
     );
-    realSpec.forEach((a) => addSpecialAbility(a));
+    realSpec.forEach((a) => {
+      if (typeof a === "string") addSpecialAbility(a);
+      else addSpecialAbility(a.text || "", a.fromClass || null);
+    });
     if (!realSpec.length) addSpecialAbility();
     // Signal "feats changed" so spells.js can re-sync ✨ button
     // visibility on Known rows and the metamagic-reference panel.

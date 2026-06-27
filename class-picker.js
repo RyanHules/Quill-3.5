@@ -4316,13 +4316,22 @@
     if (!container || typeof Feats?.addSpecialAbility !== 'function') return;
 
     // 1. Remove previously class-added entries for this specific class.
+    //    Match on the data-from-class marker AND — as a backstop for
+    //    characters saved before that marker round-tripped (feats.js
+    //    persistence fix) — on the "[<ClassName> <lvl>] " text prefix this
+    //    function stamps. Without the backstop, a legacy save's untagged
+    //    class features wouldn't be found, so re-apply/level-up would re-add
+    //    the cumulative set on top of them (the duplication bug).
     const tag = String(className);
-    container
-      .querySelectorAll(`[data-from-class="${cssEscape(tag)}"]`)
-      .forEach(node => {
-        const row = node.closest('.feat-row');
+    const prefix = `[${className} `;
+    container.querySelectorAll('.special-ability-entry').forEach(ta => {
+      const tagged = ta.dataset.fromClass === tag;
+      const prefixed = (ta.value || '').startsWith(prefix);
+      if (tagged || prefixed) {
+        const row = ta.closest('.feat-row');
         if (row) row.remove();
-      });
+      }
+    });
 
     // 2. Add new cumulative entries.
     for (const c of cumulative) {

@@ -3163,6 +3163,30 @@ test('save: character attack calculator persists calc fields', () => {
     'fields would be silently dropped on load.');
 });
 
+test('save: feats special-ability class-origin marker round-trips', () => {
+  // Regression guard for the 2026-06-27 "applying a class re-adds ALL its
+  // features" duplication bug. class-picker stamps auto-added class features
+  // with data-from-class so a later level-up dedupes its own entries; but
+  // Feats.collectData saved only input.value, dropping the marker — so loaded
+  // class features lost the tag and the next apply re-added the cumulative set
+  // on top. Fix: persist { text, fromClass } + restore the marker, plus a
+  // text-prefix dedup backstop in class-picker for pre-fix saves.
+  const feats = readSource('feats.js');
+  assert(/dataset\.fromClass/.test(feats) && /fromClass\s*\?\s*\{\s*text/.test(feats),
+    'feats.js: collectData no longer persists the special-ability fromClass ' +
+    'marker ({ text, fromClass }) — class features will duplicate on re-apply ' +
+    'after a save/load.');
+  assert(/addSpecialAbility\(\s*a\.text[^)]*a\.fromClass/.test(feats),
+    'feats.js: loadData does not pass fromClass back into addSpecialAbility.');
+  assert(/function addSpecialAbility\(\s*text\s*=\s*""\s*,\s*fromClass/.test(feats),
+    'feats.js: addSpecialAbility no longer accepts a fromClass argument.');
+  const cp = readSource('class-picker.js');
+  assert(/startsWith\(prefix\)/.test(cp) &&
+         /const prefix = `\[\$\{className\} `/.test(cp),
+    'class-picker.js: populateSpecialAbilities lost the "[<Class> " text-' +
+    'prefix dedup backstop — legacy saves (no marker) will still duplicate.');
+});
+
 test('save: class-picker persists data-from-class markers', () => {
   // Regression guard for the 2026-05-17 fix. setIfEmpty stamps a
   // `data-from-class="<className>"` marker on auto-filled fields
