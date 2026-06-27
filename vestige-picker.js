@@ -219,9 +219,14 @@
       'border-radius:3px;';
     wrap.innerHTML = `
       <div style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
-        <div class="field field-sm" style="width:5rem">
+        <div class="field field-sm" style="width:5.5rem">
           <label>Level</label>
-          <input type="number" class="vp-level" min="1" max="8" placeholder="any">
+          <input type="text" class="vp-level" placeholder="1-8 or ≤N"
+                 title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
+        </div>
+        <div class="field" style="flex:1 1 12rem;min-width:10rem">
+          <label>Tags</label>
+          <div class="vp-tag-host"></div>
         </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Vestige</label>
@@ -248,6 +253,16 @@
     const info    = picker.querySelector('.vp-info');
     const bindBtn = picker.querySelector('.vp-bind');
     const datalist = picker.querySelector(`#${dlId}`);
+    const tagHost = picker.querySelector('.vp-tag-host');
+
+    // Shared tag-filter (chip widget + per-type index + contextual counts).
+    const tags = (window.PickerTagFilter)
+      ? PickerTagFilter.attach(tagHost, {
+          type: 'vestige',
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refresh(),
+        })
+      : null;
 
     // Shared browsing-chip helper. Chip click: set value + show info
     // DIRECTLY without dispatching 'input' (which would narrow the
@@ -264,12 +279,21 @@
       : null;
 
     function refresh() {
-      const lvl = parseInt(lvlIn.value, 10);
-      const wantLevel = Number.isFinite(lvl) && lvl > 0;
+      const lvlF = window.PickerTagFilter
+        ? PickerTagFilter.parseLevel(lvlIn.value) : null;
+      const tagF = tags ? tags.buildFilter() : null;
       datalist.innerHTML = '';
       const names = [];
+      // preTagIds = the set passing every filter EXCEPT tags, for the
+      // contextual tag counts (so picking one tag doesn't zero the rest).
+      const preTagIds = new Set();
       for (const v of vestigeIndex.values()) {
-        if (wantLevel && Number(v.vestige_level) !== lvl) continue;
+        if (lvlF) {
+          const L = Number(v.vestige_level);
+          if (!(L >= lvlF.min && L <= lvlF.max)) continue;
+        }
+        preTagIds.add(v.id);
+        if (tagF && !tags.passes(tagF, v.id)) continue;
         const opt = document.createElement('option');
         opt.value = v.name;
         // No opt.label — Firefox renders it as visible suggestion text.
@@ -281,6 +305,7 @@
         ? `${n} vestige${n === 1 ? '' : 's'}`
         : '(no matches)';
       if (results) results.render(names, { typedFilter: vesIn.value.trim() });
+      if (tags) tags.refreshCounts(preTagIds);
     }
 
     function updateInfo() {
@@ -320,7 +345,8 @@
   }
 
   function renderInfo(v) {
-    const head = `<b>${escapeHtml(v.name)}</b> ` +
+    const verBadge = (window.VersionBadge ? VersionBadge.html(v.version) : '');
+    const head = `<b>${escapeHtml(v.name)}</b>${verBadge} ` +
       `<span style="opacity:.7">(${escapeHtml(v.source || '?')})</span>`;
     const bits = [head];
     const meta = [

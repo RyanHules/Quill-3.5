@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260627h';
+    window.CACHE_VERSION = '20260627i';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -789,6 +789,11 @@
       // Replaces single-tag <select> dropdowns in pickers that
       // support tag filtering. Must load BEFORE those pickers.
       'tag-filter.js',
+      // picker-tag-filter.js — shared per-type tag-index + filter test +
+      // contextual counts wrapper around TagFilter, plus parseLevel(). Lets
+      // the spell-adjacent pickers reuse spell-picker-grade tag filtering.
+      // Depends on tag-filter.js; must load BEFORE the pickers that use it.
+      'picker-tag-filter.js',
       // rich-text.js — shared structured-table renderer + long-form
       // feature-text formatter (RichText global). Consumed by the
       // pickers, lookup.js, and feats.js ⓘ panels; pure string

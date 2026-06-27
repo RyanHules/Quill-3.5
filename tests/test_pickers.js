@@ -3163,6 +3163,29 @@ test('save: character attack calculator persists calc fields', () => {
     'fields would be silently dropped on load.');
 });
 
+test('pickers: spell-adjacent tag-filter parity', () => {
+  // 2026-06-27 parity pass: the spell-adjacent pickers gain the spell-picker's
+  // multi-tag chip filter (via the shared PickerTagFilter helper) + a
+  // VersionBadge in their info panel. The shared helper must be registered in
+  // the load order (before the pickers) and export attach + parseLevel.
+  const idx = readSource('index.html');
+  assert(/picker-tag-filter\.js/.test(idx),
+    'index.html: picker-tag-filter.js is not in the script load list.');
+  const helper = readSource('picker-tag-filter.js');
+  assert(/window\.PickerTagFilter\s*=\s*\{[\s\S]*attach[\s\S]*parseLevel/.test(helper),
+    'picker-tag-filter.js: must export { attach, parseLevel }.');
+  // Each picker that has reached parity wires the tag filter + VersionBadge.
+  // Extend this list as each picker is upgraded.
+  const DONE = ['vestige-picker.js'];
+  for (const f of DONE) {
+    const src = readSource(f);
+    assert(/PickerTagFilter\.attach\(/.test(src),
+      `${f}: no PickerTagFilter.attach call — tag filter missing.`);
+    assert(/VersionBadge/.test(src),
+      `${f}: info panel does not render a VersionBadge.`);
+  }
+});
+
 test('sla: ⓘ panel renders spell rules via Spells.renderSpellRules', () => {
   // The SLA sub-tab's per-row ⓘ panel reuses the Spells-Known rules formatter
   // so the two stay identical. No persisted state (the panel is transient) so
