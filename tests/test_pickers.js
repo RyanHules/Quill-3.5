@@ -4085,46 +4085,46 @@ function loadDND35() {
   return new Function(src + '\nreturn DND35;')();
 }
 
-test('creature-race-picker: list query returns legacy as_character creatures', (db) => {
+test('creature-race-picker: the as_character migration to type=race is COMPLETE', (db) => {
+  // 2026-06-27: every creature "[X] as Characters" writeup is now a standalone
+  // type=race entry (the last 24 — MM III + the legacy structured ones — were
+  // promoted; the block is stripped from the creature by
+  // apply_monster_aschar_races.py). The creature-race picker is now reserved for
+  // the harder stat-block INFERENCE. So NO creature should still carry an
+  // as_character / as_characters block.
   const rows = execAll(db,
     "SELECT e.name, e.source FROM entry e "
     + "WHERE e.type = 'creature' "
-    + "  AND json_extract(e.data, '$.as_character') IS NOT NULL "
+    + "  AND (json_extract(e.data, '$.as_character')  IS NOT NULL "
+    + "    OR json_extract(e.data, '$.as_characters') IS NOT NULL) "
     + "ORDER BY e.name");
-  // SHRINKING set — each walked book migrates its as_character creatures to
-  // type=race entries (see the migration note above). Assert a floor, not an
-  // exact count, and don't name specific creatures (they migrate book-by-book).
-  assertGE(rows.length, 20);
-  // Monster Manual I's as_character data moved to type=race, so no MM I
-  // creature should still carry an as_character block.
-  assert(!rows.some(r => r.source === 'Monster Manual'),
-    'Monster Manual I creatures should no longer carry as_character ' +
-    '(migrated to type=race by the v3 walk REPLACE)');
+  assert(rows.length === 0,
+    `${rows.length} creature(s) still carry an as_character/as_characters block — `
+    + `they should be migrated to type=race (see _monster_aschar_races_data.py): `
+    + rows.slice(0, 8).map(r => `${r.name} [${r.source}]`).join(', '));
 });
 
-test('creature-race-picker: as_character block carries the required fields', (db) => {
-  // Shape-CONTRACT test. Pick the first surviving legacy creature rather than
-  // a named one — named creatures migrate to type=race as their book is walked
-  // (Bugbear/Goblin did, in the MM I REPLACE). The contract is invariant.
-  const r = execOne(db,
-    "SELECT name, json_extract(data, '$.as_character') AS ac FROM entry "
-    + "WHERE type = 'creature' "
-    + "  AND json_extract(data, '$.as_character') IS NOT NULL "
-    + "ORDER BY name LIMIT 1");
-  assert(r && r.ac, 'no legacy as_character creature found');
-  const ac = JSON.parse(r.ac);
-  assert(ac.sourced === true, `${r.name} as_character.sourced should be true`);
-  assert(Array.isArray(ac.ability_adjustments) && ac.ability_adjustments.length,
-    'ability_adjustments present');
-  assert('ability' in ac.ability_adjustments[0] &&
-         'modifier' in ac.ability_adjustments[0],
-    'ability_adjustments shape is {ability, modifier}');
-  assert(typeof ac.size === 'string' && ac.size, 'size present (string)');
-  assert(ac.racial_hd && typeof ac.racial_hd.count === 'number' &&
-         typeof ac.racial_hd.type === 'string',
-    'racial_hd {count:int, type:str}');
-  assert(typeof ac.level_adjustment === 'number',
-    'level_adjustment int (post-normalize)');
+test('race-picker: migrated monster-as-characters races carry the picker shape', (db) => {
+  // Shape-CONTRACT test for the promoted "[X] as Characters" race entries
+  // (2026-06-27). These are now stable type=race rows, so naming them is fine.
+  // Contract: ability_mods [{ability,modifier}], int level_adjustment, int
+  // racial_hd (+ racial_hd_type when HD>0) — the shape the race-picker consumes.
+  for (const nm of ['Sand Giant', 'Crystalline Troll', 'Kenku', 'Windscythe', 'Crucian']) {
+    const r = execOne(db,
+      "SELECT json_extract(data,'$.ability_mods')     AS am, "
+      + "json_extract(data,'$.level_adjustment') AS la, "
+      + "json_extract(data,'$.racial_hd')        AS hd, "
+      + "json_extract(data,'$.racial_hd_type')   AS hdt "
+      + "FROM entry WHERE type='race' AND name=? LIMIT 1", [nm]);
+    assert(r, `migrated race "${nm}" should exist as type=race`);
+    const am = r.am ? JSON.parse(r.am) : null;
+    assert(Array.isArray(am) && am.length && 'ability' in am[0] && 'modifier' in am[0],
+      `${nm}: ability_mods [{ability,modifier}] present`);
+    assert(typeof r.la === 'number', `${nm}: level_adjustment int`);
+    assert(typeof r.hd === 'number', `${nm}: racial_hd int`);
+    if (r.hd > 0) assert(typeof r.hdt === 'string' && r.hdt,
+      `${nm}: racial_hd_type present when HD>0`);
+  }
 });
 
 test('race-picker: MM "as characters" sidebars surface as type=race with LA', (db) => {
