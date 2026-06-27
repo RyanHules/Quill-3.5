@@ -1803,7 +1803,18 @@ test('class-picker: base classes are never consumed as spell-advancers (advancem
   // (3) Tripwire: the DB still ships the stale blocks until the next rebuild
   // re-runs _class_metadata.py with them removed. Pin the known-and-
   // neutralized set so a NEW mis-tag (a future book) gets surfaced here.
-  const KNOWN = new Set(['Dragonfire Adept', 'Prestige Bard', 'Prestige Paladin']);
+  // The first three are stale mis-tags to be removed from _class_metadata.py.
+  // The five UA racial paragons are a DIFFERENT, legitimate case: the caster-race
+  // paragons (Drow/Elf/Gnome/Half-Elf/Human) genuinely advance the character's
+  // existing spellcasting at their 2nd/3rd levels (UA, book-verified 2026-06-27),
+  // so their advancement block is CORRECT. The sheet's base-class guard still
+  // neutralizes it (advancement is PrC-only in the picker), so a paragon's caster-
+  // level boost isn't auto-applied — a known sheet limitation, not a data error.
+  const KNOWN = new Set([
+    'Dragonfire Adept', 'Prestige Bard', 'Prestige Paladin',
+    'Drow Paragon', 'Elf Paragon', 'Gnome Paragon',
+    'Half-Elf Paragon', 'Human Paragon',
+  ]);
   const offenders = execAll(db,
     "SELECT name FROM entry WHERE type = 'class' " +
     "AND json_extract(data, '$.advancement') IS NOT NULL").map(r => r.name);
@@ -2435,12 +2446,18 @@ test('class-picker: progression values are in canonical set', (db) => {
     "json_extract(data, '$.ref_progression')  AS ref, " +
     "json_extract(data, '$.will_progression') AS will " +
     "FROM entry WHERE type IN ('class','prc')");
+  // UA Generic Classes (Warrior/Expert/Spellcaster) have PLAYER-DESIGNATED saves
+  // (one good + two poor, assigned at creation), which _class_metadata.py emits as
+  // a "varies (player-designated; ...)" progression — legitimately outside the
+  // fixed good/poor model.
+  const okBab  = (v) => !v || VALID_BAB.has(v)  || /^varies/i.test(v);
+  const okSave = (v) => !v || VALID_SAVE.has(v) || /^varies/i.test(v);
   const bad = [];
   for (const r of rows) {
-    if (r.bab  && !VALID_BAB.has(r.bab))   bad.push(`${r.name}: bab=${r.bab}`);
-    if (r.fort && !VALID_SAVE.has(r.fort)) bad.push(`${r.name}: fort=${r.fort}`);
-    if (r.ref  && !VALID_SAVE.has(r.ref))  bad.push(`${r.name}: ref=${r.ref}`);
-    if (r.will && !VALID_SAVE.has(r.will)) bad.push(`${r.name}: will=${r.will}`);
+    if (!okBab(r.bab))   bad.push(`${r.name}: bab=${r.bab}`);
+    if (!okSave(r.fort)) bad.push(`${r.name}: fort=${r.fort}`);
+    if (!okSave(r.ref))  bad.push(`${r.name}: ref=${r.ref}`);
+    if (!okSave(r.will)) bad.push(`${r.name}: will=${r.will}`);
   }
   assert(bad.length === 0,
     `${bad.length} class/prc entries have non-canonical progression ` +

@@ -254,6 +254,9 @@
     // converted their data to canonical shape; the audit test then
     // surfaced them as "looks like spellcaster but not in fallback".
     'Divine Mind': 'psionic', 'Lurk': 'psionic',
+    // UA generic Spellcaster (v3 walk 2026-06-27): picks its spell list at
+    // creation (cleric/druid/sorcerer-wizard), so it can be arcane or divine.
+    'Spellcaster (Generic Class)': ['arcane', 'divine'],
   };
 
   // Casting style per class. Primary source is the DB
@@ -309,6 +312,7 @@
     'Shugenja': 'spontaneous',
     // Dual arcane/divine
     "Sha'ir": 'prepared',
+    'Spellcaster (Generic Class)': 'spontaneous',  // UA — casts as a sorcerer (Table 2-9 spells known)
   };
 
   // Primary source is the DB (`entry.data.advancement`, populated by
