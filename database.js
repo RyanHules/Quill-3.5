@@ -63,25 +63,64 @@
     return rows.length ? rows[0] : null;
   }
 
-  // XHR-based binary fetch. We use XHR instead of fetch().arrayBuffer()
-  // because some sandboxed preview environments abort large response
-  // body reads even when the HTTP fetch headers succeed. Plain XHR
-  // streams the body into one buffer and Just Works everywhere.
-  function fetchArrayBuffer(url) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.responseType = 'arraybuffer';
-      xhr.open('GET', url, true);
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
-          resolve(xhr.response);
-        } else {
-          reject(new Error(`HTTP ${xhr.status} for ${url}`));
+  // Load the DB blob with STREAMING + RETRY.
+  //
+  // A single ~52 MB body read — whether fetch().arrayBuffer() or XHR
+  // responseType='arraybuffer' — intermittently ABORTS in sandboxed /
+  // proxied environments (the preview harness, some corporate proxies),
+  // even though the server served every byte fine. We verified this: the
+  // exact blob downloads via curl in ~0.5 s and loads on most page loads,
+  // but the single-read XHR network-errors ~1 in 3 in the preview. With no
+  // retry, one transient abort left a permanent "Pickers disabled" banner
+  // until a manual reload — the long-standing preview pain.
+  //
+  // Two changes fix it durably: (1) read the body as a STREAM (getReader)
+  // in small network-sized pieces instead of one giant buffer read — the
+  // single big read is the part that aborts; and (2) RETRY the whole read
+  // a few times with backoff so an intermittent abort recovers instead of
+  // killing the page. The reads are independent, so a handful of attempts
+  // drives the residual failure rate to negligible. Client-only — the
+  // server serves the file correctly; nothing there needed changing.
+  async function fetchDbBytes(url, attempts = 5) {
+    let lastErr;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.body || !resp.body.getReader) {
+          // No streaming support (ancient browser) — single buffered read.
+          return new Uint8Array(await resp.arrayBuffer());
         }
-      };
-      xhr.onerror = () => reject(new Error(`Network error for ${url}`));
-      xhr.send();
-    });
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let total = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          total += value.length;
+        }
+        const out = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          out.set(chunk, offset);
+          offset += chunk.length;
+        }
+        if (attempt > 1) {
+          console.log(`[DB] loaded on attempt ${attempt}/${attempts}`);
+        }
+        return out;
+      } catch (err) {
+        lastErr = err;
+        console.warn(
+          `[DB] load attempt ${attempt}/${attempts} failed: ${err.message}`);
+        if (attempt < attempts) {
+          // Linear backoff — give the proxy/sandbox a moment to recover.
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+        }
+      }
+    }
+    throw lastErr || new Error(`failed to load ${url} after ${attempts} attempts`);
   }
 
   // Load: fetch sql.js, then fetch the DB blob, then open it.
@@ -91,8 +130,8 @@
       const SQL = await window.initSqlJs({
         locateFile: file => SQLJS_WASM_PATH,
       });
-      const buf = await fetchArrayBuffer(DB_PATH);
-      db = new SQL.Database(new Uint8Array(buf));
+      const bytes = await fetchDbBytes(DB_PATH);
+      db = new SQL.Database(bytes);
       // Per-type counts via the unified `entry` table (the legacy
       // `race` / `spell` / `feat` / `item` views were removed in the
       // 2026-05-14 cleanup; querying them throws "no such table").
