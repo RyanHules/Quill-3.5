@@ -943,6 +943,64 @@
       'SS-AC: legacy cha-to-ac:Deflection migrates to exactly one row');
   });
 
+  regression('SS-ATK: weapon attack calculator computes, round-trips, preserves free-text', async () => {
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+
+    // STR 18 (+4), DEX 14 (+2), BAB 6, Large size (acMod -1).
+    // One attack with the calculator on: ability DEX, other +2
+    //   -> 6 (BAB) + -1 (size) + 2 (DEX) + 2 (other) = +9.
+    set('str-score', 18);
+    set('dex-score', 14);
+    set('char-size', 'Large');
+    set('bab-1', 6);
+    Character.addAttack({ name: 'Test Blade', calcAbility: 'DEX', calcMisc: '2', calcAuto: true });
+    set('bab-1', 6);   // programmatic addAttack fires no event — force a recalc
+    await wait(50);
+
+    expectText('#attacks-container .attack-entry .atk-calc-bab', '+6', 'SS-ATK: BAB auto-filled');
+    expectText('#attacks-container .attack-entry .atk-calc-size', '-1', 'SS-ATK: Large size modifier (= AC size mod)');
+    expectText('#attacks-container .attack-entry .atk-calc-abilmod', '+2', 'SS-ATK: chosen-ability (DEX) mod');
+    expectText('#attacks-container .attack-entry .atk-calc-total', '+9', 'SS-ATK: total = BAB + size + ability + other');
+    expectValue('#attacks-container .attack-entry .atk-bonus', '+9', 'SS-ATK: fill-bonus drives the Attack Bonus field');
+    expect($('#attacks-container .attack-entry .atk-bonus').readOnly, true, 'SS-ATK: auto-filled bonus is read-only');
+
+    // collectData carries the three calc fields.
+    const blob = Character.collectData();
+    const atk = (blob.attacks || [])[0] || {};
+    expect(atk.calcAbility, 'DEX', 'SS-ATK: calcAbility persisted');
+    expect(atk.calcMisc, '2', 'SS-ATK: calcMisc persisted');
+    expect(atk.calcAuto, true, 'SS-ATK: calcAuto persisted');
+
+    // New character clears attacks; reload restores the calculator state AND
+    // (since the whole tab round-trips) recomputes +9 from rehydrated str/size/bab.
+    await newCharacter();
+    expect($$('#attacks-container .attack-entry').length, 0, 'SS-ATK: new character clears attacks');
+    Character.loadData(blob);
+    await wait(100);
+    set('bab-1', 6);   // force a recalc after rehydration
+    await wait(50);
+    const r = $('#attacks-container .attack-entry');
+    expectValue('#attacks-container .attack-entry .atk-calc-ability', 'DEX', 'SS-ATK: ability restored');
+    expectValue('#attacks-container .attack-entry .atk-calc-misc', '2', 'SS-ATK: other-bonus restored');
+    expect(r.querySelector('.atk-calc-auto-cb').checked, true, 'SS-ATK: fill-bonus toggle restored');
+    expectText('#attacks-container .attack-entry .atk-calc-total', '+9', 'SS-ATK: restored total recomputes from rehydrated str/size/bab');
+    expectValue('#attacks-container .attack-entry .atk-bonus', '+9', 'SS-ATK: restored fill-bonus re-drives the field');
+
+    // Backward-compat: an OLD save (no calc fields) keeps its free-text /
+    // iterative bonus, stays editable, and the calculator defaults to STR/off.
+    await newCharacter();
+    Character.loadData({ attacks: [{ name: 'Old Bow', bonus: '+7/+2', damage: '1d8' }] });
+    set('bab-1', 6);
+    await wait(50);
+    const o = $('#attacks-container .attack-entry');
+    expectValue('#attacks-container .attack-entry .atk-bonus', '+7/+2', 'SS-ATK: legacy free-text bonus preserved');
+    expect(o.querySelector('.atk-bonus').readOnly, false, 'SS-ATK: legacy bonus stays editable (auto off)');
+    expectValue('#attacks-container .attack-entry .atk-calc-ability', 'STR', 'SS-ATK: legacy attack defaults to STR');
+    expect(o.querySelector('.atk-calc-auto-cb').checked, false, 'SS-ATK: legacy attack auto off');
+  });
+
   regression('SS-CR: monster race (race-picker) applies RHD + NA and round-trips', async () => {
     // Monster race via the MAIN race-picker. Bugbear migrated from a creature
     // as_character block to a type=race entry in the MM I v3 walk, so it now

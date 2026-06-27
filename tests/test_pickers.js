@@ -3143,6 +3143,26 @@ test('save: companion compType options have explicit value= attrs', () => {
     'reload as Animal Companion.');
 });
 
+test('save: character attack calculator persists calc fields', () => {
+  // Regression guard for the 2026-06-27 weapon attack-bonus calculator.
+  // Each attack row's BAB+size+ability+other calculator stores three
+  // fields (calcAbility / calcMisc / calcAuto). They must round-trip via
+  // collectData, and the build template (addAttack) must read them back —
+  // else a saved auto-filled attack reloads with the wrong ability or
+  // silently loses its fill-bonus toggle (regressing to a free-text bonus).
+  const src = readSource('character.js');
+  for (const f of ['calcAbility', 'calcMisc', 'calcAuto']) {
+    assert(new RegExp(`${f}:\\s*entry\\.querySelector`).test(src),
+      `character.js: collectData does not persist attack ${f} ` +
+      `(expected "${f}: entry.querySelector(...)").`);
+  }
+  assert(/data\.calcAbility/.test(src) && /data\.calcMisc/.test(src) &&
+         /data\.calcAuto/.test(src),
+    'character.js: addAttack template does not restore ' +
+    'calcAbility/calcMisc/calcAuto from the saved blob — collected ' +
+    'fields would be silently dropped on load.');
+});
+
 test('save: class-picker persists data-from-class markers', () => {
   // Regression guard for the 2026-05-17 fix. setIfEmpty stamps a
   // `data-from-class="<className>"` marker on auto-filled fields
