@@ -2718,5 +2718,9 @@ const Spells = (function () {
     // uses, so the two stay in lockstep).
     lookupMetamagicFromDB,
     refreshMetamagicReference,
+    // Exposed for sla.js — the Spell-Like Abilities sub-tab's per-row ⓘ
+    // panel renders the mimicked spell's rules with the same formatter the
+    // Spells-Known list uses, so the two stay visually identical.
+    renderSpellRules,
   };
 })();

@@ -3163,6 +3163,23 @@ test('save: character attack calculator persists calc fields', () => {
     'fields would be silently dropped on load.');
 });
 
+test('sla: ⓘ panel renders spell rules via Spells.renderSpellRules', () => {
+  // The SLA sub-tab's per-row ⓘ panel reuses the Spells-Known rules formatter
+  // so the two stay identical. No persisted state (the panel is transient) so
+  // no save guard — but the cross-module contract is fragile: if spells.js
+  // stops exporting renderSpellRules the panel silently degrades to
+  // "unavailable". Guard the export + the call + the wiring.
+  const spells = readSource('spells.js');
+  assert(/^\s*renderSpellRules,\s*$/m.test(spells),
+    'spells.js: renderSpellRules is no longer in the exports object — the ' +
+    'SLA ⓘ panel falls back to "Spell rules unavailable".');
+  const sla = readSource('sla.js');
+  assert(/Spells\.renderSpellRules\(/.test(sla),
+    'sla.js: the ⓘ panel no longer calls Spells.renderSpellRules.');
+  assert(/sla-info/.test(sla) && /toggleSlaRules/.test(sla),
+    'sla.js: the ⓘ button (.sla-info) or its toggle (toggleSlaRules) is gone.');
+});
+
 test('save: feats special-ability class-origin marker round-trips', () => {
   // Regression guard for the 2026-06-27 "applying a class re-adds ALL its
   // features" duplication bug. class-picker stamps auto-added class features

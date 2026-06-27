@@ -120,6 +120,7 @@ const SLA = (function () {
         <div class="field field-sm"><label>Ability</label><select class="sla-ability">${abilityOptions(s.ability || "CHA")}</select></div>
         <div class="field field-sm"><label>Save DC</label><input type="number" class="sla-dc" value="${esc(s.dc || "")}" data-auto="${auto}"></div>
         <div class="field sla-src-wrap"><label>Source</label><input type="text" class="sla-source" value="${esc(s.source || "")}" placeholder="race / feat / class"></div>
+        <button class="btn-feat-info sla-info" type="button" title="Show spell rules" aria-expanded="false">ⓘ</button>
         <button class="btn-remove sla-remove" type="button" title="Remove">X</button>
       </div>
     </div>`;
@@ -165,10 +166,37 @@ const SLA = (function () {
     dcEl.value = String(10 + lvl + mod);  // programmatic set — no input event
   }
 
+  // Per-row ⓘ rules panel: shows the mimicked spell's rules text (school /
+  // components / range / duration / save / SR / description), rendered by the
+  // same Spells.renderSpellRules the Spells-Known list uses so the two match.
+  // Transient (not persisted); auto-collapses when the spell name is edited so
+  // stale text never sits under a renamed ability — mirrors the Feats-tab ⓘ.
+  function collapseSlaRules(entry) {
+    entry.querySelector(".feat-rules")?.remove();
+    entry.querySelector(".sla-info")?.setAttribute("aria-expanded", "false");
+  }
+  function toggleSlaRules(entry) {
+    if (entry.querySelector(".feat-rules")) { collapseSlaRules(entry); return; }
+    const name = (entry.querySelector(".sla-name")?.value || "").trim();
+    const panel = document.createElement("div");
+    panel.className = "feat-rules";
+    if (!name) {
+      panel.innerHTML = "<i>Enter a spell name above to see its rules text.</i>";
+    } else if (typeof Spells !== "undefined" &&
+               typeof Spells.renderSpellRules === "function") {
+      panel.innerHTML = Spells.renderSpellRules(name);
+    } else {
+      panel.innerHTML = "<i>Spell rules unavailable (DB not loaded).</i>";
+    }
+    entry.appendChild(panel);
+    entry.querySelector(".sla-info")?.setAttribute("aria-expanded", "true");
+  }
+
   function wireEntry(entry) {
     rebuildChecks(entry);
     recalcDC(entry);
     entry.querySelector(".sla-remove")?.addEventListener("click", () => entry.remove());
+    entry.querySelector(".sla-info")?.addEventListener("click", () => toggleSlaRules(entry));
     entry.querySelector(".sla-freq")?.addEventListener("change", () => {
       const wrap = entry.querySelector(".sla-checks");
       if (wrap) wrap.dataset.used = 0;
@@ -176,7 +204,7 @@ const SLA = (function () {
     });
     const nameEl = entry.querySelector(".sla-name");
     if (nameEl) {
-      nameEl.addEventListener("input", () => recalcDC(entry));
+      nameEl.addEventListener("input", () => { recalcDC(entry); collapseSlaRules(entry); });
       nameEl.addEventListener("change", () => recalcDC(entry));
     }
     entry.querySelector(".sla-ability")?.addEventListener("change", () => recalcDC(entry));
