@@ -132,6 +132,10 @@
             ${subOpts}
           </select>
         </div>
+        <div class="field" style="flex:1 1 11rem;min-width:9rem">
+          <label>Tags</label>
+          <div class="ip-tag-host"></div>
+        </div>
         <div class="field" style="flex:2 1 14rem;min-width:12rem">
           <label>Invocation</label>
           <input type="text" class="ip-invo" list="${dlId}"
@@ -158,6 +162,16 @@
     const info     = picker.querySelector('.ip-info');
     const addK     = picker.querySelector('.ip-add-known');
     const datalist = picker.querySelector(`#${dlId}`);
+    const tagHost  = picker.querySelector('.ip-tag-host');
+
+    // Shared tag-filter (chip widget + per-type index + contextual counts).
+    const tags = (window.PickerTagFilter)
+      ? PickerTagFilter.attach(tagHost, {
+          type: 'invocation',
+          placeholder: 'Filter by tag(s)…',
+          onChange: () => refresh(),
+        })
+      : null;
 
     // Shared browsing-chip helper. Chip click: set value + show info
     // DIRECTLY without dispatching 'input' (which would narrow the
@@ -176,17 +190,22 @@
     function refresh() {
       const g = gradeSel.value;
       const s = subSel.value;
+      const tagF = tags ? tags.buildFilter() : null;
       // Restrict to invocations this panel's class can take. The panel is
       // stamped with data-invo-class when a Warlock / Dragonfire Adept
       // class creates it; a manually-added panel has none → show all.
       const panelClass = panel.dataset.invoClass || '';
       datalist.innerHTML = '';
       const names = [];
+      // preTagIds = passing every filter EXCEPT tags, for contextual counts.
+      const preTagIds = new Set();
       for (const r of invocationIndex.values()) {
         if (panelClass && Array.isArray(r.classes)
             && !r.classes.includes(panelClass)) continue;
         if (g && r.grade !== g) continue;
         if (s && r.subcategory !== s) continue;
+        preTagIds.add(r.invocation_id);
+        if (tagF && !tags.passes(tagF, r.invocation_id)) continue;
         const opt = document.createElement('option');
         opt.value = r.name;
         // No opt.label — Firefox renders it as visible suggestion text.
@@ -197,10 +216,15 @@
       const parts = [];
       if (g) parts.push(g);
       if (s) parts.push(s);
-      invoIn.placeholder = parts.length
-        ? `${n} ${parts.join(' + ')} invocation${n === 1 ? '' : 's'}`
+      // Show the live count whenever ANY filter (grade / sub / tag) is active,
+      // so tag-only filtering surfaces its count too (matches the other pickers).
+      const filtering = parts.length || (tags && tags.hasFilter());
+      invoIn.placeholder = filtering
+        ? `${n} ${parts.length ? parts.join(' + ') + ' ' : ''}` +
+          `invocation${n === 1 ? '' : 's'}`
         : 'e.g. Eldritch Spear';
       if (results) results.render(names, { typedFilter: invoIn.value.trim() });
+      if (tags) tags.refreshCounts(preTagIds);
     }
 
     function updateInfo() {
@@ -264,7 +288,8 @@
   }
 
   function renderInfo(r) {
-    const head = `<b>${escapeHtml(r.name)}</b> ` +
+    const verBadge = (window.VersionBadge ? VersionBadge.html(r.version) : '');
+    const head = `<b>${escapeHtml(r.name)}</b>${verBadge} ` +
       `<span style="opacity:.7">(${escapeHtml(r.source || '?')})</span>`;
     const bits = [head];
     const meta = [
