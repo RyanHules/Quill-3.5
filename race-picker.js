@@ -802,6 +802,7 @@
   function spawnRacialCasterPanels(parsed) {
     if (typeof Spells === 'undefined' || typeof Spells.addCaster !== 'function') return;
     const list = Array.isArray(parsed.racial_casting) ? parsed.racial_casting : [];
+    let spawnedManeuvers = false;
     list.forEach((rc) => {
       const casterType = SUBSYSTEM_TO_CASTER[rc.subsystem];
       if (!casterType) return;
@@ -809,14 +810,34 @@
         ? rc.as_class.replace(/\b\w/, (c) => c.toUpperCase()) : '';
       const kind = rc.subsystem === 'maneuvers' ? 'Maneuvers' : 'Casting';
       const data = { name: `${cls ? cls + ' ' : ''}${kind} (racial)` };
+      // Notes = the as_class so the class-picker's findExistingCasterPanel
+      // reuses THIS panel when that class is applied (the merge), instead of
+      // spawning a duplicate. Category casting (no as_class) stays standalone.
+      if (rc.as_class) data.notes = rc.as_class.toLowerCase();
       if (rc.subsystem === 'maneuvers') data.initLevel = rc.level;
       else if (rc.subsystem === 'powers') data.manifesterLevel = rc.level;
       const idx = Spells.addCaster(casterType, data);
       raceCasterPanels.push(idx);
-      if (rc.subsystem === 'maneuvers' && parsed.maneuvers_and_stances) {
-        preloadManeuvers(idx, parsed.maneuvers_and_stances);
+      const panel = document.getElementById(`caster-${idx}`);
+      if (panel) {
+        // Mark race-owned + carry the stacking metadata the class-picker's
+        // racial pass reads (IL = racialBase + stacks_with class levels).
+        panel.dataset.fromRace = '1';
+        panel.dataset.racialBase = String(rc.level);
+        panel.dataset.racialAsClass = rc.as_class || '';
+        panel.dataset.racialStacksWith = rc.stacks_with || '';
+      }
+      if (rc.subsystem === 'maneuvers') {
+        spawnedManeuvers = true;
+        if (parsed.maneuvers_and_stances) preloadManeuvers(idx, parsed.maneuvers_and_stances);
       }
     });
+    // Stack onto any pre-existing class levels immediately (e.g. a Valkyrie
+    // applied on top of swordsage levels already on the sheet).
+    if (spawnedManeuvers && window.ClassPicker
+        && typeof ClassPicker.refreshManeuverTabs === 'function') {
+      ClassPicker.refreshManeuverTabs();
+    }
   }
   function preloadManeuvers(idx, ms) {
     const panel = document.getElementById(`caster-${idx}`);

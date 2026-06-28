@@ -1460,6 +1460,10 @@
                         'invocations', 'binding', 'shadowcaster']) {
       const panel = findExistingCasterPanel(type, className);
       if (!panel) continue;
+      // A race-owned racial-initiation panel that this class merged into
+      // stays put when the class is removed — the racial pass (in
+      // refreshAllManeuverTabs, fired below) reverts its IL to the racial base.
+      if (panel.dataset.fromRace) continue;
       const casterIdx = panel.id.replace(/^caster-/, '');
       const tabBtn = document.querySelector(
         `#spells-tab-bar .inner-tab[data-caster-idx="${casterIdx}"]`
@@ -2776,6 +2780,10 @@
       if (!MARTIAL_ADEPT_CLASSES.has(target.className)) continue;
       const panel = findExistingCasterPanel('maneuvers', target.className);
       if (!panel) continue;
+      // A race-owned racial-initiation panel (Valkyrie's swordsage track) is
+      // IL-managed by the racial pass below — skip it in the per-class loop so
+      // the two don't fight over the same .tom-init-level.
+      if (panel.dataset.fromRace) continue;
       const il = effectiveInitiatorLevel(target);
       const ilField = panel.querySelector('.tom-init-level');
       if (!ilField) continue;
@@ -2801,6 +2809,34 @@
         ilField.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
+    // Racial initiation pass — a race's racial_casting maneuvers track
+    // (Valkyrie's swordsage initiation, base IL 10) STACKS with class levels:
+    // IL = racial base + levels in the stacks_with class, or + all martial-
+    // adept levels for a category ("martial adept"). Runs regardless of applied
+    // classes, so removing the class reverts the panel to the racial base.
+    document.querySelectorAll(
+      '#spells-content [data-caster-type="maneuvers"][data-from-race]'
+    ).forEach((panel) => {
+      const base = parseInt(panel.dataset.racialBase || '0', 10);
+      if (!base) return;
+      const asClass = (panel.dataset.racialAsClass || '').toLowerCase();
+      const stacksWith = (panel.dataset.racialStacksWith || '').toLowerCase();
+      let add = 0;
+      if (asClass) {
+        const e = pickedClasses.find(c => c.className.toLowerCase() === asClass);
+        if (e) add = e.level || 0;
+      } else if (stacksWith.includes('martial adept')) {
+        add = pickedClasses
+          .filter(c => MARTIAL_ADEPT_CLASSES.has(c.className)
+            || getManeuverAdvancementSpec(c.className))
+          .reduce((s, c) => s + (c.level || 0), 0);
+      }
+      const ilField = panel.querySelector('.tom-init-level');
+      if (ilField) {
+        ilField.value = String(Math.min(20, base + add));
+        ilField.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
   }
 
   // Strip parser-leaked sample character names (e.g. "Krusk", "Alhandra")
@@ -4429,5 +4465,9 @@
     // and stamp prior-class markers. Exposed for the timeline + tests.
     reconcileCurrentClassSkills,
     getCurrentClassName,
+    // Recompute every maneuver panel's IL (incl. the racial-initiation pass).
+    // Called by race-picker after spawning a racial maneuvers panel so a
+    // Valkyrie applied on top of existing swordsage levels stacks immediately.
+    refreshManeuverTabs: refreshAllManeuverTabs,
   };
 })();
