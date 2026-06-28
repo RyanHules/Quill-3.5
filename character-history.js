@@ -97,6 +97,9 @@ const CharacterHistory = (function () {
     options = options || {};
     classes = Array.isArray(classes) ? classes : [];
     feats = Array.isArray(feats) ? feats : [];
+    // Gestalt Side B (UA p.72-73). When present, each level also records a
+    // `class_taken_b`; absent → single-class history, fully back-compatible.
+    const classesB = Array.isArray(options.classesB) ? options.classesB : [];
     const hitDieByClass = options.hitDieByClass || {};
     const pathfinder = !!options.pathfinderFeats;
 
@@ -106,13 +109,22 @@ const CharacterHistory = (function () {
     //    correct (the player may have multiclassed mid-progression),
     //    but it's the simplest defensible guess. The Timeline UI
     //    will let them shuffle.
-    const classByLevel = [];
-    for (const c of classes) {
-      const lvl = parseInt(c.level, 10) || 0;
-      for (let i = 0; i < lvl; i++) classByLevel.push(c.className);
-    }
+    const expand = (arr) => {
+      const out = [];
+      for (const c of arr) {
+        const lvl = parseInt(c.level, 10) || 0;
+        for (let i = 0; i < lvl; i++) out.push(c.className);
+      }
+      return out;
+    };
+    const classByLevel = expand(classes);
+    const classByLevelB = expand(classesB);
+    const gestalt = classByLevelB.length > 0;
+    // Gestalt level count is the higher of the two sides (they're equal in
+    // a legal build); non-gestalt is just Side A's length.
+    const totalLevels = Math.max(classByLevel.length, classByLevelB.length);
 
-    if (!classByLevel.length) {
+    if (!totalLevels) {
       // No classes applied — emit a stub history (empty array).
       // We don't fabricate a level 1 for an unbuilt character.
       return [];
@@ -128,19 +140,27 @@ const CharacterHistory = (function () {
     for (let i = 0; i < feats.length; i++) {
       const lvl = i < featLvlList.length
         ? featLvlList[i]
-        : classByLevel.length;  // overflow → highest level
+        : totalLevels;  // overflow → highest level
       if (!featsByLevel.has(lvl)) featsByLevel.set(lvl, []);
       featsByLevel.get(lvl).push(feats[i]);
     }
 
     // 3. Build the history array.
     const out = [];
-    for (let lvl = 1; lvl <= classByLevel.length; lvl++) {
+    for (let lvl = 1; lvl <= totalLevels; lvl++) {
       const cls = classByLevel[lvl - 1];
-      const die = hitDieByClass[cls] || 8;
+      const clsB = classByLevelB[lvl - 1];
+      // Gestalt HP defaults to the LARGER Hit Die of the two sides at this
+      // level (UA p.73: take the better HD). Non-gestalt uses Side A's die.
+      const dieA = hitDieByClass[cls] || 8;
+      const dieB = clsB ? (hitDieByClass[clsB] || 8) : 0;
+      const die = Math.max(dieA, dieB);
       const entry = {
         level: lvl,
-        class_taken: cls,
+        // In a legal gestalt both sides have a class each level; if Side A
+        // is short (uneven build) fall back to Side B so class_taken is
+        // never empty.
+        class_taken: cls || clsB || '',
         // HP rolled defaults to average rounded up: (die + 1) / 2.
         // At L1 the player typically maxes the die — represent that
         // by using the full die value. The wizard UI will let the
@@ -155,6 +175,9 @@ const CharacterHistory = (function () {
         notes: '',
         _reconstructed: true,
       };
+      // Only stamp class_taken_b for gestalt histories so single-class
+      // saves keep their exact pre-gestalt shape.
+      if (gestalt) entry.class_taken_b = clsB || null;
       out.push(entry);
     }
     return out;

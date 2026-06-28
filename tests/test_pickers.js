@@ -2574,6 +2574,67 @@ test('CharacterHistory: reconstructFromTotals returns empty for unbuilt characte
     'no classes = empty history (no fabricated L1)');
 });
 
+test('CharacterHistory: gestalt reconstruction records class_taken_b per level', () => {
+  // Phase 2: with options.classesB, each level carries a second class and
+  // the gestalt level count is max(SigmaA, SigmaB). HP uses the larger die.
+  const CH = loadCharacterHistory();
+  const h = CH.reconstructFromTotals(
+    [{ className: 'Fighter', level: 6 }, { className: 'Rogue', level: 4 }],
+    [],
+    { classesB: [{ className: 'Wizard', level: 10 }],
+      hitDieByClass: { Fighter: 10, Rogue: 6, Wizard: 4 } });
+  assert(h.length === 10, 'gestalt level count = 10');
+  assert(h[0].class_taken === 'Fighter' && h[0].class_taken_b === 'Wizard',
+    'L1 = Fighter // Wizard');
+  assert(h[6].class_taken === 'Rogue' && h[6].class_taken_b === 'Wizard',
+    'L7 = Rogue // Wizard (Side A switched, Side B continues)');
+  // L1 HP = larger die maxed: max(Fighter d10, Wizard d4) = 10.
+  assert(h[0].hp_rolled === 10, 'L1 gestalt HP uses the larger die (d10)');
+  // L7 HP average of larger die: max(Rogue d6, Wizard d4)=6 → ceil(7/2)=4.
+  assert(h[6].hp_rolled === 4, 'L7 gestalt HP averages the larger die (d6)');
+});
+
+test('CharacterHistory: non-gestalt reconstruction omits class_taken_b', () => {
+  // Byte-shape guard: without classesB, no entry gains the field, so
+  // single-class saves keep their exact pre-gestalt shape.
+  const CH = loadCharacterHistory();
+  const h = CH.reconstructFromTotals([{ className: 'Wizard', level: 3 }], []);
+  assert(h.length === 3, '3 levels');
+  assert(h.every(e => !('class_taken_b' in e)),
+    'no class_taken_b key on any non-gestalt entry');
+});
+
+test('feat-prereqs: gestalt snapshot maxes BAB across sides (not sum)', () => {
+  // Phase 2c: a gestalt history with a martial Side A and caster Side B must
+  // report BAB = max(SideA, SideB), NOT the sum. Fighter 5 // Wizard 5 →
+  // BAB max(5, 2) = 5, and the class set includes both for class prereqs.
+  // Inject a fake DB so getClassMetadata returns real BAB progressions.
+  const fakeDB = {
+    isLoaded: () => true,
+    queryOne: (_sql, params) => {
+      const n = String((params && params[0]) || '').toLowerCase();
+      const bab = { fighter: 'good', wizard: 'poor', rogue: 'average' }[n] || null;
+      return { bab, flavor: n === 'wizard' ? 'arcane' : null };
+    },
+  };
+  const FP = loadFeatPrereqs({ DB: fakeDB });
+  const hist = [];
+  for (let i = 1; i <= 5; i++) {
+    hist.push({ level: i, class_taken: 'Fighter', class_taken_b: 'Wizard',
+      feats_taken: [], skills_purchased: {}, ability_boost: null });
+  }
+  const snap = FP.snapshotAtLevel(6, { history: hist,
+    currentAbilities: { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
+    currentAlignment: 'true neutral' });
+  assert(snap.bab === 5,
+    `gestalt BAB should be max(Fighter5=+5, Wizard5=+2)=5, got ${snap.bab}`);
+  const names = snap.classes.map(c => c.name).sort();
+  assert(names.join(',') === 'Fighter,Wizard',
+    `class set should include both sides, got ${names.join(',')}`);
+  const wiz = snap.classes.find(c => c.name === 'Wizard');
+  assert(wiz && wiz.level === 5, 'Wizard recorded at level 5 (Side B)');
+});
+
 test('CharacterHistory: get() normalizes empty to [] and hasLoaded() distinguishes', () => {
   // L3 (2026-05-17 play-feel): the previous get() returned null when
   // empty, forcing every caller to write `|| []`. Now empty always

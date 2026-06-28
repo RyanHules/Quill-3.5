@@ -83,6 +83,13 @@ const BuildTimeline = (function () {
     return row;
   }
 
+  // Gestalt mode reflects the live class-picker toggle. When on, the
+  // timeline shows + edits a second class per level (Side B).
+  function gestaltOn() {
+    return typeof ClassPicker !== 'undefined' &&
+      typeof ClassPicker.isGestalt === 'function' && ClassPicker.isGestalt();
+  }
+
   function renderSummary(entry) {
     const sum = document.createElement('div');
     sum.className = 'bt-row-summary';
@@ -91,9 +98,13 @@ const BuildTimeline = (function () {
     const featTitle = featCount
       ? `Feats this level: ${(entry.feats_taken || []).join(', ')}`
       : 'No feats this level';
+    // Gestalt: "Side A // Side B"; non-gestalt: just the single class.
+    const classDisplay = gestaltOn()
+      ? `${entry.class_taken || '(unknown)'} // ${entry.class_taken_b || '(none)'}`
+      : (entry.class_taken || '(unknown)');
     sum.innerHTML =
       `<span class="bt-level">L${entry.level}</span>` +
-      `<span class="bt-class">${escapeHtml(entry.class_taken || '(unknown)')}</span>` +
+      `<span class="bt-class">${escapeHtml(classDisplay)}</span>` +
       `<span class="bt-hp" title="Hit points rolled at this level">HP ${entry.hp_rolled ?? '?'}</span>` +
       (isBoostLvl
         ? `<span class="bt-boost" title="Ability score increase">` +
@@ -141,13 +152,36 @@ const BuildTimeline = (function () {
     const classOpts = [...classNames].sort().map(n =>
       `<option${n === entry.class_taken ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
 
+    // Gestalt Side B class options: Side B's applied classes + the entry's
+    // current value, plus a leading blank so a level can be Side-B-empty.
+    const gestalt = gestaltOn();
+    let classOptsB = '';
+    if (gestalt) {
+      const namesB = new Set();
+      if (typeof ClassPicker !== 'undefined' &&
+          typeof ClassPicker.getStateB === 'function') {
+        for (const c of ClassPicker.getStateB()) {
+          if (c.className) namesB.add(c.className);
+        }
+      }
+      if (entry.class_taken_b) namesB.add(entry.class_taken_b);
+      const curB = entry.class_taken_b || '';
+      classOptsB =
+        `<option value=""${curB === '' ? ' selected' : ''}>(none)</option>` +
+        [...namesB].sort().map(n =>
+          `<option${n === curB ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    }
+
     const abilityOpts = ['', 'STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
       .map(ab => `<option value="${ab}"${ab === (entry.ability_boost || '') ? ' selected' : ''}>` +
         (ab || '(none)') + `</option>`).join('');
 
     ed.innerHTML =
       `<div class="bt-editor-grid">` +
-        `<label>Class<select class="bt-edit-class">${classOpts}</select></label>` +
+        `<label>${gestalt ? 'Class (Side A)' : 'Class'}<select class="bt-edit-class">${classOpts}</select></label>` +
+        (gestalt
+          ? `<label>Class (Side B)<select class="bt-edit-class-b">${classOptsB}</select></label>`
+          : '') +
         `<label>HP rolled<input type="number" class="bt-edit-hp" min="0" value="${entry.hp_rolled ?? ''}"></label>` +
         (isBoostLvl
           ? `<label>Ability boost<select class="bt-edit-boost">${abilityOpts}</select></label>`
@@ -163,6 +197,10 @@ const BuildTimeline = (function () {
     // Wire each input to write through to the history entry.
     ed.querySelector('.bt-edit-class').addEventListener('change', (e) => {
       updateEntry(entry.level, { class_taken: e.target.value });
+    });
+    const classBEl = ed.querySelector('.bt-edit-class-b');
+    if (classBEl) classBEl.addEventListener('change', (e) => {
+      updateEntry(entry.level, { class_taken_b: e.target.value || null });
     });
     ed.querySelector('.bt-edit-hp').addEventListener('input', (e) => {
       const v = parseInt(e.target.value, 10);
@@ -206,7 +244,7 @@ const BuildTimeline = (function () {
     // refresh the summary line in place + the global badge.
     refreshRowSummary(level);
     refreshGlobalBadge();
-    if (patch && 'class_taken' in patch) notifyChanged();
+    if (patch && ('class_taken' in patch || 'class_taken_b' in patch)) notifyChanged();
   }
 
   function anyReconstructed(history) {
@@ -239,10 +277,9 @@ const BuildTimeline = (function () {
     const history = (CharacterHistory.get() || []).slice();
     const newLevel = history.length + 1;
     // Default new level: same class as last level (if any), average HP.
-    const lastClass = history.length
-      ? history[history.length - 1].class_taken
-      : '';
-    history.push({
+    const lastEntry = history.length ? history[history.length - 1] : null;
+    const lastClass = lastEntry ? lastEntry.class_taken : '';
+    const newEntry = {
       level: newLevel,
       class_taken: lastClass,
       hp_rolled: null,
@@ -253,7 +290,10 @@ const BuildTimeline = (function () {
       spells_unlearned: [],
       choices: {},
       notes: '',
-    });
+    };
+    // Gestalt: carry a Side B default + keep the per-level dual-class shape.
+    if (gestaltOn()) newEntry.class_taken_b = lastEntry ? (lastEntry.class_taken_b || null) : null;
+    history.push(newEntry);
     CharacterHistory.set(history, { reconstructed: anyReconstructed(history) });
     expandedLevels.add(newLevel);
     render();

@@ -551,12 +551,25 @@ const FeatPrereqs = (function () {
       return out;
     })();
 
-    // Classes: cumulative through `level` (inclusive).
-    const classLevels = new Map();  // className → count
-    for (const e of hist) {
-      if (e.level > level) continue;
-      const c = e.class_taken;
-      if (c) classLevels.set(c, (classLevels.get(c) || 0) + 1);
+    // Classes: cumulative through `level` (inclusive). Gestalt records two
+    // classes per level (class_taken + class_taken_b); each side is an
+    // independent progression. For class-level / caster prereqs we take the
+    // higher level per class name across sides (you don't stack the same
+    // class's levels across sides); BAB is per-side-summed then maxed below.
+    const countSide = (field) => {
+      const m = new Map();  // className → count
+      for (const e of hist) {
+        if (e.level > level) continue;
+        const c = e[field];
+        if (c) m.set(c, (m.get(c) || 0) + 1);
+      }
+      return m;
+    };
+    const clA = countSide('class_taken');
+    const clB = countSide('class_taken_b');  // empty for non-gestalt histories
+    const classLevels = new Map(clA);
+    for (const [name, n] of clB) {
+      classLevels.set(name, Math.max(classLevels.get(name) || 0, n));
     }
     const classes = [...classLevels].map(([name, lvl]) => ({ name, level: lvl }));
 
@@ -593,12 +606,11 @@ const FeatPrereqs = (function () {
       }
     }
 
-    // BAB + caster levels derived from the cumulative classes.
-    let bab = 0;
+    // Caster levels: a class's caster level is its level on whichever side it
+    // appears (a max), so the combined `classes` set is correct here.
     const casterLevels = { arcane: 0, divine: 0, psionic: 0, any: 0 };
     for (const { name, level: lvl } of classes) {
       const meta = getClassMetadata(name);
-      bab += babAtLevel(meta.bab, lvl);
       if (meta.flavor && meta.flavor.length) {
         for (const f of meta.flavor) {
           const key = f === 'manifesting' ? 'psionic' : f;
@@ -609,6 +621,16 @@ const FeatPrereqs = (function () {
         }
       }
     }
+    // BAB is gestalt-synthesized as max(Side A total, Side B total) — NOT the
+    // sum of both sides — so sum each side independently and take the better.
+    // Non-gestalt (clB empty) reduces to Side A's sum, unchanged.
+    const babForSide = (m) => {
+      let b = 0;
+      for (const [name, lvl] of m) b += babAtLevel(getClassMetadata(name).bab, lvl);
+      return b;
+    };
+    const babA = babForSide(clA);
+    const bab = clB.size ? Math.max(babA, babForSide(clB)) : babA;
 
     return {
       abilities, classes, featNames, skillRanks, bab,

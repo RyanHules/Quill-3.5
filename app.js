@@ -243,12 +243,18 @@
       const pickedClasses = (typeof ClassPicker !== "undefined" &&
                   typeof ClassPicker.getState === "function")
         ? ClassPicker.getState() : [];
+      const pickedClassesB = (typeof ClassPicker !== "undefined" &&
+                  typeof ClassPicker.isGestalt === "function" &&
+                  ClassPicker.isGestalt() &&
+                  typeof ClassPicker.getStateB === "function")
+        ? ClassPicker.getStateB() : [];
       const opts = {
         classes: pickedClasses,
         feats: collectCurrentFeatNames(),
         options: {
           pathfinderFeats: false,
-          hitDieByClass: collectHitDiceFromDB(pickedClasses),
+          hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
+          classesB: pickedClassesB,
         },
       };
       CharacterHistory.loadData(data, opts);
@@ -683,7 +689,14 @@
     const pickedClasses = (typeof ClassPicker !== "undefined" &&
                 typeof ClassPicker.getState === "function")
       ? ClassPicker.getState() : [];
-    if (!pickedClasses.length) {
+    // Gestalt Side B — only when gestalt is on (getStateB is [] otherwise,
+    // but gate explicitly so a toggled-off-with-B state doesn't leak).
+    const pickedClassesB = (typeof ClassPicker !== "undefined" &&
+                typeof ClassPicker.isGestalt === "function" &&
+                ClassPicker.isGestalt() &&
+                typeof ClassPicker.getStateB === "function")
+      ? ClassPicker.getStateB() : [];
+    if (!pickedClasses.length && !pickedClassesB.length) {
       // No classes — clear stale reconstruction.
       CharacterHistory.clear();
       BuildTimeline.render();
@@ -694,7 +707,8 @@
       collectCurrentFeatNames(),
       {
         pathfinderFeats: false,
-        hitDieByClass: collectHitDiceFromDB(pickedClasses),
+        hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
+        classesB: pickedClassesB,
       },
     );
     CharacterHistory.set(rebuilt, { reconstructed: true });
