@@ -947,6 +947,26 @@
   function sideArray(side) {
     return side === 'B' ? pickedClassesB : pickedClasses;
   }
+  // Advancement is TRACK-AGNOSTIC in gestalt (UA): an advancer on either side
+  // can advance a caster on either side, and class progression sums across
+  // both tracks for these purposes. So the entire advancement / spell-refresh
+  // subsystem reads classPool() — the UNION of both sides — instead of
+  // pickedClasses directly. When gestalt is OFF this returns exactly
+  // pickedClasses, so the single-stack path is provably unchanged (every
+  // existing advancement test must still pass).
+  function classPool() {
+    return gestalt ? pickedClasses.concat(pickedClassesB) : pickedClasses;
+  }
+  // Total CHARACTER level. Gestalt sides are PARALLEL, not additive, so the
+  // character level is max(ΣA, ΣB), NOT their sum. Used by the initiator-level
+  // "+1/2 of your other levels" math, which would over-count if it summed both
+  // tracks. Non-gestalt is the simple sum (unchanged).
+  function totalCharacterLevel() {
+    const sum = (arr) => arr.reduce((s, e) => s + (e.level || 0), 0);
+    return gestalt
+      ? Math.max(sum(pickedClasses), sum(pickedClassesB))
+      : sum(pickedClasses);
+  }
   // Public-API setters (referenced by name from window.ClassPicker so the
   // export object stays a flat brace-free literal).
   function apiSetGestalt(on) {
@@ -1351,7 +1371,8 @@
     }
 
     // Side A — labeled "Side A:" in gestalt, "Applied:" otherwise. Advancer
-    // choosers render here (Side-A-scoped in Phase 1).
+    // choosers render here, but are sourced from the UNION of both sides
+    // (track-agnostic), so a Side-B advancer's chooser appears here too.
     renderChipRow(list, pickedClasses, gestalt ? 'A' : null, true);
 
     // Side B — gestalt only, no advancer choosers (see renderChipRow note).
@@ -1392,7 +1413,8 @@
   //   - perLevelChoice advancer (Ultimate Magus): one row per advancing
   //     PrC level, with checkboxes for prepared and spontaneous slots.
   function renderAdvancerChoosers(listEl) {
-    const advancers = pickedClasses.filter(e =>
+    // Union: advancers on EITHER gestalt side get a chooser (track-agnostic).
+    const advancers = classPool().filter(e =>
       e.advancesTypes && e.advancesTypes.length);
     if (!advancers.length) return;
 
@@ -1437,7 +1459,8 @@
   }
 
   function eligibleTargetsForType(advancerEntry, typeStr) {
-    return pickedClasses.filter(e => {
+    // Union: a Side-A advancer can target a Side-B caster and vice versa.
+    return classPool().filter(e => {
       if (e === advancerEntry) return false;
       if (!e.classId) return false;
       const t = getClassType(e.className);
@@ -2535,7 +2558,7 @@
   // target type. 'any' matches the first class with spellcasting at
   // its native level (regardless of type).
   function pickAdvanceTarget(typeStr, advancerEntry) {
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — target either side
       if (e === advancerEntry) continue;
       if (!e.classId) continue;
       if (typeStr === 'any') {
@@ -2564,7 +2587,7 @@
     const wantStyles = entry.requiresStyles || [];
     const types = entry.advancesTypes || ['any'];
     const autoLower = new Set(entry.autoAdvanceLowerLevels || []);
-    const eligible = pickedClasses.filter(e => {
+    const eligible = classPool().filter(e => {   // union — both sides
       if (e === entry) return false;
       if (!e.classId) return false;
       const t = getClassType(e.className);
@@ -2627,7 +2650,7 @@
     const wantStyles = entry.requiresStyles || [];
     if (!wantStyles.length) return;
     const styleClasses = wantStyles.map(s => {
-      const match = pickedClasses.find(e =>
+      const match = classPool().find(e =>   // union — both sides
         e !== entry && getCasterStyle(e.className) === s);
       return match ? match.className : null;
     });
@@ -2637,8 +2660,8 @@
     const running = Object.create(null);
     for (const cls of styleClasses) running[cls] = 0;
     // Tally NON-UM advancement contributions from other entries
-    // (Mystic Theurge etc.) baseline.
-    for (const e of pickedClasses) {
+    // (Mystic Theurge etc.) baseline. Union — advancers on both sides.
+    for (const e of classPool()) {
       if (e === entry) continue;
       if (e.advancementSlots) {
         for (const s of e.advancementSlots) {
@@ -2658,7 +2681,7 @@
     // advancement" and auto-pick alphabetically rather than picking
     // the lower-base Sorcerer.
     for (const cls of styleClasses) {
-      const base = pickedClasses.find(e => e.className === cls);
+      const base = classPool().find(e => e.className === cls);
       if (base) running[cls] += base.level;
     }
     // Walk slots; assign auto-lower targets.
@@ -2699,7 +2722,7 @@
     // out and new candidates can be auto-picked.
     if (entry.perLevelChoice) {
       const stillExists = (name) =>
-        pickedClasses.some(e => e.className.toLowerCase() === name.toLowerCase());
+        classPool().some(e => e.className.toLowerCase() === name.toLowerCase());
       for (const slot of (entry.advancementSlots || [])) {
         slot.targets = (slot.targets || []).filter(t => t && stillExists(t));
       }
@@ -2708,7 +2731,7 @@
       return;
     }
     const stillExists = (name) =>
-      pickedClasses.some(e => e.className.toLowerCase() === name.toLowerCase());
+      classPool().some(e => e.className.toLowerCase() === name.toLowerCase());
     const oldTargets = entry.advancesTargets || [];
     const next = [];
     for (let i = 0; i < entry.advancesTypes.length; i++) {
@@ -2748,7 +2771,7 @@
   // populate advancementSlots; everything else populates advancesTargets.
   function effectiveSpellLevel(target) {
     let bonus = 0;
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — advancers on both sides
       if (e === target) continue;
       // Shape 2: per-level slots.
       if (e.advancementSlots && e.advancementSlots.length) {
@@ -2825,7 +2848,7 @@
     // by the per-level advancing schedule, so the schedule never gates
     // the IL contribution.
     let advBonus = 0;
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — ToB advancers on both sides
       if (e === target) continue;
       if (getManeuverAdvancementSpec(e.className)) {
         advBonus += (e.level || 0);
@@ -2833,8 +2856,9 @@
     }
     // Half-value contribution from every other character level — i.e. all
     // picked levels except this class's own and the full-counted advancer
-    // PrC levels above.
-    const totalLevel = pickedClasses.reduce((s, e) => s + (e.level || 0), 0);
+    // PrC levels above. Gestalt character level is max(ΣA, ΣB), NOT the sum
+    // of both tracks (the sides are parallel), so use totalCharacterLevel().
+    const totalLevel = totalCharacterLevel();
     const otherLevels = Math.max(0, totalLevel - target.level - advBonus);
     const il = target.level + advBonus + Math.floor(otherLevels / 2);
     return Math.min(20, il);
@@ -2845,16 +2869,18 @@
   // spellcasting data of their own (Eldritch Knight, Mystic Theurge,
   // …) don't get tabs themselves.
   function refreshAllSpellTabs() {
-    for (const e of pickedClasses) refreshAdvanceTargets(e);
-    for (const e of pickedClasses) refreshInvocationAdvanceTarget(e);
-    for (const e of pickedClasses) refreshMysteryAdvanceTarget(e);
+    // Union throughout — advancers and casters on BOTH gestalt sides
+    // participate (track-agnostic advancement).
+    for (const e of classPool()) refreshAdvanceTargets(e);
+    for (const e of classPool()) refreshInvocationAdvanceTarget(e);
+    for (const e of classPool()) refreshMysteryAdvanceTarget(e);
     // After targets settle, resolve auto-lower slots (UM L1/4/7) using
     // the current state. This must come AFTER refreshAdvanceTargets
     // because slot targets are recomputed there for per-level entries.
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {
       if (e.perLevelChoice) resolveAutoLowerSlots(e);
     }
-    for (const target of pickedClasses) {
+    for (const target of classPool()) {
       if (!target.classId) continue;
       const effLvl = effectiveSpellLevel(target);
       const sc = getSpellcastingDataAtLevel(target.classId, effLvl);
@@ -2880,7 +2906,7 @@
     // spell-tab refresh. Filtered to CATALOG-listed classes so the
     // overhead is zero for characters without one of these classes.
     if (typeof ClassSpellAdditions !== 'undefined') {
-      for (const e of pickedClasses) {
+      for (const e of classPool()) {
         if (!e.className) continue;
         if (!ClassSpellAdditions.getFeatures(e.className).length) continue;
         applyClassSpellAdditions(e);
@@ -2922,7 +2948,7 @@
   }
 
   function pickInvocationAdvanceTarget(advancerEntry) {
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — both sides
       if (e === advancerEntry) continue;
       if (INVOCATION_USING_CLASSES.has(e.className)) return e.className;
     }
@@ -2931,7 +2957,7 @@
 
   function effectiveInvocationLevel(target) {
     let bonus = 0;
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — both sides
       if (e === target) continue;
       if (!e.invocationAdvancesLevels) continue;
       const tgt = e.invocationAdvancesTarget;
@@ -2946,7 +2972,7 @@
   function refreshInvocationAdvanceTarget(entry) {
     if (!entry.invocationAdvancesLevels) return;
     const stillExists = (name) =>
-      pickedClasses.some(e => e.className.toLowerCase() === name.toLowerCase());
+      classPool().some(e => e.className.toLowerCase() === name.toLowerCase());
     if (entry.invocationAdvancesTarget &&
         stillExists(entry.invocationAdvancesTarget)) return;
     const tgt = pickInvocationAdvanceTarget(entry);
@@ -2980,7 +3006,7 @@
   }
 
   function pickMysteryAdvanceTarget(advancerEntry) {
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — both sides
       if (e === advancerEntry) continue;
       if (MYSTERY_USING_CLASSES.has(e.className)) return e.className;
     }
@@ -2989,7 +3015,7 @@
 
   function effectiveMysteryLevel(target) {
     let bonus = 0;
-    for (const e of pickedClasses) {
+    for (const e of classPool()) {   // union — both sides
       if (e === target) continue;
       if (!e.mysteryAdvancesLevels) continue;
       const tgt = e.mysteryAdvancesTarget;
@@ -3004,7 +3030,7 @@
   function refreshMysteryAdvanceTarget(entry) {
     if (!entry.mysteryAdvancesLevels) return;
     const stillExists = (name) =>
-      pickedClasses.some(e => e.className.toLowerCase() === name.toLowerCase());
+      classPool().some(e => e.className.toLowerCase() === name.toLowerCase());
     if (entry.mysteryAdvancesTarget &&
         stillExists(entry.mysteryAdvancesTarget)) return;
     const tgt = pickMysteryAdvanceTarget(entry);
@@ -3012,7 +3038,7 @@
   }
 
   function refreshAllManeuverTabs() {
-    for (const target of pickedClasses) {
+    for (const target of classPool()) {   // union — martial adepts on both sides
       if (!MARTIAL_ADEPT_CLASSES.has(target.className)) continue;
       const panel = findExistingCasterPanel('maneuvers', target.className);
       if (!panel) continue;
@@ -3059,10 +3085,10 @@
       const stacksWith = (panel.dataset.racialStacksWith || '').toLowerCase();
       let add = 0;
       if (asClass) {
-        const e = pickedClasses.find(c => c.className.toLowerCase() === asClass);
+        const e = classPool().find(c => c.className.toLowerCase() === asClass);
         if (e) add = e.level || 0;
       } else if (stacksWith.includes('martial adept')) {
-        add = pickedClasses
+        add = classPool()
           .filter(c => MARTIAL_ADEPT_CLASSES.has(c.className)
             || getManeuverAdvancementSpec(c.className))
           .reduce((s, c) => s + (c.level || 0), 0);
@@ -3613,7 +3639,7 @@
     // full level to EVERY martial adept's IL — so the note names no
     // single class.
     if (getManeuverAdvancementSpec(cls.class)) {
-      const hasBase = pickedClasses.some(e => MARTIAL_ADEPT_CLASSES.has(e.className));
+      const hasBase = classPool().some(e => MARTIAL_ADEPT_CLASSES.has(e.className));
       advParts.push(hasBase
         ? 'initiator level'
         : 'initiator level — no martial adept class');
@@ -4351,8 +4377,9 @@
   function populateManeuverPanelCounts(panel, className, level) {
     if (!panel) return;
     // Find the class's classId via the picked-classes list (we know it
-    // was just applied, so it's there).
-    const entry = pickedClasses.find(p => p.className === className);
+    // was just applied, so it's there). Union so a Side-B martial adept
+    // resolves too.
+    const entry = classPool().find(p => p.className === className);
     const row = classTableRowAt(entry?.classId, level);
     if (!row || !row.columns) return;
     const cols = row.columns;

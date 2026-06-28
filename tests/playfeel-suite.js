@@ -873,6 +873,29 @@
     expect(ClassPicker.isGestalt(), false, 'GE3: gestalt stays off');
   });
 
+  regression('GE4: track-agnostic advancement — Side-B advancer advances Side-A caster', async () => {
+    // The core gestalt advancement rule (Ryan, 2026-06-29): progression is
+    // track-agnostic, so a Mystic Theurge on Side B advances the Wizard on
+    // Side A. Wizard 10 // Cleric 5 / Mystic Theurge 5 → Wizard CL 10+5=15,
+    // Cleric CL 5+5=10.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A'); await applyClass('Wizard', 10);
+    ClassPicker.setActiveSide('B');
+    await applyClass('Cleric', 5);
+    await applyClass('Mystic Theurge', 5);
+    await wait(300);
+    const clOf = (name) => {
+      const p = [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .find(pp => (pp.querySelector('.caster-notes')?.value || '').trim() === name);
+      return p ? p.querySelector('.sc-caster-level')?.value : null;
+    };
+    expect(clOf('Wizard'), '15',
+      'GE4: Side-B Mystic Theurge must advance the Side-A Wizard to CL 15 (cross-track)');
+    expect(clOf('Cleric'), '10',
+      'GE4: Mystic Theurge advances the Side-B Cleric to CL 10');
+  });
+
   regression('SM: incarnum class copies soulmeld counts to Equipment tab', async () => {
     // Totemist 5 → Equipment soulmeld counters seeded from the class
     // table columns (soulmelds 4, essentia 3, chakra binds 1).
