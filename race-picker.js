@@ -246,6 +246,13 @@
         ? parsed.racial_hd_die : null,
       racial_hd_type: parsed.racial_hd_type
         || (parsed.racial_hd ? (row.creature_type || parsed.creature_type) : null),
+      // Structured defenses (mirror the creature shapes; propagated on
+      // monster->race). Wired into the sheet's SR / DR fields + defense notes.
+      spell_resistance: (parsed.spell_resistance != null && parsed.spell_resistance !== '')
+        ? parsed.spell_resistance : null,
+      damage_reduction: Array.isArray(parsed.damage_reduction) ? parsed.damage_reduction : null,
+      immunities: Array.isArray(parsed.immunities) ? parsed.immunities : null,
+      resistances: Array.isArray(parsed.resistances) ? parsed.resistances : null,
     };
 
     // Canonical schema (post-normalize_schema.py):
@@ -326,6 +333,25 @@
     if (racialNA != null && racialNA > 0) {
       raceSetOwned('ac-natural', String(racialNA), 'input', true);
     }
+
+    // 4c. Structured defenses — SR → #spell-resistance, DR → #damage-reduction
+    // (both shared, ownership-tracked), and immunities + energy resistances
+    // folded into the free-form #defense-notes (no dedicated sheet field yet).
+    if (race.spell_resistance != null) {
+      raceSetOwned('spell-resistance', String(race.spell_resistance), 'input', true);
+    }
+    if (race.damage_reduction && race.damage_reduction.length) {
+      const dr = race.damage_reduction
+        .map(d => `${d.amount}/${d.bypass || '—'}`).join(', ');
+      raceSetOwned('damage-reduction', dr, 'input');
+    }
+    const defNotes = [];
+    if (race.immunities && race.immunities.length)
+      defNotes.push(`Immune to ${race.immunities.join(', ')}`);
+    if (race.resistances && race.resistances.length)
+      defNotes.push('Resist ' + race.resistances
+        .map(r => `${r.damage_type} ${r.amount}`).join(', '));
+    if (defNotes.length) raceSetDefenseNotes(defNotes.join('; '));
 
     // 4b. Racial HD → synthetic class row. Monster races (Bugbear, Ogre,
     // Troll, …) carry racial Hit Dice that must pool into the BAB / save /
@@ -509,6 +535,18 @@
         `<b>Racial HD:</b> ${race.racial_hd}d${race.racial_hd_die}${t}`
       );
     }
+    // Structured defenses (SR / DR / immunities / resistances)
+    const defBits = [];
+    if (race.spell_resistance != null) defBits.push(`SR ${race.spell_resistance}`);
+    if (race.damage_reduction && race.damage_reduction.length)
+      defBits.push('DR ' + race.damage_reduction
+        .map(d => `${d.amount}/${d.bypass || '—'}`).join(', '));
+    if (race.immunities && race.immunities.length)
+      defBits.push(`Immune ${race.immunities.join(', ')}`);
+    if (race.resistances && race.resistances.length)
+      defBits.push('Resist ' + race.resistances
+        .map(r => `${r.damage_type} ${r.amount}`).join(', '));
+    if (defBits.length) bits.push(`<b>Defenses:</b> ${escapeHtml(defBits.join('; '))}`);
     // Bonus languages (compact)
     const bonusLangs = languages.filter(l => !l.is_automatic).map(l => l.language);
     if (bonusLangs.length) {
@@ -723,6 +761,28 @@
       el.dispatchEvent(new Event(evt, { bubbles: true }));
     }
   }
+  // #defense-notes is shared free text that may hold user content. The race's
+  // immunities/resistances go in as a single tagged line, tracked verbatim so a
+  // race switch removes exactly that line and leaves manual notes intact.
+  function raceSetDefenseNotes(text) {
+    const el = document.getElementById('ac-defense-notes');
+    if (!el) return;
+    if (el.dataset.raceDefNote) raceClearDefenseNotes();   // re-apply cleanly
+    const seg = `[Race] ${text}`;
+    const cur = String(el.value).trim();
+    el.value = cur ? `${cur}\n${seg}` : seg;
+    el.dataset.raceDefNote = seg;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function raceClearDefenseNotes() {
+    const el = document.getElementById('ac-defense-notes');
+    if (!el || !el.dataset.raceDefNote) return;
+    const seg = el.dataset.raceDefNote;
+    el.value = String(el.value)
+      .split('\n').filter(line => line !== seg).join('\n').replace(/\n+$/, '');
+    delete el.dataset.raceDefNote;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 
   // Reset everything race-picker auto-writes: the 6 Race ability columns
   // and the special-ability rows it tagged (data-from-race). Exposed via
@@ -742,6 +802,10 @@
     // manual / equipment / monster-class value has no RACE_OWN marker and
     // survives). 0 is the unset default for #ac-natural.
     raceClearOwned('ac-natural', '0', 'input');
+    // Structured defenses we applied (race-owned only — manual SR/DR survives).
+    raceClearOwned('spell-resistance', '', 'input');
+    raceClearOwned('damage-reduction', '', 'input');
+    raceClearDefenseNotes();
     const c = document.getElementById('special-abilities-container');
     if (c) {
       c.querySelectorAll('[data-from-race="1"]').forEach((node) => {
