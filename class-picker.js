@@ -934,10 +934,35 @@
   // progressions, so the +2 good-save base only counts once per save type
   // — no multiclass exploit). true = UA p.73 fractional bonuses.
   let useFractional = false;
+  // Gestalt (UA p.72-73): a character carries TWO parallel class tracks
+  // ("sides"). pickedClasses is Side A — every existing single-stack code
+  // path is unchanged. pickedClassesB is Side B, empty (and inert) unless
+  // gestalt mode is on. When `gestalt` is false the sheet behaves
+  // byte-identically to the single-stack model.
+  let pickedClassesB = [];
+  let gestalt = false;
+  // Which side the picker's Apply targets while gestalt is on ('A' | 'B').
+  // Ignored when gestalt is off (everything is Side A).
+  let activeSide = 'A';
+  function sideArray(side) {
+    return side === 'B' ? pickedClassesB : pickedClasses;
+  }
+  // Public-API setters (referenced by name from window.ClassPicker so the
+  // export object stays a flat brace-free literal).
+  function apiSetGestalt(on) {
+    gestalt = !!on;
+    if (!gestalt) activeSide = 'A';
+    applyAggregatesToSheet();
+    renderClassList();
+  }
+  function apiSetActiveSide(s) {
+    activeSide = (s === 'B' ? 'B' : 'A');
+    renderClassList();
+  }
 
-  function findClassEntry(className) {
+  function findClassEntry(className, arr) {
     const k = String(className).toLowerCase();
-    return pickedClasses.findIndex(e => e.className.toLowerCase() === k);
+    return (arr || pickedClasses).findIndex(e => e.className.toLowerCase() === k);
   }
 
   // Classify a progression label into "good" | "avg" | "poor" | null.
@@ -974,14 +999,15 @@
     return g;
   }
 
-  function aggregateTotals(entries) {
-    let lvl = 0;
-    for (const e of entries) lvl += e.level;
-    const g = levelGroups(entries);
+  // Apply the BAB/save formulas to a level-group structure
+  // (`{bab:{good,avg,poor}, fort:{good,poor}, ref, will}`). Shared by the
+  // single-stack aggregator AND the gestalt synthesizer so both honor the
+  // pooled/fractional toggle identically.
+  function totalsFromGroups(g, fractional) {
     let bab = 0, fort = 0, ref = 0, will = 0;
-    if (useFractional) {
-      // UA p.73 fractional: sum fractions per type across all classes,
-      // then floor once. This is the "smooth" multiclass model.
+    if (fractional) {
+      // UA p.73 fractional: sum fractions per type, then floor once. The
+      // "smooth" model.
       bab = Math.floor(g.bab.good + g.bab.avg * 0.75 + g.bab.poor * 0.5);
       const frac = (gg, pp) =>
         Math.floor((gg > 0 ? 2 : 0) + gg * 0.5 + pp / 3);
@@ -1018,11 +1044,83 @@
       ref  = saveSeg(g.ref.good,  'good') + saveSeg(g.ref.poor,  'poor');
       will = saveSeg(g.will.good, 'good') + saveSeg(g.will.poor, 'poor');
     }
-    return { bab, fort, ref, will, lvl };
+    return { bab, fort, ref, will };
+  }
+
+  function aggregateTotals(entries) {
+    let lvl = 0;
+    for (const e of entries) lvl += e.level;
+    const g = levelGroups(entries);
+    const t = totalsFromGroups(g, useFractional);
+    return { bab: t.bab, fort: t.fort, ref: t.ref, will: t.will, lvl };
+  }
+
+  // ── Gestalt synthesis (UA p.72-73) ───────────────────────────────────
+  // Expand one side's class stack into a per-character-level array of
+  // progression CATEGORIES, walking classes as contiguous blocks in array
+  // order (the same level distribution build-timeline's reconstructFromTotals
+  // uses). A class with no progression in a category yields null for that
+  // level — Savage-Species monster classes have "dead" levels (no Hit Die /
+  // no save bump), and null contributes 0 by construction. `betterCat` ranks
+  // none BELOW poor so the per-level max falls through to the live side
+  // (max(present, null) = present), which is what lets a no-progression-
+  // every-level monster class slot in later without an engine change.
+  function expandTrack(entries) {
+    const out = [];
+    for (const e of (entries || [])) {
+      const p = e.prog || {};
+      const cat = {
+        bab:  babCategory(p.bab),
+        fort: saveCategory(p.fort),
+        ref:  saveCategory(p.ref),
+        will: saveCategory(p.will),
+      };
+      const n = e.level || 0;
+      for (let i = 0; i < n; i++) out.push(cat);
+    }
+    return out;
+  }
+
+  const BAB_RANK  = { good: 3, avg: 2, poor: 1 };
+  const SAVE_RANK = { good: 2, poor: 1 };
+  function betterCat(a, b, rank) {
+    const ra = rank[a] || 0, rb = rank[b] || 0;
+    if (ra === 0 && rb === 0) return null;
+    return ra >= rb ? a : b;
+  }
+
+  // Combine two sides per character level — the better category each level —
+  // tally into a level-group structure, then apply the SAME pooled/fractional
+  // formula as the single-stack path. Because we tally the synthesized
+  // per-level categories and run the pooled formula once, a continuous good
+  // save yields a SINGLE +2 base (no GitP "+2 per class" double-dip).
+  // lvl = max(ΣA, ΣB) — legal gestalt keeps the sides equal; we don't sum.
+  function gestaltTotals(sideA, sideB) {
+    const ea = expandTrack(sideA), eb = expandTrack(sideB);
+    const n = Math.max(ea.length, eb.length);
+    const g = {
+      bab:  { good: 0, avg: 0, poor: 0 },
+      fort: { good: 0, poor: 0 },
+      ref:  { good: 0, poor: 0 },
+      will: { good: 0, poor: 0 },
+    };
+    for (let i = 0; i < n; i++) {
+      const a = ea[i] || {}, b = eb[i] || {};
+      const bab  = betterCat(a.bab,  b.bab,  BAB_RANK);  if (bab)  g.bab[bab]++;
+      const fort = betterCat(a.fort, b.fort, SAVE_RANK); if (fort) g.fort[fort]++;
+      const ref  = betterCat(a.ref,  b.ref,  SAVE_RANK); if (ref)  g.ref[ref]++;
+      const will = betterCat(a.will, b.will, SAVE_RANK); if (will) g.will[will]++;
+    }
+    const t = totalsFromGroups(g, useFractional);
+    return { bab: t.bab, fort: t.fort, ref: t.ref, will: t.will,
+             lvl: Math.max(ea.length, eb.length),
+             lenA: ea.length, lenB: eb.length };
   }
 
   function applyAggregatesToSheet() {
-    const totals = aggregateTotals(pickedClasses);
+    const totals = gestalt
+      ? gestaltTotals(pickedClasses, pickedClassesB)
+      : aggregateTotals(pickedClasses);
     setNumeric('bab-1',     totals.bab);
     setNumeric('fort-base', totals.fort);
     setNumeric('ref-base',  totals.ref);
@@ -1034,12 +1132,18 @@
     // (= slots taken in its tracker); empty until ≥1 slot is taken.
     const ta = document.getElementById('char-class');
     if (ta) {
-      const segs = pickedClasses.map(e => `${e.className} ${e.level}`);
+      const fmt = (arr) => arr.map(e => `${e.className} ${e.level}`).join(' / ');
+      // Gestalt notation: the two sides joined by " // " (e.g.
+      // "Fighter 5 / Rogue 5 // Wizard 10"). Non-gestalt is just Side A.
+      let classStr = fmt(pickedClasses);
+      if (gestalt) {
+        classStr = [classStr, fmt(pickedClassesB)].filter(Boolean).join(' // ');
+      }
       const blLabel = (window.Bloodline
         && typeof Bloodline.getClassLevelLabel === 'function')
         ? Bloodline.getClassLevelLabel() : '';
-      if (blLabel) segs.push(blLabel);
-      ta.value = segs.join(' / ');
+      if (blLabel) classStr = classStr ? `${classStr} / ${blLabel}` : blLabel;
+      ta.value = classStr;
       ta.dispatchEvent(new Event('input', { bubbles: true }));
     }
     // Total Level: only set if user hasn't manually deviated. We track
@@ -1072,65 +1176,110 @@
     return totals;
   }
 
-  function renderClassList() {
-    const infoPanel = document.getElementById('class-info');
-    if (!infoPanel) return;
-    let list = document.getElementById('mc-classes-list');
-    if (!list) {
-      list = document.createElement('div');
-      list.id = 'mc-classes-list';
-      list.style.cssText =
-        'display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center; ' +
-        'margin-top:0.25rem; min-height:1.6rem;';
-      infoPanel.parentElement.insertBefore(list, infoPanel);
-    }
-    list.innerHTML = '';
+  // Build the controls cluster shown at the end of the Side A row: the UA
+  // fractional toggle, the Gestalt toggle, and (when gestalt) the Side A/B
+  // "Apply to" selector. Always rendered, even with no classes applied, so
+  // the toggles are reachable before the first Apply.
+  function buildClassControls() {
+    const wrap = document.createElement('span');
+    wrap.style.cssText =
+      'margin-left:auto; display:inline-flex; gap:0.9rem; align-items:center; ' +
+      'flex-wrap:wrap; font-size:0.8em; opacity:0.9;';
 
-    // Fractional-bonus toggle is always shown so users can change it
-    // even with no classes applied yet (the choice persists).
-    const toggleWrap = document.createElement('label');
-    toggleWrap.style.cssText =
-      'font-size:0.8em; opacity:0.85; cursor:pointer; margin-left:auto; ' +
-      'display:inline-flex; gap:0.25rem; align-items:center;';
-    toggleWrap.title =
+    // Gestalt toggle.
+    const gWrap = document.createElement('label');
+    gWrap.style.cssText =
+      'cursor:pointer; display:inline-flex; gap:0.25rem; align-items:center;';
+    gWrap.title =
+      'Gestalt (UA p.72-73): the character has two parallel class tracks ' +
+      '(Side A / Side B). Each level takes the better of the two for BAB, ' +
+      'saves, HD and skills, and gains every class feature of both. Turning ' +
+      'this on reveals a Side B row and an "Apply to" selector.';
+    const gInput = document.createElement('input');
+    gInput.type = 'checkbox';
+    gInput.id = 'mc-gestalt';
+    gInput.checked = gestalt;
+    gInput.addEventListener('change', () => {
+      gestalt = gInput.checked;
+      if (!gestalt) activeSide = 'A';
+      applyAggregatesToSheet();
+      renderClassList();
+      if (typeof window.recalcAll === 'function') {
+        try { window.recalcAll(); } catch (e) { /* non-fatal */ }
+      }
+    });
+    gWrap.appendChild(gInput);
+    gWrap.appendChild(document.createTextNode(' Gestalt'));
+    wrap.appendChild(gWrap);
+
+    // UA fractional toggle.
+    const fracWrap = document.createElement('label');
+    fracWrap.style.cssText =
+      'cursor:pointer; display:inline-flex; gap:0.25rem; align-items:center;';
+    fracWrap.title =
       'When checked, BAB and saves use the Unearthed Arcana p.73 ' +
       'fractional base bonus rules (fractions per level summed across ' +
       'all classes, then floored). When unchecked, the consolidated PHB ' +
       'model is used: levels are grouped by progression type per save / ' +
       'per BAB tier, then the formula is applied once per group (so the ' +
-      '+2 good-save base only counts once per save).';
-    const toggleInput = document.createElement('input');
-    toggleInput.type = 'checkbox';
-    toggleInput.id = 'mc-use-fractional';
-    toggleInput.checked = useFractional;
-    toggleInput.addEventListener('change', () => {
-      useFractional = toggleInput.checked;
-      if (pickedClasses.length) {
+      '+2 good-save base only counts once per save). Applies to the ' +
+      'gestalt synthesis too.';
+    const fracInput = document.createElement('input');
+    fracInput.type = 'checkbox';
+    fracInput.id = 'mc-use-fractional';
+    fracInput.checked = useFractional;
+    fracInput.addEventListener('change', () => {
+      useFractional = fracInput.checked;
+      if (pickedClasses.length || pickedClassesB.length) {
         applyAggregatesToSheet();
         if (typeof window.recalcAll === 'function') {
           try { window.recalcAll(); } catch (e) { /* non-fatal */ }
         }
       }
     });
-    const toggleLabel = document.createTextNode(' UA fractional (p.73)');
-    toggleWrap.appendChild(toggleInput);
-    toggleWrap.appendChild(toggleLabel);
+    fracWrap.appendChild(fracInput);
+    fracWrap.appendChild(document.createTextNode(' UA fractional (p.73)'));
+    wrap.appendChild(fracWrap);
 
-    if (!pickedClasses.length) {
-      list.appendChild(toggleWrap);
-      return;
+    // Side selector (gestalt only): which side the Apply button targets.
+    if (gestalt) {
+      const selWrap = document.createElement('span');
+      selWrap.style.cssText =
+        'display:inline-flex; gap:0.3rem; align-items:center;';
+      selWrap.appendChild(document.createTextNode('Apply to:'));
+      for (const s of ['A', 'B']) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'mc-side-btn';
+        b.dataset.side = s;
+        b.textContent = `Side ${s}`;
+        const on = activeSide === s;
+        b.style.cssText =
+          'cursor:pointer; font-size:0.95em; padding:0.1rem 0.5rem; ' +
+          'border-radius:3px; color:inherit; ' +
+          'border:1px solid ' + (on ? '#6a8aaa' : '#555') + '; ' +
+          'background:' + (on ? 'rgba(106,138,170,0.35)' : 'transparent') + ';';
+        b.addEventListener('click', () => { activeSide = s; renderClassList(); });
+        selWrap.appendChild(b);
+      }
+      wrap.appendChild(selWrap);
     }
+    return wrap;
+  }
 
+  // Render one side's chip row into listEl. `side` is 'A' | 'B' in gestalt
+  // mode (drives the row label + which array a chip's × removes from) or
+  // null for the single-stack "Applied:" row. `withAdvancers` gates the
+  // advance-target choosers — Side A only in Phase 1 (the spell-advancement
+  // subsystem is Side-A-scoped; see notes).
+  function renderChipRow(listEl, entries, side, withAdvancers) {
     const label = document.createElement('span');
-    label.textContent = 'Applied:';
+    label.textContent = side ? `Side ${side}:` : 'Applied:';
     label.style.cssText = 'font-size:0.85em; opacity:0.7';
-    list.appendChild(label);
+    listEl.appendChild(label);
 
-    // Build a class-name → [customization meta...] index once so each
-    // chip just looks up its own entry without re-scanning.
     const custByClass = collectCustomizationsByClass();
-
-    for (const e of pickedClasses) {
+    for (const e of entries) {
       const chip = document.createElement('span');
       chip.className = 'mc-class-chip';
       chip.dataset.class = e.className;
@@ -1141,16 +1290,10 @@
       const txt = document.createElement('span');
       txt.textContent = `${e.className} ${e.level}`;
       chip.appendChild(txt);
-      // Customization tags: if the player has any active
-      // customizations for this class, render them inline as small
-      // badges with a tooltip showing the full name + kind. Removed
-      // automatically when the class itself is removed (see
-      // removeCustomizationsForClass call in removeClass below).
       const custs = custByClass.get(e.className.toLowerCase()) || [];
       for (const c of custs) {
         const tag = document.createElement('span');
         tag.className = 'mc-chip-tag';
-        // Shorten "Drow Wizard Substitution Level 5" → "Drow Sub L5".
         tag.textContent = shortenVariantName(c);
         tag.title = `${c.kind}: ${c.name}${c.race ? ' — ' + c.race : ''}` +
           (c.replaces ? `\nReplaces: ${c.replaces}` : '');
@@ -1163,22 +1306,76 @@
       x.style.cssText =
         'background:transparent; border:0; color:#c88; cursor:pointer; ' +
         'font-size:1.1em; padding:0; line-height:1;';
-      x.addEventListener('click', () => removeClass(e.className));
+      x.addEventListener('click', () => removeClass(e.className, side));
       chip.appendChild(x);
-      list.appendChild(chip);
+      listEl.appendChild(chip);
     }
 
-    // Below the chip row, render advance-target choosers for any
-    // advancer entries that have ≥2 eligible targets (simple case)
-    // or perLevelChoice flag (Ultimate Magus). Single-eligible
-    // advancers don't need UI — the auto-pick is the only choice.
-    renderAdvancerChoosers(list);
+    if (withAdvancers) renderAdvancerChoosers(listEl);
+  }
 
-    if (pickedClasses.length >= 2) {
+  function renderClassList() {
+    const infoPanel = document.getElementById('class-info');
+    if (!infoPanel) return;
+    let list = document.getElementById('mc-classes-list');
+    if (!list) {
+      list = document.createElement('div');
+      list.id = 'mc-classes-list';
+      list.style.cssText =
+        'display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center; ' +
+        'margin-top:0.25rem; min-height:1.6rem;';
+      infoPanel.parentElement.insertBefore(list, infoPanel);
+    }
+    // Side B row lives directly beneath Side A; created lazily, hidden when
+    // gestalt is off so the non-gestalt layout is unchanged.
+    let listB = document.getElementById('mc-classes-list-b');
+    if (!listB) {
+      listB = document.createElement('div');
+      listB.id = 'mc-classes-list-b';
+      listB.style.cssText =
+        'display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center; ' +
+        'margin-top:0.25rem; min-height:1.6rem;';
+      list.parentElement.insertBefore(listB, list.nextSibling);
+    }
+    list.innerHTML = '';
+    listB.innerHTML = '';
+    listB.style.display = gestalt ? 'flex' : 'none';
+
+    const controls = buildClassControls();
+
+    // Nothing applied on either side → just the controls (so Gestalt /
+    // fractional toggles are reachable from a fresh sheet).
+    if (!pickedClasses.length && !pickedClassesB.length) {
+      list.appendChild(controls);
+      return;
+    }
+
+    // Side A — labeled "Side A:" in gestalt, "Applied:" otherwise. Advancer
+    // choosers render here (Side-A-scoped in Phase 1).
+    renderChipRow(list, pickedClasses, gestalt ? 'A' : null, true);
+
+    // Side B — gestalt only, no advancer choosers (see renderChipRow note).
+    if (gestalt) {
+      renderChipRow(listB, pickedClassesB, 'B', false);
+      const t = gestaltTotals(pickedClasses, pickedClassesB);
+      if (t.lenA !== t.lenB) {
+        const note = document.createElement('span');
+        note.style.cssText =
+          'flex:1 1 100%; font-size:0.8em; color:#c9a85a; ' +
+          'padding:0.15rem 0.3rem;';
+        note.textContent =
+          `⚠ Sides uneven (A=${t.lenA}, B=${t.lenB}). Legal gestalt keeps ` +
+          `both sides at the same level; stats use the higher (${t.lvl}).`;
+        listB.appendChild(note);
+      }
+    }
+
+    // Clear All clears BOTH sides; shown once total ≥ 2.
+    if (pickedClasses.length + pickedClassesB.length >= 2) {
       const clear = document.createElement('button');
       clear.type = 'button';
       clear.textContent = 'Clear All';
-      clear.title = 'Remove all applied classes';
+      clear.title = 'Remove all applied classes (both sides)';
       clear.style.cssText =
         'background:transparent; border:1px solid #844; color:#c88; ' +
         'cursor:pointer; font-size:0.8em; padding:0.1rem 0.4rem; ' +
@@ -1186,7 +1383,7 @@
       clear.addEventListener('click', clearAllClasses);
       list.appendChild(clear);
     }
-    list.appendChild(toggleWrap);
+    list.appendChild(controls);
   }
 
   // Render per-advancer target choosers. Inserts a row below the chip
@@ -1439,11 +1636,28 @@
     rowEl.appendChild(tag);
   }
 
-  function removeClass(className) {
-    const idx = findClassEntry(className);
+  function removeClass(className, side) {
+    // Locate the entry in the requested side, or search A then B when the
+    // caller doesn't specify (e.g. external callers / non-gestalt chips).
+    let arr, idx;
+    if (side === 'B') { arr = pickedClassesB; idx = findClassEntry(className, arr); }
+    else if (side === 'A') { arr = pickedClasses; idx = findClassEntry(className, arr); }
+    else {
+      idx = findClassEntry(className, pickedClasses);
+      if (idx >= 0) { arr = pickedClasses; }
+      else { arr = pickedClassesB; idx = findClassEntry(className, arr); }
+    }
     if (idx < 0) return;
-    const removed = pickedClasses.splice(idx, 1)[0];
+    const removed = arr.splice(idx, 1)[0];
 
+    // Gestalt: a class can sit on BOTH sides. Its features / skills / spell
+    // panels are the union, so only tear them down when NO remaining side
+    // still grants this class. The monster-ext subtraction below is keyed
+    // to the removed ENTRY (not the name), so it always runs.
+    const otherArr = arr === pickedClasses ? pickedClassesB : pickedClasses;
+    const stillGranted = findClassEntry(className, otherArr) >= 0;
+
+    if (!stillGranted) {
     // Strip this class's Special Abilities entries.
     document
       .querySelectorAll(`[data-from-class="${cssEscape(className)}"]`)
@@ -1471,11 +1685,14 @@
       if (tabBtn) tabBtn.remove();
       panel.remove();
     }
+    } // end !stillGranted teardown
 
     // Drop advances pointing at the removed class so the chip-list and
     // refreshAllSpellTabs no longer try to advance a class that's gone.
+    // Both sides' entries are scanned (advances live on whichever side
+    // carries the advancing PrC).
     const removedKey = className.toLowerCase();
-    for (const e of pickedClasses) {
+    for (const e of pickedClasses.concat(pickedClassesB)) {
       if (e.advancesTargets) {
         e.advancesTargets = e.advancesTargets.map(t =>
           t && t.toLowerCase() === removedKey ? null : t);
@@ -1494,35 +1711,40 @@
       }
     }
 
-    // Strip class-granted freebie spells (Sand Shaper's Desert
-    // Insight, etc.) added to any spellcasting panel's Known list.
-    // We identify them by their `data-source` attribute, which
-    // class-spell-additions.js prefixes with "<className> — ".
-    removeClassGrantedSpells(className);
+    // Name-keyed teardown — skipped when the other side still grants this
+    // class (union semantics), so removing Side-A Fighter doesn't strip the
+    // Fighter features Side B still provides.
+    if (!stillGranted) {
+      // Strip class-granted freebie spells (Sand Shaper's Desert
+      // Insight, etc.) added to any spellcasting panel's Known list.
+      // We identify them by their `data-source` attribute, which
+      // class-spell-additions.js prefixes with "<className> — ".
+      removeClassGrantedSpells(className);
 
-    // Clear Class Features tab fields that were auto-filled by
-    // populateClassFeaturesTab for this class. `data-from-class`
-    // is set when the field was empty at apply time; the user-edit
-    // listener clears the marker if the user types in the field,
-    // so we won't blow away any manual customizations.
-    removeAutoFilledClassFeatureFields(className);
-    // Strip ACFs / sub levels that targeted this class — they're
-    // tied to the class and have no meaning once it's removed. Per-
-    // customization notes the user wrote go with them; if you want
-    // to preserve those, re-apply the class first then remove
-    // individual customizations from the list.
-    if (typeof ClassFeatures !== 'undefined' &&
-        typeof ClassFeatures.removeCustomizationsForClass === 'function') {
-      ClassFeatures.removeCustomizationsForClass(className);
+      // Clear Class Features tab fields that were auto-filled by
+      // populateClassFeaturesTab for this class. `data-from-class`
+      // is set when the field was empty at apply time; the user-edit
+      // listener clears the marker if the user types in the field,
+      // so we won't blow away any manual customizations.
+      removeAutoFilledClassFeatureFields(className);
+      // Strip ACFs / sub levels that targeted this class — they're
+      // tied to the class and have no meaning once it's removed. Per-
+      // customization notes the user wrote go with them; if you want
+      // to preserve those, re-apply the class first then remove
+      // individual customizations from the list.
+      if (typeof ClassFeatures !== 'undefined' &&
+          typeof ClassFeatures.removeCustomizationsForClass === 'function') {
+        ClassFeatures.removeCustomizationsForClass(className);
+      }
+      // Untick class-skill checkboxes whose ONLY remaining source was
+      // this class. Boxes claimed by other applied classes stay ticked.
+      removeClassSkills(className);
     }
     // Subtract monster-class extensions (ability bumps + NA + size)
     // that this class applied. Stored on the removed entry by
     // applyMonsterClassExtensions on the original apply; no-op for
-    // non-monster classes.
+    // non-monster classes. Keyed to the removed ENTRY, so always runs.
     removeMonsterClassExtensions(removed);
-    // Untick class-skill checkboxes whose ONLY remaining source was
-    // this class. Boxes claimed by other applied classes stay ticked.
-    removeClassSkills(className);
     reconcileCurrentClassSkills();
     applyAggregatesToSheet();
     refreshAllSpellTabs();
@@ -1539,8 +1761,9 @@
   }
 
   function clearAllClasses() {
-    if (!pickedClasses.length) return;
-    if (!confirm(`Remove all ${pickedClasses.length} applied classes?`)) return;
+    const total = pickedClasses.length + pickedClassesB.length;
+    if (!total) return;
+    if (!confirm(`Remove all ${total} applied classes?`)) return;
     // Remove each class via the normal path so spells tabs + special
     // abilities get cleaned up consistently. We snapshot the name list
     // BEFORE the loop because each removeClass() mutates pickedClasses
@@ -1551,9 +1774,16 @@
     // removal path would short-circuit the loop, leaving the rest
     // applied (reported 2026-05-16 as "Clear All removes one at a
     // time").
-    const names = pickedClasses.map(e => e.className);
-    for (const n of names) {
-      try { removeClass(n); }
+    // Snapshot per side (removeClass mutates the arrays) and remove from the
+    // explicit side so a class shared across both sides clears from each.
+    const aNames = pickedClasses.map(e => e.className);
+    const bNames = pickedClassesB.map(e => e.className);
+    for (const n of aNames) {
+      try { removeClass(n, 'A'); }
+      catch (err) { console.warn('[class-picker] removeClass failed for', n, err); }
+    }
+    for (const n of bNames) {
+      try { removeClass(n, 'B'); }
       catch (err) { console.warn('[class-picker] removeClass failed for', n, err); }
     }
   }
@@ -1643,7 +1873,126 @@
   // `_multiclass` with the current state. On load, restore the array
   // and re-render the chip list, but DO NOT recompute aggregates — the
   // saved BAB/saves are authoritative (so manual edits survive).
+  //
+  // Gestalt: Side A persists as `_multiclass` exactly as before; Side B
+  // (when gestalt is on) persists as the parallel `_multiclassB`, plus a
+  // `_gestalt: true` flag. Both arrays use the SAME stub-mapping and
+  // hydration helpers below, so Side B inherits every save-stability
+  // property (name+source resolution, racial-HD reconstruction, the
+  // advancement pillars). Old saves carry neither key → gestalt off,
+  // Side B empty, behavior byte-identical.
   // ============================================================
+
+  // Serialize one picked-class entry to its compact save stub. Strips the
+  // prog object (rehydrated from the DB on load) except for synthetic
+  // racial-HD rows, which have no DB class and carry prog directly.
+  function mapEntryToStub(e) {
+    return {
+      className: e.className, level: e.level,
+      classId:   e.classId,   version: e.version,
+      source:    e.source,
+      advancesTypes:   e.advancesTypes,
+      advancesLevels:  e.advancesLevels,
+      advancesTargets: e.advancesTargets,
+      perLevelChoice:         e.perLevelChoice,
+      advancingLevels:        e.advancingLevels,
+      autoAdvanceLowerLevels: e.autoAdvanceLowerLevels,
+      requiresStyles:         e.requiresStyles,
+      allowsMultiAdvance:     e.allowsMultiAdvance,
+      advancementSlots:       e.advancementSlots,
+      invocationAdvancesLevels:  e.invocationAdvancesLevels,
+      invocationAdvancesTarget:  e.invocationAdvancesTarget,
+      invocationAdvancingLevels: e.invocationAdvancingLevels,
+      mysteryAdvancesLevels:  e.mysteryAdvancesLevels,
+      mysteryAdvancesTarget:  e.mysteryAdvancesTarget,
+      mysteryAdvancingLevels: e.mysteryAdvancingLevels,
+      monsterExt: e.monsterExt,
+      racialHD:     e.racialHD || undefined,
+      creatureRace: e.creatureRace || undefined,
+      creatureType: e.creatureType || undefined,
+      prog:         e.racialHD ? e.prog : undefined,
+    };
+  }
+
+  // Reconstruct one picked-class entry from its save stub. Three branches:
+  // synthetic racial-HD (no DB lookup), DB-resolution failure (preserved
+  // as `_unhydrated` so save round-trips it forward), and the normal
+  // name+source-resolved class. Used for BOTH sides.
+  function hydrateStub(stub) {
+    // Synthetic racial-HD rows (creature-as-race) carry their own prog and
+    // have no DB class — reconstruct directly, before any DB lookup.
+    if (stub.racialHD) {
+      return {
+        className: stub.className,
+        level: stub.level,
+        racialHD: true,
+        creatureRace: stub.creatureRace,
+        creatureType: stub.creatureType || null,
+        prog: stub.prog ||
+          { bab: null, fort: null, ref: null, will: null },
+      };
+    }
+    // Resolve by name+source FIRST (entry.id renumbers on DB rebuild).
+    const cls = resolveMulticlassStub(stub);
+    if (!cls) {
+      // Preserve the stub so save doesn't drop it. prog missing → recalc
+      // skipped per the "saved BAB/saves are authoritative" rule.
+      return {
+        className: stub.className,
+        level: stub.level,
+        classId: stub.classId,
+        source: stub.source,
+        version: stub.version,
+        prog: { bab: null, fort: null, ref: null, will: null },
+        _unhydrated: true,
+        advancesTypes:   stub.advancesTypes   || undefined,
+        advancesLevels:  stub.advancesLevels  || undefined,
+        advancesTargets: stub.advancesTargets || undefined,
+        perLevelChoice:         stub.perLevelChoice         || undefined,
+        advancingLevels:        stub.advancingLevels        || undefined,
+        autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
+        requiresStyles:         stub.requiresStyles         || undefined,
+        allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
+        advancementSlots:       stub.advancementSlots       || undefined,
+        invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
+        invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
+        invocationAdvancingLevels: stub.invocationAdvancingLevels || undefined,
+        mysteryAdvancesLevels:  stub.mysteryAdvancesLevels  || undefined,
+        mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
+        mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
+        monsterExt: stub.monsterExt || undefined,
+      };
+    }
+    return {
+      className: cls.class || stub.className,
+      level: stub.level,
+      classId: cls.class_id,
+      source: cls.source || stub.source,
+      version: cls.version || stub.version,
+      prog: {
+        bab:  cls.bab_progression,
+        fort: cls.fort_progression,
+        ref:  cls.ref_progression,
+        will: cls.will_progression,
+      },
+      advancesTypes:   stub.advancesTypes   || undefined,
+      advancesLevels:  stub.advancesLevels  || undefined,
+      advancesTargets: stub.advancesTargets || undefined,
+      perLevelChoice:         stub.perLevelChoice         || undefined,
+      advancingLevels:        stub.advancingLevels        || undefined,
+      autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
+      requiresStyles:         stub.requiresStyles         || undefined,
+      allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
+      advancementSlots:       stub.advancementSlots       || undefined,
+      invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
+      invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
+      invocationAdvancingLevels: stub.invocationAdvancingLevels || undefined,
+      mysteryAdvancesLevels:  stub.mysteryAdvancesLevels  || undefined,
+      mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
+      mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
+      monsterExt: stub.monsterExt || undefined,
+    };
+  }
 
   function installPersistenceHooks() {
     // Character is declared `const` at the top of character.js so it's
@@ -1667,52 +2016,17 @@
         if (el.id) markers[el.id] = el.dataset.fromClass;
       });
       if (Object.keys(markers).length) out._fromClassMarkers = markers;
+      // Side A — unchanged shape (`_multiclass`). prog is stripped and
+      // rehydrated from the DB on load; see mapEntryToStub.
       if (pickedClasses.length) {
-        // Strip prog object for compactness; rehydrate from DB on load.
-        out._multiclass = pickedClasses.map(e => ({
-          className: e.className, level: e.level,
-          classId:   e.classId,   version: e.version,
-          // `source` round-trip is the brittle-id escape hatch — see
-          // applyToSheet comment. entry.id renumbers on DB rebuild,
-          // so loadData looks up by name+source first.
-          source:    e.source,
-          advancesTypes:   e.advancesTypes,
-          advancesLevels:  e.advancesLevels,
-          advancesTargets: e.advancesTargets,
-          // Per-level allocation (Ultimate Magus style). Stored when
-          // present; nothing else cares about these fields.
-          perLevelChoice:         e.perLevelChoice,
-          advancingLevels:        e.advancingLevels,
-          autoAdvanceLowerLevels: e.autoAdvanceLowerLevels,
-          requiresStyles:         e.requiresStyles,
-          allowsMultiAdvance:     e.allowsMultiAdvance,
-          advancementSlots:       e.advancementSlots,
-          // (No ToB maneuver-advancement fields: IL is recomputed live
-          // from the registry on load, so there's nothing to persist.)
-          // Invocation-advancement pillar (ED / ET / Demonbinder).
-          // Same dual-pillar pattern: ET populates this AND the spell
-          // pillar above.
-          invocationAdvancesLevels:  e.invocationAdvancesLevels,
-          invocationAdvancesTarget:  e.invocationAdvancesTarget,
-          invocationAdvancingLevels: e.invocationAdvancingLevels,
-          // Mystery-advancement pillar (MoS / Noctumancer). Noctumancer
-          // is dual-pillar: populates this AND the spell pillar.
-          mysteryAdvancesLevels:  e.mysteryAdvancesLevels,
-          mysteryAdvancesTarget:  e.mysteryAdvancesTarget,
-          mysteryAdvancingLevels: e.mysteryAdvancingLevels,
-          // Savage-Species monster-class extensions (size / NA / ability
-          // bumps applied to the sheet on apply). Needed for removeClass
-          // to subtract the right delta after a save/load round-trip.
-          monsterExt: e.monsterExt,
-          // Creature-as-race synthetic racial-HD rows. These have no DB
-          // class, so prog can't be rehydrated from the class table —
-          // persist it directly here. The load branch reconstructs the
-          // entry from the stub without a DB lookup.
-          racialHD:     e.racialHD || undefined,
-          creatureRace: e.creatureRace || undefined,
-          creatureType: e.creatureType || undefined,
-          prog:         e.racialHD ? e.prog : undefined,
-        }));
+        out._multiclass = pickedClasses.map(mapEntryToStub);
+      }
+      // Gestalt: persist the flag + Side B. Both keys are omitted when
+      // they'd be empty/false, so a non-gestalt save is byte-identical to
+      // the pre-gestalt format.
+      if (gestalt) out._gestalt = true;
+      if (pickedClassesB.length) {
+        out._multiclassB = pickedClassesB.map(mapEntryToStub);
       }
       if (useFractional) out._fractionalBaseBonus = true;
       return out;
@@ -1721,107 +2035,18 @@
       const ret = origLoad.apply(this, arguments);
       pickedClasses = [];
       useFractional = !!(data && data._fractionalBaseBonus);
+      // Side A (`_multiclass`) and Side B (`_multiclassB`) hydrate through
+      // the same hydrateStub helper — see its comment for the three
+      // resolution branches (racial-HD / unhydrated / name+source).
       if (data && Array.isArray(data._multiclass)) {
-        for (const stub of data._multiclass) {
-          // Synthetic racial-HD rows (creature-as-race) carry their own
-          // prog and have no DB class — reconstruct directly from the
-          // stub BEFORE attempting a DB class lookup. Defensive defaults
-          // keep this inert for older saves (no `racialHD` key → normal
-          // path below).
-          if (stub.racialHD) {
-            pickedClasses.push({
-              className: stub.className,
-              level: stub.level,
-              racialHD: true,
-              creatureRace: stub.creatureRace,
-              creatureType: stub.creatureType || null,
-              prog: stub.prog ||
-                { bab: null, fort: null, ref: null, will: null },
-            });
-            continue;
-          }
-          // Resolve by name+source FIRST. entry.id renumbers on every
-          // DB rebuild (auto-increment shifts when new entries land),
-          // so an old save's classId can resolve to the wrong class
-          // (silent prog swap) or fail the type filter and drop the
-          // entry entirely (silent class removal). Name+source is
-          // stable across rebuilds; id is the last-resort fallback.
-          //
-          // If resolution fails entirely (DB not loaded yet, unknown
-          // homebrew name, or a class we no longer ship), preserve
-          // the stub data as an `_unhydrated` entry so the chip
-          // still renders and a later save round-trips the stub
-          // forward. A DB.ready handler retries hydration so the
-          // race-on-page-load case eventually fills prog in.
-          const cls = resolveMulticlassStub(stub);
-          if (!cls) {
-            // Preserve the stub so save doesn't drop it. prog is
-            // missing — recalc is skipped per the existing
-            // "saved BAB/saves are authoritative" rule.
-            pickedClasses.push({
-              className: stub.className,
-              level: stub.level,
-              classId: stub.classId,
-              source: stub.source,
-              version: stub.version,
-              prog: { bab: null, fort: null, ref: null, will: null },
-              _unhydrated: true,
-              advancesTypes:   stub.advancesTypes   || undefined,
-              advancesLevels:  stub.advancesLevels  || undefined,
-              advancesTargets: stub.advancesTargets || undefined,
-              perLevelChoice:         stub.perLevelChoice         || undefined,
-              advancingLevels:        stub.advancingLevels        || undefined,
-              autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
-              requiresStyles:         stub.requiresStyles         || undefined,
-              allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
-              advancementSlots:       stub.advancementSlots       || undefined,
-              invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
-              invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
-              invocationAdvancingLevels: stub.invocationAdvancingLevels || undefined,
-              mysteryAdvancesLevels:  stub.mysteryAdvancesLevels  || undefined,
-              mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
-              mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
-              monsterExt: stub.monsterExt || undefined,
-            });
-            continue;
-          }
-          pickedClasses.push({
-            className: cls.class || stub.className,
-            level: stub.level,
-            classId: cls.class_id,
-            source: cls.source || stub.source,
-            version: cls.version || stub.version,
-            prog: {
-              bab:  cls.bab_progression,
-              fort: cls.fort_progression,
-              ref:  cls.ref_progression,
-              will: cls.will_progression,
-            },
-            advancesTypes:   stub.advancesTypes   || undefined,
-            advancesLevels:  stub.advancesLevels  || undefined,
-            advancesTargets: stub.advancesTargets || undefined,
-            perLevelChoice:         stub.perLevelChoice         || undefined,
-            advancingLevels:        stub.advancingLevels        || undefined,
-            autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
-            requiresStyles:         stub.requiresStyles         || undefined,
-            allowsMultiAdvance:     stub.allowsMultiAdvance     || undefined,
-            advancementSlots:       stub.advancementSlots       || undefined,
-            // Invocation pillar.
-            invocationAdvancesLevels:  stub.invocationAdvancesLevels  || undefined,
-            invocationAdvancesTarget:  stub.invocationAdvancesTarget  || undefined,
-            invocationAdvancingLevels: stub.invocationAdvancingLevels || undefined,
-            // Mystery pillar.
-            mysteryAdvancesLevels:  stub.mysteryAdvancesLevels  || undefined,
-            mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
-            mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
-            // Monster-class extensions — restored as-is so a future
-            // removeClass after a save/load can subtract the right
-            // delta. The ability scores / NA / size themselves are
-            // restored via Character.loadData (origLoad above); we
-            // just need to remember what we added.
-            monsterExt: stub.monsterExt || undefined,
-          });
-        }
+        for (const stub of data._multiclass) pickedClasses.push(hydrateStub(stub));
+      }
+      // Gestalt mode + Side B. Absent keys → off / empty, so old saves load
+      // exactly as before.
+      gestalt = !!(data && data._gestalt);
+      pickedClassesB = [];
+      if (data && Array.isArray(data._multiclassB)) {
+        for (const stub of data._multiclassB) pickedClassesB.push(hydrateStub(stub));
       }
       renderClassList();
       // Save-stability: restore `data-from-class` markers stamped by
@@ -1847,17 +2072,21 @@
       // recognized as "computed by us" (not a manual deviation) on the
       // next Apply.
       const tl = document.getElementById('char-level');
-      if (tl && pickedClasses.length) {
-        const totals = aggregateTotals(pickedClasses);
+      if (tl && (pickedClasses.length || pickedClassesB.length)) {
+        const totals = gestalt
+          ? gestaltTotals(pickedClasses, pickedClassesB)
+          : aggregateTotals(pickedClasses);
         tl.dataset.mcComputed = String(totals.lvl);
       }
       // Class skills run AFTER all other modules' loadData (Skills.loadData
       // would otherwise reset the checkboxes from saved state). Deferred
       // to the next tick so this re-tags loaded skill rows with their
-      // class-skill sources for proper untick-on-remove tracking.
-      if (pickedClasses.length) {
+      // class-skill sources for proper untick-on-remove tracking. Gestalt:
+      // both sides contribute class skills (the union), so re-tag from A∪B.
+      if (pickedClasses.length || pickedClassesB.length) {
         setTimeout(() => {
           for (const e of pickedClasses) applyClassSkills(e.className);
+          if (gestalt) for (const e of pickedClassesB) applyClassSkills(e.className);
           reconcileCurrentClassSkills();
         }, 0);
       }
@@ -1958,31 +2187,38 @@
   // subsequent recalc has the right BAB / save progressions.
   function rehydrateUnhydratedClasses() {
     if (typeof DB === 'undefined' || !DB.isLoaded()) return;
-    let changed = 0;
-    for (let i = 0; i < pickedClasses.length; i++) {
-      const e = pickedClasses[i];
-      if (!e._unhydrated) continue;
-      const cls = resolveMulticlassStub({
-        className: e.className, level: e.level,
-        classId: e.classId, source: e.source, version: e.version,
-      });
-      if (!cls) continue;
-      pickedClasses[i] = Object.assign({}, e, {
-        className: cls.class || e.className,
-        classId:   cls.class_id,
-        source:    cls.source || e.source,
-        version:   cls.version || e.version,
-        prog: {
-          bab:  cls.bab_progression,
-          fort: cls.fort_progression,
-          ref:  cls.ref_progression,
-          will: cls.will_progression,
-        },
-        _unhydrated: false,
-      });
-      delete pickedClasses[i]._unhydrated;
-      changed++;
-    }
+    // Re-resolve any `_unhydrated` stubs in one side's array, in place.
+    const rehydrateArray = (arr) => {
+      let n = 0;
+      for (let i = 0; i < arr.length; i++) {
+        const e = arr[i];
+        if (!e._unhydrated) continue;
+        const cls = resolveMulticlassStub({
+          className: e.className, level: e.level,
+          classId: e.classId, source: e.source, version: e.version,
+        });
+        if (!cls) continue;
+        arr[i] = Object.assign({}, e, {
+          className: cls.class || e.className,
+          classId:   cls.class_id,
+          source:    cls.source || e.source,
+          version:   cls.version || e.version,
+          prog: {
+            bab:  cls.bab_progression,
+            fort: cls.fort_progression,
+            ref:  cls.ref_progression,
+            will: cls.will_progression,
+          },
+          _unhydrated: false,
+        });
+        delete arr[i]._unhydrated;
+        n++;
+      }
+      return n;
+    };
+    // Both sides — a gestalt Side B stub can be unhydrated on a load-before-
+    // DB-ready race just like Side A.
+    const changed = rehydrateArray(pickedClasses) + rehydrateArray(pickedClassesB);
     if (changed) {
       console.log(`[class-picker] re-hydrated ${changed} class entr` +
                   `${changed === 1 ? 'y' : 'ies'} after DB ready`);
@@ -3198,8 +3434,10 @@
 
     // Update the multiclass state: replace existing entry for this class,
     // or push a new one. Aggregates (BAB, saves, char-class, total level)
-    // are then recomputed across the full pickedClasses list.
-    const existingIdx = findClassEntry(cls.class);
+    // are then recomputed across the full pickedClasses list. Gestalt routes
+    // the entry to the active side (`arr`); non-gestalt is always Side A.
+    const arr = gestalt ? sideArray(activeSide) : pickedClasses;
+    const existingIdx = findClassEntry(cls.class, arr);
     const entry = {
       className: cls.class,
       level: level,
@@ -3259,7 +3497,7 @@
     // against them (re-applying Ogre 2 → Ogre 3 only adds the new
     // L3 changes, not the full L1..L3 stack again).
     const prevMonsterExt = (existingIdx >= 0)
-      ? pickedClasses[existingIdx].monsterExt : null;
+      ? arr[existingIdx].monsterExt : null;
     if (existingIdx >= 0) {
       // Preserve user-pinned target overrides on re-apply (advancesTargets
       // / advancementSlots may have been manually selected by the user
@@ -3267,7 +3505,7 @@
       // prcLevel is still within the new advancingLevels list and
       // discard the rest (e.g. user dropped UM from L5 → L3, slots at
       // L4+ disappear).
-      const prev = pickedClasses[existingIdx];
+      const prev = arr[existingIdx];
       if (prev.advancesTargets) entry.advancesTargets = prev.advancesTargets;
       if (prev.advancementSlots && entry.perLevelChoice) {
         const keep = new Set(entry.advancingLevels);
@@ -3282,9 +3520,9 @@
       if (prev.mysteryAdvancesTarget) {
         entry.mysteryAdvancesTarget = prev.mysteryAdvancesTarget;
       }
-      pickedClasses[existingIdx] = entry;
+      arr[existingIdx] = entry;
     } else {
-      pickedClasses.push(entry);
+      arr.push(entry);
     }
     // Seed advancementSlots for new perLevelChoice entries (or freshly
     // re-added slots after a level bump). Defaults each slot to the
@@ -4454,9 +4692,18 @@
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
+    getStateB: () => pickedClassesB.slice(),
+    isGestalt: () => gestalt,
+    setGestalt: apiSetGestalt,
+    setActiveSide: apiSetActiveSide,
+    getActiveSide: () => activeSide,
     findEntry: findClassEntry,
     removeClass,
     clearAll: clearAllClasses,
+    // Math, exposed for the play-feel suite's synthesis invariants (the
+    // double-dip canary). Pure functions over level/prog entry arrays.
+    aggregateTotals,
+    gestaltTotals,
     // Creature-as-race racial Hit Dice (see creature-race-picker.js).
     addRacialHD,
     removeRacialHD,

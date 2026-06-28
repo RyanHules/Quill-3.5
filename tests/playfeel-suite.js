@@ -806,6 +806,73 @@
       'IL-MC: Crusader 5 / RKV 1 → IL 6 (RKV full +1 from level 1)');
   });
 
+  regression('GE1: gestalt synthesis canary (order-independent, no double-dip)', async () => {
+    // The load-bearing math invariant. Fighter 5/Wizard 5 // Wizard 5/Fighter 5
+    // must equal both its side-swapped twin AND Fighter 10 // Wizard 10, all
+    // three = BAB 10 / Fort 7 / Ref 3 / Will 7. This locks three properties at
+    // once: order-independence within a side, side-swap symmetry, and the
+    // absence of the GitP "+2 per new class" double-dip (which would make the
+    // F5/W5//W5/F5 build's saves diverge). If this goes red, the synthesis math
+    // has regressed. Calls the REAL exposed ClassPicker.gestaltTotals.
+    const F = { bab: 'good', fort: 'good', ref: 'poor', will: 'poor' };
+    const W = { bab: 'poor', fort: 'poor', ref: 'poor', will: 'good' };
+    const e = (prog, level) => ({ prog, level });
+    const G = (a, b) => ClassPicker.gestaltTotals(a, b);
+    const key = (t) => `${t.bab}/${t.fort}/${t.ref}/${t.will}/${t.lvl}`;
+    const fwwf = G([e(F, 5), e(W, 5)], [e(W, 5), e(F, 5)]);
+    const wffw = G([e(W, 5), e(F, 5)], [e(F, 5), e(W, 5)]);
+    const f10w10 = G([e(F, 10)], [e(W, 10)]);
+    expect(key(fwwf), '10/7/3/7/10',
+      'GE1: F5/W5 // W5/F5 must be BAB10/Fort7/Ref3/Will7/L10');
+    expect(key(wffw), key(fwwf), 'GE1: side-swap must be identical');
+    expect(key(f10w10), key(fwwf),
+      'GE1: must equal F10 // W10 (no +2-per-class double-dip)');
+  });
+
+  regression('GE2: gestalt apply writes synthesis to the sheet + round-trips', async () => {
+    // End-to-end: Fighter 10 // Wizard 10 through the real picker, then a
+    // collectData → loadData cycle. Verifies the engine reaches the sheet
+    // fields, the gestalt level is max (not sum), and Side B persists.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    await applyClass('Fighter', 10);     // Side A (default)
+    ClassPicker.setActiveSide('B');
+    await applyClass('Wizard', 10);      // Side B
+    expectValue('#bab-1', '10', 'GE2: BAB = max(Fighter10, Wizard10) = 10');
+    expectValue('#fort-base', '7', 'GE2: Fort good (Fighter side) = 7');
+    expectValue('#will-base', '7', 'GE2: Will good (Wizard side) = 7');
+    expectValue('#ref-base', '3', 'GE2: Ref poor both sides = 3');
+    expectValue('#char-level', '10', 'GE2: gestalt level = 10, not 20');
+    const cls = $('#char-class').value;
+    if (!cls.includes('//'))
+      fail(`GE2: #char-class should use " // " gestalt notation, got "${cls}"`);
+    // Save round-trip.
+    const blob = Character.collectData();
+    if (!blob._gestalt) fail('GE2: collectData omitted the _gestalt flag');
+    if (!Array.isArray(blob._multiclassB) || blob._multiclassB.length !== 1)
+      fail('GE2: collectData did not emit a 1-entry _multiclassB');
+    await newCharacter();
+    expect(ClassPicker.isGestalt(), false, 'GE2: newCharacter clears gestalt');
+    Character.loadData(blob);
+    await wait(80);
+    expect(ClassPicker.isGestalt(), true, 'GE2: loadData restores gestalt');
+    expect(ClassPicker.getStateB().length, 1, 'GE2: Side B (Wizard) restored');
+    expectValue('#bab-1', '10', 'GE2: BAB persists across reload (authoritative)');
+  });
+
+  regression('GE3: non-gestalt save omits _gestalt and _multiclassB', async () => {
+    // Byte-identity guard: a plain single-stack character must not gain the
+    // gestalt keys, so existing saves stay unchanged.
+    await newCharacter();
+    await applyClass('Fighter', 5);
+    const blob = Character.collectData();
+    if ('_gestalt' in blob)
+      fail('GE3: non-gestalt collectData wrote a _gestalt key');
+    if ('_multiclassB' in blob)
+      fail('GE3: non-gestalt collectData wrote a _multiclassB key');
+    expect(ClassPicker.isGestalt(), false, 'GE3: gestalt stays off');
+  });
+
   regression('SM: incarnum class copies soulmeld counts to Equipment tab', async () => {
     // Totemist 5 → Equipment soulmeld counters seeded from the class
     // table columns (soulmelds 4, essentia 3, chakra binds 1).

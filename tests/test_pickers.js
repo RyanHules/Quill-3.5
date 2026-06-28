@@ -3275,17 +3275,26 @@ test('save: class-picker resolves _multiclass by name (not brittle id)', () => {
   // also saves `source`, and loadData looks up by name+source FIRST,
   // falling back to id only when name-based resolution fails.
   const src = readSource('class-picker.js');
-  // collectData side: source field must be in the _multiclass stub.
-  const collectIdx = src.indexOf('out._multiclass = pickedClasses.map');
+  // collectData side: the stub is built by the shared mapEntryToStub helper
+  // (refactored 2026-06-28 for gestalt so both sides reuse it). The helper
+  // must write `source: e.source`.
+  const collectIdx = src.indexOf('out._multiclass = pickedClasses.map(mapEntryToStub)');
   assert(collectIdx > 0,
-    'class-picker.js: out._multiclass = pickedClasses.map(...) site ' +
-    'is missing; collectData refactored without updating this test.');
-  const collectBlock = src.slice(collectIdx, collectIdx + 1500);
-  assert(/source:\s*e\.source/.test(collectBlock),
-    'class-picker.js: collectData does not write `source: e.source` ' +
-    'into the _multiclass stub. Without source, name lookup on load ' +
-    'cannot disambiguate same-name classes across books, and a DB ' +
-    'rebuild that shifts entry.id will silently swap or drop classes.');
+    'class-picker.js: `out._multiclass = pickedClasses.map(mapEntryToStub)` ' +
+    'site is missing; collectData refactored without updating this test.');
+  const mapIdx = src.indexOf('function mapEntryToStub');
+  assert(mapIdx > 0, 'class-picker.js: mapEntryToStub helper is missing.');
+  const mapBlock = src.slice(mapIdx, mapIdx + 1500);
+  assert(/source:\s*e\.source/.test(mapBlock),
+    'class-picker.js: mapEntryToStub does not write `source: e.source` ' +
+    'into the stub. Without source, name lookup on load cannot ' +
+    'disambiguate same-name classes across books, and a DB rebuild that ' +
+    'shifts entry.id will silently swap or drop classes.');
+  // Gestalt Side B persists through the SAME helper, so it inherits the
+  // name+source resolution. Guard the parallel _multiclassB emit.
+  assert(/out\._multiclassB\s*=\s*pickedClassesB\.map\(mapEntryToStub\)/.test(src),
+    'class-picker.js: Side B (_multiclassB) is not emitted via mapEntryToStub ' +
+    '— gestalt Side B would lose the name+source save-stability guarantee.');
   // applyToSheet side: the in-memory entry must carry source for
   // collectData to spread.
   assert(/source:\s*cls\.source/.test(src),
@@ -4379,6 +4388,45 @@ test('save: class-picker round-trips synthetic racialHD rows', () => {
   // The window export includes the new API.
   assert(/window\.ClassPicker\s*=\s*\{[^}]*addRacialHD[^}]*\}/.test(src),
     'window.ClassPicker does not export addRacialHD.');
+});
+
+test('save: gestalt flag + Side B emit/omit and hydrate symmetrically', () => {
+  // Gestalt persists Side B as `_multiclassB` + a `_gestalt: true` flag,
+  // omitting both when they'd be empty/false so non-gestalt saves are
+  // byte-identical to the pre-gestalt format. Both sides hydrate through
+  // the shared hydrateStub helper.
+  const src = readSource('class-picker.js');
+  // Emit: flag only when gestalt; Side B only when non-empty.
+  assert(/if\s*\(\s*gestalt\s*\)\s*out\._gestalt\s*=\s*true/.test(src),
+    'collectData does not emit `_gestalt` only when gestalt is on.');
+  assert(/if\s*\(\s*pickedClassesB\.length\s*\)\s*\{[\s\S]{0,120}out\._multiclassB/.test(src),
+    'collectData does not gate `_multiclassB` on pickedClassesB.length ' +
+    '(a non-gestalt save would gain an empty key, breaking byte-identity).');
+  // Load: gestalt flag restored; Side B hydrated via hydrateStub.
+  assert(/gestalt\s*=\s*!!\(\s*data\s*&&\s*data\._gestalt\s*\)/.test(src),
+    'loadData does not restore the gestalt flag from data._gestalt.');
+  assert(/data\._multiclassB[\s\S]{0,160}hydrateStub\(stub\)/.test(src),
+    'loadData does not hydrate _multiclassB through hydrateStub.');
+});
+
+test('gestalt: synthesis ranks none below poor (monster dead-level safety)', () => {
+  // The per-level synthesizer must treat a no-progression category (null,
+  // e.g. a Savage-Species monster class dead level) as ranking BELOW poor,
+  // so max(present, null) = present and max(null, null) = 0-contribution.
+  // This is what lets Phase 3 monster classes slot in without an engine
+  // rewrite (Ryan's max(N, null) = N).
+  const src = readSource('class-picker.js');
+  assert(/BAB_RANK\s*=\s*\{\s*good:\s*3,\s*avg:\s*2,\s*poor:\s*1\s*\}/.test(src),
+    'BAB_RANK is missing or not good>avg>poor (none implicitly 0).');
+  assert(/SAVE_RANK\s*=\s*\{\s*good:\s*2,\s*poor:\s*1\s*\}/.test(src),
+    'SAVE_RANK is missing or not good>poor (none implicitly 0).');
+  assert(/function\s+betterCat[\s\S]{0,200}if\s*\(\s*ra\s*===\s*0\s*&&\s*rb\s*===\s*0\s*\)\s*return\s+null/.test(src),
+    'betterCat does not return null when both categories are absent — a ' +
+    'dead level on both sides would wrongly contribute.');
+  // gestaltTotals takes lvl = max(ΣA, ΣB), never the sum.
+  assert(/lvl:\s*Math\.max\(ea\.length,\s*eb\.length\)/.test(src),
+    'gestaltTotals does not set lvl = max(ΣA, ΣB) — gestalt level must not ' +
+    'be the sum of the two sides.');
 });
 
 // ---- tests: book filter --------------------------------------------------
