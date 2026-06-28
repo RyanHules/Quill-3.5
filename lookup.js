@@ -68,7 +68,8 @@
     organization: 'Organization', poison: 'Poison', disease: 'Disease',
     ravage_affliction: 'Ravage/Affliction', skill: 'Skill',
     skill_use: 'Skill use', skill_trick: 'Skill trick',
-    condition: 'Condition',
+    condition: 'Condition', legacy_item: 'Legacy item',
+    bloodline: 'Bloodline', mantle: 'Mantle',
   };
 
   function ensureModal() {
@@ -581,6 +582,13 @@
       // Prereq moved to renderItemExtra (2026-05-24) so it can render
       // Craft feats and spell-name material prereqs as see-also pills.
     ],
+    legacy_item: [
+      ['Kind',       ['base_kind', 'item_type']],
+      ['Base item',  ['base_item']],
+      ['Slot',       ['body_slot']],
+      ['Discipline', ['discipline']],
+      ['Price',      ['price']],
+    ],
     weapon: [
       ['Type',       ['item_type', 'type', 'weapon_type']],
       ['Damage',     ['damage']],
@@ -725,6 +733,7 @@
     if (type === 'weapon')      return renderWeaponExtra(d);
     if (type === 'item' || type === 'armor' || type === 'gear')
       return renderItemExtra(d);
+    if (type === 'legacy_item') return renderLegacyItemExtra(d);
     if (type === 'skill')       return renderSkillExtra(d);
     if (type === 'mystery')     return renderMysteryExtra(d);
     if (type === 'rule')        return renderRuleExtra(d);
@@ -733,6 +742,68 @@
       return renderBenefitExtra(d);
     }
     return '';
+  }
+
+  // Weapons of Legacy subsystem: the unbonded baseline, omen, wielder
+  // requirements, Least/Lesser/Greater rituals, the granted legacy
+  // abilities by wielder level, the DC-tiered history lore, and the
+  // signature per-level personal-cost / ability progression table.
+  function renderLegacyItemExtra(d) {
+    const lines = [];
+    const nl = d.nonlegacy_stats;
+    if (nl && typeof nl === 'object') {
+      const head = [];
+      if (nl.enhancement_bonus != null) head.push(`+${nl.enhancement_bonus}`);
+      if (Array.isArray(nl.special_properties) && nl.special_properties.length)
+        head.push(escapeHtml(nl.special_properties.join(' ')));
+      if (d.base_item) head.push(escapeHtml(d.base_item));
+      const cost = nl.cost_gp != null ? `; Cost ${nl.cost_gp} gp` : '';
+      const wt = nl.weight_lb != null ? `; ${nl.weight_lb} lb.` : '';
+      const notes = nl.notes ? ` ${escapeHtml(nl.notes)}` : '';
+      lines.push(`<b>Nonlegacy:</b> ${head.join(' ') || '—'}${cost}${wt}.${notes}`);
+    }
+    if (d.omen) lines.push(`<b>Omen:</b> ${escapeHtml(d.omen)}`);
+    if (Array.isArray(d.wielder_requirements) && d.wielder_requirements.length)
+      lines.push(`<b>Wielder requirements:</b> ${escapeHtml(d.wielder_requirements.join('; '))}`);
+    if (Array.isArray(d.rituals) && d.rituals.length) {
+      const r = d.rituals.map(rt => {
+        const tier = rt.tier ? rt.tier.charAt(0).toUpperCase() + rt.tier.slice(1) : '';
+        const cost = rt.cost_gp != null ? `${tier ? ', ' : ''}${rt.cost_gp} gp` : '';
+        const feat = rt.feat_granted ? ` → ${escapeHtml(rt.feat_granted)}` : '';
+        return `<div><b>${escapeHtml(rt.name)}</b> <span style="opacity:.8">(${tier}${cost})</span>${feat}` +
+               (rt.description ? `<br>${escapeHtml(rt.description)}` : '') + `</div>`;
+      }).join('');
+      lines.push(`<b>Legacy rituals:</b>${r}`);
+    }
+    if (Array.isArray(d.abilities) && d.abilities.length) {
+      const a = d.abilities.map(ab => {
+        const kind = ab.kind ? ` (${escapeHtml(ab.kind)})` : '';
+        const lvl = ab.level_acquired != null ? `<b>L${ab.level_acquired}</b> ` : '';
+        return `<div>${lvl}<b>${escapeHtml(ab.name)}</b>${kind}` +
+               (ab.description ? ` — ${escapeHtml(ab.description)}` : '') + `</div>`;
+      }).join('');
+      lines.push(`<b>Legacy abilities:</b>${a}`);
+    }
+    if (Array.isArray(d.history) && d.history.length) {
+      const h = d.history.map(t => {
+        const dc = t.dc != null ? `DC ${t.dc}` : '';
+        const rite = t.rite ? `${dc ? '; ' : ''}${escapeHtml(t.rite)}` : '';
+        return `<div><span style="opacity:.8">(${dc}${rite})</span> ${escapeHtml(t.text || '')}</div>`;
+      }).join('');
+      lines.push(`<b>History:</b>${h}`);
+    }
+    const lp = d.legacy_progression;
+    if (lp && Array.isArray(lp.columns) && Array.isArray(lp.rows) && lp.rows.length) {
+      const head = `<tr>${lp.columns.map(c => `<th>${escapeHtml(String(c))}</th>`).join('')}</tr>`;
+      const body = lp.rows.map(row =>
+        `<tr>${(row || []).map(cell =>
+          `<td>${escapeHtml(String(cell == null || cell === '' ? '—' : cell))}</td>`).join('')}</tr>`
+      ).join('');
+      lines.push(`<b>${escapeHtml(lp.caption || 'Legacy progression')}:</b>` +
+                 `<table class="lookup-class-table">${head}${body}</table>`);
+    }
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
 
   // Reused for ACF / substitution-level / skill-trick — all three
