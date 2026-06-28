@@ -896,6 +896,80 @@
       'GE4: Mystic Theurge advances the Side-B Cleric to CL 10');
   });
 
+  regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
+    // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
+    // progression feeds the synthesis (it fills Side A's empty L6 here), and
+    // its size/NA/ability extensions apply character-global. Fighter 6 // Ogre
+    // (Monster Class) 6 → size Large, NA 5, +8 Str template.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A'); await applyClass('Fighter', 6);
+    ClassPicker.setActiveSide('B'); await applyClass('Ogre (Monster Class)', 6);
+    await wait(300);
+    const v = (id) => (document.getElementById(id) || {}).value;
+    expect(v('char-size'), 'Large', 'GE5: Ogre monster class sets size Large');
+    expect(v('ac-natural'), '5', 'GE5: Ogre natural armor 5');
+    expect(v('str-template'), '8', 'GE5: Ogre +8 Str in the Template column');
+    expect(v('char-level'), '6', 'GE5: gestalt level = 6 (not 12)');
+    // Round-trip: the monster extensions survive on Side B.
+    const blob = Character.collectData();
+    const ogre = (blob._multiclassB || []).find(s => /Ogre/.test(s.className));
+    if (!ogre || !ogre.monsterExt)
+      fail('GE5: Ogre monsterExt was not persisted on _multiclassB');
+    await newCharacter();
+    Character.loadData(blob); await wait(150);
+    expect(v('char-size'), 'Large', 'GE5: size Large restored after reload');
+    expect(v('str-template'), '8', 'GE5: +8 Str restored after reload');
+    // Removing the Side-B monster class reverses every extension.
+    ClassPicker.removeClass('Ogre (Monster Class)', 'B'); await wait(150);
+    expect(v('str-template'), '0', 'GE5: removing Side-B Ogre reverses the +8 Str');
+    expect(v('char-size'), '', 'GE5: removing Side-B Ogre clears the Large size');
+  });
+
+  regression('GE6: gestalt racial HD lands on the active side', async () => {
+    // Phase 3: creature-as-race racial HD can occupy a gestalt side. Driving
+    // addRacialHD directly (the creature-race-picker calls it); with gestalt on
+    // and Side B active, the synthetic racial-HD row lands on Side B and its
+    // prog feeds the synthesis.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A'); await applyClass('Fighter', 4);
+    ClassPicker.setActiveSide('B');
+    ClassPicker.addRacialHD({ creatureRace: 'Test Beast', count: 4,
+      creatureType: 'magical beast',
+      prog: { bab: 'good', fort: 'good', ref: 'good', will: 'poor' } });
+    await wait(150);
+    const onB = ClassPicker.getStateB().some(e => e.racialHD);
+    const onA = ClassPicker.getState().some(e => e.racialHD);
+    if (!onB) fail('GE6: racial HD did not land on the active (B) side');
+    if (onA) fail('GE6: racial HD leaked onto Side A');
+    // removeRacialHD finds it across sides.
+    ClassPicker.removeRacialHD(); await wait(120);
+    if (ClassPicker.getStateB().some(e => e.racialHD))
+      fail('GE6: removeRacialHD did not remove the Side-B racial HD');
+  });
+
+  regression('GE7: activeSide resets across characters (no Side-B leak)', async () => {
+    // Regression for the activeSide-leak bug (2026-06-29): building on Side B
+    // then starting a NEW character must not carry activeSide='B' forward, or
+    // the next gestalt character's first class silently lands on Side B. Caught
+    // originally as an order-dependent GE2 failure (Fighter//Wizard both on B,
+    // summing to BAB 15 instead of the gestalt max of 10).
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('B');
+    await applyClass('Wizard', 5);     // lands on Side B
+    expect(ClassPicker.getStateB().length, 1, 'GE7: Wizard applied to Side B');
+    // New character, re-enable gestalt, apply WITHOUT setting side → must be A.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    await applyClass('Fighter', 5);
+    expect(ClassPicker.getState().length, 1,
+      'GE7: first class lands on Side A after newCharacter (activeSide reset)');
+    expect(ClassPicker.getStateB().length, 0,
+      'GE7: Side B is empty — activeSide did not leak from the prior character');
+  });
+
   regression('SM: incarnum class copies soulmeld counts to Equipment tab', async () => {
     // Totemist 5 → Equipment soulmeld counters seeded from the class
     // table columns (soulmelds 4, essentia 3, chakra binds 1).

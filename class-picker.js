@@ -971,7 +971,11 @@
   // export object stays a flat brace-free literal).
   function apiSetGestalt(on) {
     gestalt = !!on;
-    if (!gestalt) activeSide = 'A';
+    // Always start on Side A when the gestalt state changes — activeSide is
+    // transient UI state and must not leak across characters or toggles
+    // (a stale 'B' would silently route the next character's first class to
+    // Side B).
+    activeSide = 'A';
     applyAggregatesToSheet();
     renderClassList();
   }
@@ -1221,7 +1225,7 @@
     gInput.checked = gestalt;
     gInput.addEventListener('change', () => {
       gestalt = gInput.checked;
-      if (!gestalt) activeSide = 'A';
+      activeSide = 'A';   // reset on any toggle (see apiSetGestalt)
       applyAggregatesToSheet();
       renderClassList();
       if (typeof window.recalcAll === 'function') {
@@ -1832,11 +1836,19 @@
   function addRacialHD(meta) {
     if (!meta || !meta.creatureRace || !meta.count || !meta.prog) return null;
     const className = `${meta.creatureRace} (racial HD)`;
-    // Drop any prior racial-HD row first (only one creature-race active).
-    for (let i = pickedClasses.length - 1; i >= 0; i--) {
-      if (pickedClasses[i].racialHD) pickedClasses.splice(i, 1);
+    // Drop any prior racial-HD row first (only one creature-race active) —
+    // from BOTH sides, since the previous one may have landed on either.
+    for (const arr of [pickedClasses, pickedClassesB]) {
+      for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i].racialHD) arr.splice(i, 1);
+      }
     }
-    pickedClasses.push({
+    // Gestalt: racial HD lands on the active side (you gestalt a creature's
+    // racial HD against a class on the other track). Its prog feeds the
+    // synthesis like any class; its ability/NA/size adjustments are applied
+    // character-global by the creature-race-picker, not per side.
+    const target = gestalt ? sideArray(activeSide) : pickedClasses;
+    target.push({
       className,
       level: meta.count,
       racialHD: true,
@@ -1869,8 +1881,9 @@
   // (no DB class to match for skills / granted spells / monsterExt).
   function removeRacialHD(creatureRace) {
     if (!creatureRace) {
-      const found = pickedClasses.find(e => e.racialHD);
-      if (found) removeClass(found.className);
+      // Union — the racial-HD row may sit on either gestalt side.
+      const found = classPool().find(e => e.racialHD);
+      if (found) removeClass(found.className);  // removeClass searches both sides
       return;
     }
     removeClass(`${creatureRace} (racial HD)`);
@@ -1884,7 +1897,9 @@
   function hasMonsterClassFor(creatureName) {
     if (!creatureName) return false;
     const k = String(creatureName).toLowerCase();
-    return pickedClasses.some(e =>
+    // Union — a monster class for this creature on EITHER side should
+    // suppress layering creature-as-race racial HD on top of it.
+    return classPool().some(e =>
       !e.racialHD && e.monsterExt &&
       e.className.toLowerCase() === k);
   }
@@ -2065,8 +2080,10 @@
         for (const stub of data._multiclass) pickedClasses.push(hydrateStub(stub));
       }
       // Gestalt mode + Side B. Absent keys → off / empty, so old saves load
-      // exactly as before.
+      // exactly as before. activeSide is transient UI state — reset to A on
+      // every load so a prior character's Side-B selection can't leak.
       gestalt = !!(data && data._gestalt);
+      activeSide = 'A';
       pickedClassesB = [];
       if (data && Array.isArray(data._multiclassB)) {
         for (const stub of data._multiclassB) pickedClassesB.push(hydrateStub(stub));
