@@ -94,6 +94,15 @@ const Spells = (function () {
       SLA.wire(panel);
     }
 
+    // Restore race-owned racial-initiation markers (saved by collectData) so a
+    // loaded racial panel keeps its stacking identity + teardown behavior.
+    if (data.fromRace) {
+      panel.dataset.fromRace = "1";
+      panel.dataset.racialBase = data.racialBase || "";
+      panel.dataset.racialAsClass = data.racialAsClass || "";
+      panel.dataset.racialStacksWith = data.racialStacksWith || "";
+    }
+
     // Add remove button to tab
     const removeBtn = document.createElement("span");
     removeBtn.className = "caster-tab-remove";
@@ -2234,6 +2243,15 @@ const Spells = (function () {
       const name = btn.textContent.replace("×", "").trim();
       const caster = { type, name };
       caster.notes = panel.querySelector(".caster-notes")?.value || "";
+      // Persist race-owned racial-initiation markers so the panel round-trips
+      // with its stacking identity (the class-picker's racial pass + the
+      // race-picker's teardown both key off data-from-race + this metadata).
+      if (panel.dataset.fromRace) {
+        caster.fromRace = true;
+        caster.racialBase = panel.dataset.racialBase || "";
+        caster.racialAsClass = panel.dataset.racialAsClass || "";
+        caster.racialStacksWith = panel.dataset.racialStacksWith || "";
+      }
 
       if (type === "spellcasting") {
         caster.casterLevel = panel.querySelector(".sc-caster-level")?.value || "";
@@ -2561,6 +2579,13 @@ const Spells = (function () {
         input.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
+
+    // Recompute IL for any loaded racial-initiation panels — their stacking
+    // metadata (data-from-race etc.) was just restored by addCaster, and the
+    // class levels are already loaded, so the racial pass can stack correctly.
+    if (window.ClassPicker && typeof ClassPicker.refreshManeuverTabs === 'function') {
+      ClassPicker.refreshManeuverTabs();
+    }
 
     recalc();
   }

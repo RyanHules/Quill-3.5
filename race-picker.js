@@ -856,7 +856,10 @@
   }
   function teardownRaceCasterPanels() {
     if (typeof Spells !== 'undefined' && typeof Spells.removeCaster === 'function') {
-      raceCasterPanels.forEach((idx) => Spells.removeCaster(idx));
+      // Query the DOM (not just the in-memory array) so panels restored from a
+      // SAVE — which aren't in raceCasterPanels — also tear down on a race switch.
+      document.querySelectorAll('#spells-content [data-caster-type][data-from-race]')
+        .forEach((panel) => Spells.removeCaster(panel.id.replace(/^caster-/, '')));
     }
     raceCasterPanels.length = 0;
   }
