@@ -115,6 +115,16 @@ const Spells = (function () {
     if (_getAbilityMod) recalc(_getAbilityMod);
     return idx;
   }
+  // Programmatic panel removal (no confirm) — for AUTO-spawned panels (e.g.
+  // racial casting) that a race switch must tear down. Mirrors the × handler.
+  function removeCaster(idx) {
+    const panel = document.getElementById(`caster-${idx}`);
+    const tab = document.querySelector(`.inner-tab[data-caster-idx="${idx}"]`);
+    if (panel) panel.remove();
+    if (tab) tab.remove();
+    const first = $("#spells-tab-bar") && $("#spells-tab-bar").querySelector(".inner-tab");
+    if (first) first.click();
+  }
   function switchCaster(idx) {
     $$(".inner-tab[data-caster-idx]").forEach((t) => t.classList.remove("active"));
     $$("#spells-content > .inner-tab-content").forEach((c) => c.classList.remove("active"));
@@ -2701,6 +2711,7 @@ const Spells = (function () {
   // --- Public API ---
   return {
     addCaster,
+    removeCaster,
     buildSpellLists: buildSpellListsLegacy,
     recalc,
     resetSlots,

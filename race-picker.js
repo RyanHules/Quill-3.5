@@ -353,6 +353,11 @@
         .map(r => `${r.damage_type} ${r.amount}`).join(', '));
     if (defNotes.length) raceSetDefenseNotes(defNotes.join('; '));
 
+    // 4d. Racial casting/initiation — auto-spawn the matching caster panel(s)
+    // (Valkyrie's swordsage maneuvers at IL 10, pre-loaded from
+    // maneuvers_and_stances). Spawn-only; live stacking with class levels next.
+    spawnRacialCasterPanels(parsed);
+
     // 4b. Racial HD → synthetic class row. Monster races (Bugbear, Ogre,
     // Troll, …) carry racial Hit Dice that must pool into the BAB / save /
     // HP / total-level aggregate — not merely display. Mirrors the creature-
@@ -784,6 +789,57 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  // Tier 2 — auto-spawn caster panels for a race's `racial_casting` (a racial
+  // use of a class subsystem: Valkyrie's swordsage initiation at IL 10, a
+  // creature "as a 7th-level sorcerer"). Spawn-only for now — the panel seeds
+  // at the racial BASE level; live stacking (level = base + class levels) is
+  // the next step. Panels are tracked + torn down on a race switch.
+  const raceCasterPanels = [];
+  const SUBSYSTEM_TO_CASTER = {
+    maneuvers: 'maneuvers', spells: 'spellcasting',
+    powers: 'psionics', invocations: 'invocations',
+  };
+  function spawnRacialCasterPanels(parsed) {
+    if (typeof Spells === 'undefined' || typeof Spells.addCaster !== 'function') return;
+    const list = Array.isArray(parsed.racial_casting) ? parsed.racial_casting : [];
+    list.forEach((rc) => {
+      const casterType = SUBSYSTEM_TO_CASTER[rc.subsystem];
+      if (!casterType) return;
+      const cls = rc.as_class
+        ? rc.as_class.replace(/\b\w/, (c) => c.toUpperCase()) : '';
+      const kind = rc.subsystem === 'maneuvers' ? 'Maneuvers' : 'Casting';
+      const data = { name: `${cls ? cls + ' ' : ''}${kind} (racial)` };
+      if (rc.subsystem === 'maneuvers') data.initLevel = rc.level;
+      else if (rc.subsystem === 'powers') data.manifesterLevel = rc.level;
+      const idx = Spells.addCaster(casterType, data);
+      raceCasterPanels.push(idx);
+      if (rc.subsystem === 'maneuvers' && parsed.maneuvers_and_stances) {
+        preloadManeuvers(idx, parsed.maneuvers_and_stances);
+      }
+    });
+  }
+  function preloadManeuvers(idx, ms) {
+    const panel = document.getElementById(`caster-${idx}`);
+    if (!panel) return;
+    const fill = (items, sel) => (items || []).forEach((it) => {
+      const m = /^(.*?)\s*\((\d+)(?:st|nd|rd|th)\)\s*$/.exec(it);
+      const name = m ? m[1].trim() : it.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      const lvl = m ? m[2] : '1';
+      const ta = panel.querySelector(`${sel}[data-lvl="${lvl}"]`);
+      if (ta) ta.value = (ta.value ? ta.value + '\n' : '') + name;
+    });
+    fill(ms.strikes, '.tom-maneuver-text');
+    fill(ms.boosts, '.tom-maneuver-text');
+    fill(ms.counters, '.tom-maneuver-text');
+    fill(ms.stances, '.tom-stance-text');
+  }
+  function teardownRaceCasterPanels() {
+    if (typeof Spells !== 'undefined' && typeof Spells.removeCaster === 'function') {
+      raceCasterPanels.forEach((idx) => Spells.removeCaster(idx));
+    }
+    raceCasterPanels.length = 0;
+  }
+
   // Reset everything race-picker auto-writes: the 6 Race ability columns
   // and the special-ability rows it tagged (data-from-race). Exposed via
   // window.RacePicker so race-unify's shared teardown can wipe race
@@ -806,6 +862,8 @@
     raceClearOwned('spell-resistance', '', 'input');
     raceClearOwned('damage-reduction', '', 'input');
     raceClearDefenseNotes();
+    // Auto-spawned racial caster panels (Valkyrie maneuvers etc.).
+    teardownRaceCasterPanels();
     const c = document.getElementById('special-abilities-container');
     if (c) {
       c.querySelectorAll('[data-from-race="1"]').forEach((node) => {
