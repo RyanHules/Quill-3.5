@@ -3901,3 +3901,17 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   font-size: 0.72rem;
   font-family: ui-monospace, "SF Mono", monospace;
 }
+
+/* Auto-derived situational save modifiers (Character tab, Saving Throws) */
+.save-situational-auto {
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid #6a8aaa;
+  border-radius: 0 3px 3px 0;
+  padding: 0.3rem 0.6rem;
+}
+.save-situational-auto .ss-head { opacity: 0.7; font-style: italic; margin-bottom: 0.2rem; }
+.save-situational-auto .ss-grp { display: flex; gap: 0.4rem; align-items: baseline; }
+.save-situational-auto .ss-grp ul { margin: 0.1rem 0; padding-left: 1.1rem; }
+.save-situational-auto .ss-src { color: #889; }

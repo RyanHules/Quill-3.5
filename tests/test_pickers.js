@@ -1028,6 +1028,33 @@ test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
   assertEq(r.applied.length, 1, 'only the winning bonus is applied');
 });
 
+test('data: categorizeSaveBonuses splits unconditional vs situational + tags the save', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // Unconditional all-saves bonus → folds into fort/ref/will via stacking.
+  const u = DND35.categorizeSaveBonuses([
+    { bonus_type: 'save', target: 'all', amount: 1, bonus_category: 'luck', condition: null }]);
+  assertEq(u.fort, 1, 'unconditional all-save bonus hits Fort');
+  assertEq(u.will, 1, 'unconditional all-save bonus hits Will');
+  assertEq(u.situational.length, 0, 'no condition → not situational');
+  // Conditional ones → situational, tagged to the inferred save.
+  const c = DND35.categorizeSaveBonuses([
+    { bonus_type: 'save', target: 'all', amount: 2, bonus_category: 'racial', condition: 'vs enchantment spells or effects' },
+    { bonus_type: 'save', target: 'all', amount: 2, bonus_category: 'racial', condition: 'vs poison' },
+    { bonus_type: 'save', target: 'Fortitude', amount: 4, bonus_category: 'racial', condition: 'to resist cold weather' }]);
+  assertEq(c.fort, 0, 'conditional bonuses do not fold into the flat total');
+  const bySave = {};
+  for (const s of c.situational) (bySave[s.save] = bySave[s.save] || []).push(s.condition);
+  assert(bySave.will && /enchant/.test(bySave.will[0]), 'enchantment → Will');
+  assert(bySave.fort && bySave.fort.some(x => /poison/.test(x)), 'poison → Fort');
+  assert(bySave.fort && bySave.fort.some(x => /cold/.test(x)),
+    'explicit Fortitude target keeps its save even when the condition is unmappable');
+  // Save inference keyword table.
+  assertEq(DND35.inferSaveFromCondition('vs fear effects'), 'will', 'fear → Will');
+  assertEq(DND35.inferSaveFromCondition('breath weapons'), 'ref', 'breath → Reflex');
+  assertEq(DND35.inferSaveFromCondition('vs disease'), 'fort', 'disease → Fort');
+  assertEq(DND35.inferSaveFromCondition('vs spells'), null, 'generic spells → no specific save');
+});
+
 test('template-picker: cleanCreatureType returns null for no-change templates', (db) => {
   // Regression: a template that doesn't change type ("Same as the base
   // creature (unchanged)") must NOT stamp its prose into #char-type — it

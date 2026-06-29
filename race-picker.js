@@ -1019,6 +1019,36 @@
     return result;
   }
 
+  // Public: current racial SAVE bonuses for #char-race, same pull-based
+  // model as getActiveSkillBonuses. Returns {fort, ref, will, situational}
+  // — unconditional bonuses stacked into fort/ref/will, conditional ones in
+  // `situational` (each tagged with the save it applies to).
+  function computeRaceSaveBonuses(typedName) {
+    const empty = { fort: 0, ref: 0, will: 0, situational: [] };
+    const name = (typedName || '').trim()
+      .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
+    if (!name) return empty;
+    const raceId = raceIndex.get(name.toLowerCase());
+    if (raceId === undefined) return empty;
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return empty;
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return empty; }
+    const baseParsed = resolveVariantBase(parsed);
+    const merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    if (typeof DND35 === 'undefined' || !DND35.categorizeSaveBonuses) return empty;
+    const cat = DND35.categorizeSaveBonuses(merged);
+    cat.situational.forEach(s => { s.source = name; });
+    return cat;
+  }
+  function getActiveSaveBonuses() {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) {
+      return { fort: 0, ref: 0, will: 0, situational: [] };
+    }
+    const input = document.getElementById('char-race');
+    return computeRaceSaveBonuses(((input && input.value) || '').trim());
+  }
+
   // ============================================================
   // Racial Spell-Like Abilities (structured `spell_likes` → SLA tab rows)
   // ============================================================
@@ -1104,6 +1134,7 @@
 
   window.RacePicker = {
     resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
+    getActiveSaveBonuses,
   };
 
   // Wait for DB to load, then init.

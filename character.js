@@ -1,6 +1,39 @@
 // D&D 3.5 Character Sheet - Character Tab Module
 
 const Character = (function () {
+  function _esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  // Render the auto-derived situational save modifiers (from race/template
+  // structured `bonuses`) into #save-situational-auto, grouped by the save
+  // each applies to (Fortitude / Reflex / Will), with general ones last.
+  function renderSituationalSaves(list) {
+    const el = document.getElementById("save-situational-auto");
+    if (!el) return;
+    if (!Array.isArray(list) || !list.length) {
+      el.style.display = "none"; el.innerHTML = ""; return;
+    }
+    const LABEL = { fort: "Fortitude", ref: "Reflex", will: "Will" };
+    const groups = { fort: [], ref: [], will: [], general: [] };
+    for (const s of list) {
+      groups[(s.save && groups[s.save]) ? s.save : "general"].push(s);
+    }
+    const amt = (n) => (n >= 0 ? "+" + n : String(n));
+    const item = (s) =>
+      `<li>${amt(s.amount)} ${_esc(s.condition || "")}` +
+      (s.source ? ` <span class="ss-src">(${_esc(s.source)})</span>` : "") +
+      `</li>`;
+    let html = "";
+    for (const k of ["fort", "ref", "will", "general"]) {
+      if (!groups[k].length) continue;
+      const head = k === "general" ? "Any save" : LABEL[k];
+      html += `<div class="ss-grp"><b>${head}:</b> <ul>${groups[k].map(item).join("")}</ul></div>`;
+    }
+    el.innerHTML = `<div class="ss-head">Situational (auto-derived):</div>${html}`;
+    el.style.display = "";
+  }
   "use strict";
 
   const $ = (sel) => document.querySelector(sel);
@@ -296,6 +329,9 @@ const Character = (function () {
         saveBonus;
       $(`#${prefix}-total`).textContent = fmt(total);
     });
+    // Auto-derived situational save modifiers (race/template), tagged per
+    // save where the data names/implies one; general ones grouped separately.
+    renderSituationalSaves(bonuses.saveSituational || []);
 
     // Initiative
     const initDex = getAbilityMod("DEX");

@@ -643,6 +643,64 @@ const DND35 = {
     return { total, applied, suppressed };
   },
 
+  // Infer which save a conditional modifier belongs to, from its effect
+  // keywords. Returns 'fort' | 'ref' | 'will' | null (general / can't tell).
+  // Used to tag conditional save bonuses to a specific save row for
+  // legibility ("+2 vs poison" → Fortitude).
+  inferSaveFromCondition(text) {
+    // Leading \b only — no trailing boundary, so prefixes match
+    // ("enchantment", "poisoned", "paralyzed", "illusions").
+    const s = String(text || '').toLowerCase();
+    if (/\b(poison|disease|death|energy drain|paralys|nausea|sicken|fatigue|exhaust|petrif|polymorph|stun|ability damage|ability drain)/.test(s)) return 'fort';
+    if (/\b(enchant|charm|compulsion|fear|morale|illusion|phantasm|mind-affecting|mind affecting|hypnos|dominat|insanity|confus|emotion|gaze)/.test(s)) return 'will';
+    if (/\b(breath|area|trap|reflex|evasion|fireball|burst|cone|line of effect)/.test(s)) return 'ref';
+    return null;
+  },
+
+  // Categorize an entry's structured `bonuses` (bonus_type='save') the way
+  // categorizeSkillBonuses does for skills. Returns
+  //   { fort, ref, will, situational:[{save, amount, condition, category, appliesAll}] }
+  // where fort/ref/will are the UNCONDITIONAL stacked totals (via
+  // stackBonuses) and `situational` are the conditional ones, each tagged
+  // with the save it applies to (explicit target, else inferred).
+  categorizeSaveBonuses(bonuses) {
+    const SAVE_KEY = { fortitude: 'fort', fort: 'fort', reflex: 'ref',
+                       ref: 'ref', will: 'will' };
+    const ALL = ['fort', 'ref', 'will'];
+    const uncond = { fort: [], ref: [], will: [] };
+    const situational = [];
+    for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
+      if (!b || b.bonus_type !== 'save') continue;
+      const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!amt || isNaN(amt)) continue;
+      const target = String(b.target == null ? '' : b.target).trim();
+      const tlow = target.toLowerCase();
+      const cond = (b.condition == null) ? '' : String(b.condition).trim();
+      const cat = b.bonus_category != null ? b.bonus_category : null;
+      let saves;
+      if (!tlow || tlow === 'all' || tlow === 'saves') saves = ALL;
+      else if (SAVE_KEY[tlow]) saves = [SAVE_KEY[tlow]];
+      else {
+        // Prose target ("Will saves vs spells…") — treat as situational;
+        // infer the save from the target text + condition.
+        situational.push({ save: this.inferSaveFromCondition(target + ' ' + cond),
+                           amount: amt, condition: cond || target, category: cat,
+                           appliesAll: false });
+        continue;
+      }
+      if (cond) {
+        const save = saves.length === 1 ? saves[0] : this.inferSaveFromCondition(cond);
+        situational.push({ save, amount: amt, condition: cond, category: cat,
+                           appliesAll: saves.length === 3 });
+      } else {
+        for (const s of saves) uncond[s].push({ amount: amt, bonus_category: cat });
+      }
+    }
+    const out = { situational };
+    for (const s of ALL) out[s] = this.stackBonuses(uncond[s]).total;
+    return out;
+  },
+
   // Carrying capacity by STR score (light load max, medium load max, heavy load max)
   carryingCapacity: {
     1: [3, 6, 10],

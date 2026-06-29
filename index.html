@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260629l';
+    window.CACHE_VERSION = '20260629m';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -367,6 +367,10 @@
               </tr>
             </tbody>
           </table>
+          <!-- Auto-derived situational save modifiers from race/template
+               (structured `bonuses`), tagged per save. Read-only; the
+               textarea below is for the player's own notes. -->
+          <div id="save-situational-auto" class="save-situational-auto" style="display:none"></div>
           <div class="field"><label>Conditional Save Modifiers</label><textarea id="save-conditional" rows="1" placeholder="e.g. +2 vs. enchantments"></textarea></div>
         </section>
 

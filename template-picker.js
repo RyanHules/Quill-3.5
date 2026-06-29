@@ -790,6 +790,34 @@
     return merged;
   }
 
+  // Current template SAVE bonuses (consumed by the saves recalc). Mirrors
+  // getActiveSkillBonuses: runs DND35.categorizeSaveBonuses over each applied
+  // template's structured `bonuses`. {fort, ref, will, situational}.
+  function getActiveSaveBonuses() {
+    const merged = { fort: 0, ref: 0, will: 0, situational: [] };
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
+    if (typeof DND35 === 'undefined' || !DND35.categorizeSaveBonuses) return merged;
+    for (const t of appliedTemplates) {
+      let row = null;
+      if (t.templateId != null) {
+        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
+      }
+      if (!row && t.name) {
+        row = DB.queryOne(
+          "SELECT data FROM entry WHERE type='template' AND name=? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
+      }
+      if (!row) continue;
+      let parsed = {};
+      try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
+      const cat = DND35.categorizeSaveBonuses(parsed.bonuses);
+      merged.fort += cat.fort; merged.ref += cat.ref; merged.will += cat.will;
+      cat.situational.forEach(s => { s.source = t.name; });
+      merged.situational.push(...cat.situational);
+    }
+    return merged;
+  }
+
   // True when any applied template strips the base creature's RACIAL-category
   // skill modifiers (Wild / wilderness-dweller and similar). RacePicker reads
   // this to suppress those bonuses at the source (where bonus_category is
@@ -819,6 +847,7 @@
     apply: applyTemplate,
     remove: removeTemplate,
     getActiveSkillBonuses,
+    getActiveSaveBonuses,
     stripsRacialSkillBonuses,
   };
 })();

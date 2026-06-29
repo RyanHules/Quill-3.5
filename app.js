@@ -171,6 +171,21 @@
       }
     }
 
+    // Race + template SAVE bonuses (structured `bonuses`, bonus_type=save).
+    // Unconditional ones fold into the per-save totals; conditional ones are
+    // collected for the saving-throws section to list (tagged per save).
+    bonuses.saveSituational = [];
+    for (const src of [
+      (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
+      (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSaveBonuses) ? TemplatePicker.getActiveSaveBonuses() : null,
+    ]) {
+      if (!src) continue;
+      for (const k of ["fort", "ref", "will"]) {
+        if (src[k]) bonuses.saves[k] = (bonuses.saves[k] || 0) + src[k];
+      }
+      if (Array.isArray(src.situational)) bonuses.saveSituational.push(...src.situational);
+    }
+
     return bonuses;
   }
 
