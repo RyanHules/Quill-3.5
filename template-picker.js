@@ -319,6 +319,13 @@
 
     if (/^template$/i.test(s)) return null;
     if (/^retains creature type/i.test(s)) return null;
+    // No-change templates: prose like "Same as the base creature
+    // (unchanged)", "The base creature's type is unchanged", "Unchanged".
+    // These don't alter the type — return null so recomputeCreatureType
+    // keeps the base creature's OWN type instead of stamping prose into
+    // #char-type (Proto-creature / Wild applied to a creature, 2026-06-29).
+    if (/\bunchanged\b/i.test(s)) return null;
+    if (/^same as (the )?base\b/i.test(s)) return null;
 
     // "Augmented (X) base creature"  — title-case the subtype list.
     let m = s.match(/^Augmented\s*\(([^)]+)\)\s*base creature\.?$/i);

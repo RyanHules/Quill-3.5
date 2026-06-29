@@ -997,6 +997,26 @@ test('class-picker: class bonus-feat auto-apply data path (Ranger Track/Enduranc
     'feats.js collectData must skip data-from-class-feat (derived) rows');
 });
 
+test('template-picker: cleanCreatureType returns null for no-change templates', (db) => {
+  // Regression: a template that doesn't change type ("Same as the base
+  // creature (unchanged)") must NOT stamp its prose into #char-type — it
+  // returns null so recomputeCreatureType keeps the base creature's type.
+  let body = extractFunctionBody(readSource('template-picker.js'), 'cleanCreatureType');
+  assert(body, 'cleanCreatureType not found');
+  // The Augmented/title-case branches call helpers we don't load; the
+  // no-change cases return before reaching them, so stub the helper names.
+  const cleanCreatureType = new Function('typeChange',
+    body.replace(/titleCaseSubtype|titleCaseHead/g, 'String'));
+  for (const s of ['Same as the base creature (unchanged).',
+                   'Same as the base race (unchanged).', 'Unchanged',
+                   "The base creature's type is unchanged."]) {
+    assertEq(cleanCreatureType(s), null, `"${s}" must be treated as no type change`);
+  }
+  // A real type change still passes through.
+  assert(cleanCreatureType('Undead (augmented dragon).'),
+    'a real type change must NOT be nulled out');
+});
+
 test('template-picker: deriveNaturalArmor consumes the structured natural_armor_change field', (db) => {
   // Regression: Proto-creature's armor_class prose "Natural armor improves
   // by +3" doesn't match the trailing-number regexes, so the picker showed
