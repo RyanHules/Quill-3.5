@@ -1922,6 +1922,11 @@ test('companion: every relevant class feature has metadata or explicit exclusion
   // (We could DB-query for the OVERRIDES set but a Python-vs-JS mirror
   // is simpler and self-documents the intentional exclusions here.)
   const EXCLUSIONS = new Set([
+    // 2026-06-29 Dragon #336 Mystic Ranger variant class: its "Animal
+    // Companion" feature explicitly TRADES AWAY the companion (for earlier/
+    // deeper spellcasting) — names the keyword, grants nothing. Mirrors the
+    // None entry ("Mystic Ranger", "Animal Companion") in _companion_metadata.
+    'Mystic Ranger/Animal Companion',
     'Generic Warrior/Bonus Feats',
     'Guild Thief/Bonus Feat',
     'Guild Thief/Reputation',

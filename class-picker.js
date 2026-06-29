@@ -241,6 +241,7 @@
     'Magewright': 'arcane',     // Eberron Campaign Setting (NPC class — wizard-style prep)
     'Cleric': 'divine',  'Druid': 'divine',
     'Paladin': 'divine', 'Ranger': 'divine',
+    'Mystic Ranger': 'divine',  // Dragon Magazine #336 variant ranger (earlier, deeper divine casting)
     'Healer': 'divine',  'Shugenja': 'divine',
     'Spirit Shaman': 'divine', 'Sohei': 'divine',
     'Apostle of Peace': 'divine', 'Blackguard': 'divine',
@@ -298,6 +299,7 @@
     'Druid': 'prepared',
     'Paladin': 'prepared',
     'Ranger': 'prepared',
+    'Mystic Ranger': 'prepared',  // Dragon Magazine #336 variant ranger (divine, prepared)
     'Archivist': 'prepared',
     // (Shugenja moved to spontaneous below — DB description confirms
     // "spontaneously without preparation".)
