@@ -345,13 +345,21 @@ const Character = (function () {
       const abilityMod = getAbilityMod(ability);
       $(`#${prefix}-ability`).textContent = fmt(abilityMod);
       const saveBonus = saveBonuses[prefix] || 0;
+      // Structured race/template save bonuses are TYPED — stack them among
+      // themselves (cross-source, same-type doesn't double) before adding.
+      // The untyped class/condition (saveBonus) + manual fields ride on top
+      // until those sources are typed too.
+      const typedList = (bonuses.saveTyped && bonuses.saveTyped[prefix]) || [];
+      const structuredSave = (typeof DND35 !== "undefined" && DND35.stackBonuses)
+        ? DND35.stackBonuses(typedList).total : 0;
       const total =
         int($(`#${prefix}-base`).value) +
         abilityMod +
         int($(`#${prefix}-magic`).value) +
         expr($(`#${prefix}-misc`).value) +
         int($(`#${prefix}-temp`).value) +
-        saveBonus;
+        saveBonus +
+        structuredSave;
       $(`#${prefix}-total`).textContent = fmt(total);
     });
     // Auto-derived situational save modifiers (race/template), tagged per

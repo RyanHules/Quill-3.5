@@ -172,16 +172,22 @@
     }
 
     // Race + template SAVE bonuses (structured `bonuses`, bonus_type=save).
-    // Unconditional ones fold into the per-save totals; conditional ones are
-    // collected for the saving-throws section to list (tagged per save).
+    // Unconditional ones are kept as a TYPED list per save (saveTyped) so the
+    // saves recalc can stack them across sources (cross-source stacking for
+    // the racial side; the still-untyped class/condition/manual contributions
+    // are added on top until they're typed too). Conditional ones go to the
+    // saving-throws section list, tagged per save.
+    bonuses.saveTyped = { fort: [], ref: [], will: [] };
     bonuses.saveSituational = [];
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSaveBonuses) ? TemplatePicker.getActiveSaveBonuses() : null,
     ]) {
       if (!src) continue;
-      for (const k of ["fort", "ref", "will"]) {
-        if (src[k]) bonuses.saves[k] = (bonuses.saves[k] || 0) + src[k];
+      if (src.direct) {
+        for (const k of ["fort", "ref", "will"]) {
+          if (Array.isArray(src.direct[k])) bonuses.saveTyped[k].push(...src.direct[k]);
+        }
       }
       if (Array.isArray(src.situational)) bonuses.saveSituational.push(...src.situational);
     }

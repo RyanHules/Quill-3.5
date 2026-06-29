@@ -1024,7 +1024,7 @@
   // — unconditional bonuses stacked into fort/ref/will, conditional ones in
   // `situational` (each tagged with the save it applies to).
   function computeRaceSaveBonuses(typedName) {
-    const empty = { fort: 0, ref: 0, will: 0, situational: [] };
+    const empty = { direct: { fort: [], ref: [], will: [] }, situational: [] };
     const name = (typedName || '').trim()
       .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
     if (!name) return empty;
@@ -1043,7 +1043,7 @@
   }
   function getActiveSaveBonuses() {
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) {
-      return { fort: 0, ref: 0, will: 0, situational: [] };
+      return { direct: { fort: [], ref: [], will: [] }, situational: [] };
     }
     const input = document.getElementById('char-race');
     return computeRaceSaveBonuses(((input && input.value) || '').trim());

@@ -1056,18 +1056,24 @@ test('data: categorizeACBonuses feeds the AC onion (excludes size/natural, split
 
 test('data: categorizeSaveBonuses splits unconditional vs situational + tags the save', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
-  // Unconditional all-saves bonus → folds into fort/ref/will via stacking.
+  // Unconditional all-saves bonus → a TYPED entry in each save's direct list.
   const u = DND35.categorizeSaveBonuses([
     { bonus_type: 'save', target: 'all', amount: 1, bonus_category: 'luck', condition: null }]);
-  assertEq(u.fort, 1, 'unconditional all-save bonus hits Fort');
-  assertEq(u.will, 1, 'unconditional all-save bonus hits Will');
+  assertEq(u.direct.fort.length, 1, 'unconditional all-save bonus appears in Fort list');
+  assertEq(u.direct.fort[0].amount, 1, 'amount carried');
+  assertEq(u.direct.fort[0].bonus_category, 'luck', 'TYPE carried for cross-source stacking');
   assertEq(u.situational.length, 0, 'no condition → not situational');
+  // Cross-source stacking: two same-type unconditional bonuses (e.g. race +
+  // template) don't stack — the engine collapses them.
+  const combined = u.direct.fort.concat([{ amount: 1, bonus_category: 'luck' }]);
+  assertEq(DND35.stackBonuses(combined).total, 1,
+    'two same-type (luck) unconditional save bonuses → only +1 (cross-source)');
   // Conditional ones → situational, tagged to the inferred save.
   const c = DND35.categorizeSaveBonuses([
     { bonus_type: 'save', target: 'all', amount: 2, bonus_category: 'racial', condition: 'vs enchantment spells or effects' },
     { bonus_type: 'save', target: 'all', amount: 2, bonus_category: 'racial', condition: 'vs poison' },
     { bonus_type: 'save', target: 'Fortitude', amount: 4, bonus_category: 'racial', condition: 'to resist cold weather' }]);
-  assertEq(c.fort, 0, 'conditional bonuses do not fold into the flat total');
+  assertEq(c.direct.fort.length, 0, 'conditional bonuses do not land in the direct list');
   const bySave = {};
   for (const s of c.situational) (bySave[s.save] = bySave[s.save] || []).push(s.condition);
   assert(bySave.will && /enchant/.test(bySave.will[0]), 'enchantment → Will');

@@ -659,10 +659,12 @@ const DND35 = {
 
   // Categorize an entry's structured `bonuses` (bonus_type='save') the way
   // categorizeSkillBonuses does for skills. Returns
-  //   { fort, ref, will, situational:[{save, amount, condition, category, appliesAll}] }
-  // where fort/ref/will are the UNCONDITIONAL stacked totals (via
-  // stackBonuses) and `situational` are the conditional ones, each tagged
-  // with the save it applies to (explicit target, else inferred).
+  //   { direct:{fort:[{amount,bonus_category}], ref:[…], will:[…]},
+  //     situational:[{save, amount, condition, category, appliesAll}] }
+  // `direct` keeps the unconditional bonuses as a TYPED list per save (NOT
+  // pre-stacked) so the consumer can stack them across all sources at once
+  // (cross-source stacking). `situational` are the conditional ones, each
+  // tagged with the save it applies to (explicit target, else inferred).
   categorizeSaveBonuses(bonuses) {
     const SAVE_KEY = { fortitude: 'fort', fort: 'fort', reflex: 'ref',
                        ref: 'ref', will: 'will' };
@@ -696,9 +698,7 @@ const DND35 = {
         for (const s of saves) uncond[s].push({ amount: amt, bonus_category: cat });
       }
     }
-    const out = { situational };
-    for (const s of ALL) out[s] = this.stackBonuses(uncond[s]).total;
-    return out;
+    return { direct: uncond, situational };
   },
 
   // Categorize an entry's structured AC bonuses (bonus_type='ac') into the

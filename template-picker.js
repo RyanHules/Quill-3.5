@@ -794,7 +794,7 @@
   // getActiveSkillBonuses: runs DND35.categorizeSaveBonuses over each applied
   // template's structured `bonuses`. {fort, ref, will, situational}.
   function getActiveSaveBonuses() {
-    const merged = { fort: 0, ref: 0, will: 0, situational: [] };
+    const merged = { direct: { fort: [], ref: [], will: [] }, situational: [] };
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
     if (typeof DND35 === 'undefined' || !DND35.categorizeSaveBonuses) return merged;
     for (const t of appliedTemplates) {
@@ -811,7 +811,7 @@
       let parsed = {};
       try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
       const cat = DND35.categorizeSaveBonuses(parsed.bonuses);
-      merged.fort += cat.fort; merged.ref += cat.ref; merged.will += cat.will;
+      for (const k of ['fort', 'ref', 'will']) merged.direct[k].push(...cat.direct[k]);
       cat.situational.forEach(s => { s.source = t.name; });
       merged.situational.push(...cat.situational);
     }
