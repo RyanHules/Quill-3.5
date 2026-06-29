@@ -1026,6 +1026,42 @@ test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
                                 { amount: 1, bonus_category: 'racial' }]);
   assertEq(r.suppressed.length, 1, 'the overridden same-type bonus is reported as suppressed');
   assertEq(r.applied.length, 1, 'only the winning bonus is applied');
+
+  // Bonuses and penalties are resolved SEPARATELY per type — a morale bonus
+  // does NOT grant immunity to a morale penalty (rage +2 morale alongside
+  // fear -2 morale → both apply, net 0).
+  assertEq(DND35.stackBonuses([{ amount: 2, bonus_category: 'morale' },
+                               { amount: -2, bonus_category: 'morale' }]).total, 0,
+    'a morale bonus and morale penalty both apply (no overlap/immunity)');
+  // Full typed save stack (the refactor): race racial +2, rage morale +2,
+  // fear morale -2, cloak resistance +1, misc untyped +1 → +4.
+  assertEq(DND35.stackBonuses([
+    { amount: 2, bonus_category: 'racial' },
+    { amount: 2, bonus_category: 'morale' },
+    { amount: -2, bonus_category: 'morale' },
+    { amount: 1, bonus_category: 'resistance' },
+    { amount: 1, bonus_category: 'untyped' }]).total, 4,
+    'full typed save stack resolves to +4');
+});
+
+test('full save stacking: all programmatic save sources emit a typed saveBonuses list', () => {
+  // The cross-source save stacking depends on every source handing the
+  // aggregator TYPED entries, not pre-summed numbers.
+  const cf = readSource('class-features.js');
+  assert(/saveBonuses:\s*\[\]/.test(cf) && /bonus_category:\s*"morale"/.test(cf),
+    'class-features.js getActiveBonuses must emit typed saveBonuses (rage = morale)');
+  const cn = readSource('conditions.js');
+  assert(/saveBonuses/.test(cn) && /saveType:\s*'morale'/.test(cn),
+    'conditions.js must emit typed saveBonuses with fear = morale');
+  const app = readSource('app.js');
+  assert(/saveTyped/.test(app) && /saveBonuses/.test(app),
+    'app.js collectActiveBonuses must collect typed saveBonuses into saveTyped');
+  // character.js stacks the whole typed set (incl. the manual fields typed).
+  const ch = readSource('character.js');
+  assert(/saveTyped/.test(ch) && /bonus_category:\s*"resistance"/.test(ch),
+    'character.js must stack saveTyped + the manual magic field as resistance');
+  assert(!/bonuses\.saves\b/.test(ch),
+    'character.js must no longer read the old untyped bonuses.saves');
 });
 
 test('data: categorizeACBonuses feeds the AC onion (excludes size/natural, splits situational)', () => {

@@ -15,10 +15,12 @@ const ClassFeatures = (function () {
 
   // ============================================================
   // Active Bonuses (bonus layer for rage, future: equipment, etc.)
-  // Returns { abilities: { STR: N, CON: N, ... }, saves: { will: N, ... }, ac: N }
+  // Returns { abilities: { STR: N, ... }, saveBonuses: [{save,amount,
+  // bonus_category}], ac: N } — saveBonuses is a TYPED list so the saves
+  // recalc can cross-source-stack it.
   // ============================================================
   function getActiveBonuses() {
-    const bonuses = { abilities: {}, saves: {}, ac: 0 };
+    const bonuses = { abilities: {}, saveBonuses: [], ac: 0 };
 
     // Rage toggle
     const rageActive = $("#rage-active");
@@ -31,7 +33,11 @@ const ClassFeatures = (function () {
         bonuses.abilities.STR = (bonuses.abilities.STR || 0) + strCon;
         bonuses.abilities.CON = (bonuses.abilities.CON || 0) + strCon;
       }
-      if (willBonus) bonuses.saves.will = (bonuses.saves.will || 0) + willBonus;
+      // Rage's +Will is a MORALE bonus (RAW).
+      if (willBonus) {
+        bonuses.saveBonuses.push({ save: "will", amount: willBonus,
+                                   bonus_category: "morale" });
+      }
       if (acPenalty) bonuses.ac += acPenalty;
     }
 

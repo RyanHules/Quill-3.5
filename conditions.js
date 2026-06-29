@@ -42,15 +42,15 @@ const Conditions = (function () {
       description: '+4 AC vs ranged, -4 AC vs melee. -4 attack on melee attacks. Standing up = move action that provokes.',
     },
     'Shaken': {
-      attack: -2, save: -2, skill: -2, abilityCheck: -2,
+      attack: -2, save: -2, saveType: 'morale', skill: -2, abilityCheck: -2,
       description: 'Fear effect (stacks → Frightened). -2 attack / saves / skill checks / ability checks.',
     },
     'Frightened': {
-      attack: -2, save: -2, skill: -2, abilityCheck: -2,
+      attack: -2, save: -2, saveType: 'morale', skill: -2, abilityCheck: -2,
       description: 'As Shaken, plus must flee at top speed if able. Stacks → Panicked.',
     },
     'Panicked': {
-      attack: -2, save: -2, skill: -2, abilityCheck: -2,
+      attack: -2, save: -2, saveType: 'morale', skill: -2, abilityCheck: -2,
       dropItems: true,
       description: 'Drop everything held, flee top speed, cannot make attacks or take other actions.',
     },
@@ -247,7 +247,11 @@ const Conditions = (function () {
   function getActiveBonuses() {
     const out = {
       abilities: {},
-      saves: {},
+      // Typed save modifiers — fear conditions are MORALE penalties (they
+      // don't stack with each other / a morale bonus resolves separately),
+      // the rest are untyped (stack). Consumed by collectActiveBonuses into
+      // the cross-source save stacking list.
+      saveBonuses: [],
       ac: 0,
       loseDexToAC: false,
     };
@@ -265,7 +269,8 @@ const Conditions = (function () {
       if (c.ac)        out.ac += c.ac;
       if (c.save) {
         for (const s of ['fort', 'ref', 'will']) {
-          out.saves[s] = (out.saves[s] || 0) + c.save;
+          out.saveBonuses.push({ save: s, amount: c.save,
+                                 bonus_category: c.saveType || 'untyped' });
         }
       }
       if (c.loseDexToAC) out.loseDexToAC = true;

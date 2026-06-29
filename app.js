@@ -113,7 +113,16 @@
     // `bloodlineAbilities` mirrors only the bloodline portion so the
     // Character tab can show it in the Template / Bloodline column instead
     // of lumping it into the Item Bonus column.
-    const bonuses = { abilities: {}, saves: {}, ac: 0, bloodlineAbilities: {} };
+    // saveTyped is a single TYPED list per save, collected from EVERY
+    // programmatic source (class features, conditions, race, template) so the
+    // saves recalc stacks the whole set at once (same-type don't stack;
+    // bonuses + penalties resolved separately then added). Each entry is
+    // {save?, amount, bonus_category}; `pushSave` routes one in.
+    const bonuses = { abilities: {}, saveTyped: { fort: [], ref: [], will: [] },
+                      ac: 0, bloodlineAbilities: {} };
+    const pushSave = (sb) => {
+      if (sb && bonuses.saveTyped[sb.save]) bonuses.saveTyped[sb.save].push(sb);
+    };
 
     // Class features (rage, future: other toggles)
     if (typeof ClassFeatures.getActiveBonuses === "function") {
@@ -121,9 +130,7 @@
       for (const [ab, val] of Object.entries(cf.abilities || {})) {
         bonuses.abilities[ab] = (bonuses.abilities[ab] || 0) + val;
       }
-      for (const [save, val] of Object.entries(cf.saves || {})) {
-        bonuses.saves[save] = (bonuses.saves[save] || 0) + val;
-      }
+      (cf.saveBonuses || []).forEach(pushSave);
       bonuses.ac += cf.ac || 0;
     }
 
@@ -146,9 +153,7 @@
       for (const [ab, val] of Object.entries(cn.abilities || {})) {
         bonuses.abilities[ab] = (bonuses.abilities[ab] || 0) + val;
       }
-      for (const [save, val] of Object.entries(cn.saves || {})) {
-        bonuses.saves[save] = (bonuses.saves[save] || 0) + val;
-      }
+      (cn.saveBonuses || []).forEach(pushSave);
       bonuses.ac += cn.ac || 0;
       // Carry-through flags for downstream consumers.
       if (cn.loseDexToAC) bonuses.loseDexToAC = true;
@@ -177,7 +182,6 @@
     // the racial side; the still-untyped class/condition/manual contributions
     // are added on top until they're typed too). Conditional ones go to the
     // saving-throws section list, tagged per save.
-    bonuses.saveTyped = { fort: [], ref: [], will: [] };
     bonuses.saveSituational = [];
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
@@ -186,7 +190,9 @@
       if (!src) continue;
       if (src.direct) {
         for (const k of ["fort", "ref", "will"]) {
-          if (Array.isArray(src.direct[k])) bonuses.saveTyped[k].push(...src.direct[k]);
+          if (Array.isArray(src.direct[k])) {
+            for (const sb of src.direct[k]) pushSave({ ...sb, save: k });
+          }
         }
       }
       if (Array.isArray(src.situational)) bonuses.saveSituational.push(...src.situational);

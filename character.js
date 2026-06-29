@@ -68,7 +68,6 @@ const Character = (function () {
   function recalc(getAbilityMod, bonuses = {}) {
     const abilityBonuses = bonuses.abilities || {};
     const bloodlineBonuses = bonuses.bloodlineAbilities || {};
-    const saveBonuses = bonuses.saves || {};
     const acBonus = bonuses.ac || 0;
 
     // Ability modifiers. The merged `bonus` still drives the math; for
@@ -344,22 +343,20 @@ const Character = (function () {
     ].forEach(({ prefix, ability }) => {
       const abilityMod = getAbilityMod(ability);
       $(`#${prefix}-ability`).textContent = fmt(abilityMod);
-      const saveBonus = saveBonuses[prefix] || 0;
-      // Structured race/template save bonuses are TYPED — stack them among
-      // themselves (cross-source, same-type doesn't double) before adding.
-      // The untyped class/condition (saveBonus) + manual fields ride on top
-      // until those sources are typed too.
-      const typedList = (bonuses.saveTyped && bonuses.saveTyped[prefix]) || [];
-      const structuredSave = (typeof DND35 !== "undefined" && DND35.stackBonuses)
+      // FULL typed stacking: every modifier source (race/template/class/
+      // condition — already typed in bonuses.saveTyped) plus the manual
+      // fields (Magic Mod = a RESISTANCE bonus by convention; Misc/Temp =
+      // untyped, so they always stack) go through one stackBonuses pass.
+      // Base + ability mod are the save's foundation, not bonuses, so they're
+      // added directly on top.
+      const typedList = ((bonuses.saveTyped && bonuses.saveTyped[prefix]) || []).concat([
+        { amount: int($(`#${prefix}-magic`).value), bonus_category: "resistance" },
+        { amount: expr($(`#${prefix}-misc`).value), bonus_category: "untyped" },
+        { amount: int($(`#${prefix}-temp`).value), bonus_category: "untyped" },
+      ]);
+      const stacked = (typeof DND35 !== "undefined" && DND35.stackBonuses)
         ? DND35.stackBonuses(typedList).total : 0;
-      const total =
-        int($(`#${prefix}-base`).value) +
-        abilityMod +
-        int($(`#${prefix}-magic`).value) +
-        expr($(`#${prefix}-misc`).value) +
-        int($(`#${prefix}-temp`).value) +
-        saveBonus +
-        structuredSave;
+      const total = int($(`#${prefix}-base`).value) + abilityMod + stacked;
       $(`#${prefix}-total`).textContent = fmt(total);
     });
     // Auto-derived situational save modifiers (race/template), tagged per
