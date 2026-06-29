@@ -273,6 +273,15 @@
   // the `armor_class` free-form description ("+4 natural armor",
   // "Natural armor as base creature, +2"). Returns 0 if none found.
   function deriveNaturalArmor(parsed) {
+    // Prefer the structured DB field (build-derived for 41 templates;
+    // approved 2026-06-12). It carries the signed DELTA the template
+    // applies ("natural armor improves by +3" → 3; Gelatinous −2), which
+    // the prose regexes below miss when the number trails the phrase
+    // ("Natural armor improves by +3"). The picker adds this to
+    // #ac-natural, so a negative value correctly subtracts.
+    if (typeof parsed.natural_armor_change === 'number') {
+      return parsed.natural_armor_change;
+    }
     if (Array.isArray(parsed.bonuses)) {
       for (const b of parsed.bonuses) {
         if (b?.bonus_type === 'natural_armor' &&

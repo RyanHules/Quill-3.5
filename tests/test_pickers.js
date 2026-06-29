@@ -40,6 +40,10 @@ function assertNotEmpty(arr, msg) {
   assert(Array.isArray(arr) && arr.length > 0,
     msg || `expected non-empty array, got ${arr && arr.length}`);
 }
+function assertEq(actual, expected, msg) {
+  assert(actual === expected,
+    (msg || 'values differ') + ` (expected ${expected}, got ${actual})`);
+}
 
 // ---- DB loader ------------------------------------------------------------
 
@@ -853,6 +857,127 @@ test('class-variants: class-picker strikes through replaced features', () => {
     'class-picker.js: info panel does not listen for ' +
     'class-customizations-changed — adding/removing a customization ' +
     'would not refresh the strike-through preview.');
+});
+
+// Load class-variants.js as a real module with a stubbed window + DB
+// (backed by the live sql.js db) so the inheritance matching can be
+// exercised end-to-end, not just grep-checked.
+function loadClassVariants(db) {
+  const src = readSource('class-variants.js');
+  const stubDB = {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+  };
+  const win = { DB: stubDB };  // BookFilter intentionally absent → allow all
+  const factory = new Function('window', 'DB', 'console', 'document',
+    src + '\nreturn ClassVariants;');
+  return factory(win, stubDB, console, undefined);
+}
+
+test('class-variants: variant class inherits valid parent ACFs at the variant\'s level', (db) => {
+  const CV = loadClassVariants(db);
+
+  // Feature→level map is derived correctly from the variant's table.
+  const mr = CV.getClassData('Mystic Ranger');
+  assert(mr && mr.variant_of === 'Ranger', 'Mystic Ranger missing variant_of=Ranger');
+  const fmap = CV.buildFeatureLevelMap(mr);
+  assertEq(fmap.get('combat style'), 3, 'combat style should map to Mystic Ranger L3');
+  assertEq(fmap.get('swift tracker'), 8, 'swift tracker should map to L8');
+  assertEq(fmap.get('3 favored enemy'), 14, '3rd favored enemy should map to L14');
+  assert(fmap.has('spells') || fmap.has('spell'), 'spells feature should be present');
+
+  const acfs = CV.getACFs('Mystic Ranger');
+  const byName = Object.fromEntries(acfs.map(a => [a.name, a]));
+
+  // INHERIT: combat-style ACF, surfaced at the VARIANT's level (L3, not L2).
+  const ocv = byName['Other Class Variant: Ranger'];
+  assert(ocv, 'Mystic Ranger should inherit "Other Class Variant: Ranger"');
+  assertEq(Number(ocv._effLevel), 3, 'combat-style ACF should come in at Mystic Ranger L3');
+  assertEq(ocv._inheritedFrom, 'Ranger', 'inherited ACF should be tagged from Ranger');
+
+  // INHERIT: favored-enemy ACF at L2.
+  assert(byName['Favored Enemy Variant: Favored Environment'],
+    'Mystic Ranger should inherit the favored-enemy ACF');
+
+  // STRICT EXCLUDE: anything replacing animal companion (traded away).
+  assert(!byName['Distracting Attack'],
+    'Mystic Ranger must NOT inherit an ACF that replaces its missing Animal Companion');
+  assert(!byName['Ranger Variant: Planar Ranger'],
+    'strict ACF rule: Planar Ranger replaces Animal Companion (absent) — must be excluded');
+});
+
+test('class-variants: Chaos Monk excludes flurry ACFs, keeps bonus-feat styles', (db) => {
+  const CV = loadClassVariants(db);
+  const acfs = CV.getACFs('Chaos Monk');
+  const byName = Object.fromEntries(acfs.map(a => [a.name, a]));
+
+  // EXCLUDE: Decisive Strike replaces Flurry of Blows, which the Chaos
+  // Monk does not have (it has flailing strike instead).
+  assert(!byName['Decisive Strike'],
+    'Chaos Monk must NOT inherit Decisive Strike (replaces flurry of blows, which it lacks)');
+
+  // INHERIT: the style ACFs replace monk bonus feats, which Chaos Monk has at L1.
+  const style = byName['Sleeping Tiger Style'] || byName['Cobra Strike Style'];
+  assert(style, 'Chaos Monk should inherit the bonus-feat style ACFs');
+  assertEq(Number(style._effLevel), 1, 'bonus-feat style ACF should come in at L1');
+  assertEq(style._inheritedFrom, 'Monk', 'inherited style ACF should be tagged from Monk');
+});
+
+test('class-variants: substitution-level inheritance is per-feature + level-adjusted', (db) => {
+  const CV = loadClassVariants(db);
+  const subs = CV.getSubLevels('Mystic Ranger');
+  const byName = Object.fromEntries(subs.map(s => [s.name, s]));
+
+  // Portal Intuition replaces Swift Tracker → Mystic Ranger L8.
+  const pi = byName['Portal Intuition (Ranger Planar Substitution Level 8)'];
+  assert(pi, 'Mystic Ranger should inherit Portal Intuition (replaces swift tracker, which it has)');
+  assertEq(Number(pi._effLevel), 8, 'swift-tracker sub level should come in at Mystic Ranger L8');
+
+  // A sub level replacing animal companion is excluded (no matched feature).
+  assert(!byName['Planar Animal Companion (Ranger Planar Substitution Level 4)'],
+    'sub level replacing the absent Animal Companion must be excluded');
+});
+
+test('class-variants: non-variant class ACFs are unchanged (no inheritance tags)', (db) => {
+  const CV = loadClassVariants(db);
+  const acfs = CV.getACFs('Ranger');
+  assert(acfs.length > 0, 'Ranger should still have its own ACFs');
+  assert(acfs.every(a => !a._inheritedFrom),
+    'a base (non-variant) class must not carry inherited-ACF tags');
+});
+
+test('template-picker: deriveNaturalArmor consumes the structured natural_armor_change field', (db) => {
+  // Regression: Proto-creature's armor_class prose "Natural armor improves
+  // by +3" doesn't match the trailing-number regexes, so the picker showed
+  // +0 NA. The structured natural_armor_change field must win.
+  const body = extractFunctionBody(readSource('template-picker.js'), 'deriveNaturalArmor');
+  assert(body, 'deriveNaturalArmor not found in template-picker.js');
+  const deriveNaturalArmor = new Function('parsed', body);
+  assertEq(deriveNaturalArmor({ natural_armor_change: 3 }), 3,
+    'natural_armor_change:3 must yield +3 (the Proto-creature case)');
+  assertEq(deriveNaturalArmor({ natural_armor_change: -2 }), -2,
+    'a negative natural_armor_change must pass through (Gelatinous-style)');
+  assertEq(deriveNaturalArmor({ armor_class: '+4 natural armor' }), 4,
+    'the prose fallback must still work when no structured field is present');
+  // And the live Proto-creature entry actually carries the field.
+  const row = execOne(db,
+    "SELECT json_extract(data,'$.natural_armor_change') AS nac " +
+    "FROM entry WHERE type='template' AND name='Proto-creature'");
+  assertEq(row && row.nac, 3, 'Proto-creature DB entry must have natural_armor_change=3');
+});
+
+test('class-picker: Mystic Ranger spell-level offset is data-driven (starts at level 0)', (db) => {
+  // Regression: a 6-slot spells_per_day list (0th-5th) is < 7, so the
+  // length heuristic mislabels it as a no-cantrip caster (offset 1) and
+  // shifts every column up. Routing through SPELL_CLASS_VARIANTS uses
+  // MIN(level) from spell_class_level (= 0) instead.
+  assert(/SPELL_CLASS_VARIANTS[\s\S]*?'Mystic Ranger'/.test(readSource('class-picker.js')),
+    'class-picker.js: Mystic Ranger must be in SPELL_CLASS_VARIANTS so its ' +
+    'spell-level offset is data-driven, not length-heuristic.');
+  const r = execOne(db,
+    "SELECT MIN(level) AS mn FROM spell_class_level WHERE class_name='Mystic Ranger'");
+  assertEq(r && r.mn, 0,
+    'Mystic Ranger must have level-0 (orison) spell access so the offset resolves to 0');
 });
 
 // ---- tests: special-ability-picker (skill tricks) -------------------------

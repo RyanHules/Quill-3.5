@@ -2296,6 +2296,24 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   font-size: 0.85em;
   font-style: italic;
 }
+/* Variant-class inheritance: an ACF / sub-level pulled from the parent
+   class (e.g. Mystic Ranger inheriting a Ranger ACF). */
+.cv-inherited {
+  display: inline-block;
+  padding: 0 0.35em;
+  background: rgba(110, 140, 200, 0.18);
+  color: #8fa6d8;
+  border-radius: 8px;
+  font-size: 0.78em;
+  font-style: italic;
+}
+.cv-inherited-item .cv-name { border-left: 2px solid rgba(110, 140, 200, 0.5); padding-left: 0.4em; }
+.cv-inherit-note { color: #8fa6d8; font-size: 0.8em; font-style: italic; }
+.cv-partial {
+  color: #c89a6a;
+  font-size: 0.85em;
+  margin-top: 0.25em;
+}
 .cv-source {
   color: #889;
   font-size: 0.82em;

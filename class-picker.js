@@ -61,6 +61,12 @@
     'Druid':    ['Drd', 'Druid', 'druid', 'd r u i d'],
     'Paladin':  ['Pal', 'Paladin', 'paladin'],
     'Ranger':   ['Rgr', 'Ranger', 'ranger', 'r a n g e r'],
+    // Mystic Ranger (Dragon #336) casts 0th-5th level spells — its
+    // spells_per_day list starts at level 0 (orisons). Routing it through
+    // the data-driven offset (MIN(level)=0 from spell_class_level) is
+    // required: the length heuristic would mis-read its 6-slot list (<7)
+    // as a no-cantrip caster and shift every column up by one.
+    'Mystic Ranger': ['Mystic Ranger'],
     'Bard':     ['Brd', 'Bard', 'bard'],
     'Hexblade': ['Hexblade', 'hexblade'],
     'Warmage':  ['Wmg', 'Warmage', 'warmage'],
