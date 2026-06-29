@@ -248,6 +248,10 @@ const Skills = (function () {
       ? RacePicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
     const tmplSkill = (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSkillBonuses)
       ? TemplatePicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    // Feat skill bonuses (Alertness, Skill Focus, …) — untyped, summed per
+    // skill in Feats.getActiveSkillBonuses; same {direct, global} shape.
+    const featSkill = (typeof Feats !== "undefined" && Feats.getActiveSkillBonuses)
+      ? Feats.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
       Array.isArray(tmplSkill.situational) ? tmplSkill.situational : []);
@@ -361,9 +365,12 @@ const Skills = (function () {
         + (blBaseKey ? (raceSkill.direct[blBaseKey] || 0) : 0) + (raceSkill.global || 0);
       const tmplBonus = (tmplSkill.direct[blKey] || 0)
         + (blBaseKey ? (tmplSkill.direct[blBaseKey] || 0) : 0) + (tmplSkill.global || 0);
+      const featBonus = (featSkill.direct[blKey] || 0)
+        + (blBaseKey ? (featSkill.direct[blBaseKey] || 0) : 0);
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
-        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus;
+        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus
+        + featBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");

@@ -836,11 +836,87 @@ const Feats = (function () {
     }
   }
 
+  // ---- Structured feat bonuses (effects-aggregator phase 3) -------------
+  // The ~19 core flat-bonus PHB feats carry a structured `bonuses` array in
+  // the DB (Iron Will +2 Will, Alertness +2 Listen/Spot, Skill Focus +3 to a
+  // chosen skill, …). The character's feat rows resolve to those bonuses and
+  // feed the SAME skill / save / AC aggregator as race/template/bloodline.
+  let _featBonusMap = null;
+  function featBonusMap() {
+    if (_featBonusMap) return _featBonusMap;
+    const m = new Map();
+    if (window.DB && DB.isLoaded()) {
+      const rows = DB.query(
+        "SELECT name, json_extract(data,'$.bonuses') AS bonuses FROM entry "
+        + "WHERE type='feat' AND json_extract(data,'$.bonuses') IS NOT NULL");
+      for (const r of rows) {
+        try { m.set(String(r.name).toLowerCase(), JSON.parse(r.bonuses)); }
+        catch (e) { /* skip */ }
+      }
+      _featBonusMap = m;   // cache only once the DB is loaded
+    }
+    return m;
+  }
+
+  // Resolve the character's feat rows → a flat list of structured bonuses,
+  // filling a "@choice" target from the feat row's parenthetical
+  // ("Skill Focus (Diplomacy)" → Diplomacy). Includes derived bonus-feat
+  // rows (a bloodline/class-granted Iron Will still grants +2 Will).
+  function getResolvedFeatBonuses() {
+    const map = featBonusMap();
+    if (!map.size) return [];
+    const out = [];
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const m = text.match(/^([^(]+?)\s*(?:\(([^)]*)\))?\s*$/);
+      if (!m) return;
+      const bonuses = map.get(m[1].trim().toLowerCase());
+      if (!bonuses) return;
+      const spec = (m[2] || "").trim();
+      for (const b of bonuses) {
+        const bonus = Object.assign({}, b);
+        if (bonus.target === "@choice") {
+          if (!spec) continue;             // unresolved specialization → skip
+          bonus.target = spec;
+        }
+        out.push(bonus);
+      }
+    });
+    return out;
+  }
+
+  // Skill bonuses: feat skill bonuses are UNTYPED, so same-skill bonuses SUM
+  // (Alertness +2 Listen + Skill Focus (Listen) +3 = +5). {direct, global,
+  // situational} to match the other pickers' shape that skills.js consumes.
+  function getActiveSkillBonuses() {
+    const direct = {};
+    for (const b of getResolvedFeatBonuses()) {
+      if (b.bonus_type !== "skill" || !b.target || typeof b.amount !== "number") continue;
+      const k = String(b.target).toLowerCase();
+      direct[k] = (direct[k] || 0) + b.amount;
+    }
+    return { direct, global: 0, situational: [] };
+  }
+  function getActiveSaveBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeSaveBonuses)
+      ? DND35.categorizeSaveBonuses(getResolvedFeatBonuses())
+      : { direct: { fort: [], ref: [], will: [] }, situational: [] };
+  }
+  function getActiveACBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeACBonuses)
+      ? DND35.categorizeACBonuses(getResolvedFeatBonuses())
+      : { items: [], situational: [] };
+  }
+
   return {
     addFeat, addSpecialAbility, collectData, loadData,
     // Exposed for the Companion tab's feat list — same lookup logic
     // (DB query by feat name + parenthetical-stripping fallback) used
     // by the per-row ⓘ toggle on the main Feats tab.
     renderFeatRules,
+    // Effects-aggregator phase 3.
+    getResolvedFeatBonuses, getActiveSkillBonuses,
+    getActiveSaveBonuses, getActiveACBonuses,
   };
 })();

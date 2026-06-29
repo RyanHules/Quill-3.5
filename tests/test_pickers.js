@@ -997,6 +997,44 @@ test('class-picker: class bonus-feat auto-apply data path (Ranger Track/Enduranc
     'feats.js collectData must skip data-from-class-feat (derived) rows');
 });
 
+test('feats (phase 3): core flat-bonus feats carry structured bonuses + the sheet consumes them', (db) => {
+  // DB: the ~19 core PHB feats are structured.
+  const n = execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='feat' " +
+    "AND json_extract(data,'$.bonuses') IS NOT NULL").n;
+  assertGE(n, 18, 'the core flat-bonus PHB feats must carry structured bonuses');
+  const iw = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='feat' AND name='Iron Will'").data);
+  assertEq(iw.bonuses[0].bonus_type, 'save');
+  assertEq(iw.bonuses[0].target, 'Will');
+  assertEq(iw.bonuses[0].amount, 2);
+  assertEq(iw.bonuses[0].bonus_category, 'untyped',
+    'feat bonuses are untyped (they stack)');
+  const sf = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='feat' AND name='Skill Focus'").data);
+  assertEq(sf.bonuses[0].target, '@choice', 'Skill Focus uses a @choice target');
+  assertEq(sf.specialization, 'skill', 'Skill Focus is a skill-specialization feat');
+  const al = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='feat' AND name='Alertness'").data);
+  assertEq(al.bonuses.length, 2, 'Alertness grants two skill bonuses (Listen + Spot)');
+
+  // Sheet wiring: Feats exposes the accessors; skills.js + app.js consume them.
+  const feats = readSource('feats.js');
+  for (const fn of ['getResolvedFeatBonuses', 'getActiveSkillBonuses',
+                    'getActiveSaveBonuses', 'getActiveACBonuses']) {
+    assert(new RegExp(fn).test(feats), `feats.js must expose ${fn}`);
+  }
+  assert(/@choice/.test(feats),
+    'feats.js must resolve the @choice target from the parenthetical');
+  const sk = readSource('skills.js');
+  assert(/Feats\.getActiveSkillBonuses/.test(sk) && /featBonus/.test(sk),
+    'skills.js must add feat skill bonuses to the total');
+  const app = readSource('app.js');
+  assert(/Feats\.getActiveSaveBonuses/.test(app) && /Feats\.getActiveACBonuses/.test(app),
+    'app.js must collect feat save + AC bonuses');
+  assert(/#tab-feats/.test(app),
+    'app.js must recalc when a feat changes (feats now feed the aggregator)');
+});
+
 test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   const total = (l) => DND35.stackBonuses(l).total;

@@ -186,6 +186,7 @@
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSaveBonuses) ? TemplatePicker.getActiveSaveBonuses() : null,
+      (typeof Feats !== "undefined" && Feats.getActiveSaveBonuses) ? Feats.getActiveSaveBonuses() : null,
     ]) {
       if (!src) continue;
       if (src.direct) {
@@ -207,6 +208,7 @@
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveACBonuses) ? RacePicker.getActiveACBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveACBonuses) ? TemplatePicker.getActiveACBonuses() : null,
+      (typeof Feats !== "undefined" && Feats.getActiveACBonuses) ? Feats.getActiveACBonuses() : null,
     ]) {
       if (!src) continue;
       if (Array.isArray(src.items)) bonuses.acItems.push(...src.items);
@@ -766,6 +768,9 @@
       target.closest("#tab-equipment") ||
       target.closest("#tab-spells") ||
       target.closest("#tab-class-features") ||
+      // Feats now carry structured bonuses (Iron Will, Alertness, Skill
+      // Focus, …) that feed skills/saves/AC — recalc when a feat changes.
+      target.closest("#tab-feats") ||
       target.id === "char-level"
     ) {
       recalcAll();
