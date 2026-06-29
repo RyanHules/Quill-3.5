@@ -1044,8 +1044,6 @@ test('feats: structured feat-entry (info box) preserves the canonical .feat-entr
     'feats.js must render a structured info box (feat-namebox)');
   assert(/function parseFeatText/.test(feats) && /function lookupFeatInfo/.test(feats),
     'feats.js must parse the feat text + look up the DB feat (auto-detect)');
-  assert(/forceFreeText/.test(feats),
-    'addFeat must support forceFreeText for derived bonus-feat rows');
   // The structured row hides — but keeps — the canonical .feat-entry.
   assert(/ta\.style\.display\s*=\s*["']none["']/.test(feats),
     'structured rows must HIDE (not remove) the canonical .feat-entry');
@@ -1056,11 +1054,24 @@ test('feats: structured feat-entry (info box) preserves the canonical .feat-entr
   // collectData + getResolvedFeatBonuses still read .feat-entry (unchanged).
   assert(/\.feat-entry/.test(feats),
     'collectData / resolver still read .feat-entry');
-  // Derived bonus-feat rows opt out of structuring (their paren is a source label).
-  assert(/forceFreeText:\s*true/.test(readSource('bloodline.js')),
-    'bloodline.js derived bonus feats must pass forceFreeText');
-  assert(/forceFreeText:\s*true/.test(readSource('class-picker.js')),
-    'class-picker.js derived bonus feats must pass forceFreeText');
+
+  // Derived bonus-feat rows (bloodline / class grants) ALSO render read-only
+  // info boxes, for consistency with picker-added feats — but show the
+  // granting source as a tag (feat-source-tag) instead of an editable spec
+  // control. addFeat takes opts.sourceLabel and stays structured even off a
+  // DB miss (`dbInfo || sourceLabel`).
+  assert(/sourceLabel/.test(feats) && /feat-source-tag/.test(feats),
+    'addFeat must render derived rows as read-only info boxes with a source tag');
+  assert(/dbInfo\s*\|\|\s*sourceLabel/.test(feats),
+    'derived rows must render structured even when the feat is not a DB match');
+  assert(/sourceLabel:/.test(readSource('bloodline.js')),
+    'bloodline.js derived bonus feats must pass opts.sourceLabel (read-only info box)');
+  assert(/sourceLabel:/.test(readSource('class-picker.js')),
+    'class-picker.js derived bonus feats must pass opts.sourceLabel (read-only info box)');
+  // The source label must NOT flow through the spec-control path (it isn't a
+  // specialization): the tag branch is gated on sourceLabel, spec on else.
+  assert(/if\s*\(sourceLabel\)\s*\{[\s\S]*?feat-source-tag[\s\S]*?\}\s*else\s*\{/.test(feats),
+    'sourceLabel must take the tag branch, not the specialization branch');
 });
 
 test('feats: choice feats carry a specialization marker (so the read-only box can record the pick)', (db) => {

@@ -82,8 +82,11 @@ const Feats = (function () {
   }
 
   // text: the feat string ("Iron Will", "Skill Focus (Diplomacy)").
-  // opts.forceFreeText: never structure (derived bonus-feat rows, whose
-  // parenthetical is a source label, not a specialization).
+  // opts.sourceLabel: marks a DERIVED bonus-feat row (bloodline / class
+  // grant). The row renders read-only like a picker-added feat, but shows
+  // the granting source as a read-only tag instead of an editable spec
+  // control (the annotation is a source label, not a specialization), and
+  // it stays structured even when the feat isn't a DB match.
   function addFeat(text = "", opts = {}) {
     const container = $("#feats-container");
     const div = document.createElement("div");
@@ -94,8 +97,9 @@ const Feats = (function () {
     ta.rows = 1;
     ta.value = text;
 
+    const sourceLabel = opts.sourceLabel || null;
     const parsed = parseFeatText(text);
-    const dbInfo = opts.forceFreeText ? null : lookupFeatInfo(parsed.name);
+    const dbInfo = lookupFeatInfo(parsed.name);
 
     // ⓘ button — collapsible rules panel from the DB (or graceful fallback).
     const info = document.createElement("button");
@@ -124,9 +128,10 @@ const Feats = (function () {
       refreshFeatPrereqBadge(div);
     });
 
-    if (dbInfo) {
-      // Structured info box: hidden canonical .feat-entry + name display +
-      // (for choice feats) a specialization control that writes back to it.
+    if (dbInfo || sourceLabel) {
+      // Structured info box: hidden canonical .feat-entry + name display.
+      // Either an auto-detected DB feat OR a derived grant (which renders
+      // structured even when it isn't a DB match).
       div.classList.add("feat-structured");
       ta.style.display = "none";
       div.appendChild(ta);
@@ -136,35 +141,45 @@ const Feats = (function () {
       nameEl.className = "feat-name-display";
       nameEl.textContent = parsed.name;
       box.appendChild(nameEl);
-      // Render the specialization control when the feat is MARKED as a
-      // choice feat (DB `specialization`), OR — safety net — when the
-      // canonical text already carries a parenthetical even though the feat
-      // isn't marked. Without the latter, a structured feat added as
-      // "Foo (Bar)" would hide "(Bar)" with no way to see/edit it (the read-
-      // only dead-end Ryan flagged). Unmarked → free-text kind.
-      const specKind = dbInfo.specialization || (parsed.spec ? "detail" : null);
-      if (specKind) {
-        box.appendChild(document.createTextNode(" ("));
-        const spec = document.createElement("input");
-        spec.className = "feat-spec";
-        spec.value = parsed.spec || "";
-        spec.placeholder = "choose…";
-        spec.size = 14;
-        spec.title = `Specialization (${specKind})`;
-        const listId = ensureSpecDatalist(specKind);
-        if (listId) spec.setAttribute("list", listId);
-        if (!parsed.spec) box.classList.add("feat-spec-unset");
-        spec.addEventListener("input", () => {
-          const s = spec.value.trim();
-          ta.value = s ? `${parsed.name} (${s})` : parsed.name;
-          box.classList.toggle("feat-spec-unset", !s);
-          // Refresh the row's own tooling; recalc fires from this event
-          // bubbling to the document-level input listener.
-          collapseFeatRules(div);
-          refreshFeatPrereqBadge(div);
-        });
-        box.appendChild(spec);
-        box.appendChild(document.createTextNode(")"));
+      if (sourceLabel) {
+        // Derived row: read-only source tag (the granting bloodline / class),
+        // NOT an editable spec control — the annotation isn't a specialization.
+        div.classList.add("feat-derived");
+        const tag = document.createElement("span");
+        tag.className = "feat-source-tag";
+        tag.textContent = sourceLabel;
+        box.appendChild(tag);
+      } else {
+        // Render the specialization control when the feat is MARKED as a
+        // choice feat (DB `specialization`), OR — safety net — when the
+        // canonical text already carries a parenthetical even though the feat
+        // isn't marked. Without the latter, a structured feat added as
+        // "Foo (Bar)" would hide "(Bar)" with no way to see/edit it (the read-
+        // only dead-end Ryan flagged). Unmarked → free-text kind.
+        const specKind = dbInfo.specialization || (parsed.spec ? "detail" : null);
+        if (specKind) {
+          box.appendChild(document.createTextNode(" ("));
+          const spec = document.createElement("input");
+          spec.className = "feat-spec";
+          spec.value = parsed.spec || "";
+          spec.placeholder = "choose…";
+          spec.size = 14;
+          spec.title = `Specialization (${specKind})`;
+          const listId = ensureSpecDatalist(specKind);
+          if (listId) spec.setAttribute("list", listId);
+          if (!parsed.spec) box.classList.add("feat-spec-unset");
+          spec.addEventListener("input", () => {
+            const s = spec.value.trim();
+            ta.value = s ? `${parsed.name} (${s})` : parsed.name;
+            box.classList.toggle("feat-spec-unset", !s);
+            // Refresh the row's own tooling; recalc fires from this event
+            // bubbling to the document-level input listener.
+            collapseFeatRules(div);
+            refreshFeatPrereqBadge(div);
+          });
+          box.appendChild(spec);
+          box.appendChild(document.createTextNode(")"));
+        }
       }
       div.appendChild(box);
     } else {

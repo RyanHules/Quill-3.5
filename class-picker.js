@@ -4303,9 +4303,9 @@
     if (inSync) return;
     existing.forEach(r => r.remove());
     for (const w of wanted) {
-      // forceFreeText: the parenthetical is a source label, not a feat
-      // specialization — keep these derived rows as plain text, not info boxes.
-      Feats.addFeat(`${w.feat} (${w.cls} bonus feat — L${w.level})`, { forceFreeText: true });
+      // sourceLabel: renders a read-only info box (like picker-added feats)
+      // with the granting class shown as a tag, not an editable spec.
+      Feats.addFeat(w.feat, { sourceLabel: `${w.cls} bonus feat — L${w.level}` });
       const rows = container.querySelectorAll('.feat-row');
       const row = rows[rows.length - 1];
       if (!row) continue;

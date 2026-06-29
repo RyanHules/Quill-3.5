@@ -3943,3 +3943,21 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   border-color: #c89a6a;
   background: rgba(200, 154, 106, 0.14);
 }
+/* Derived bonus-feat rows (bloodline / class grants) render structured +
+   read-only, with the granting source shown as a tag (not a spec input).
+   The .feat-entry is hidden, so the source-color cue moves to the namebox. */
+.feat-row.feat-from-bloodline.feat-structured .feat-namebox {
+  border-left-color: #d9863a;
+  background: rgba(217, 134, 58, 0.10);
+}
+.feat-row.feat-from-class.feat-structured .feat-namebox {
+  border-left-color: #c8a14a;
+  background: rgba(200, 161, 74, 0.10);
+}
+.feat-namebox .feat-source-tag {
+  font-size: 0.82em;
+  font-style: italic;
+  opacity: 0.7;
+  margin-left: 0.25rem;
+  white-space: nowrap;
+}
