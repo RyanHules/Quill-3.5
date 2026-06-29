@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260629m';
+    window.CACHE_VERSION = '20260629n';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -328,6 +328,9 @@
             <textarea id="ac-defense-notes" class="auto-expand" rows="2"
                       placeholder="e.g. DR 5/cold iron (after Endure Elements), Fire resist 10, immune to mind-affecting, 25% fortification vs crits, regen 2 (bypassed by acid + fire)"></textarea>
           </div>
+          <!-- Auto-derived situational AC modifiers from race/template
+               (structured `bonuses`) — read-only; applied at point of use. -->
+          <div id="ac-situational-auto" class="save-situational-auto" style="display:none"></div>
         </section>
 
         <!-- Saving Throws -->

@@ -701,6 +701,40 @@ const DND35 = {
     return out;
   },
 
+  // Categorize an entry's structured AC bonuses (bonus_type='ac') into the
+  // shape the character-tab AC onion already consumes (protItems): a list of
+  // { type, ac, touch, flatfooted, stacks } plus a `situational` list for the
+  // conditional ones. SIZE and NATURAL are deliberately skipped — the sheet
+  // already derives size AC from #char-size and routes natural armor through
+  // the #ac-natural field, so re-feeding them here would double-count. The
+  // onion's own resolver applies 3.5 stacking (best-per-type; dodge sums).
+  categorizeACBonuses(bonuses) {
+    const TYPE_MAP = { dodge: 'Dodge', deflection: 'Deflection',
+                       natural: 'Natural Armor', natural_armor: 'Natural Armor',
+                       armor: 'Armor', shield: 'Shield' };
+    const items = [];
+    const situational = [];
+    for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
+      if (!b || b.bonus_type !== 'ac') continue;
+      const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!amt || isNaN(amt)) continue;
+      const cat = String(b.bonus_category == null ? '' : b.bonus_category).toLowerCase().trim();
+      if (cat === 'size' || cat === 'natural' || cat === 'natural_armor') continue;
+      const cond = (b.condition == null) ? '' : String(b.condition).trim();
+      const type = TYPE_MAP[cat] || (cat ? cat[0].toUpperCase() + cat.slice(1) : 'Untyped');
+      if (cond) { situational.push({ type, ac: amt, condition: cond, category: cat }); continue; }
+      items.push({
+        type, ac: amt,
+        // Touch AC keeps everything except armor / shield / natural.
+        touch: !(type === 'Armor' || type === 'Shield' || type === 'Natural Armor'),
+        // Only dodge bonuses are lost when flat-footed.
+        flatfooted: type !== 'Dodge',
+        stacks: false,
+      });
+    }
+    return { items, situational };
+  },
+
   // Carrying capacity by STR score (light load max, medium load max, heavy load max)
   carryingCapacity: {
     1: [3, 6, 10],

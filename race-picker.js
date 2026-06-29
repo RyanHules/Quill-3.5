@@ -1049,6 +1049,31 @@
     return computeRaceSaveBonuses(((input && input.value) || '').trim());
   }
 
+  // Public: current racial AC bonuses for #char-race (dodge/deflection/luck/
+  // …; natural + size are excluded — handled by #ac-natural / #char-size).
+  // Returns {items, situational} in the AC-onion's protItem shape.
+  function getActiveACBonuses() {
+    const empty = { items: [], situational: [] };
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return empty;
+    if (typeof DND35 === 'undefined' || !DND35.categorizeACBonuses) return empty;
+    const input = document.getElementById('char-race');
+    const name = ((input && input.value) || '').trim()
+      .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
+    if (!name) return empty;
+    const raceId = raceIndex.get(name.toLowerCase());
+    if (raceId === undefined) return empty;
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return empty;
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return empty; }
+    const baseParsed = resolveVariantBase(parsed);
+    const merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    const cat = DND35.categorizeACBonuses(merged);
+    cat.items.forEach(i => { i.source = name; });
+    cat.situational.forEach(s => { s.source = name; });
+    return cat;
+  }
+
   // ============================================================
   // Racial Spell-Like Abilities (structured `spell_likes` → SLA tab rows)
   // ============================================================
@@ -1134,7 +1159,7 @@
 
   window.RacePicker = {
     resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
-    getActiveSaveBonuses,
+    getActiveSaveBonuses, getActiveACBonuses,
   };
 
   // Wait for DB to load, then init.

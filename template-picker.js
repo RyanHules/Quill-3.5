@@ -818,6 +818,35 @@
     return merged;
   }
 
+  // Current template AC bonuses (dodge/deflection/…; natural + size skipped,
+  // those route through #ac-natural / #char-size). {items, situational} in
+  // the AC-onion protItem shape, consumed by the character-tab AC recalc.
+  function getActiveACBonuses() {
+    const merged = { items: [], situational: [] };
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
+    if (typeof DND35 === 'undefined' || !DND35.categorizeACBonuses) return merged;
+    for (const t of appliedTemplates) {
+      let row = null;
+      if (t.templateId != null) {
+        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
+      }
+      if (!row && t.name) {
+        row = DB.queryOne(
+          "SELECT data FROM entry WHERE type='template' AND name=? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
+      }
+      if (!row) continue;
+      let parsed = {};
+      try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
+      const cat = DND35.categorizeACBonuses(parsed.bonuses);
+      cat.items.forEach(i => { i.source = t.name; });
+      cat.situational.forEach(s => { s.source = t.name; });
+      merged.items.push(...cat.items);
+      merged.situational.push(...cat.situational);
+    }
+    return merged;
+  }
+
   // True when any applied template strips the base creature's RACIAL-category
   // skill modifiers (Wild / wilderness-dweller and similar). RacePicker reads
   // this to suppress those bonuses at the source (where bonus_category is
@@ -848,6 +877,7 @@
     remove: removeTemplate,
     getActiveSkillBonuses,
     getActiveSaveBonuses,
+    getActiveACBonuses,
     stripsRacialSkillBonuses,
   };
 })();

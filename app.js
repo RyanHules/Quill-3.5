@@ -186,6 +186,21 @@
       if (Array.isArray(src.situational)) bonuses.saveSituational.push(...src.situational);
     }
 
+    // Race + template AC bonuses (structured `bonuses`, bonus_type=ac).
+    // Unconditional ones become protItem-shaped rows the AC onion resolves
+    // with 3.5 stacking (size/natural excluded — handled by their own
+    // fields); conditional ones are listed in the Defense Onion section.
+    bonuses.acItems = [];
+    bonuses.acSituational = [];
+    for (const src of [
+      (typeof RacePicker !== "undefined" && RacePicker.getActiveACBonuses) ? RacePicker.getActiveACBonuses() : null,
+      (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveACBonuses) ? TemplatePicker.getActiveACBonuses() : null,
+    ]) {
+      if (!src) continue;
+      if (Array.isArray(src.items)) bonuses.acItems.push(...src.items);
+      if (Array.isArray(src.situational)) bonuses.acSituational.push(...src.situational);
+    }
+
     return bonuses;
   }
 

@@ -1028,6 +1028,32 @@ test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
   assertEq(r.applied.length, 1, 'only the winning bonus is applied');
 });
 
+test('data: categorizeACBonuses feeds the AC onion (excludes size/natural, splits situational)', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // Dodge → protItem with touch=true, flatfooted=false.
+  const dodge = DND35.categorizeACBonuses([
+    { bonus_type: 'ac', amount: 4, bonus_category: 'dodge', condition: null }]);
+  assertEq(dodge.items.length, 1, 'unconditional dodge → one AC item');
+  assertEq(dodge.items[0].type, 'Dodge');
+  assertEq(dodge.items[0].touch, true, 'dodge applies vs touch');
+  assertEq(dodge.items[0].flatfooted, false, 'dodge is lost flat-footed');
+  // size + natural are excluded (handled by #char-size / #ac-natural).
+  const excl = DND35.categorizeACBonuses([
+    { bonus_type: 'ac', amount: 3, bonus_category: 'natural', condition: null },
+    { bonus_type: 'ac', amount: -1, bonus_category: 'size', condition: null }]);
+  assertEq(excl.items.length, 0, 'natural + size are not re-fed (no double-count)');
+  // Deflection touch/flat-footed.
+  const def = DND35.categorizeACBonuses([
+    { bonus_type: 'ac', amount: 1, bonus_category: 'deflection', condition: null }]);
+  assertEq(def.items[0].touch, true, 'deflection applies vs touch');
+  assertEq(def.items[0].flatfooted, true, 'deflection is kept flat-footed');
+  // Conditional → situational, not an item.
+  const cond = DND35.categorizeACBonuses([
+    { bonus_type: 'ac', amount: 4, bonus_category: 'dodge', condition: 'against dragons' }]);
+  assertEq(cond.items.length, 0, 'conditional AC is not auto-applied');
+  assertEq(cond.situational.length, 1, 'conditional AC → situational list');
+});
+
 test('data: categorizeSaveBonuses splits unconditional vs situational + tags the save', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // Unconditional all-saves bonus → folds into fort/ref/will via stacking.

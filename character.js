@@ -34,6 +34,24 @@ const Character = (function () {
     el.innerHTML = `<div class="ss-head">Situational (auto-derived):</div>${html}`;
     el.style.display = "";
   }
+  // Render auto-derived situational AC modifiers (race/template) into
+  // #ac-situational-auto — conditional dodge/deflection/… bonuses the player
+  // applies at point of use.
+  function renderSituationalAC(list) {
+    const el = document.getElementById("ac-situational-auto");
+    if (!el) return;
+    if (!Array.isArray(list) || !list.length) {
+      el.style.display = "none"; el.innerHTML = ""; return;
+    }
+    const amt = (n) => (n >= 0 ? "+" + n : String(n));
+    const items = list.map((s) =>
+      `<li>${amt(s.ac)} ${_esc(s.type || "")} ${_esc(s.condition || "")}` +
+      (s.source ? ` <span class="ss-src">(${_esc(s.source)})</span>` : "") +
+      `</li>`).join("");
+    el.innerHTML = `<div class="ss-head">Situational AC (auto-derived):</div>` +
+      `<div class="ss-grp"><ul>${items}</ul></div>`;
+    el.style.display = "";
+  }
   "use strict";
 
   const $ = (sel) => document.querySelector(sel);
@@ -247,7 +265,11 @@ const Character = (function () {
 
     // Resolve protective item bonuses with D&D 3.5 stacking rules
     // Same bonus type: take highest (except dodge, circumstance, untyped which stack)
-    const protItems = Equipment.getProtectiveItems().concat(abilityACItems);
+    // Race/template structured AC bonuses (dodge/deflection/…) join the same
+    // resolver; size + natural are excluded upstream (their own fields).
+    const protItems = Equipment.getProtectiveItems()
+      .concat(abilityACItems)
+      .concat(Array.isArray(bonuses.acItems) ? bonuses.acItems : []);
     const STACKING_TYPES = ["Dodge", "Circumstance", "Untyped"];
 
     // Seed with character tab bonuses
@@ -310,6 +332,9 @@ const Character = (function () {
     $("#ac-total").textContent = acTotal;
     $("#ac-touch").textContent = touchAC;
     $("#ac-flatfooted").textContent = flatFootedAC;
+    // Auto-derived situational AC modifiers (race/template), e.g. a dodge
+    // bonus vs a specific creature type.
+    renderSituationalAC(bonuses.acSituational || []);
 
     // Saving throws
     [
