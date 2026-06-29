@@ -997,6 +997,37 @@ test('class-picker: class bonus-feat auto-apply data path (Ranger Track/Enduranc
     'feats.js collectData must skip data-from-class-feat (derived) rows');
 });
 
+test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const total = (l) => DND35.stackBonuses(l).total;
+  // Same-type bonuses don't stack — highest wins.
+  assertEq(total([{ amount: 2, bonus_category: 'racial' },
+                  { amount: 1, bonus_category: 'racial' }]), 2,
+    'two racial bonuses → only the +2 counts');
+  // Dodge / circumstance / untyped stack.
+  assertEq(total([{ amount: 1, bonus_category: 'dodge' },
+                  { amount: 1, bonus_category: 'dodge' }]), 2, 'dodge stacks');
+  assertEq(total([{ amount: 1, bonus_category: null },
+                  { amount: 1, bonus_category: null }]), 2, 'untyped stacks');
+  // Best bonus + worst penalty of a type both apply.
+  assertEq(total([{ amount: 2, bonus_category: 'racial' },
+                  { amount: -2, bonus_category: 'racial' }]), 0,
+    'a same-type bonus and penalty both apply');
+  // natural_armor is aliased to natural (one type).
+  assertEq(total([{ amount: 2, bonus_category: 'natural' },
+                  { amount: 3, bonus_category: 'natural_armor' }]), 3,
+    'natural and natural_armor are the same non-stacking type');
+  // Different types sum.
+  assertEq(total([{ amount: 1, bonus_category: 'size' },
+                  { amount: 2, bonus_category: 'morale' },
+                  { amount: 1, bonus_category: 'luck' }]), 4, 'different types sum');
+  // Suppressed losers are reported for legibility.
+  const r = DND35.stackBonuses([{ amount: 2, bonus_category: 'racial' },
+                                { amount: 1, bonus_category: 'racial' }]);
+  assertEq(r.suppressed.length, 1, 'the overridden same-type bonus is reported as suppressed');
+  assertEq(r.applied.length, 1, 'only the winning bonus is applied');
+});
+
 test('template-picker: cleanCreatureType returns null for no-change templates', (db) => {
   // Regression: a template that doesn't change type ("Same as the base
   // creature (unchanged)") must NOT stamp its prose into #char-type — it

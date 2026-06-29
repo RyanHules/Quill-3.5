@@ -587,6 +587,62 @@ const DND35 = {
     return out;
   },
 
+  // ── Typed-bonus stacking engine (3.5 rules) ────────────────────────────
+  // The shared core for any onion that sums typed modifiers — saves, AC,
+  // attack, checks. 3.5 rule: bonuses (and penalties) of the SAME type
+  // don't stack — only the single best bonus and single worst penalty of
+  // each type apply — EXCEPT dodge / circumstance / untyped bonuses, which
+  // always stack. (natural_armor is aliased to natural so the two spellings
+  // are one type.)
+  //
+  // Input: a list of { amount, bonus_category|category, ...passthrough }.
+  // Output: { total, applied:[...], suppressed:[...] } — `applied` are the
+  // modifiers that actually count (post-stacking), `suppressed` are the
+  // same-type losers, kept for legible "why isn't this counting" display.
+  STACKING_BONUS_CATEGORIES: new Set(['dodge', 'circumstance', 'untyped', 'none', '']),
+  _BONUS_CATEGORY_ALIAS: { natural_armor: 'natural' },
+  stackBonuses(list) {
+    const STACKS = this.STACKING_BONUS_CATEGORIES;
+    const ALIAS = this._BONUS_CATEGORY_ALIAS;
+    const applied = [];
+    const suppressed = [];
+    const nonStack = new Map();   // category → { bonus, penalty }
+    let total = 0;
+    for (const b of (Array.isArray(list) ? list : [])) {
+      let amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!amt || isNaN(amt)) continue;
+      let cat = String(b.bonus_category != null ? b.bonus_category
+                       : (b.category != null ? b.category : '')).toLowerCase().trim();
+      cat = ALIAS[cat] || cat;
+      const item = Object.assign({}, b, { amount: amt, category: cat || 'untyped' });
+      if (STACKS.has(cat)) {            // always stacks
+        total += amt;
+        applied.push(item);
+        continue;
+      }
+      const slot = nonStack.get(cat) || {};
+      const key = amt > 0 ? 'bonus' : 'penalty';
+      const better = amt > 0
+        ? (cur) => amt > cur.amount       // higher bonus wins
+        : (cur) => amt < cur.amount;      // lower (worse) penalty wins
+      if (!slot[key]) {
+        slot[key] = item;
+      } else if (better(slot[key])) {
+        suppressed.push(slot[key]);
+        slot[key] = item;
+      } else {
+        suppressed.push(item);
+      }
+      nonStack.set(cat, slot);
+    }
+    for (const slot of nonStack.values()) {
+      for (const k of ['bonus', 'penalty']) {
+        if (slot[k]) { total += slot[k].amount; applied.push(slot[k]); }
+      }
+    }
+    return { total, applied, suppressed };
+  },
+
   // Carrying capacity by STR score (light load max, medium load max, heavy load max)
   carryingCapacity: {
     1: [3, 6, 10],
