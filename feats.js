@@ -768,6 +768,11 @@ const Feats = (function () {
           // data — skip them so they don't double-persist (they re-derive
           // on load). Marked via data-from-bloodline on the textarea.
           if (input.dataset.fromBloodline === "1") return;
+          // Class-granted bonus feats (Track/Endurance/Scribe Scroll) are
+          // likewise DERIVED from the applied classes
+          // (class-picker.js#syncClassBonusFeats) — skip so they re-derive
+          // on load rather than double-persisting.
+          if (input.dataset.fromClassFeat === "1") return;
           data.feats.push(input.value);
         });
     }

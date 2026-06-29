@@ -946,6 +946,57 @@ test('class-variants: non-variant class ACFs are unchanged (no inheritance tags)
     'a base (non-variant) class must not carry inherited-ACF tags');
 });
 
+test('class-variants: matchFeatureLevel prefers exact over subset (variant feature levels)', (db) => {
+  const CV = loadClassVariants(db);
+  const fmap = CV.buildFeatureLevelMap(CV.getClassData('Mystic Ranger'));
+  // Exact match wins over the generic it's a superset of.
+  assertEq(CV.matchFeatureLevel('Combat Style', fmap), 3, 'Combat Style → L3');
+  assertEq(CV.matchFeatureLevel('Improved Combat Style', fmap), 7,
+    'Improved Combat Style must resolve to L7, not the L3 generic');
+  assertEq(CV.matchFeatureLevel('Combat Style Mastery', fmap), 12,
+    'Combat Style Mastery → L12');
+  // Generic name with no exact key falls back to the earliest subset match.
+  assertEq(CV.matchFeatureLevel('Favored Enemy', fmap), 2,
+    'Favored Enemy → L2 (first favored enemy) via subset fallback');
+  // A feature the variant doesn't get → no match.
+  assertEq(CV.matchFeatureLevel('Animal Companion', fmap), null,
+    'Mystic Ranger does not get Animal Companion → null');
+
+  const fmap2 = CV.buildFeatureLevelMap(CV.getClassData('Chaos Monk'));
+  assertEq(CV.matchFeatureLevel('Improved Evasion', fmap2), 9,
+    'Improved Evasion → L9, not the L2 generic Evasion');
+  assertEq(CV.matchFeatureLevel('Flurry of Blows', fmap2), null,
+    'Chaos Monk has flailing strike, not flurry of blows → null');
+});
+
+test('class-picker: fetchClassFeatures applies variant class-feature inheritance', (db) => {
+  // The variant inherits parent features it actually gets, at its level.
+  const src = readSource('class-picker.js');
+  assert(/function getEffectiveClassFeatures\s*\(/.test(src),
+    'class-picker.js: getEffectiveClassFeatures helper is missing');
+  assert(/getEffectiveClassFeatures\(classData\)/.test(src),
+    'fetchClassFeatures must route through getEffectiveClassFeatures');
+});
+
+test('class-picker: class bonus-feat auto-apply data path (Ranger Track/Endurance)', (db) => {
+  // syncClassBonusFeats keys on: feature name matches a feat AND its
+  // description says "bonus feat". Mystic Ranger inherits Ranger's Track/
+  // Endurance features, so the parent data must carry both signals.
+  const cf = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE name='Ranger' AND type='class'").data).class_features;
+  for (const fn of ['Track', 'Endurance']) {
+    const f = cf.find(x => x.name === fn);
+    assert(f && /bonus feat/i.test(f.description || ''),
+      `Ranger's ${fn} feature must describe a bonus-feat grant`);
+    assert(execOne(db, "SELECT 1 AS x FROM entry WHERE type='feat' AND name=?", [fn]),
+      `${fn} must exist as a feat for the auto-apply to recognize it`);
+  }
+  assert(/function syncClassBonusFeats\s*\(/.test(readSource('class-picker.js')),
+    'class-picker.js: syncClassBonusFeats is missing');
+  assert(/dataset\.fromClassFeat\s*===\s*["']1["']/.test(readSource('feats.js')),
+    'feats.js collectData must skip data-from-class-feat (derived) rows');
+});
+
 test('template-picker: deriveNaturalArmor consumes the structured natural_armor_change field', (db) => {
   // Regression: Proto-creature's armor_class prose "Natural armor improves
   // by +3" doesn't match the trailing-number regexes, so the picker showed

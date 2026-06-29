@@ -131,18 +131,25 @@ const ClassVariants = (function () {
   }
 
   function matchFeatureLevel(token, fmap) {
-    // Earliest level a variant feature matches the token (whole-word
-    // subset in either direction), or null.
+    // Level a variant feature matches the token, or null. An EXACT
+    // word-set match wins over a looser subset match — so "Improved
+    // Combat Style" resolves to the L7 feature, not the L3 generic
+    // "Combat Style" it's a superset of. Only when there's no exact match
+    // do we fall back to the earliest whole-word subset match (either
+    // direction), which is what catches generic "Favored Enemy" →
+    // "1st favored enemy".
     const ts = wordSet(token);
     if (!ts.size) return null;
-    let best = null;
+    let exact = null, best = null;
     for (const [feat, lvl] of fmap) {
       const fs = wordSet(feat);
-      if (isSubset(ts, fs) || isSubset(fs, ts)) {
+      if (ts.size === fs.size && isSubset(ts, fs)) {
+        if (exact == null || lvl < exact) exact = lvl;
+      } else if (isSubset(ts, fs) || isSubset(fs, ts)) {
         if (best == null || lvl < best) best = lvl;
       }
     }
-    return best;
+    return exact != null ? exact : best;
   }
 
   function evaluateReplaces(replaces, fmap, strict) {
@@ -210,8 +217,14 @@ const ClassVariants = (function () {
         if (!bookOk(r, 'acf') || !matchesClass(cd.variant_of, r.class_field)) continue;
         const ev = evaluateReplaces(r.replaces, fmap, /* strict */ true);
         if (!ev.ok) continue;
+        // Tag the customization with the VARIANT class (not the parent),
+        // so the class-picker's replaced-feature strikethrough — which
+        // matches a customization's `class` against the applied class —
+        // fires for the variant. Otherwise an inherited Ranger ACF on a
+        // Mystic Ranger never strikes anything.
         own.push({ ...r, _effLevel: ev.level != null ? ev.level : r.level,
-                   _inheritedFrom: cd.variant_of, _missing: ev.missing });
+                   _inheritedFrom: cd.variant_of, _effClass: className,
+                   _missing: ev.missing });
       }
     }
     return sortByEffLevel(own);
@@ -265,7 +278,8 @@ const ClassVariants = (function () {
         const ev = evaluateReplaces(r.replaces, fmap, /* strict */ false);
         if (!ev.ok) continue;
         own.push({ ...r, _effLevel: ev.level != null ? ev.level : r.level,
-                   _inheritedFrom: cd.variant_of, _missing: ev.missing });
+                   _inheritedFrom: cd.variant_of, _effClass: className,
+                   _missing: ev.missing });
       }
     }
     return sortByEffLevel(own);
@@ -310,7 +324,7 @@ const ClassVariants = (function () {
       <div class="cv-variant cv-variant-acf${r._inheritedFrom ? ' cv-inherited-item' : ''}"
            data-name="${escapeHtml(r.name)}"
            data-kind="ACF"
-           data-class="${escapeHtml(r.class_field)}"
+           data-class="${escapeHtml(r._effClass || r.class_field)}"
            data-level="${escapeHtml(effLevel ?? '')}"
            data-replaces="${escapeHtml(r.replaces ?? '')}"
            data-source="${escapeHtml(r.source ?? '')}">
@@ -359,7 +373,7 @@ const ClassVariants = (function () {
       <div class="cv-variant cv-variant-sub${r._inheritedFrom ? ' cv-inherited-item' : ''}"
            data-name="${escapeHtml(r.name)}"
            data-kind="Sub Level"
-           data-class="${escapeHtml(r.class_field || r.base_class_field)}"
+           data-class="${escapeHtml(r._effClass || r.class_field || r.base_class_field)}"
            data-level="${escapeHtml(effLevel ?? '')}"
            data-race="${escapeHtml(r.race ?? '')}"
            data-replaces="${escapeHtml(r.replaces ?? '')}"
@@ -458,6 +472,6 @@ const ClassVariants = (function () {
   return {
     getACFs, getSubLevels, renderInto, matchesClass,
     // Exposed for the test suite + introspection:
-    buildFeatureLevelMap, evaluateReplaces, getClassData,
+    buildFeatureLevelMap, evaluateReplaces, matchFeatureLevel, getClassData,
   };
 })();

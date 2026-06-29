@@ -1417,6 +1417,13 @@
       list.appendChild(clear);
     }
     list.appendChild(controls);
+
+    // Auto-apply class-granted FIXED bonus feats (Track / Endurance /
+    // Scribe Scroll / …) into the Feats tab. Reconcile-idempotent +
+    // derived (not persisted), so running it on every class-list render
+    // covers apply, remove, load, and the DB-ready re-resolution
+    // uniformly — same model as bloodline.syncBonusFeats.
+    syncClassBonusFeats();
   }
 
   // Render per-advancer target choosers. Inserts a row below the chip
@@ -3733,7 +3740,11 @@
     // spellcasting data of its own; return null so the picker
     // doesn't try to create a panel for it.
     if (!spd || !Array.isArray(spd) || !spd.length) return null;
-    const hasAny = spd.some(n => n !== null && n !== undefined);
+    // A "real" slot is a NUMBER (including 0 — Paladin L4 is [0,…] and can
+    // cast with a high casting stat). Empty entries are dashes ("-"/"—")
+    // or null. So a class that only gains spells LATER (Paladin 1-3, all
+    // dashes) opens no casting tab until it actually has slots.
+    const hasAny = spd.some(n => typeof n === 'number');
     if (!hasAny) return null;
     const sk = parseJsonArray(row.spells_known_json);
     return { spd, sk: Array.isArray(sk) ? sk : null };
@@ -4231,6 +4242,79 @@
   // so removeClass can untick only when no other applied class still
   // claims it. Manually-ticked boxes (no dataset.classSkillSources) are
   // never modified by remove.
+  // Set of every feat name (lowercased) in the DB. Used to recognize when
+  // a class feature IS a granted feat (Track, Endurance, Scribe Scroll).
+  // Cached after the first DB-ready build.
+  let _featNameSet = null;
+  function featNameSet() {
+    if (_featNameSet) return _featNameSet;
+    const s = new Set();
+    if (window.DB && DB.isLoaded()) {
+      for (const r of DB.query(
+        "SELECT DISTINCT LOWER(name) AS n FROM entry WHERE type='feat'")) {
+        if (r.n) s.add(r.n);
+      }
+      _featNameSet = s;   // only cache once the DB is actually loaded
+    }
+    return s;
+  }
+
+  // Inject the FIXED bonus feats a class grants into the Feats tab as
+  // derived rows. The reliable signal (audited DB-wide 2026-06-29): a
+  // class_features entry whose NAME matches a feat AND whose DESCRIPTION
+  // says "bonus feat". This catches genuine grants (Track/Endurance/
+  // Scribe Scroll/Weapon Finesse/…) while excluding same-named class
+  // features that aren't feat grants (Damage Reduction, Trap Sense,
+  // Scent) and choice-based "Bonus Feats" (which name no specific feat).
+  // Rows are DERIVED (Feats.collectData skips data-from-class-feat), so
+  // they re-derive on load rather than persisting + duplicating — same
+  // model as bloodline.syncBonusFeats. Reconcile-idempotent.
+  function syncClassBonusFeats() {
+    const container = document.getElementById('feats-container');
+    if (!container || typeof Feats === 'undefined'
+        || typeof Feats.addFeat !== 'function') return;
+    const feats = featNameSet();
+    if (!feats.size) return;
+    const strip = s => String(s || '').replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+    const wanted = [];
+    const seen = new Set();
+    for (const pc of [...pickedClasses, ...pickedClassesB]) {
+      if (!pc || !pc.classId) continue;
+      const cf = fetchClassFeatures(pc.classId);
+      if (!cf) continue;
+      for (const f of cf) {
+        if (Number(f.level_acquired || 0) > Number(pc.level || 0)) continue;
+        const nm = strip(f.name).toLowerCase();
+        if (!nm || !feats.has(nm)) continue;
+        if (!/bonus feat/i.test(f.description || '')) continue;
+        const key = `${pc.className}|${nm}|${f.level_acquired}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        wanted.push({ feat: strip(f.name), level: f.level_acquired,
+                      cls: pc.className, key });
+      }
+    }
+    const existing = [...container.querySelectorAll(
+      '.feat-row[data-from-class-feat="1"]')];
+    const existingKeys = existing.map(r => r.dataset.classFeatKey || '');
+    const wantedKeys = wanted.map(w => w.key);
+    const inSync = existingKeys.length === wantedKeys.length
+      && existingKeys.every((k, i) => k === wantedKeys[i]);
+    if (inSync) return;
+    existing.forEach(r => r.remove());
+    for (const w of wanted) {
+      Feats.addFeat(`${w.feat} (${w.cls} bonus feat — L${w.level})`);
+      const rows = container.querySelectorAll('.feat-row');
+      const row = rows[rows.length - 1];
+      if (!row) continue;
+      row.dataset.fromClassFeat = '1';
+      row.dataset.classFeatKey = w.key;
+      row.classList.add('feat-from-class');
+      const ta = row.querySelector('.feat-entry');
+      if (ta) ta.dataset.fromClassFeat = '1';
+    }
+  }
+
   // Auto-fill the Class Features tab from a class's class_features data.
   // For classes that have UI fields (turn-undead, rage), we map the
   // relevant features. Existing non-empty fields are left alone so user
@@ -4476,23 +4560,66 @@
     if (cols.chakra_binds != null) set('#sm-max-binds',     cols.chakra_binds);
   }
 
-  // Cache parsed class_features per class entry id, same pattern as
-  // fetchClassTable.
+  // Variant classes (variant_of) inherit their PARENT's class features —
+  // but only the ones the variant actually GETS (its class_table special
+  // column enumerates them), each surfaced at the VARIANT's own level. The
+  // variant's own features win on a name conflict (e.g. Mystic Ranger's
+  // weaker Spells, its "no animal companion" note). Reuses the ACF
+  // inheritance matcher exposed on ClassVariants. Non-variant classes get
+  // their own features back unchanged.
+  function getEffectiveClassFeatures(classData) {
+    const own = Array.isArray(classData && classData.class_features)
+      ? classData.class_features : [];
+    if (!classData || !classData.variant_of
+        || typeof ClassVariants === 'undefined'
+        || typeof ClassVariants.buildFeatureLevelMap !== 'function'
+        || typeof ClassVariants.matchFeatureLevel !== 'function') {
+      return own;
+    }
+    const parent = ClassVariants.getClassData(classData.variant_of);
+    if (!parent || !Array.isArray(parent.class_features)) return own;
+    const fmap = ClassVariants.buildFeatureLevelMap(classData);
+    const ownNames = new Set(
+      own.map(f => String(f.name || '').toLowerCase().trim()));
+    const merged = [...own];
+    for (const pf of parent.class_features) {
+      const nm = String(pf.name || '').toLowerCase().trim();
+      if (!nm || ownNames.has(nm)) continue;   // variant's own wins
+      // Inherit only if the variant actually gets this feature (its
+      // class_table enumerates it); surface it at the variant's own level.
+      const lvl = ClassVariants.matchFeatureLevel(pf.name, fmap);
+      if (lvl == null) continue;               // variant doesn't get it
+      merged.push({ ...pf, level_acquired: lvl,
+        _inheritedFrom: classData.variant_of });
+    }
+    merged.sort((a, b) =>
+      Number(a.level_acquired || 0) - Number(b.level_acquired || 0));
+    return merged;
+  }
+
+  // Cache parsed (+ inheritance-merged) class_features per class entry id,
+  // same pattern as fetchClassTable.
   const classFeaturesCache = new Map();
   function fetchClassFeatures(classId) {
     if (classFeaturesCache.has(classId)) {
       return classFeaturesCache.get(classId);
     }
     const row = DB.queryOne(
-      "SELECT json_extract(data, '$.class_features') AS cf "
-      + "FROM entry WHERE id = ?", [classId]);
-    let arr = [];
-    if (row && row.cf) {
-      try { arr = JSON.parse(row.cf) || []; }
-      catch (e) { console.warn('[class-picker] bad class_features JSON', e); }
+      "SELECT data AS data_json FROM entry WHERE id = ?", [classId]);
+    let classData = {};
+    if (row && row.data_json) {
+      try { classData = JSON.parse(row.data_json) || {}; }
+      catch (e) { console.warn('[class-picker] bad class data JSON', e); }
     }
-    if (!Array.isArray(arr)) arr = [];
-    classFeaturesCache.set(classId, arr);
+    const arr = getEffectiveClassFeatures(classData);
+    // Don't cache a variant's features computed before ClassVariants is
+    // available (it would lock in the un-inherited fallback). In practice
+    // fetchClassFeatures only runs on user interaction / DB.ready, well
+    // after all modules load — this guard is belt-and-suspenders.
+    const incompleteVariant = classData.variant_of &&
+      (typeof ClassVariants === 'undefined'
+       || typeof ClassVariants.buildFeatureLevelMap !== 'function');
+    if (!incompleteVariant) classFeaturesCache.set(classId, arr);
     return arr;
   }
 
