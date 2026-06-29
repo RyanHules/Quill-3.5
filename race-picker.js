@@ -228,6 +228,10 @@
       version: row.version,
       size: row.creature_size || parsed.size || null,
       creature_type: row.creature_type || parsed.creature_type || null,
+      // Creature subtypes (e.g. Silverbrow Human → ["human","dragonblood"]).
+      // Surfaced parenthetically in #char-type — "Humanoid (human,
+      // dragonblood)" — so subtypes set in the data actually show on the type.
+      subtypes: Array.isArray(parsed.subtypes) ? parsed.subtypes : [],
       base_speed_ft: parsed.base_speed_ft,
       level_adjustment: parsed.level_adjustment,
       favored_class: parsed.favored_class,
@@ -268,11 +272,15 @@
     // For a normal race this is just the race's own traits.
     const traits = buildTraitList(parsed.traits, baseParsed && baseParsed.data);
 
-    // 1. Type field
+    // 1. Type field — include subtypes parenthetically ("Humanoid (human,
+    //    dragonblood)") so subtypes carried in the data show on the type.
     if (race.creature_type) {
       const typeField = document.getElementById('char-type');
       if (typeField && !typeField.value.trim()) {
-        typeField.value = race.creature_type;
+        const subs = Array.isArray(race.subtypes) ? race.subtypes.filter(Boolean) : [];
+        typeField.value = subs.length
+          ? `${race.creature_type} (${subs.join(', ')})`
+          : race.creature_type;
         typeField.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
@@ -971,7 +979,17 @@
     // Variant races inherit the base's skill bonuses (delta model), then
     // negate some via free text — mirror the natural-armor merge.
     const baseParsed = resolveVariantBase(parsed);
-    const merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    let merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    // A stripping template (Wild / wilderness-dweller) removes the base
+    // race's RACIAL-category skill modifiers. Filter at the source, where
+    // bonus_category is still present (the categorizer drops it). Size-based
+    // skill bonuses (small-race Hide etc.) are NOT racial and persist.
+    if (Array.isArray(merged) && typeof TemplatePicker !== 'undefined'
+        && typeof TemplatePicker.stripsRacialSkillBonuses === 'function'
+        && TemplatePicker.stripsRacialSkillBonuses()) {
+      merged = merged.filter(b =>
+        !(b && b.bonus_type === 'skill' && b.bonus_category === 'racial'));
+    }
     const cat = DND35.categorizeSkillBonuses(merged);
     if (baseParsed) applySkillNegations(cat, parseSkillNegations(parsed.traits));
     return cat;
@@ -989,9 +1007,15 @@
     }
     const input = document.getElementById('char-race');
     const name = ((input && input.value) || '').trim();
-    if (_skillBonusCache && _skillBonusCache.key === name) return _skillBonusCache.result;
+    // Cache key folds in the template strip-state so applying/removing a
+    // stripping template (Wild) busts the cache for the same race name.
+    const strip = (typeof TemplatePicker !== 'undefined'
+      && typeof TemplatePicker.stripsRacialSkillBonuses === 'function')
+      ? TemplatePicker.stripsRacialSkillBonuses() : false;
+    const key = `${name}|strip:${strip}`;
+    if (_skillBonusCache && _skillBonusCache.key === key) return _skillBonusCache.result;
     const result = computeRaceSkillBonuses(name);
-    _skillBonusCache = { key: name, result };
+    _skillBonusCache = { key, result };
     return result;
   }
 

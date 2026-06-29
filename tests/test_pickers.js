@@ -1007,14 +1007,54 @@ test('template-picker: cleanCreatureType returns null for no-change templates', 
   // no-change cases return before reaching them, so stub the helper names.
   const cleanCreatureType = new Function('typeChange',
     body.replace(/titleCaseSubtype|titleCaseHead/g, 'String'));
-  for (const s of ['Same as the base creature (unchanged).',
+  for (const s of ['None', 'none',  // canonical no-change sentinel
+                   'Same as the base creature (unchanged).',
                    'Same as the base race (unchanged).', 'Unchanged',
                    "The base creature's type is unchanged."]) {
     assertEq(cleanCreatureType(s), null, `"${s}" must be treated as no type change`);
   }
+  // My templates now use the canonical "None" sentinel.
+  for (const nm of ['Proto-creature', 'Wild']) {
+    const tc = execOne(db,
+      "SELECT json_extract(data,'$.type_change') AS tc FROM entry " +
+      "WHERE type='template' AND name=?", [nm]);
+    assertEq(tc && tc.tc, 'None', `${nm} type_change must be the canonical "None"`);
+  }
   // A real type change still passes through.
   assert(cleanCreatureType('Undead (augmented dragon).'),
     'a real type change must NOT be nulled out');
+});
+
+test('template/race: Wild strips racial skills + carries structured bonuses; Silverbrow Disguise is unconditional', (db) => {
+  // Wild template: structured skill bonuses (so template skills are added)
+  // + strip flag (so base racial skills are removed).
+  const w = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='template' AND name='Wild'").data);
+  assertEq(w.strips_racial_skill_bonuses, true,
+    'Wild must flag strips_racial_skill_bonuses');
+  const skillBonuses = (w.bonuses || []).filter(b => b.bonus_type === 'skill');
+  assertGE(skillBonuses.length, 6, 'Wild must carry structured skill bonuses');
+  assert(skillBonuses.some(b => b.target === 'Survival' && b.amount === 4),
+    'Wild +4 (Wilderness Lore) must target Survival so it applies on a 3.5 sheet');
+
+  // Silverbrow's +2 Disguise must be UNCONDITIONAL now (a non-null condition
+  // routed it to situational notes instead of the total).
+  const s = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='race' AND name LIKE '%Silverbrow%'").data);
+  const dis = (s.bonuses || []).find(b => b.target === 'Disguise');
+  assert(dis && (dis.condition === null || dis.condition === undefined),
+    "Silverbrow's +2 Disguise must be unconditional");
+  assert((s.subtypes || []).includes('dragonblood'),
+    'Silverbrow must carry the dragonblood subtype');
+
+  // Sheet wiring: the strip helper + the race-picker filter + subtype→type.
+  assert(/stripsRacialSkillBonuses/.test(readSource('template-picker.js')),
+    'TemplatePicker.stripsRacialSkillBonuses must exist');
+  assert(/stripsRacialSkillBonuses\(\)/.test(readSource('race-picker.js')),
+    'race-picker must consult the strip flag when computing race skill bonuses');
+  assert(/subtypes/.test(readSource('race-picker.js')) &&
+         /\(\$\{subs\.join/.test(readSource('race-picker.js')),
+    'race-picker must write subtypes into #char-type');
 });
 
 test('template-picker: deriveNaturalArmor consumes the structured natural_armor_change field', (db) => {

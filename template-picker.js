@@ -319,11 +319,17 @@
 
     if (/^template$/i.test(s)) return null;
     if (/^retains creature type/i.test(s)) return null;
-    // No-change templates: prose like "Same as the base creature
-    // (unchanged)", "The base creature's type is unchanged", "Unchanged".
-    // These don't alter the type — return null so recomputeCreatureType
-    // keeps the base creature's OWN type instead of stamping prose into
-    // #char-type (Proto-creature / Wild applied to a creature, 2026-06-29).
+    // Canonical no-change sentinel (Ryan, 2026-06-29): a template that
+    // doesn't change creature type records type_change "None" (or
+    // null/empty). Clean + enum-friendly — no prose to parse.
+    if (/^none$/i.test(s)) return null;
+    // LEGACY FALLBACK for the ~57 un-canonized templates whose type_change
+    // is free-text "no change" prose ("Same as base creature (unchanged)",
+    // "Unchanged (type does not change)", …). Pending a DB canon sweep to
+    // "None"; until then this keeps them from stamping prose into
+    // #char-type. Imperfect for the conditional ones ("animals become
+    // magical beasts; otherwise unchanged") — there null (= keep the base
+    // creature's type, user adjusts) is the safe default over stamping prose.
     if (/\bunchanged\b/i.test(s)) return null;
     if (/^same as (the )?base\b/i.test(s)) return null;
 
@@ -784,10 +790,35 @@
     return merged;
   }
 
+  // True when any applied template strips the base creature's RACIAL-category
+  // skill modifiers (Wild / wilderness-dweller and similar). RacePicker reads
+  // this to suppress those bonuses at the source (where bonus_category is
+  // still available — the skill categorizer drops it).
+  function stripsRacialSkillBonuses() {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return false;
+    for (const t of appliedTemplates) {
+      let row = null;
+      if (t.templateId != null) {
+        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
+      }
+      if (!row && t.name) {
+        row = DB.queryOne(
+          "SELECT data FROM entry WHERE type='template' AND name=? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
+      }
+      if (!row) continue;
+      try {
+        if (JSON.parse(row.data || '{}').strips_racial_skill_bonuses === true) return true;
+      } catch (e) { /* skip */ }
+    }
+    return false;
+  }
+
   window.TemplatePicker = {
     getApplied: () => appliedTemplates.slice(),
     apply: applyTemplate,
     remove: removeTemplate,
     getActiveSkillBonuses,
+    stripsRacialSkillBonuses,
   };
 })();
