@@ -22,7 +22,16 @@ const Feats = (function () {
       for (const r of DB.query(
         "SELECT name, json_extract(data,'$.specialization') AS spec "
         + "FROM entry WHERE type='feat'")) {
-        m.set(String(r.name).toLowerCase(), { specialization: r.spec || null });
+        const key = String(r.name).toLowerCase();
+        const existing = m.get(key);
+        // Multiple printings of a same-named feat collapse to one map slot.
+        // Prefer a printing that carries a specialization marker — printings
+        // can diverge (e.g. the FRCS Greater Spell Focus lives in the bare
+        // `feats/` folder that normalize_schema's by-name stamp skips), and
+        // without this the unmarked row could win the slot and suppress the
+        // spec control.
+        if (existing && existing.specialization) continue;
+        m.set(key, { specialization: r.spec || null });
       }
       _featInfoMap = m;   // cache only once the DB is loaded
     }
@@ -37,20 +46,39 @@ const Feats = (function () {
   function lookupFeatInfo(name) {
     return featInfoMap().get(String(name || "").toLowerCase()) || null;
   }
-  function ensureSkillSpecDatalist() {
-    if (document.getElementById("feat-skill-spec-list")) return;
+  // Closed-list options for the specialization control, by kind. `weapon`
+  // is intentionally absent — too many weapons to enumerate, so it stays a
+  // plain free-text input. `skill` pulls the live skill list from data.js.
+  const SPEC_SCHOOLS = ["Abjuration", "Conjuration", "Divination",
+    "Enchantment", "Evocation", "Illusion", "Necromancy", "Transmutation"];
+  const SPEC_ENERGY = ["Acid", "Cold", "Electricity", "Fire", "Sonic"];
+  function specDatalistOptions(kind) {
+    if (kind === "skill") {
+      return (typeof DND35 !== "undefined" && Array.isArray(DND35.skills))
+        ? DND35.skills.map(s => typeof s === "string" ? s : (s && s.name))
+            .filter(Boolean)
+        : [];
+    }
+    if (kind === "school") return SPEC_SCHOOLS;
+    if (kind === "energy") return SPEC_ENERGY;
+    return null;   // weapon / unknown → free text, no datalist
+  }
+  // Build (once) a datalist for a closed-list spec kind; returns its id, or
+  // null for free-text kinds. id is stable per kind so rows share one list.
+  function ensureSpecDatalist(kind) {
+    const opts = specDatalistOptions(kind);
+    if (!opts || !opts.length) return null;
+    const id = `feat-spec-list-${kind}`;
+    if (document.getElementById(id)) return id;
     const dl = document.createElement("datalist");
-    dl.id = "feat-skill-spec-list";
-    const skills = (typeof DND35 !== "undefined" && Array.isArray(DND35.skills))
-      ? DND35.skills : [];
-    for (const s of skills) {
-      const name = typeof s === "string" ? s : (s && s.name);
-      if (!name) continue;
+    dl.id = id;
+    for (const name of opts) {
       const o = document.createElement("option");
       o.value = name;   // NO label attr (Firefox datalist label bug, see CLAUDE.md)
       dl.appendChild(o);
     }
     document.body.appendChild(dl);
+    return id;
   }
 
   // text: the feat string ("Iron Will", "Skill Focus (Diplomacy)").
@@ -108,18 +136,23 @@ const Feats = (function () {
       nameEl.className = "feat-name-display";
       nameEl.textContent = parsed.name;
       box.appendChild(nameEl);
-      if (dbInfo.specialization) {
+      // Render the specialization control when the feat is MARKED as a
+      // choice feat (DB `specialization`), OR — safety net — when the
+      // canonical text already carries a parenthetical even though the feat
+      // isn't marked. Without the latter, a structured feat added as
+      // "Foo (Bar)" would hide "(Bar)" with no way to see/edit it (the read-
+      // only dead-end Ryan flagged). Unmarked → free-text kind.
+      const specKind = dbInfo.specialization || (parsed.spec ? "detail" : null);
+      if (specKind) {
         box.appendChild(document.createTextNode(" ("));
         const spec = document.createElement("input");
         spec.className = "feat-spec";
         spec.value = parsed.spec || "";
         spec.placeholder = "choose…";
         spec.size = 14;
-        spec.title = `Specialization (${dbInfo.specialization})`;
-        if (dbInfo.specialization === "skill") {
-          ensureSkillSpecDatalist();
-          spec.setAttribute("list", "feat-skill-spec-list");
-        }
+        spec.title = `Specialization (${specKind})`;
+        const listId = ensureSpecDatalist(specKind);
+        if (listId) spec.setAttribute("list", listId);
         if (!parsed.spec) box.classList.add("feat-spec-unset");
         spec.addEventListener("input", () => {
           const s = spec.value.trim();

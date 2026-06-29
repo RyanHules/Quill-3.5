@@ -1063,6 +1063,57 @@ test('feats: structured feat-entry (info box) preserves the canonical .feat-entr
     'class-picker.js derived bonus feats must pass forceFreeText');
 });
 
+test('feats: choice feats carry a specialization marker (so the read-only box can record the pick)', (db) => {
+  const feats = readSource('feats.js');
+  // DB side — the by-name stamp in normalize_schema marks the choice feats.
+  // Tracking field only (no mechanical wiring): a read-only info box needs a
+  // place to record "Weapon Focus (Longsword)".
+  const expect = {
+    'Weapon Focus': 'weapon', 'Greater Weapon Focus': 'weapon',
+    'Weapon Specialization': 'weapon', 'Improved Critical': 'weapon',
+    'Exotic Weapon Proficiency': 'weapon', 'Martial Weapon Proficiency': 'weapon',
+    'Spell Focus': 'school', 'Greater Spell Focus': 'school',
+    'Energy Substitution': 'energy', 'Skill Focus': 'skill',
+  };
+  for (const [name, kind] of Object.entries(expect)) {
+    const row = execOne(db,
+      "SELECT data FROM entry WHERE type='feat' AND name=:n", { ':n': name });
+    assert(row, `${name} present in DB`);
+    assertEq(JSON.parse(row.data).specialization, kind,
+      `${name} marked specialization='${kind}'`);
+  }
+  // At least one printing of each is marked. Printings can diverge — a feat
+  // in the bare `feats/` folder is skipped by normalize_schema's by-name
+  // stamp (folder isn't mapped to 'feat') — so the JS map COALESCES, below.
+  const gsf = execAll(db,
+    "SELECT json_extract(data,'$.specialization') AS s FROM entry " +
+    "WHERE type='feat' AND name='Greater Spell Focus'");
+  assert(gsf.some(r => r.s === 'school'),
+    'at least one Greater Spell Focus printing carries the marker');
+  // feats.js featInfoMap must prefer a marked printing when a name has
+  // several (so the unmarked one can't suppress the spec control).
+  assert(/existing\s*&&\s*existing\.specialization\)\s*continue/.test(feats),
+    'featInfoMap must coalesce — keep the printing that carries a specialization');
+  // Reference-via-prereq feats are NOT marked (they inherit the weapon from
+  // a prerequisite Weapon Focus rather than taking their own selection).
+  for (const name of ['Disemboweling Strike', 'Head Shot', 'Improved Weapon Familiarity']) {
+    const r = execOne(db,
+      "SELECT json_extract(data,'$.specialization') AS s FROM entry " +
+      "WHERE type='feat' AND name=:n", { ':n': name });
+    if (r) assert(r.s == null, `${name} must NOT be marked (inherits weapon from prereq)`);
+  }
+
+  // JS side — the spec control handles weapon (free text) + school/energy/skill
+  // (closed-list datalists), and renders for unmarked-but-parenthetical feats.
+  assert(/function ensureSpecDatalist/.test(feats) &&
+         /function specDatalistOptions/.test(feats),
+    'feats.js must build per-kind specialization datalists');
+  assert(/SPEC_SCHOOLS/.test(feats) && /SPEC_ENERGY/.test(feats),
+    'school + energy closed lists must exist');
+  assert(/dbInfo\.specialization\s*\|\|\s*\(parsed\.spec\s*\?/.test(feats),
+    'spec control must render for unmarked feats that already carry a parenthetical (no read-only dead-end)');
+});
+
 test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   const total = (l) => DND35.stackBonuses(l).total;
