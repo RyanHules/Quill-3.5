@@ -3915,3 +3915,31 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
 .save-situational-auto .ss-grp { display: flex; gap: 0.4rem; align-items: baseline; }
 .save-situational-auto .ss-grp ul { margin: 0.1rem 0; padding-left: 1.1rem; }
 .save-situational-auto .ss-src { color: #889; }
+
+/* Structured feat entry — picker-added / DB-matching feats render as a
+   read-only info box (name + a specialization control for choice feats). */
+.feat-row.feat-structured .feat-namebox {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  padding: 0.35rem 0.55rem;
+  min-height: 1.8em;
+  background: rgba(110, 140, 200, 0.10);
+  border-left: 2px solid rgba(110, 140, 200, 0.5);
+  border-radius: 3px;
+}
+.feat-namebox .feat-name-display { font-weight: 600; }
+.feat-namebox .feat-spec {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: inherit;
+  font: inherit;
+  padding: 0 0.3rem;
+}
+.feat-namebox.feat-spec-unset .feat-spec {
+  border-color: #c89a6a;
+  background: rgba(200, 154, 106, 0.14);
+}

@@ -1035,6 +1035,34 @@ test('feats (phase 3): core flat-bonus feats carry structured bonuses + the shee
     'app.js must recalc when a feat changes (feats now feed the aggregator)');
 });
 
+test('feats: structured feat-entry (info box) preserves the canonical .feat-entry round-trip', () => {
+  const feats = readSource('feats.js');
+  // The structured row keeps a (hidden) .feat-entry as the canonical value,
+  // so collectData / getResolvedFeatBonuses / the ⓘ + prereq tooling read it
+  // unchanged and the save format is untouched.
+  assert(/feat-structured/.test(feats) && /feat-namebox/.test(feats),
+    'feats.js must render a structured info box (feat-namebox)');
+  assert(/function parseFeatText/.test(feats) && /function lookupFeatInfo/.test(feats),
+    'feats.js must parse the feat text + look up the DB feat (auto-detect)');
+  assert(/forceFreeText/.test(feats),
+    'addFeat must support forceFreeText for derived bonus-feat rows');
+  // The structured row hides — but keeps — the canonical .feat-entry.
+  assert(/ta\.style\.display\s*=\s*["']none["']/.test(feats),
+    'structured rows must HIDE (not remove) the canonical .feat-entry');
+  // The specialization control writes back to the canonical .feat-entry.
+  assert(/feat-spec/.test(feats) &&
+         /ta\.value\s*=\s*s\s*\?/.test(feats),
+    'the specialization control must write the chosen value back into .feat-entry');
+  // collectData + getResolvedFeatBonuses still read .feat-entry (unchanged).
+  assert(/\.feat-entry/.test(feats),
+    'collectData / resolver still read .feat-entry');
+  // Derived bonus-feat rows opt out of structuring (their paren is a source label).
+  assert(/forceFreeText:\s*true/.test(readSource('bloodline.js')),
+    'bloodline.js derived bonus feats must pass forceFreeText');
+  assert(/forceFreeText:\s*true/.test(readSource('class-picker.js')),
+    'class-picker.js derived bonus feats must pass forceFreeText');
+});
+
 test('data: stackBonuses applies 3.5 typed-stacking rules', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   const total = (l) => DND35.stackBonuses(l).total;

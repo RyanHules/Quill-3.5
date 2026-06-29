@@ -357,7 +357,9 @@ const Bloodline = (function () {
     if (inSync) return;
     existing.forEach(r => r.remove());
     for (const w of wanted) {
-      Feats.addFeat(`${w.feat} (${w.bl} bloodline — L${w.level})`);
+      // forceFreeText: the parenthetical is a source label, not a feat
+      // specialization — keep these derived rows as plain text, not info boxes.
+      Feats.addFeat(`${w.feat} (${w.bl} bloodline — L${w.level})`, { forceFreeText: true });
       const rows = container.querySelectorAll('.feat-row');
       const row = rows[rows.length - 1];
       if (!row) continue;

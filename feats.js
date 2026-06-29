@@ -6,7 +6,57 @@ const Feats = (function () {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
-  function addFeat(text = "") {
+  // ---- Structured feat entries -----------------------------------------
+  // A feat row whose name resolves to a real DB feat renders as a read-only
+  // INFO BOX (name display + a specialization control for choice feats like
+  // Skill Focus); homebrew / non-DB names stay editable text. The canonical
+  // value still lives in a (hidden, for structured rows) `.feat-entry`
+  // textarea — "Skill Focus (Diplomacy)" — so collectData /
+  // getResolvedFeatBonuses / the ⓘ + prereq tooling keep reading it
+  // unchanged, and the save format is untouched. Auto-detected on add/load.
+  let _featInfoMap = null;   // lowername → { specialization|null }
+  function featInfoMap() {
+    if (_featInfoMap) return _featInfoMap;
+    const m = new Map();
+    if (window.DB && DB.isLoaded()) {
+      for (const r of DB.query(
+        "SELECT name, json_extract(data,'$.specialization') AS spec "
+        + "FROM entry WHERE type='feat'")) {
+        m.set(String(r.name).toLowerCase(), { specialization: r.spec || null });
+      }
+      _featInfoMap = m;   // cache only once the DB is loaded
+    }
+    return m;
+  }
+  function parseFeatText(text) {
+    const m = String(text || "").trim()
+      .match(/^([^(]+?)\s*(?:\(([^)]*)\))?\s*$/);
+    return m ? { name: m[1].trim(), spec: (m[2] || "").trim() }
+             : { name: String(text || "").trim(), spec: "" };
+  }
+  function lookupFeatInfo(name) {
+    return featInfoMap().get(String(name || "").toLowerCase()) || null;
+  }
+  function ensureSkillSpecDatalist() {
+    if (document.getElementById("feat-skill-spec-list")) return;
+    const dl = document.createElement("datalist");
+    dl.id = "feat-skill-spec-list";
+    const skills = (typeof DND35 !== "undefined" && Array.isArray(DND35.skills))
+      ? DND35.skills : [];
+    for (const s of skills) {
+      const name = typeof s === "string" ? s : (s && s.name);
+      if (!name) continue;
+      const o = document.createElement("option");
+      o.value = name;   // NO label attr (Firefox datalist label bug, see CLAUDE.md)
+      dl.appendChild(o);
+    }
+    document.body.appendChild(dl);
+  }
+
+  // text: the feat string ("Iron Will", "Skill Focus (Diplomacy)").
+  // opts.forceFreeText: never structure (derived bonus-feat rows, whose
+  // parenthetical is a source label, not a specialization).
+  function addFeat(text = "", opts = {}) {
     const container = $("#feats-container");
     const div = document.createElement("div");
     div.className = "feat-row";
@@ -15,11 +65,11 @@ const Feats = (function () {
     ta.placeholder = "Feat name & details";
     ta.rows = 1;
     ta.value = text;
-    // ⓘ button toggles a collapsible panel below the row showing the
-    // feat's rules text (type, prereq, benefit, normal, special) pulled
-    // from the DB. Falls back gracefully for homebrew / custom entries
-    // that don't match a DB row. The panel is generated on demand and
-    // not persisted — collapses again if the textarea is edited.
+
+    const parsed = parseFeatText(text);
+    const dbInfo = opts.forceFreeText ? null : lookupFeatInfo(parsed.name);
+
+    // ⓘ button — collapsible rules panel from the DB (or graceful fallback).
     const info = document.createElement("button");
     info.type = "button";
     info.className = "btn-feat-info";
@@ -27,9 +77,7 @@ const Feats = (function () {
     info.setAttribute("aria-expanded", "false");
     info.textContent = "ⓘ";
     info.addEventListener("click", () => toggleFeatRules(div));
-    // Prereq audit badge — shows ✓ / ✗ / ? next to each existing
-    // feat row based on the character's current state. Click to
-    // expand a detailed atom-by-atom breakdown inline.
+    // Prereq audit badge (·/✓/✗/?), click to expand the breakdown.
     const prereq = document.createElement("button");
     prereq.type = "button";
     prereq.className = "btn-feat-prereq";
@@ -40,18 +88,59 @@ const Feats = (function () {
     btn.className = "btn-remove";
     btn.textContent = "X";
     btn.addEventListener("click", () => div.remove());
-    // Collapse the rules panel + refresh the prereq badge whenever
-    // the user edits the feat name.
+    // Collapse the rules panel + refresh the prereq badge whenever the
+    // canonical value changes (a free-text edit, or a structured spec
+    // change which writes back to .feat-entry).
     ta.addEventListener("input", () => {
       collapseFeatRules(div);
       refreshFeatPrereqBadge(div);
     });
-    div.appendChild(ta);
+
+    if (dbInfo) {
+      // Structured info box: hidden canonical .feat-entry + name display +
+      // (for choice feats) a specialization control that writes back to it.
+      div.classList.add("feat-structured");
+      ta.style.display = "none";
+      div.appendChild(ta);
+      const box = document.createElement("div");
+      box.className = "feat-namebox";
+      const nameEl = document.createElement("span");
+      nameEl.className = "feat-name-display";
+      nameEl.textContent = parsed.name;
+      box.appendChild(nameEl);
+      if (dbInfo.specialization) {
+        box.appendChild(document.createTextNode(" ("));
+        const spec = document.createElement("input");
+        spec.className = "feat-spec";
+        spec.value = parsed.spec || "";
+        spec.placeholder = "choose…";
+        spec.size = 14;
+        spec.title = `Specialization (${dbInfo.specialization})`;
+        if (dbInfo.specialization === "skill") {
+          ensureSkillSpecDatalist();
+          spec.setAttribute("list", "feat-skill-spec-list");
+        }
+        if (!parsed.spec) box.classList.add("feat-spec-unset");
+        spec.addEventListener("input", () => {
+          const s = spec.value.trim();
+          ta.value = s ? `${parsed.name} (${s})` : parsed.name;
+          box.classList.toggle("feat-spec-unset", !s);
+          // Refresh the row's own tooling; recalc fires from this event
+          // bubbling to the document-level input listener.
+          collapseFeatRules(div);
+          refreshFeatPrereqBadge(div);
+        });
+        box.appendChild(spec);
+        box.appendChild(document.createTextNode(")"));
+      }
+      div.appendChild(box);
+    } else {
+      div.appendChild(ta);
+    }
     div.appendChild(info);
     div.appendChild(prereq);
     div.appendChild(btn);
     container.appendChild(div);
-    // Initial badge render (also triggered on subsequent edits).
     refreshFeatPrereqBadge(div);
   }
 
@@ -918,5 +1007,7 @@ const Feats = (function () {
     // Effects-aggregator phase 3.
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses,
+    // Structured-feat-entry helpers (exposed for tests).
+    parseFeatText, lookupFeatInfo,
   };
 })();
