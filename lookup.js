@@ -1452,15 +1452,70 @@
         soulmelds: 'Soulmelds', chakra_binds: 'Chakra Binds',
         mind_blade_enhancement: 'Mind Blade', craft_reserve: 'Craft Reserve',
         ac_bonus: 'AC Bonus', unarmed_damage: 'Unarmed',
+        unarmored_speed_bonus: 'Speed', flurry_attack_bonus: 'Flurry',
+        flailing_strikes: 'Flailing Strikes', natural_armor: 'Nat. Armor',
+        natural_armor_bonus: 'Nat. Armor', racial_hd: 'Racial HD',
+        size: 'Size', speed: 'Speed', spellcasting: 'Spellcasting',
+        manifesting: 'Manifesting', mysteries_spellcasting: 'Mysteries',
+        max_power_level_known: 'Max Lvl', auras_known: 'Auras',
+        unique_powers_day: 'Unique/Day', draconic_auras_known: 'Draconic Auras',
+        mysteries_known: 'Mysteries', utterances_evolving_mind: 'Utt: Evolving Mind',
+        utterances_crafted_tool: 'Utt: Crafted Tool',
+        utterances_perfected_map: 'Utt: Perfected Map',
+        benefits: 'Benefits', class_features_progression: 'Class Features',
       };
+
+      // Extra per-level columns that live as TOP-LEVEL row keys rather
+      // than in the Pattern B `columns` dict — e.g. the Monk's
+      // flurry_attack_bonus / unarmed_damage / ac_bonus /
+      // unarmored_speed_bonus, monster-class size / natural_armor /
+      // racial_hd, psionic powers_known, truenamer utterances, the
+      // "+1 level..." advance carried in a dedicated `spellcasting` key,
+      // etc. (User 2026-07-01: class tables should show ALL columns the
+      // book prints, not just the common BAB/save/spell ones.) Excludes
+      // structural keys, the spell-progression fields rendered elsewhere,
+      // and class-level metadata that leaked onto rows.
+      const EXTRA_COL_EXCLUDE = new Set([
+        'level', 'bab', 'fort', 'ref', 'will', 'special',
+        'spells_per_day', 'spells_per_day_note', 'spells_known', 'spells',
+        'columns', 'ability_changes',
+        'good_save', 'poor_save', 'hit_dice', 'skill_points',
+        'ability_score_increases',
+      ]);
+      const extraKeysOrder = [];
+      const seenExtra = new Set();
+      for (const r of d.class_table) {
+        for (const k of Object.keys(r)) {
+          if (EXTRA_COL_EXCLUDE.has(k) || seenExtra.has(k)) continue;
+          const v = r[k];
+          // Only scalars become columns; dict/list shapes are handled by
+          // the Pattern A / monster-extension renderers (or skipped).
+          if (v != null && (typeof v === 'string' || typeof v === 'number')) {
+            seenExtra.add(k);
+            extraKeysOrder.push(k);
+          }
+        }
+      }
+      // Keep only columns that carry at least one meaningful value
+      // (treat 0 / '+0' / '+0 ft.' / '—' as empty for the presence test).
+      const EMPTY_CELL = new Set(['', '-', '—', '+0', '+0 ft.', '0']);
+      const activeExtraKeys = extraKeysOrder.filter(k =>
+        d.class_table.some(r => {
+          const v = r[k];
+          return v != null && v !== 0 && !EMPTY_CELL.has(String(v).trim());
+        }));
+      const prettify = k => k.replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
 
       // Detect whether any row has effective spells_per_day
       const hasSpd = d.class_table.some(r => effectiveSpd(r) != null);
       const spdHead = hasSpd ? `<th>Spells/Day</th>` : '';
       const colHeads = activeColKeys.map(k =>
         `<th title="${escapeHtml(k)}">${escapeHtml(COL_LABELS[k] || k)}</th>`).join('');
+      const extraHeads = activeExtraKeys.map(k =>
+        `<th title="${escapeHtml(k)}">${escapeHtml(COL_LABELS[k] || prettify(k))}</th>`).join('');
       const head = `<tr><th>L</th><th>BAB</th><th>Fort</th><th>Ref</th>` +
-        `<th>Will</th><th>Special</th>${spdHead}${colHeads}</tr>`;
+        `<th>Will</th><th>Special</th>${spdHead}${colHeads}${extraHeads}</tr>`;
       const body = d.class_table.map((r, i) => {
         const [cleanedSpecial, advText] = extractAdvance(r.special || '');
         const specialDisplay = cleanedSpecial || '—';
@@ -1473,13 +1528,18 @@
           const display = (v == null || v === '') ? '—' : String(v);
           return `<td>${escapeHtml(display)}</td>`;
         }).join('');
+        const extraCells = activeExtraKeys.map(k => {
+          const v = r[k];
+          const display = (v == null || v === '') ? '—' : String(v);
+          return `<td>${escapeHtml(display)}</td>`;
+        }).join('');
         const hidden = i >= VISIBLE ? ' class="lookup-row-extra"' : '';
         return `<tr${hidden}><td>${escapeHtml(String(r.level))}</td>` +
                `<td>${escapeHtml(String(r.bab || ''))}</td>` +
                `<td>${escapeHtml(String(r.fort || ''))}</td>` +
                `<td>${escapeHtml(String(r.ref || ''))}</td>` +
                `<td>${escapeHtml(String(r.will || ''))}</td>` +
-               `<td>${escapeHtml(specialDisplay)}</td>${spdCell}${colCells}</tr>`;
+               `<td>${escapeHtml(specialDisplay)}</td>${spdCell}${colCells}${extraCells}</tr>`;
       }).join('');
       const extra = d.class_table.length - VISIBLE;
       const more = extra > 0
