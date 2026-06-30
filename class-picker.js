@@ -4242,12 +4242,40 @@
   // Class skills integration
   // ============================================================
 
+  // Knowledge subtype spellings differ between the sheet's fixed list
+  // (data.js uses abbreviated labels) and the DB's free-text
+  // `class_skills` strings (lowercased, and sometimes spelled out).
+  // Map normalized DB subtype → the sheet's subtypeLabel, both compared
+  // lowercased. Anything not listed falls through to a direct
+  // case-insensitive subtype match (which already covers arcana,
+  // religion, the planes, nature, dungeoneering, geography, history,
+  // local, nobility, …).
+  const KNOWLEDGE_SUBTYPE_ALIASES = {
+    'architecture and engineering': 'arch. & eng.',
+    'architecture': 'arch. & eng.',
+    'arch. and eng.': 'arch. & eng.',
+    'nobility and royalty': 'nobility',
+    'royalty and nobility': 'nobility',
+  };
+
+  // A Knowledge spec that names no single concrete subtype — "all",
+  // "all skills, taken individually", "any", "any one/two/three", or a
+  // bare "Knowledge" — expands to EVERY Knowledge row. The "any N"
+  // choose-some forms are intentionally expanded to all (the user can
+  // untick the ones they didn't pick); marking nothing was the bug.
+  function isKnowledgeAllSpec(inner) {
+    const s = inner.trim().toLowerCase();
+    return s === '' || /^all\b/.test(s) || /^any\b/.test(s)
+      || /individually/.test(s);
+  }
+
   // Resolve a class-skill spec to the matching `.skill-class-check`
   // checkboxes in the Skills tab. Specs:
   //   "Climb"                → exact-match by .skill-name
-  //   "Knowledge (Religion)" → exact-match against the displayName of a
-  //                            Knowledge subtype row
-  //   "Knowledge (all)"      → all Knowledge subtype rows
+  //   "Knowledge (religion)" → case-insensitive match against a Knowledge
+  //                            subtype row (DB strings are lowercased)
+  //   "Knowledge (all skills, taken individually)" / "(any)" / bare
+  //                          → all Knowledge subtype rows
   //   "Craft" / "Perform" / "Profession" → all currently-added subtype
   //                            entries for that base skill
   function findSkillCheckboxesForSpec(spec) {
@@ -4255,10 +4283,24 @@
     const tab = document.getElementById('tab-skills');
     if (!tab) return out;
 
-    if (spec === 'Knowledge (all)') {
+    const specTrim = String(spec || '').trim();
+
+    // Knowledge — heterogeneous, lowercased DB strings need tolerant
+    // matching. Catches "Knowledge", "Knowledge (arcana)", and the whole
+    // all/any/individually family.
+    const km = specTrim.match(/^knowledge\s*(?:\((.*)\))?\s*$/i);
+    if (km) {
+      const inner = km[1] || '';
+      const all = isKnowledgeAllSpec(inner);
+      let want = inner.trim().toLowerCase();
+      if (KNOWLEDGE_SUBTYPE_ALIASES[want]) want = KNOWLEDGE_SUBTYPE_ALIASES[want];
+      // FR campaign "Knowledge (<region> local)" → the generic Local row.
+      if (/\blocal$/.test(want)) want = 'local';
       tab.querySelectorAll('tr[data-skill-index]').forEach(tr => {
         const name = tr.querySelector('.skill-name')?.textContent?.trim() || '';
-        if (name.startsWith('Knowledge (')) {
+        const m = name.match(/^Knowledge\s*\((.*)\)\s*$/i);
+        if (!m) return;
+        if (all || m[1].trim().toLowerCase() === want) {
           const cb = tr.querySelector('.skill-class-check');
           if (cb) out.push(cb);
         }
@@ -4272,7 +4314,7 @@
       });
       return out;
     }
-    // Plain skill OR explicit Knowledge subtype.
+    // Plain skill — exact match by display name.
     tab.querySelectorAll('tr[data-skill-index]').forEach(tr => {
       const name = tr.querySelector('.skill-name')?.textContent?.trim() || '';
       if (name === spec) {
