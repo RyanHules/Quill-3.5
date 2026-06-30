@@ -1066,6 +1066,39 @@ test('feats (phase 3): core flat-bonus feats carry structured bonuses + the shee
     'app.js must recalc when a feat changes (feats now feed the aggregator)');
 });
 
+test('feats (phase 3 expansion): verified walked-book feats carry flat skill/save bonuses', (db) => {
+  // Hand-verified unconditional bonuses stamped by-name in normalize_schema.
+  const get = (n) => {
+    const r = execOne(db,
+      "SELECT data FROM entry WHERE type='feat' AND name=:n " +
+      "AND json_extract(data,'$.bonuses') IS NOT NULL LIMIT 1", { ':n': n });
+    return r ? JSON.parse(r.data).bonuses : null;
+  };
+  // Epic save feats — flat +4 to one save, untyped.
+  const ew = get('Epic Will');
+  assert(ew && ew.length === 1 && ew[0].bonus_type === 'save' &&
+    ew[0].target === 'Will' && ew[0].amount === 4, 'Epic Will = +4 Will save');
+  // Typed bonus is preserved (luck), not flattened to untyped.
+  const seer = get('Seer');
+  assert(seer && seer.length === 4 && seer.every(b => b.bonus_category === 'luck'),
+    'Seer = +1 luck on Listen/Search/Sense Motive/Spot');
+  // UA character TRAITS are a separate subsystem (benefit+drawback, stored
+  // as type='feat' with a drawback field) — they must NOT be in the feat
+  // bonus pipeline.
+  for (const trait of ['Abrasive (Trait)', 'Hardy (Trait)', 'Detached (Trait)']) {
+    const r = execOne(db, "SELECT json_extract(data,'$.bonuses') AS b FROM entry " +
+      "WHERE type='feat' AND name=:n", { ':n': trait });
+    assert(!r || r.b == null, `${trait} is a trait, not a feat — no feat bonuses`);
+  }
+  // A known conditional/activated feat must NOT have been stamped flat.
+  for (const cond of ['Combat Focus', 'Inquisitor', 'True Believer', 'Run']) {
+    const r = execOne(db, "SELECT json_extract(data,'$.bonuses') AS b FROM entry " +
+      "WHERE type='feat' AND name=:n", { ':n': cond });
+    assert(!r || r.b == null,
+      `${cond} is conditional/activated — must NOT carry flat bonuses`);
+  }
+});
+
 test('feats: structured feat-entry (info box) preserves the canonical .feat-entry round-trip', () => {
   const feats = readSource('feats.js');
   // The structured row keeps a (hidden) .feat-entry as the canonical value,
