@@ -1099,6 +1099,39 @@ test('feats (phase 3 expansion): verified walked-book feats carry flat skill/sav
   }
 });
 
+test('traits/flaws: own entry types, not feats (future picker can query type)', (db) => {
+  // UA character traits + flaws were re-typed out of `feat` into their own
+  // `trait` / `flaw` types (benefit+drawback / penalty-for-bonus-feat are a
+  // separate creation-time subsystem).
+  const traits = execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='trait'").n;
+  const flaws  = execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='flaw'").n;
+  assertGE(traits, 30, 'UA character traits are type=trait');
+  assertGE(flaws, 12, 'UA flaws (all 13, incl. the unsuffixed ones) are type=flaw');
+  // None left masquerading as feats.
+  const leak = execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='feat' " +
+    "AND (name LIKE '%(Trait)%' OR name LIKE '%(Flaw)%' " +
+    "OR json_extract(data,'$.drawback') IS NOT NULL)").n;
+  assertEq(leak, 0, 'no trait/flaw still typed as feat');
+  // A trait keeps its benefit AND drawback; a flaw keeps its effect.
+  const ab = JSON.parse(execOne(db,
+    "SELECT data FROM entry WHERE type='trait' AND name='Abrasive (Trait)'").data);
+  assert(ab.benefit && ab.drawback, 'trait carries benefit + drawback');
+  const shaky = execOne(db,
+    "SELECT json_extract(data,'$.effect') AS e FROM entry WHERE type='flaw' AND name='Shaky'");
+  assert(shaky && shaky.e, 'flaw carries its effect penalty');
+  // The feat picker must NOT surface traits/flaws (it filters type = 'feat').
+  const fp = readSource('feat-picker.js');
+  assert(/type\s*=\s*'feat'/.test(fp) && !/['"]trait['"]/.test(fp) &&
+    !/['"]flaw['"]/.test(fp), 'feat-picker query excludes trait/flaw');
+  // The lookup modal renders the new types.
+  const lk = readSource('lookup.js');
+  assert(/trait:\s*'Trait'/.test(lk) && /flaw:\s*'Flaw'/.test(lk),
+    'lookup TYPE_LABELS include trait + flaw');
+  assert(/function renderTraitExtra/.test(lk) && /function renderFlawExtra/.test(lk) &&
+    /type === 'trait'/.test(lk) && /type === 'flaw'/.test(lk),
+    'lookup renders trait (benefit+drawback) + flaw (effect)');
+});
+
 test('feats: structured feat-entry (info box) preserves the canonical .feat-entry round-trip', () => {
   const feats = readSource('feats.js');
   // The structured row keeps a (hidden) .feat-entry as the canonical value,

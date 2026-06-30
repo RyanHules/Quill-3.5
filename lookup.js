@@ -70,6 +70,7 @@
     skill_use: 'Skill use', skill_trick: 'Skill trick',
     condition: 'Condition', legacy_item: 'Legacy item',
     bloodline: 'Bloodline', mantle: 'Mantle',
+    trait: 'Trait', flaw: 'Flaw',
   };
 
   function ensureModal() {
@@ -572,6 +573,8 @@
       // Prereq moved to renderFeatExtra (2026-05-24) so it can render
       // feat names as inline-expandable see-also pills.
     ],
+    trait: [['Type', ['types_csv', 'types']]],
+    flaw:  [['Type', ['types_csv', 'types']]],
     item: [
       ['Type',       ['item_type', 'type']],
       ['Slot',       ['body_slot']],
@@ -723,6 +726,8 @@
   // Type-specific extras shown below the description.
   function renderTypeSpecific(d, type) {
     if (type === 'feat')        return renderFeatExtra(d);
+    if (type === 'trait')       return renderTraitExtra(d);
+    if (type === 'flaw')        return renderFlawExtra(d);
     if (type === 'vestige')     return renderVestigeExtra(d);
     if (type === 'domain')      return renderDomainExtra(d);
     if (type === 'power'        && d.augment)
@@ -824,6 +829,35 @@
   // entries store a single replacement at the top level in
   // benefit/replaces. Render both shapes so the modal surfaces the
   // mechanics either way.
+  // UA character trait: a benefit AND a paired drawback (the tradeoff is the
+  // whole point, so render both prominently). Prereq + normal/special too.
+  function renderTraitExtra(d) {
+    const lines = [];
+    const prereq = d.prerequisites || d.prerequisite || '';
+    if (prereq && !/^none$/i.test(prereq.trim()))
+      lines.push(`<b>Prereq:</b> ${escapeHtml(prereq)}`);
+    if (d.benefit)  lines.push(`<b>Benefit:</b> ${escapeHtml(d.benefit)}`);
+    if (d.drawback) lines.push(`<b>Drawback:</b> ${escapeHtml(d.drawback)}`);
+    if (d.normal)   lines.push(`<b>Normal:</b> ${escapeHtml(d.normal)}`);
+    if (d.special)  lines.push(`<b>Special:</b> ${escapeHtml(d.special)}`);
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
+  // UA flaw: take the `effect` penalty to gain a bonus feat.
+  function renderFlawExtra(d) {
+    const lines = [];
+    const prereq = d.prerequisites || d.prerequisite || '';
+    if (prereq && !/^none$/i.test(prereq.trim()))
+      lines.push(`<b>Prereq:</b> ${escapeHtml(prereq)}`);
+    if (d.effect)  lines.push(`<b>Effect:</b> ${escapeHtml(d.effect)}`);
+    if (d.benefit) lines.push(`<b>Benefit:</b> ${escapeHtml(d.benefit)}`);
+    if (d.normal)  lines.push(`<b>Normal:</b> ${escapeHtml(d.normal)}`);
+    if (d.special) lines.push(`<b>Special:</b> ${escapeHtml(d.special)}`);
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
   function renderBenefitExtra(d) {
     const lines = [];
     if (d.benefit) lines.push(`<b>Benefit:</b> ${escapeHtml(d.benefit)}`);
