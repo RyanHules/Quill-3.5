@@ -923,6 +923,37 @@ test('class-variants: Chaos Monk excludes flurry ACFs, keeps bonus-feat styles',
   assertEq(style._inheritedFrom, 'Monk', 'inherited style ACF should be tagged from Monk');
 });
 
+test('class-picker: variant ⇄ base mutual exclusion (can\'t hold both)', (db) => {
+  // DB carries the variant_of pointers the mutex keys on.
+  const vrows = execAll(db,
+    "SELECT name, json_extract(data,'$.variant_of') AS vof FROM entry " +
+    "WHERE type IN ('class','prc') AND json_extract(data,'$.variant_of') IS NOT NULL");
+  const vmap = Object.fromEntries(vrows.map(r => [r.name, r.vof]));
+  assertEq(vmap['Chaos Monk'], 'Monk', 'Chaos Monk variant_of Monk');
+  assertEq(vmap['Mystic Ranger'], 'Ranger', 'Mystic Ranger variant_of Ranger');
+
+  // class-picker reads variant_of into its index + enforces the mutex.
+  const cp = readSource('class-picker.js');
+  assert(/AS variant_of/.test(cp),
+    'class index query must select variant_of');
+  assert(/function variantBaseOf/.test(cp) && /function findVariantConflict/.test(cp),
+    'class-picker must expose variantBaseOf + findVariantConflict');
+  // applyToSheet must consult the conflict finder and bail before pushing.
+  assert(/findVariantConflict\(cls\.class\)/.test(cp),
+    'applyToSheet must check findVariantConflict(cls.class)');
+  assert(/const conflict = findVariantConflict[\s\S]{0,900}?flashPanel[\s\S]{0,80}?return;/.test(cp),
+    'a detected conflict must flash a message and return early (block the apply)');
+  // All three clash directions are covered: variant-over-base,
+  // base-under-variant, sibling-variant.
+  for (const kind of ["'base'", "'variant'", "'sibling'"]) {
+    assert(cp.includes(`kind: ${kind}`),
+      `findVariantConflict must report the ${kind} clash`);
+  }
+  // Self (re-apply at a new level) must be skipped, not flagged as a clash.
+  assert(/eq\(e\.className,\s*applyingName\)\)\s*continue/.test(cp),
+    're-applying the same variant (level bump) must not self-conflict');
+});
+
 test('class-variants: substitution-level inheritance is per-feature + level-adjusted', (db) => {
   const CV = loadClassVariants(db);
   const subs = CV.getSubLevels('Mystic Ranger');

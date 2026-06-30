@@ -848,7 +848,8 @@
         + "json_extract(e.data, '$.fort_progression') AS fort_progression, "
         + "json_extract(e.data, '$.ref_progression')  AS ref_progression, "
         + "json_extract(e.data, '$.will_progression') AS will_progression, "
-        + "json_extract(e.data, '$.table_caption')    AS table_caption "
+        + "json_extract(e.data, '$.table_caption')    AS table_caption, "
+        + "json_extract(e.data, '$.variant_of')       AS variant_of "
         + "FROM entry e "
         + "LEFT JOIN book b ON b.name = e.source "
         + "WHERE e.type IN ('class', 'prc') "
@@ -2289,6 +2290,37 @@
     return list[0]; // 3.5 preferred (sorted that way)
   }
 
+  // The base class a variant replaces (Chaos Monk → "Monk"), or null for a
+  // non-variant. Resolves through the class index, which now carries
+  // `variant_of`. Degrades to null when the class isn't in scope (e.g. a
+  // book-filtered-out variant on a loaded save) — no conflict is reported.
+  function variantBaseOf(className) {
+    const c = lookupClass(className);
+    return c && c.variant_of ? c.variant_of : null;
+  }
+
+  // Variant ⇄ base mutual exclusion. A variant class is a FULL replacement
+  // for its base, so a character can't hold both — nor two different
+  // variants of the same base (each replaces the same class). Returns the
+  // first conflicting picked class (across BOTH gestalt sides — base/variant
+  // is a class-identity clash regardless of track) or null. `applyingName`
+  // re-applied at a new level is fine: self is skipped by name.
+  function findVariantConflict(applyingName) {
+    const eq = (a, b) =>
+      String(a || '').toLowerCase() === String(b || '').toLowerCase();
+    const base = variantBaseOf(applyingName);   // base if applying a variant
+    for (const e of pickedClasses.concat(pickedClassesB)) {
+      if (eq(e.className, applyingName)) continue;            // self (level bump)
+      if (base && eq(e.className, base))                      // variant over its base
+        return { other: e.className, kind: 'base' };
+      if (eq(variantBaseOf(e.className), applyingName))       // base under a picked variant
+        return { other: e.className, kind: 'variant' };
+      if (base && eq(variantBaseOf(e.className), base))       // sibling variant of same base
+        return { other: e.className, kind: 'sibling' };
+    }
+    return null;
+  }
+
   // Cache parsed class_table per class entry id.  Hit rate is high because
   // we hit the same class multiple times during a recompute cycle (every
   // applied class queries levelData + levelsUpTo + getSpellcastingDataAtLevel).
@@ -3487,6 +3519,20 @@
     const level = parseInt(levelStr, 10);
     if (!cls || !level || level < 1) {
       flashPanel(panel, 'Pick a class and a valid level first.', '#a66');
+      return;
+    }
+
+    // Variant ⇄ base mutual exclusion — a variant class replaces its base,
+    // so block holding both (or two variants of the same base) and tell the
+    // user which class to remove first.
+    const conflict = findVariantConflict(cls.class);
+    if (conflict) {
+      const msg = conflict.kind === 'base'
+        ? `${cls.class} is a variant of ${conflict.other} — remove ${conflict.other} first (a variant replaces its base class).`
+        : conflict.kind === 'variant'
+          ? `${conflict.other} is a variant of ${cls.class} — remove ${conflict.other} first (you already have its variant).`
+          : `${cls.class} and ${conflict.other} are both variants of the same class — remove ${conflict.other} first (one variant at a time).`;
+      flashPanel(panel, msg, '#a66');
       return;
     }
 
