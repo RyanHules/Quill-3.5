@@ -68,6 +68,26 @@ const DND35 = {
     { name: "Tumble", ability: "DEX", untrained: false, armorPenalty: true },
     { name: "Use Magic Device", ability: "CHA", untrained: false, armorPenalty: false },
     { name: "Use Rope", ability: "DEX", untrained: true, armorPenalty: false },
+    // --- Supplemental 3.5 skills (psionics / ToB / ToM / lycanthropy) ---
+    // Appended at the END, not interleaved alphabetically, ON PURPOSE:
+    // saved characters key skill data by ARRAY INDEX (see skills.js
+    // collectData/loadData), so inserting mid-list would shift every
+    // later skill's index and silently corrupt existing saves. New
+    // entries take fresh trailing indices; pre-existing saves load
+    // unchanged (these render blank for characters that predate them).
+    // All are trained-only (untrained:false) and carry no armor penalty.
+    // Sources: Autohypnosis/Knowledge(Psionics)/Psicraft/Use Psionic
+    // Device — XPH; Martial Lore — ToB; Truespeak — ToM; Iaijutsu Focus
+    // — CW/OA; Lucid Dreaming — CAdv; Control Shape — MM (lycanthropes).
+    { name: "Autohypnosis", ability: "WIS", untrained: false, armorPenalty: false },
+    { name: "Control Shape", ability: "WIS", untrained: false, armorPenalty: false },
+    { name: "Iaijutsu Focus", ability: "CHA", untrained: false, armorPenalty: false },
+    { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Psionics" },
+    { name: "Lucid Dreaming", ability: "WIS", untrained: false, armorPenalty: false },
+    { name: "Martial Lore", ability: "INT", untrained: false, armorPenalty: false },
+    { name: "Psicraft", ability: "INT", untrained: false, armorPenalty: false },
+    { name: "Truespeak", ability: "INT", untrained: false, armorPenalty: false },
+    { name: "Use Psionic Device", ability: "CHA", untrained: false, armorPenalty: false },
   ],
 
   // Table 9-2: Carrying Loads (PHB p.162)
