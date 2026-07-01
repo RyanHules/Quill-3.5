@@ -1454,6 +1454,21 @@ test('class-feature bonuses: DB-stamped + ClassPicker consumer + aggregator wiri
     'skills.js must pull ClassPicker skill bonuses.');
 });
 
+test('class-feature scaling: level-aware map emits scaled bonuses', () => {
+  const cp = readSource('class-picker.js');
+  assert(/CLASS_FEATURE_SCALING/.test(cp),
+    'class-picker must define CLASS_FEATURE_SCALING.');
+  // Barbarian Trap Sense = floor(level/3) on Reflex + dodge AC, vs traps.
+  assert(/"Barbarian":\s*\[\{\s*feature:\s*"Trap Sense"[\s\S]{0,120}Math\.floor\(l\s*\/\s*3\)/.test(cp),
+    'Barbarian Trap Sense must scale as floor(level/3).');
+  // Duelist Elaborate Parry = +1 dodge per level (l) at 7th+.
+  assert(/"Duelist":[\s\S]{0,140}_ac\(l,\s*"dodge"/.test(cp),
+    'Duelist Elaborate Parry must be +1 dodge per duelist level.');
+  // The consumer emits from the scaling map (fn gates on class level).
+  assert(/CLASS_FEATURE_SCALING\[c\.className\][\s\S]{0,120}def\.fn\(lvl\)/.test(cp),
+    'collectAcquiredFeatureBonuses must emit the level-scaled rows.');
+});
+
 test('movement P4: class fast movement + independent armor/load caps', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // armorCategory classifier.

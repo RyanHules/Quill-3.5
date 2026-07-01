@@ -5015,6 +5015,51 @@
     return out;
   }
 
+  // Class-feature SCALING bonuses (effects-aggregator, 2026-07-01) — features
+  // whose amount grows with class level (Trap Sense, favored-enemy, ...). A
+  // static DB stamp can't express these, so they live here as level → bonus
+  // rows (like CLASS_FAST_MOVEMENT). Each fn returns null when not yet gained.
+  // condition:null feeds the direct total; a condition → a situational note.
+  const _sk = (target, amount, cat, cond) => ({ bonus_type: "skill", target,
+    amount, bonus_category: cat || "untyped", condition: cond || null });
+  const _sv = (target, amount, cat, cond) => ({ bonus_type: "save", target,
+    amount, bonus_category: cat || "untyped", condition: cond || null });
+  const _ac = (amount, cat, cond) => ({ bonus_type: "ac", target: null,
+    amount, bonus_category: cat || "untyped", condition: cond || null });
+  const _fivesk = (a, cond) => ["Bluff", "Listen", "Sense Motive", "Spot", "Survival"]
+    .map(s => _sk(s, a, "untyped", cond));
+  const CLASS_FEATURE_SCALING = {
+    "Assassin": [{ feature: "Save Bonus Against Poison",
+      fn: l => l >= 2 ? [_sv("all", Math.floor(l / 2), "untyped", "against poison")] : null }],
+    "Barbarian": [{ feature: "Trap Sense", fn: l => { if (l < 3) return null;
+      const a = Math.floor(l / 3); return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
+    "Cavalier": [{ feature: "Ride Bonus +2",
+      fn: l => [_sk("Ride", l >= 9 ? 8 : l >= 7 ? 6 : l >= 4 ? 4 : 2, "competence", null)] }],
+    "Darkwood Stalker": [{ feature: "Ancient Foe +2",
+      fn: l => _fivesk(l >= 10 ? 8 : l >= 7 ? 6 : l >= 4 ? 4 : 2, "against orcs") }],
+    "Drunken Master": [{ feature: "AC Bonus +1",
+      fn: l => l >= 4 ? [_ac(l >= 9 ? 2 : 1, "untyped", null)] : null }],
+    "Duelist": [{ feature: "Elaborate Parry (Ex)",
+      fn: l => l >= 7 ? [_ac(l, "dodge", "when fighting defensively or using total defense in melee")] : null }],
+    "Dwarven Defender": [{ feature: "Trap Sense (Ex)", fn: l => { if (l < 4) return null;
+      const a = l >= 8 ? 2 : 1; return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
+    "Extreme Explorer": [
+      { feature: "Dodge Bonus", fn: l => l >= 2 ? [_ac(l >= 4 ? 2 : 1, "dodge", "when unencumbered and in light or no armor")] : null },
+      { feature: "Trap Sense", fn: l => { const a = Math.floor((l + 1) / 2);
+        return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
+    "Flux Adept": [{ feature: "Thermoregulation (Su)",
+      fn: l => l >= 2 ? [_sv("all", l >= 7 ? 4 : 2, "untyped", "against fire or cold effects")] : null }],
+    "Gnome Giant-Slayer": [{ feature: "Favored Enemy (Giant)",
+      fn: l => _fivesk(l >= 10 ? 8 : l >= 7 ? 6 : l >= 4 ? 4 : 2, "against giants") }],
+    "Jester": [{ feature: "Jester's Audacity",
+      fn: l => [_ac(l >= 20 ? 5 : l >= 15 ? 4 : l >= 10 ? 3 : l >= 5 ? 2 : 1, "dodge", null)] }],
+    "Scarlet Corsair": [{ feature: "Sailor's Step",
+      fn: l => l >= 4 ? [_ac(l >= 8 ? 4 : 2, "dodge", "while aboard a ship in light or no armor")] : null }],
+    "Thayan Knight": [{ feature: "Horrors of Thay",
+      fn: l => [_sv("all", l >= 4 ? 4 : 2, "morale", "vs fear effects"),
+                _sv("all", l >= 4 ? 2 : 1, "morale", "vs charm effects")] }],
+  };
+
   // Class-FEATURE flat/conditional bonuses (effects-aggregator, 2026-07-01).
   // Collect the structured `bonuses` of every ACQUIRED feature (level_acquired
   // ≤ the character's level in that class) across all applied classes, source-
@@ -5046,6 +5091,13 @@
         if (!f || !Array.isArray(f.bonuses)) continue;
         if ((parseInt(f.level_acquired, 10) || 0) > lvl) continue;  // not yet gained
         for (const b of f.bonuses) out.push(Object.assign({ source: f.name }, b));
+      }
+      // Level-scaling features (Trap Sense, favored-enemy, …) — each fn gates
+      // on the class level itself and returns the scaled rows (or null).
+      const scaleDefs = CLASS_FEATURE_SCALING[c.className];
+      if (scaleDefs) for (const def of scaleDefs) {
+        const rows = def.fn(lvl);
+        if (rows) for (const b of rows) out.push(Object.assign({ source: def.feature }, b));
       }
     }
     return out;
