@@ -1120,6 +1120,26 @@ test('feats: conditional skill bonuses route to situational (not the flat total)
     'skills.js must concat featSkill.situational into the per-skill notes.');
 });
 
+test('situational notes surface bonus TYPE + SOURCE', () => {
+  // The type (what stacks) + source (which feat/race/…) must reach the note.
+  // Categorizers carry category+source on situational; feats tag each bonus
+  // with its feat name; the render sites show both.
+  const dsrc = readSource('data.js');
+  assert(/situational\.push\(\{\s*skill, amount, condition: cond,\s*\n?\s*category: b\.bonus_category, source: b\.source/.test(dsrc),
+    'categorizeSkillBonuses situational must carry category + source.');
+  assert(/source: b\.source, appliesAll/.test(dsrc),
+    'categorizeSaveBonuses situational must pass source through.');
+  const fsrc = readSource('feats.js');
+  assert(/bonus\.source = featName/.test(fsrc),
+    'getResolvedFeatBonuses must tag each bonus with its granting feat name.');
+  const csrc = readSource('character.js');
+  assert(/function _typeLabel/.test(csrc) && /_typeLabel\(s\.category\)/.test(csrc),
+    'character.js save/AC render must show the bonus type via _typeLabel.');
+  const sksrc = readSource('skills.js');
+  assert(/sit\.source \|\| "conditional"/.test(sksrc) && /sit\.category/.test(sksrc),
+    'skills.js situational render must show sit.category + sit.source.');
+});
+
 test('traits/flaws: own entry types, not feats (future picker can query type)', (db) => {
   // UA character traits + flaws were re-typed out of `feat` into their own
   // `trait` / `flaw` types (benefit+drawback / penalty-for-bonus-feat are a

@@ -552,10 +552,13 @@ const Skills = (function () {
           const sl = String(sit.skill || "").toLowerCase();
           if (sl === blKey || (blBaseKey && sl === blBaseKey)) {
             const sign = sit.amount > 0 ? "+" : "";
-            // Source-agnostic tag — this list now merges race / template /
-            // trait / FEAT situational bonuses, so "(racial)" mislabeled the
-            // feat + trait ones. "(conditional)" is accurate for all sources.
-            parts.push(`${sign}${sit.amount} ${sit.condition} (conditional)`);
+            // Surface the bonus TYPE (what stacks) + the SOURCE (which
+            // feat/race/template/trait granted it). Type omitted when
+            // untyped; source falls back to "conditional" when unknown.
+            const ty = (sit.category && String(sit.category).toLowerCase() !== "untyped")
+              ? `${sit.category} ` : "";
+            const src = sit.source || "conditional";
+            parts.push(`${sign}${sit.amount} ${ty}${sit.condition} (${src})`);
           }
         }
         const synNotes = parts.filter(Boolean).join("; ");

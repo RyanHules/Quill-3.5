@@ -6,9 +6,17 @@ const Character = (function () {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-  // Render the auto-derived situational save modifiers (from race/template
-  // structured `bonuses`) into #save-situational-auto, grouped by the save
-  // each applies to (Fortitude / Reflex / Will), with general ones last.
+  // Capitalized bonus-type prefix for a situational note ("morale" →
+  // "morale " ; untyped/blank → ""). The TYPE is the most actionable bit —
+  // it tells the player what stacks with what (two morale bonuses don't).
+  function _typeLabel(cat) {
+    const c = String(cat == null ? "" : cat).toLowerCase().trim();
+    if (!c || c === "untyped") return "";
+    return c + " ";
+  }
+  // Render the auto-derived situational save modifiers (from race / template /
+  // feat / trait structured `bonuses`) into #save-situational-auto, grouped by
+  // the save each applies to (Fortitude / Reflex / Will), with general ones last.
   function renderSituationalSaves(list) {
     const el = document.getElementById("save-situational-auto");
     if (!el) return;
@@ -22,7 +30,7 @@ const Character = (function () {
     }
     const amt = (n) => (n >= 0 ? "+" + n : String(n));
     const item = (s) =>
-      `<li>${amt(s.amount)} ${_esc(s.condition || "")}` +
+      `<li>${amt(s.amount)} ${_esc(_typeLabel(s.category))}${_esc(s.condition || "")}` +
       (s.source ? ` <span class="ss-src">(${_esc(s.source)})</span>` : "") +
       `</li>`;
     let html = "";
@@ -45,7 +53,7 @@ const Character = (function () {
     }
     const amt = (n) => (n >= 0 ? "+" + n : String(n));
     const items = list.map((s) =>
-      `<li>${amt(s.ac)} ${_esc(s.type || "")} ${_esc(s.condition || "")}` +
+      `<li>${amt(s.ac)} ${_esc(_typeLabel(s.category))}${_esc(s.condition || "")}` +
       (s.source ? ` <span class="ss-src">(${_esc(s.source)})</span>` : "") +
       `</li>`).join("");
     el.innerHTML = `<div class="ss-head">Situational AC (auto-derived):</div>` +

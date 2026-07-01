@@ -1007,6 +1007,9 @@
     }
     const cat = DND35.categorizeSkillBonuses(merged);
     if (baseParsed) applySkillNegations(cat, parseSkillNegations(parsed.traits));
+    // Name the source so situational notes read "… (Aquatic Elf)" (mirrors
+    // the save path's source tag).
+    cat.situational.forEach(s => { s.source = name; });
     return cat;
   }
 

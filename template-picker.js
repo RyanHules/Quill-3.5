@@ -791,6 +791,7 @@
       // skill bonuses yet.
       for (const [k, v] of Object.entries(cat.direct)) merged.direct[k] = (merged.direct[k] || 0) + v;
       merged.global += cat.global;
+      cat.situational.forEach(s => { s.source = t.name; });
       merged.situational.push(...cat.situational);
     }
     return merged;

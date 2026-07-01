@@ -590,7 +590,8 @@ const DND35 = {
         if (!cond) cond = paren[2].trim();   // the paren WAS the condition
       }
       if (cond) {
-        out.situational.push({ skill, amount, condition: cond });
+        out.situational.push({ skill, amount, condition: cond,
+          category: b.bonus_category, source: b.source });
         continue;
       }
       const lower = skill.toLowerCase();
@@ -703,13 +704,13 @@ const DND35 = {
         // infer the save from the target text + condition.
         situational.push({ save: this.inferSaveFromCondition(target + ' ' + cond),
                            amount: amt, condition: cond || target, category: cat,
-                           appliesAll: false });
+                           source: b.source, appliesAll: false });
         continue;
       }
       if (cond) {
         const save = saves.length === 1 ? saves[0] : this.inferSaveFromCondition(cond);
         situational.push({ save, amount: amt, condition: cond, category: cat,
-                           appliesAll: saves.length === 3 });
+                           source: b.source, appliesAll: saves.length === 3 });
       } else {
         for (const s of saves) uncond[s].push({ amount: amt, bonus_category: cat });
       }
@@ -738,7 +739,7 @@ const DND35 = {
       if (cat === 'size' || cat === 'natural' || cat === 'natural_armor') continue;
       const cond = (b.condition == null) ? '' : String(b.condition).trim();
       const type = TYPE_MAP[cat] || (cat ? cat[0].toUpperCase() + cat.slice(1) : 'Untyped');
-      if (cond) { situational.push({ type, ac: amt, condition: cond, category: cat }); continue; }
+      if (cond) { situational.push({ type, ac: amt, condition: cond, category: cat, source: b.source }); continue; }
       items.push({
         type, ac: amt,
         // Touch AC keeps everything except armor / shield / natural.

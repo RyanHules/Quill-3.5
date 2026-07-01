@@ -1011,12 +1011,17 @@ const Feats = (function () {
       const bonuses = map.get(m[1].trim().toLowerCase());
       if (!bonuses) return;
       const spec = (m[2] || "").trim();
+      const featName = m[1].trim();
       for (const b of bonuses) {
         const bonus = Object.assign({}, b);
         if (bonus.target === "@choice") {
           if (!spec) continue;             // unresolved specialization → skip
           bonus.target = spec;
         }
+        // Tag with the granting feat so situational notes can name their
+        // source (flows through the save/AC categorizers' source pass-through
+        // and the skill path's manual push below).
+        bonus.source = featName;
         out.push(bonus);
       }
     });
@@ -1038,7 +1043,8 @@ const Feats = (function () {
       // featSkill.situational alongside the race/template/trait ones.
       const cond = (b.condition == null) ? "" : String(b.condition).trim();
       if (cond) {
-        situational.push({ skill: String(b.target), amount: b.amount, condition: cond });
+        situational.push({ skill: String(b.target), amount: b.amount,
+          condition: cond, category: b.bonus_category, source: b.source });
         continue;
       }
       const k = String(b.target).toLowerCase();
