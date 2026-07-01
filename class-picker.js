@@ -4978,8 +4978,10 @@
   // (requires_light — the gate lives in character.js, which knows the load /
   // armor state). Extend as more speed-granting classes / PrCs are wired.
   const CLASS_FAST_MOVEMENT = {
+    // Barbarian (SRD): +10 land, wearing no/light/medium armor and NOT
+    // carrying a heavy load → requires_not_heavy.
     "Barbarian": (lvl) => lvl >= 1
-      ? { amount: 10, bonus_category: "untyped" } : null,
+      ? { amount: 10, bonus_category: "untyped", requires_not_heavy: true } : null,
     // Monk unarmored speed bonus (PHB/SRD Table 3-10): +10 @5th, +20 @9th,
     // +30 @13th, +40 @17th.
     "Monk": (lvl) => {

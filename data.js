@@ -860,10 +860,12 @@ const DND35 = {
         if (cond) out.situational.push({ mode, amount: amt, condition: cond,
           category: b.bonus_category, source: b.source });
         else out[mode].add.push({ amount: amt, bonus_category: b.bonus_category,
-          // Monk / Scout fast movement only applies unarmored + ≤ light load;
-          // character.js drops these from the sum when the character is
-          // armored or encumbered.
+          // Load/armor gates, dropped in character.js when exceeded:
+          //   requires_light    — unarmored + ≤ light load (Monk).
+          //   requires_not_heavy — not heavy armor + not heavy load, i.e.
+          //                        light/medium OK (Barbarian).
           requires_light: b.requires_light || undefined,
+          requires_not_heavy: b.requires_not_heavy || undefined,
           source: b.source });
       }
     }

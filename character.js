@@ -200,18 +200,27 @@ const Character = (function () {
     const flyOk = ($("#fly-encumbered-ok")?.checked) || !!spd.flyEncumberedOk;
     const flyBlocked = (encumbered || armorHeavyish) && !flyOk;
     const modeBase = (id) => parseInt($(`#${id}`)?.value, 10) || 0;
-    // Monk / Scout fast movement (add entries flagged requires_light) applies
-    // only while unarmored AND not encumbered.
-    const unarmoredLight = !String($("#armor-type")?.value || "").trim() && !encumbered;
+    // Load/armor gates for fast-movement adds:
+    //   requires_light    — Monk: NO armor + light load only.
+    //   requires_not_heavy — Barbarian: not heavy armor + not heavy load
+    //                        (light/medium armor + light/medium load are fine).
+    const armorTypeStr = String($("#armor-type")?.value || "").trim();
+    const heavyArmor = /\bheav/i.test(armorTypeStr);
+    const unarmoredLight = !armorTypeStr && !encumbered;
+    const notHeavy = loadCategory !== "heavy" && !heavyArmor;
     // Effective base for a mode = max(box + typed-stacked add total, granted
     // set). The box is the character's own listed speed; add layers deltas
-    // (Longstrider, Barbarian fast movement), set grants/overrides a mode
-    // (Fly spell, a racial fly). requires_light adds are dropped when armored
-    // / encumbered; the surviving adds re-stack (typed: best-per-type + sum).
+    // (Longstrider, Barbarian/Monk fast movement), set grants/overrides a mode
+    // (Fly spell, a racial fly). Gated adds are dropped when their load/armor
+    // limit is exceeded; the surviving adds re-stack (typed: best-per-type + sum).
     const modeEff = (mode) => {
       const s = spd[mode] || {};
-      const adds = (Array.isArray(s.add) ? s.add : [])
-        .filter(a => a && (!a.requires_light || unarmoredLight));
+      const adds = (Array.isArray(s.add) ? s.add : []).filter(a => {
+        if (!a) return false;
+        if (a.requires_light && !unarmoredLight) return false;
+        if (a.requires_not_heavy && !notHeavy) return false;
+        return true;
+      });
       const addTotal = (typeof DND35.stackBonuses === "function")
         ? DND35.stackBonuses(adds).total
         : adds.reduce((t, a) => t + (a.amount || 0), 0);

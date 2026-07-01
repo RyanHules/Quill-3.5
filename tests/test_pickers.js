@@ -1424,20 +1424,25 @@ test('movement P4: class fast movement (Barbarian always, Monk requires_light + 
   const csrc = readSource('class-picker.js');
   assert(/CLASS_FAST_MOVEMENT/.test(csrc) && /getActiveSpeedBonuses/.test(csrc),
     'class-picker must expose getActiveSpeedBonuses from a CLASS_FAST_MOVEMENT map.');
-  // Barbarian +10 untyped, no requires_light; Monk scales + requires_light.
-  assert(/"Barbarian":[\s\S]{0,80}amount:\s*10/.test(csrc),
-    'Barbarian fast movement = +10 land.');
-  assert(/"Monk":[\s\S]{0,160}requires_light:\s*true/.test(csrc),
+  // Barbarian +10 untyped requires_not_heavy; Monk scales + requires_light.
+  assert(/"Barbarian":[\s\S]{0,140}amount:\s*10[\s\S]{0,60}requires_not_heavy:\s*true/.test(csrc),
+    'Barbarian fast movement = +10 land, requires_not_heavy.');
+  assert(/"Monk":[\s\S]{0,200}requires_light:\s*true/.test(csrc),
     'Monk fast movement must be flagged requires_light.');
   // app wires ClassPicker into the speed sources.
-  assert(/ClassPicker\s*:\s*null[\s\S]{0,400}getActiveSpeedBonuses/.test(readSource('app.js')) ||
-         /ClassPicker[\s\S]{0,40}getActiveSpeedBonuses/.test(readSource('app.js')),
+  assert(/ClassPicker[\s\S]{0,60}getActiveSpeedBonuses/.test(readSource('app.js')) ||
+         /getActiveSpeedBonuses[\s\S]*ClassPicker/.test(readSource('app.js')),
     'app.js must gather ClassPicker.getActiveSpeedBonuses.');
-  // character.js gates requires_light adds on unarmored + not encumbered.
+  // character.js gates: requires_light (Monk: unarmored+light) and
+  // requires_not_heavy (Barbarian: not heavy armor/load) are both dropped when
+  // exceeded.
   const chr = readSource('character.js');
-  assert(/unarmoredLight\s*=\s*!String\(\$\("#armor-type"\)/.test(chr) &&
-         /requires_light\s*\|\|\s*unarmoredLight/.test(chr),
-    'character.js must drop requires_light adds when armored/encumbered.');
+  assert(/unarmoredLight\s*=\s*!armorTypeStr\s*&&\s*!encumbered/.test(chr) &&
+         /notHeavy\s*=\s*loadCategory\s*!==\s*"heavy"\s*&&\s*!heavyArmor/.test(chr),
+    'character.js must define the unarmoredLight + notHeavy gates.');
+  assert(/a\.requires_light\s*&&\s*!unarmoredLight/.test(chr) &&
+         /a\.requires_not_heavy\s*&&\s*!notHeavy/.test(chr),
+    'character.js modeEff must drop requires_light + requires_not_heavy adds when exceeded.');
 });
 
 test('movement P3: structured movement field + consumers prefer it', (db) => {
