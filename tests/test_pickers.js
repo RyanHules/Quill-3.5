@@ -4609,18 +4609,21 @@ test('companion Session C: applyTemplateToCreature handles dict + free-text abil
     'incorporeal: Str —) would treat the loss as a no-op.');
 });
 
-test('companion Session C: template natural armor folded into base AC text', () => {
+test('companion Session C: template NA from STRUCTURED fields (change/set), not prose', () => {
   const src = readSource('companion.js');
-  // The base creature's `armor_class` is a free-text string the
-  // existing AUTO parser extracts "+N natural" from. The template
-  // apply must REWRITE that token (or append one) so the existing
-  // parser picks up the new total without needing a second NA field.
-  assert(/function appendTemplateNaToAcText\s*\(/.test(src),
-    'companion.js: appendTemplateNaToAcText helper is missing — ' +
-    'template natural-armor bonuses will not reach the AC field.');
-  assert(/function deriveTemplateNaturalArmor\s*\(/.test(src),
-    'companion.js: deriveTemplateNaturalArmor helper is missing — ' +
-    'template NA bonus is not read from bonuses[] or armor_class text.');
+  // The sheet must read the template's structured natural-armor fields, NOT
+  // re-derive from prose (the DB owns derivation). natural_armor_change is
+  // additive; natural_armor_set is use-higher overlap → max(setVal, base).
+  assert(src.includes('tpl.natural_armor_change'),
+    'companion.js must consume the structured natural_armor_change delta.');
+  assert(src.includes('tpl.natural_armor_set') &&
+         /Math\.max\(baseFieldNa,\s*tpl\.natural_armor_set\)/.test(src),
+    'companion.js must apply natural_armor_set as max(setVal, base NA).');
+  // The prose deriver is gone — the AC text is only kept in sync (absolute).
+  assert(!/function deriveTemplateNaturalArmor\s*\(/.test(src),
+    'companion.js should no longer derive template NA from prose.');
+  assert(/function setAcNaturalToken\s*\(/.test(src),
+    'companion.js: setAcNaturalToken (absolute token rewrite) is missing.');
 });
 
 test('companion Session C: SA/SQ concatenation preserves base creature trait list', () => {
@@ -6290,10 +6293,11 @@ test('natural-armor: companion AUTO prefers the field + keeps it authoritative t
   const src = readSource('companion.js');
   assert(/typeof creature\.natural_armor === 'number'/.test(src),
     'companion autoFill must prefer creature.natural_armor for baseNA.');
-  // applyTemplateToCreature must fold template NA into the FIELD (not just the
-  // ac text) so preferring the field can't drop a template contribution.
-  assert(/out\.natural_armor\s*=\s*baseFieldNa\s*\+\s*tplNa/.test(src),
-    'applyTemplateToCreature must layer template NA onto out.natural_armor.');
+  // applyTemplateToCreature must write template NA onto the FIELD (not just
+  // the ac text) so preferring the field can't drop a template contribution —
+  // now from the structured natural_armor_change / natural_armor_set fields.
+  assert(/out\.natural_armor\s*=\s*newNa/.test(src),
+    'applyTemplateToCreature must write the new NA total onto out.natural_armor.');
 });
 
 test('focus-aggregator: feats.js exposes Weapon/Spell Focus detectors', () => {

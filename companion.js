@@ -1141,23 +1141,34 @@ const Companion = (function () {
       }
     }
 
-    // Natural armor bonus from template — layer it onto BOTH the structured
-    // `natural_armor` integer (now the authoritative source in
-    // autoFillFromBaseCreature) AND the `armor_class` text (kept in sync for
-    // display / any legacy text parser). Recover the base NA from the field
-    // when present, else from the AC text, so a template applied to a creature
-    // whose field is absent still totals correctly.
-    const tplNa = deriveTemplateNaturalArmor(tpl);
-    if (tplNa) {
-      const baseFieldNa = (typeof out.natural_armor === 'number')
-        ? out.natural_armor
-        : (() => {
-            const m = String(out.armor_class || '').match(/([+\-]?\d+)\s*natural/i);
-            return m ? parseInt(m[1], 10) : 0;
-          })();
-      out.natural_armor = baseFieldNa + tplNa;
+    // Natural armor from the template's STRUCTURED fields — the sheet reads
+    // the field, it does NOT re-derive from prose (the DB project owns the
+    // derivation; see its natural_armor_change / natural_armor_set canon):
+    //   - natural_armor_change: additive DELTA ("improves by +4" — Half-
+    //     Dragon +4, Gelatinous −2).
+    //   - natural_armor_set: use-higher OVERLAP value — the result is
+    //     max(setValue, base NA) (Lich +5, Mummified +8/+10, Wight +4,
+    //     Death Knight +5, ...). Mutually exclusive with the delta.
+    // Recover the base NA from the field, else from the AC text (old blobs).
+    // Write BOTH the authoritative `natural_armor` integer (what
+    // autoFillFromBaseCreature reads) and the `armor_class` text (kept in
+    // sync for display / any legacy reader) to the new ABSOLUTE total.
+    const baseFieldNa = (typeof out.natural_armor === 'number')
+      ? out.natural_armor
+      : (() => {
+          const m = String(out.armor_class || '').match(/([+\-]?\d+)\s*natural/i);
+          return m ? parseInt(m[1], 10) : 0;
+        })();
+    let newNa = null;
+    if (typeof tpl.natural_armor_change === 'number') {
+      newNa = baseFieldNa + tpl.natural_armor_change;
+    } else if (typeof tpl.natural_armor_set === 'number') {
+      newNa = Math.max(baseFieldNa, tpl.natural_armor_set);
+    }
+    if (newNa !== null) {
+      out.natural_armor = newNa;
       if (typeof out.armor_class === 'string') {
-        out.armor_class = appendTemplateNaToAcText(out.armor_class, tplNa);
+        out.armor_class = setAcNaturalToken(out.armor_class, newNa);
       }
     }
 
@@ -1220,46 +1231,24 @@ const Companion = (function () {
     return out;
   }
 
-  // Pull a numeric natural-armor bonus out of either bonuses[] or
-  // the template's `armor_class` text. Mirrors template-picker's
-  // `deriveNaturalArmor` (kept local to avoid reaching across IIFE
-  // boundaries).
-  function deriveTemplateNaturalArmor(tpl) {
-    if (Array.isArray(tpl.bonuses)) {
-      for (const b of tpl.bonuses) {
-        if (b?.bonus_type === 'natural_armor' &&
-            typeof b.amount === 'number') {
-          return b.amount;
-        }
-      }
-    }
-    const ac = tpl.armor_class;
-    if (typeof ac === 'string') {
-      const m = ac.match(/\+?(\d+)\s*natural\s*armor/i);
-      if (m) return parseInt(m[1], 10);
-    }
-    return 0;
-  }
-
-  // The base creature's `armor_class` is a free-text rule string the
-  // existing autoFillFromBaseCreature parses for a "+N natural" token.
-  // To layer a template's NA on top, we rewrite that token in-place
-  // (or append one if missing) — keeps the downstream parser happy
-  // without having to plumb a second NA field through.
-  function appendTemplateNaToAcText(acText, tplNa) {
+  // Rewrite a base creature's free-text `armor_class` so its "+N natural"
+  // token reflects the new ABSOLUTE natural-armor total after a template's
+  // change/set has been applied to the structured field. (Kept in sync for
+  // display + any legacy text reader; autoFillFromBaseCreature itself reads
+  // the structured `natural_armor` field, not this token.) Appends a token
+  // when the base string carries none.
+  function setAcNaturalToken(acText, na) {
     const m = acText.match(/([+\-]?\d+)\s*natural/i);
     if (m) {
-      const have = parseInt(m[1], 10);
-      const newTok = `+${have + tplNa} natural`;
-      return acText.replace(m[0], newTok);
+      return acText.replace(m[0], `+${na} natural`);
     }
     // No existing natural token — append. Best-effort: drop into the
     // first " (...)" block, or just suffix.
     if (acText.includes('(')) {
       return acText.replace(/\(([^)]+)\)/,
-        (_, inner) => `(${inner}, +${tplNa} natural)`);
+        (_, inner) => `(${inner}, +${na} natural)`);
     }
-    return acText + ` (+${tplNa} natural)`;
+    return acText + ` (+${na} natural)`;
   }
 
   // Reduce a verbose `type_change` like "Type changes to outsider
