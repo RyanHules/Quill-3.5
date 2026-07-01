@@ -1090,13 +1090,34 @@ test('feats (phase 3 expansion): verified walked-book feats carry flat skill/sav
       "WHERE type='feat' AND name=:n", { ':n': trait });
     assert(!r || r.b == null, `${trait} is a trait, not a feat — no feat bonuses`);
   }
-  // A known conditional/activated feat must NOT have been stamped flat.
+  // A known conditional/activated feat must NOT be stamped FLAT (always-on).
+  // Since 2026-07-01 the routable ones DO carry conditional bonuses — every
+  // such bonus must keep a non-null condition so it routes to a situational
+  // note, never the always-on total.
   for (const cond of ['Combat Focus', 'Inquisitor', 'True Believer', 'Run']) {
     const r = execOne(db, "SELECT json_extract(data,'$.bonuses') AS b FROM entry " +
       "WHERE type='feat' AND name=:n", { ':n': cond });
-    assert(!r || r.b == null,
-      `${cond} is conditional/activated — must NOT carry flat bonuses`);
+    const rows = r && r.b ? JSON.parse(r.b) : [];
+    assert(rows.length > 0 && rows.every(x => x.condition != null),
+      `${cond} must carry ONLY conditional bonuses (non-null condition), not flat`);
   }
+});
+
+test('feats: conditional skill bonuses route to situational (not the flat total)', () => {
+  // feats.js getActiveSkillBonuses must push condition-bearing skill bonuses
+  // to `situational` (mirroring the trait path) and keep summing the
+  // unconditional ones into `direct`. skills.js must include
+  // featSkill.situational in its per-skill note concat.
+  const fsrc = readSource('feats.js');
+  const body = extractFunctionBody(fsrc, 'getActiveSkillBonuses');
+  assert(body, 'getActiveSkillBonuses not found');
+  assert(/situational\.push\(\s*\{\s*skill:/.test(body),
+    'getActiveSkillBonuses must route conditional skill bonuses to situational.');
+  assert(/direct\[k\]\s*=\s*\(direct\[k\]\s*\|\|\s*0\)\s*\+\s*b\.amount/.test(body),
+    'unconditional feat skill bonuses must still SUM into direct.');
+  const ssrc = readSource('skills.js');
+  assert(/featSkill\.situational/.test(ssrc),
+    'skills.js must concat featSkill.situational into the per-skill notes.');
 });
 
 test('traits/flaws: own entry types, not feats (future picker can query type)', (db) => {

@@ -1028,12 +1028,23 @@ const Feats = (function () {
   // situational} to match the other pickers' shape that skills.js consumes.
   function getActiveSkillBonuses() {
     const direct = {};
+    const situational = [];
     for (const b of getResolvedFeatBonuses()) {
       if (b.bonus_type !== "skill" || !b.target || typeof b.amount !== "number") continue;
+      // Conditional feat skill bonuses (the DEFERRED_CONDITIONAL set —
+      // "+4 Jump with a running start", "+2 Balance/Tumble aboard a ship")
+      // route to a per-skill situational NOTE, mirroring the trait/flaw path,
+      // instead of summing into the always-on total. skills.js concatenates
+      // featSkill.situational alongside the race/template/trait ones.
+      const cond = (b.condition == null) ? "" : String(b.condition).trim();
+      if (cond) {
+        situational.push({ skill: String(b.target), amount: b.amount, condition: cond });
+        continue;
+      }
       const k = String(b.target).toLowerCase();
       direct[k] = (direct[k] || 0) + b.amount;
     }
-    return { direct, global: 0, situational: [] };
+    return { direct, global: 0, situational };
   }
   function getActiveSaveBonuses() {
     return (typeof DND35 !== "undefined" && DND35.categorizeSaveBonuses)

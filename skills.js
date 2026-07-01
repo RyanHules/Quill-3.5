@@ -337,6 +337,7 @@ const Skills = (function () {
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
       Array.isArray(tmplSkill.situational) ? tmplSkill.situational : [],
+      Array.isArray(featSkill.situational) ? featSkill.situational : [],
       Array.isArray(traitSkill.situational) ? traitSkill.situational : []);
 
     // Ensure a subtype row exists for any Craft/Perform/Profession-specific
@@ -551,7 +552,10 @@ const Skills = (function () {
           const sl = String(sit.skill || "").toLowerCase();
           if (sl === blKey || (blBaseKey && sl === blBaseKey)) {
             const sign = sit.amount > 0 ? "+" : "";
-            parts.push(`${sign}${sit.amount} ${sit.condition} (racial)`);
+            // Source-agnostic tag — this list now merges race / template /
+            // trait / FEAT situational bonuses, so "(racial)" mislabeled the
+            // feat + trait ones. "(conditional)" is accurate for all sources.
+            parts.push(`${sign}${sit.amount} ${sit.condition} (conditional)`);
           }
         }
         const synNotes = parts.filter(Boolean).join("; ");
