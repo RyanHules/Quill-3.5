@@ -363,10 +363,14 @@ const Character = (function () {
     // save where the data names/implies one; general ones grouped separately.
     renderSituationalSaves(bonuses.saveSituational || []);
 
-    // Initiative
+    // Initiative — DEX + misc + UA trait/flaw initiative bonuses (Aggressive
+    // +2, Torpid -2, Unreactive -6; untyped, summed). No init aggregator onion
+    // yet, so consume the picker's scalar directly.
     const initDex = getAbilityMod("DEX");
+    const initTrait = (typeof TraitPicker !== "undefined" && TraitPicker.getActiveInitBonus)
+      ? TraitPicker.getActiveInitBonus() : 0;
     $("#init-dex").textContent = fmt(initDex);
-    $("#init-total").textContent = fmt(initDex + expr($("#init-misc").value));
+    $("#init-total").textContent = fmt(initDex + expr($("#init-misc").value) + initTrait);
 
     // BAB boxes (4 iterative attacks: highest, -5, -10, -15)
     const bab1 = int($("#bab-1").value);

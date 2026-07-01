@@ -3889,6 +3889,38 @@ test('skills: structured bonuses auto-create Craft/Perform/Profession subtypes',
     '"Craft (alchemy)" would not tick the matching subtype row.');
 });
 
+test('traits: DB carries structured bonuses + the sheet consumes them', (db) => {
+  // 2026-07-01: UA traits/flaws gained hand-verified structured `bonuses`
+  // (skill/save/ac/initiative) in the DB; trait-picker.js applies them via the
+  // shared categorizers, wired into skills/app/character. Guard all layers.
+  // (a) DB: trait/flaw rows carry bonuses.
+  const r = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry WHERE type IN ('trait','flaw') "
+    + "AND json_extract(data,'$.bonuses') IS NOT NULL");
+  assert(r.n >= 30, `expected >=30 trait/flaw entries with structured bonuses, got ${r.n}`);
+  // (b) picker exposes the four aggregator feeds.
+  const tp = readSource('trait-picker.js');
+  for (const m of ['getActiveSkillBonuses', 'getActiveSaveBonuses',
+                   'getActiveACBonuses', 'getActiveInitBonus']) {
+    assert(new RegExp(m).test(tp), `trait-picker.js missing ${m}`);
+  }
+  assert(/return api/.test(tp) && /window\.TraitPicker = api/.test(tp),
+    'trait-picker.js: the IIFE must RETURN its api (const TraitPicker = IIFE) — '
+    + 'otherwise the const shadows window.TraitPicker as undefined and every '
+    + 'consumer silently skips it.');
+  // (c) consumers wire TraitPicker in.
+  assert(/traitSkill/.test(readSource('skills.js')),
+    'skills.js no longer folds in TraitPicker.getActiveSkillBonuses (traitSkill).');
+  const app = readSource('app.js');
+  assert(/TraitPicker.*getActiveSaveBonuses/.test(app) && /TraitPicker.*getActiveACBonuses/.test(app),
+    'app.js collectActiveBonuses no longer aggregates TraitPicker save/AC bonuses.');
+  assert(/window\.recalcAll = recalcAll/.test(app),
+    'app.js no longer exposes window.recalcAll — external pickers (trait/template) '
+    + 'call it to trigger a recalc; without it their apply() does nothing.');
+  assert(/TraitPicker.*getActiveInitBonus/.test(readSource('character.js')),
+    'character.js initiative no longer adds the TraitPicker init bonus.');
+});
+
 test('pickers: spell-adjacent tag-filter parity', () => {
   // 2026-06-27 parity pass: the spell-adjacent pickers gain the spell-picker's
   // multi-tag chip filter (via the shared PickerTagFilter helper) + a

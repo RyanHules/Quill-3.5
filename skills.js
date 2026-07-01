@@ -329,15 +329,21 @@ const Skills = (function () {
     // skill in Feats.getActiveSkillBonuses; same {direct, global} shape.
     const featSkill = (typeof Feats !== "undefined" && Feats.getActiveSkillBonuses)
       ? Feats.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    // UA trait/flaw skill bonuses (untyped, summed) — same {direct, global,
+    // situational} shape; conditional ones (Slippery "to escape a grapple",
+    // Nightsighted "in bright light") route to situational notes.
+    const traitSkill = (typeof TraitPicker !== "undefined" && TraitPicker.getActiveSkillBonuses)
+      ? TraitPicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
-      Array.isArray(tmplSkill.situational) ? tmplSkill.situational : []);
+      Array.isArray(tmplSkill.situational) ? tmplSkill.situational : [],
+      Array.isArray(traitSkill.situational) ? traitSkill.situational : []);
 
     // Ensure a subtype row exists for any Craft/Perform/Profession-specific
     // structured bonus so the bonus has somewhere to land (Gnome "+2 Craft
     // (alchemy)"); reconcile auto-created rows when their source is removed.
     const directBonusKeys = new Set();
-    [raceSkill, tmplSkill, featSkill, bloodlineSkill].forEach((s) => {
+    [raceSkill, tmplSkill, featSkill, bloodlineSkill, traitSkill].forEach((s) => {
       if (s && s.direct) Object.keys(s.direct).forEach((k) => directBonusKeys.add(k));
     });
     syncBonusSubtypes(directBonusKeys);
@@ -453,10 +459,13 @@ const Skills = (function () {
         + (blBaseKey ? (tmplSkill.direct[blBaseKey] || 0) : 0) + (tmplSkill.global || 0);
       const featBonus = (featSkill.direct[blKey] || 0)
         + (blBaseKey ? (featSkill.direct[blBaseKey] || 0) : 0);
+      // UA trait/flaw skill bonuses — full name + subtype-base match, untyped.
+      const traitBonus = (traitSkill.direct[blKey] || 0)
+        + (blBaseKey ? (traitSkill.direct[blBaseKey] || 0) : 0) + (traitSkill.global || 0);
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
         + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus
-        + featBonus;
+        + featBonus + traitBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");

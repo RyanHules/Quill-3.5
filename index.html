@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260701d';
+    window.CACHE_VERSION = '20260701h';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -54,7 +54,7 @@
     <button class="tab" data-tab="tab-equipment">Equipment</button>
     <button class="tab" data-tab="tab-spells">Spells</button>
     <button class="tab" data-tab="tab-companion">Companion</button>
-    <button class="tab" data-tab="tab-class-features">Class Features</button>
+    <button class="tab" data-tab="tab-class-features">Features &amp; Traits</button>
     <button class="tab" data-tab="tab-notes">Notes</button>
   </nav>
 
@@ -156,6 +156,9 @@
             <div id="bloodline-pick-summary" class="bloodline-pick-summary"
                  style="display:none"></div>
           </details>
+
+          <!-- UA Traits & Flaws picker — trait-picker.js injects here. -->
+          <div id="trait-picker-host"></div>
 
           <details class="picker-section">
             <summary>Class Lookup</summary>
@@ -808,7 +811,7 @@
       // interaction — kept here with the other shared picker aids.
       'rich-text.js',
       'race-picker.js', 'deity-picker.js',
-      'template-picker.js', 'class-spell-additions.js',
+      'template-picker.js', 'trait-picker.js', 'class-spell-additions.js',
       'class-variants.js', 'class-picker.js', 'metamagic-catalog.js',
       'spell-picker.js', 'feat-picker.js', 'item-picker.js',
       'domain-picker.js', 'mantle-picker.js', 'maneuver-picker.js', 'power-picker.js',

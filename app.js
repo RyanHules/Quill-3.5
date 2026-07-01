@@ -187,6 +187,7 @@
       (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSaveBonuses) ? TemplatePicker.getActiveSaveBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveSaveBonuses) ? Feats.getActiveSaveBonuses() : null,
+      (typeof TraitPicker !== "undefined" && TraitPicker.getActiveSaveBonuses) ? TraitPicker.getActiveSaveBonuses() : null,
     ]) {
       if (!src) continue;
       if (src.direct) {
@@ -209,6 +210,7 @@
       (typeof RacePicker !== "undefined" && RacePicker.getActiveACBonuses) ? RacePicker.getActiveACBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveACBonuses) ? TemplatePicker.getActiveACBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveACBonuses) ? Feats.getActiveACBonuses() : null,
+      (typeof TraitPicker !== "undefined" && TraitPicker.getActiveACBonuses) ? TraitPicker.getActiveACBonuses() : null,
     ]) {
       if (!src) continue;
       if (Array.isArray(src.items)) bonuses.acItems.push(...src.items);
@@ -776,6 +778,12 @@
       recalcAll();
     }
   });
+
+  // Expose the full-recalc entry point so external pickers (template-,
+  // trait-, …) can trigger a recalc after apply/remove. Several already call
+  // `window.recalcAll` and were silently relying on their input-event
+  // dispatch instead; this makes that path live (idempotent recalc).
+  window.recalcAll = recalcAll;
 
   // Also recalc on change events (dropdowns, checkboxes)
   $("#char-size").addEventListener("change", recalcAll);
