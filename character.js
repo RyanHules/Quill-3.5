@@ -406,15 +406,34 @@ const Character = (function () {
     // when its "fill bonus" box is checked the total drives the (then
     // read-only) Attack Bonus field, else the field stays free-text.
     const atkSizeMod = sizeData.acMod;
+    const weaponFocus = bonuses.weaponFocus || {};
     $$("#attacks-container .attack-entry").forEach((entry) => {
       const abilSel = entry.querySelector(".atk-calc-ability");
       if (!abilSel) return; // defensive: pre-calculator render
       const abilMod = getAbilityMod(abilSel.value || "STR");
       const misc = expr(entry.querySelector(".atk-calc-misc")?.value || "");
-      const total = bab1 + atkSizeMod + abilMod + misc;
+      // Weapon Focus / Greater Weapon Focus: +1 (each) when the feat's chosen
+      // weapon matches this row's weapon name. Match is case-insensitive and
+      // whole-word, so feat "longsword" hits "Longsword" and "Masterwork
+      // Longsword" but not a coincidental substring.
+      const weaponName = (entry.querySelector(".atk-name")?.value || "")
+        .trim().toLowerCase();
+      let focus = 0;
+      if (weaponName) {
+        for (const [k, v] of Object.entries(weaponFocus)) {
+          if (weaponFocusMatches(weaponName, k)) focus += v;
+        }
+      }
+      const total = bab1 + atkSizeMod + abilMod + misc + focus;
       entry.querySelector(".atk-calc-bab").textContent = fmt(bab1);
       entry.querySelector(".atk-calc-size").textContent = fmt(atkSizeMod);
       entry.querySelector(".atk-calc-abilmod").textContent = fmt(abilMod);
+      const focusEl = entry.querySelector(".atk-calc-focus");
+      const focusTerm = entry.querySelector(".atk-calc-focus-term");
+      const focusOp = entry.querySelector(".atk-calc-focus-op");
+      if (focusEl) focusEl.textContent = fmt(focus);
+      if (focusTerm) focusTerm.style.display = focus ? "" : "none";
+      if (focusOp) focusOp.style.display = focus ? "" : "none";
       entry.querySelector(".atk-calc-total").textContent = fmt(total);
       const bonusInput = entry.querySelector(".atk-bonus");
       if (entry.querySelector(".atk-calc-auto-cb")?.checked) {
@@ -493,6 +512,18 @@ const Character = (function () {
   // odd feat/PrC (Zen Archery WIS, a CHA-to-attack class feature, etc.).
   const ATK_ABILITY_OPTIONS = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
 
+  // True when a Weapon Focus feat's chosen weapon (`featWeapon`, lowercased)
+  // applies to an attack row named `attackName` (lowercased). Exact match, or
+  // the feat weapon appears as a whole word inside the attack name (so a
+  // "Masterwork Longsword" / "Longsword +1" row still gets Weapon Focus
+  // (Longsword)). Whole-word so "sword" can't leak into "longsword".
+  function weaponFocusMatches(attackName, featWeapon) {
+    if (!attackName || !featWeapon) return false;
+    if (attackName === featWeapon) return true;
+    const esc = featWeapon.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("\\b" + esc + "\\b").test(attackName);
+  }
+
   function addAbilityAcRow(data = {}) {
     const container = $("#ability-ac-list");
     if (!container) return;
@@ -557,6 +588,8 @@ const Character = (function () {
         <span class="atk-calc-term"><select class="atk-calc-ability">${atkAbilOpts}</select><span class="calc-field atk-calc-abilmod">+0</span></span>
         <span class="atk-calc-op">+</span>
         <span class="atk-calc-term"><span class="atk-calc-k">Other</span><input type="text" class="atk-calc-misc" value="${data.calcMisc || ""}" placeholder="0"></span>
+        <span class="atk-calc-op atk-calc-focus-op" style="display:none">+</span>
+        <span class="atk-calc-term atk-calc-focus-term" style="display:none" title="Weapon Focus / Greater Weapon Focus bonus for this weapon"><span class="atk-calc-k">Focus</span><span class="calc-field atk-calc-focus">+0</span></span>
         <span class="atk-calc-op">=</span>
         <span class="calc-field atk-calc-total atk-calc-total-big">+0</span>
         <label class="atk-calc-auto" title="Auto-fill the Attack Bonus field above from this total"><input type="checkbox" class="atk-calc-auto-cb"${data.calcAuto ? " checked" : ""}> fill bonus</label>

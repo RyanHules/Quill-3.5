@@ -217,6 +217,15 @@
       if (Array.isArray(src.situational)) bonuses.acSituational.push(...src.situational);
     }
 
+    // Weapon Focus / Spell Focus (parameterized feats). Weapon Focus feeds the
+    // per-attack calculator (character.js matches the weapon name); Spell Focus
+    // is surfaced as a per-school DC note by spells.js (the DC display is
+    // per-level, not per-school, so it annotates rather than folds in).
+    bonuses.weaponFocus = (typeof Feats !== "undefined" && Feats.getWeaponFocusBonuses)
+      ? Feats.getWeaponFocusBonuses() : {};
+    bonuses.spellFocus = (typeof Feats !== "undefined" && Feats.getSpellFocusBonuses)
+      ? Feats.getSpellFocusBonuses() : {};
+
     return bonuses;
   }
 
@@ -229,7 +238,7 @@
 
     Character.recalc(getModWithBonuses, bonuses);
     Skills.recalc(getModWithBonuses);
-    Spells.recalc(getModWithBonuses);
+    Spells.recalc(getModWithBonuses, bonuses);
     Equipment.updatePaperDoll();
 
     // Re-run the audit after every recalc so the floating widget

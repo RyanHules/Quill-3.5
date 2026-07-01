@@ -1046,6 +1046,45 @@ const Feats = (function () {
       : { items: [], situational: [] };
   }
 
+  // Weapon Focus / Greater Weapon Focus → +1 (each) to attack rolls with the
+  // named weapon. Returns { weaponNameLower: totalBonus }. Consumed by
+  // character.js's per-attack calculator, matched case-insensitively against
+  // each attack row's weapon name. Greater stacks on top of base per RAW
+  // (a character with both Weapon Focus + Greater Weapon Focus for a weapon
+  // yields +2). Feats without a parenthetical (no chosen weapon) are skipped —
+  // there's nothing to match against. Derived bonus-feat rows are included
+  // (they're .feat-entry rows too).
+  function getWeaponFocusBonuses() {
+    const out = {};
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const m = text.match(/^\s*(?:greater\s+)?weapon\s+focus\s*\(([^)]+)\)/i);
+      if (!m) return;
+      const weapon = m[1].trim().toLowerCase();
+      if (weapon) out[weapon] = (out[weapon] || 0) + 1;
+    });
+    return out;
+  }
+
+  // Spell Focus / Greater Spell Focus → +1 (each) to save DCs for spells of the
+  // named school. Returns { schoolLower: totalBonus }. Surfaced as a note by
+  // spells.js — the sheet's DC display is per spell-LEVEL, not per-school/spell,
+  // so we annotate the caster panel rather than fold into the blanket per-level
+  // DC. Greater stacks on base (both feats for one school → +2).
+  function getSpellFocusBonuses() {
+    const out = {};
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const m = text.match(/^\s*(?:greater\s+)?spell\s+focus\s*\(([^)]+)\)/i);
+      if (!m) return;
+      const school = m[1].trim().toLowerCase();
+      if (school) out[school] = (out[school] || 0) + 1;
+    });
+    return out;
+  }
+
   return {
     addFeat, addSpecialAbility, collectData, loadData,
     // Exposed for the Companion tab's feat list — same lookup logic
@@ -1055,6 +1094,7 @@ const Feats = (function () {
     // Effects-aggregator phase 3.
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses,
+    getWeaponFocusBonuses, getSpellFocusBonuses,
     // Structured-feat-entry helpers (exposed for tests).
     parseFeatText, lookupFeatInfo,
   };

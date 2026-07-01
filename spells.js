@@ -1927,13 +1927,67 @@ const Spells = (function () {
   }
 
   // --- Recalculate DCs and slot tracking for all casters ---
-  function recalc(getAbilityMod) {
+  // Build a note like "+1 DC: Enchantment, Evocation · +2 DC: Necromancy"
+  // from { schoolLower: bonus }, grouping schools by bonus amount and
+  // title-casing each. Returns "" when there are no Spell Focus feats.
+  function formatSpellFocusNote(spellFocus) {
+    const entries = Object.entries(spellFocus || {}).filter(([, n]) => n > 0);
+    if (!entries.length) return "";
+    const byBonus = {};
+    for (const [school, n] of entries) {
+      const nice = String(school).replace(/\b\w/g, (c) => c.toUpperCase());
+      (byBonus[n] = byBonus[n] || []).push(nice);
+    }
+    return Object.keys(byBonus)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((n) => `+${n} DC: ${byBonus[n].sort().join(", ")}`)
+      .join(" · ");
+  }
+
+  // Inject / update a `.sc-focus-note` under a spellcasting panel's slot
+  // table (idempotent — created once, re-textured each recalc, hidden when
+  // the note is empty). Uses text nodes for the dynamic part so user-entered
+  // school text can't inject markup.
+  function applySpellFocusNote(panel, note) {
+    let el = panel.querySelector(".sc-focus-note");
+    if (!note) { if (el) el.style.display = "none"; return; }
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "sc-focus-note";
+      const anchor = panel.querySelector(".spell-slots-table");
+      if (anchor && anchor.parentNode) {
+        anchor.parentNode.insertBefore(el, anchor.nextSibling);
+      } else {
+        panel.appendChild(el);
+      }
+    }
+    el.style.display = "";
+    el.textContent = "";
+    const label = document.createElement("span");
+    label.className = "sc-focus-note-label";
+    label.textContent = "Spell Focus:";
+    el.appendChild(label);
+    el.appendChild(document.createTextNode(" " + note));
+  }
+
+  function recalc(getAbilityMod, bonuses) {
     if (getAbilityMod) _getAbilityMod = getAbilityMod;
     // Fall back to the cached ability-mod accessor when called without
     // args (e.g. from intra-module live-update handlers).
     const abilityModFn = getAbilityMod || _getAbilityMod;
     // Get arcane spell failure from character tab
     const spellFail = int($("#arcane-spell-failure")?.value);
+
+    // Spell Focus / Greater Spell Focus. The sheet's DC display is per spell
+    // LEVEL (10 + level + ability mod), not per-school/spell — a level tab
+    // mixes schools — so we surface the school bonuses as a per-panel note
+    // rather than folding a per-school +1 into the blanket per-level DC.
+    // `{ schoolLower: bonus }`; fall back to a live read when called without
+    // the bonuses arg (intra-module live-update handlers pass none).
+    const spellFocus = (bonuses && bonuses.spellFocus)
+      || (typeof Feats !== "undefined" && Feats.getSpellFocusBonuses
+          ? Feats.getSpellFocusBonuses() : {});
+    const spellFocusNote = formatSpellFocusNote(spellFocus);
 
     // Item Familiar bonus spell slots (UA p.171): collect once per
     // recalc since the same global pool applies to all panels (matched
@@ -2100,6 +2154,11 @@ const Spells = (function () {
         const fallback = visible[visible.length - 1] || visible[0];
         if (fallback) fallback.click();
       }
+
+      // Spell Focus note — a derived reminder anchored under the slot table's
+      // DC column. Injected once per panel (idempotent), re-textured each
+      // recalc; hidden when the character has no Spell Focus feats.
+      applySpellFocusNote(panel, spellFocusNote);
     });
 
     // Psionics sub-tabs

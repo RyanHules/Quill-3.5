@@ -6265,6 +6265,79 @@ test('errata: popover aggregates the printing family (static)', () => {
     'openPopover must query the cross-printing id family via errataIdsFor');
 });
 
+test('natural-armor: race-picker prefers the structured field', () => {
+  // race-picker projects data.natural_armor and prefers it over the legacy
+  // bonuses-row / trait-text parse (recovers NA on the 44 monster races that
+  // carry the field but no structured bonuses natural-armor row). Fallback to
+  // naturalArmorFromBonuses must survive for old blobs.
+  const src = readSource('race-picker.js');
+  assert(/natural_armor:\s*\(typeof parsed\.natural_armor/.test(src),
+    'race-picker must fold parsed.natural_armor into the race projection.');
+  assert(/typeof race\.natural_armor === 'number'[\s\S]{0,120}naturalArmorFromBonuses/.test(src),
+    'race-picker NA-apply must prefer race.natural_armor, fall back to the bonuses parse.');
+});
+
+test('natural-armor: field-only monster races have a positive natural_armor', (db) => {
+  // The value the field-preference relies on: monster races carry the field.
+  const rows = db.exec(
+    "SELECT COUNT(*) AS n FROM entry WHERE type='race' " +
+    "AND CAST(json_extract(data,'$.natural_armor') AS INTEGER) > 0");
+  const n = rows[0].values[0][0];
+  assert(n >= 40, `expected >=40 races with natural_armor > 0, got ${n}`);
+});
+
+test('natural-armor: companion AUTO prefers the field + keeps it authoritative through templates', () => {
+  const src = readSource('companion.js');
+  assert(/typeof creature\.natural_armor === 'number'/.test(src),
+    'companion autoFill must prefer creature.natural_armor for baseNA.');
+  // applyTemplateToCreature must fold template NA into the FIELD (not just the
+  // ac text) so preferring the field can't drop a template contribution.
+  assert(/out\.natural_armor\s*=\s*baseFieldNa\s*\+\s*tplNa/.test(src),
+    'applyTemplateToCreature must layer template NA onto out.natural_armor.');
+});
+
+test('focus-aggregator: feats.js exposes Weapon/Spell Focus detectors', () => {
+  const src = readSource('feats.js');
+  for (const fn of ['getWeaponFocusBonuses', 'getSpellFocusBonuses']) {
+    assert(src.includes(fn), `feats.js must export ${fn}.`);
+  }
+  // Greater variants stack on base (the (?:greater\s+)? prefix is optional).
+  assert(src.includes('(?:greater\\s+)?weapon\\s+focus'),
+    'getWeaponFocusBonuses must match both Weapon Focus and Greater Weapon Focus.');
+  assert(src.includes('(?:greater\\s+)?spell\\s+focus'),
+    'getSpellFocusBonuses must match both Spell Focus and Greater Spell Focus.');
+});
+
+test('focus-aggregator: app.js collects weaponFocus + spellFocus into bonuses', () => {
+  const src = readSource('app.js');
+  assert(/bonuses\.weaponFocus\s*=/.test(src) && /bonuses\.spellFocus\s*=/.test(src),
+    'collectActiveBonuses must populate bonuses.weaponFocus and bonuses.spellFocus.');
+  assert(/Spells\.recalc\(getModWithBonuses,\s*bonuses\)/.test(src),
+    'recalcAll must pass bonuses to Spells.recalc so the DC note can render.');
+});
+
+test('focus-aggregator: character.js consumes weaponFocus with whole-word match', () => {
+  const src = readSource('character.js');
+  assert(src.includes('bonuses.weaponFocus'),
+    'character.js attack calc must read bonuses.weaponFocus.');
+  assert(src.includes('weaponFocusMatches'),
+    'character.js must gate the +1 through weaponFocusMatches.');
+  // Whole-word boundary so "sword" can't leak into "longsword".
+  assert(src.includes('"\\\\b" + esc + "\\\\b"'),
+    'weaponFocusMatches must use \\b word boundaries around the feat weapon.');
+});
+
+test('focus-aggregator: spells.js surfaces Spell Focus as a per-panel note', () => {
+  const src = readSource('spells.js');
+  assert(/function recalc\(getAbilityMod, bonuses\)/.test(src),
+    'Spells.recalc must accept the bonuses arg.');
+  for (const fn of ['formatSpellFocusNote', 'applySpellFocusNote']) {
+    assert(src.includes(fn), `spells.js must define ${fn}.`);
+  }
+  assert(src.includes('sc-focus-note'),
+    'spells.js must inject the .sc-focus-note element.');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

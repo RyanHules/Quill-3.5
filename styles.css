@@ -793,6 +793,23 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
 
 .caster-notes-field { margin-bottom: 0.75rem;max-width: 100%;}
 
+/* Derived Spell Focus reminder under a spellcasting panel's slot table.
+   The DC display is per spell-level, not per-school, so this annotates
+   which schools get the +1/+2 rather than folding it into the DC column. */
+.sc-focus-note {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.sc-focus-note-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.68rem;
+  color: var(--accent, #c9a54a);
+  margin-right: 0.3rem;
+}
+
 .psi-pp-cost { color: var(--text-muted);font-weight: 600;font-size: 0.85rem;}
 
 /* === Inner Tabs (within a tab) === */
