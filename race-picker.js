@@ -322,12 +322,27 @@
       }
     }
 
-    // 3. Speed field — primary land speed. Race entries store speed as a
-    // single string ("30 ft."); base_speed_ft is the canonical numeric form.
-    const speedField = document.getElementById('char-speed');
-    if (speedField && !speedField.value.trim() && race.base_speed_ft) {
-      speedField.value = `${race.base_speed_ft} ft.`;
-      speedField.dispatchEvent(new Event('input', { bubbles: true }));
+    // 3. Movement — land from the canonical numeric base_speed_ft; the exotic
+    // modes (Raptoran fly, Aventi swim, …) parsed from the prose `speed`
+    // string. Only fill an EMPTY box so a manual entry / prior race isn't
+    // clobbered.
+    const setModeIfEmpty = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && !el.value.trim() && val != null && val !== '') {
+        el.value = String(val);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+    if (race.base_speed_ft) setModeIfEmpty('speed-land', race.base_speed_ft);
+    if (typeof parsed.speed === 'string' && typeof DND35 !== 'undefined'
+        && DND35.parseSpeedString) {
+      const mv = DND35.parseSpeedString(parsed.speed);
+      setModeIfEmpty('speed-land', mv.land);   // prose land if base_speed_ft absent
+      setModeIfEmpty('speed-fly', mv.fly);
+      setModeIfEmpty('speed-fly-maneuver', mv.flyManeuver);
+      setModeIfEmpty('speed-swim', mv.swim);
+      setModeIfEmpty('speed-burrow', mv.burrow);
+      setModeIfEmpty('speed-climb', mv.climb);
     }
 
     // 4. Languages textarea — only the automatic ones, comma-separated.

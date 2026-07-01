@@ -532,6 +532,42 @@ const DND35 = {
     return Math.max(5, Math.floor((baseFt * 2 / 3) / 5) * 5);
   },
 
+  // Fly maneuverability classes (MM/PHB), worst → best. The sheet renders a
+  // per-fly-speed dropdown of these.
+  maneuverabilityLevels: ["clumsy", "poor", "average", "good", "perfect"],
+
+  // Parse a free-text speed line ("20 ft. (4 squares), fly 60 ft. (good),
+  // swim 30 ft.") into structured per-mode feet + fly maneuverability. The
+  // FIRST keyword-less "N ft." segment is land; fly/swim/burrow/climb are
+  // keyed by their mode word (glide folds into fly). "(N squares)" tactical
+  // annotations and trailing caveats ("at 5 HD") are ignored. Returns
+  // { land, fly, flyManeuver, swim, burrow, climb } with null for absent modes.
+  parseSpeedString(str) {
+    const out = { land: null, fly: null, flyManeuver: null,
+                  swim: null, burrow: null, climb: null };
+    if (!str || typeof str !== "string") return out;
+    for (let seg of str.split(/[,;]/)) {
+      seg = seg.replace(/\(\s*\d+\s*squares?\s*\)/i, "").trim();
+      if (!seg) continue;
+      const num = seg.match(/(\d+)\s*ft/i);
+      if (!num) continue;
+      const val = parseInt(num[1], 10);
+      const low = seg.toLowerCase();
+      if (/\b(fly|glide)\b/.test(low)) {
+        // First fly/glide wins; a real fly speed supersedes a glide.
+        if (out.fly == null || /\bfly\b/.test(low)) {
+          out.fly = val;
+          const man = seg.match(/\b(clumsy|poor|average|good|perfect)\b/i);
+          out.flyManeuver = man ? man[1].toLowerCase() : out.flyManeuver;
+        }
+      } else if (/\bswim\b/.test(low)) out.swim = val;
+      else if (/\bburrow\b/.test(low)) out.burrow = val;
+      else if (/\bclimb\b/.test(low)) out.climb = val;
+      else if (out.land == null) out.land = val;   // first bare "N ft." = land
+    }
+    return out;
+  },
+
   // Size categories and their modifiers
   sizes: {
     "Fine": { acMod: 8, grappleMod: -16, hideMod: 16, carryMult: 1/8 },

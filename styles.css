@@ -1283,6 +1283,29 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
 /* === Speed indicator (when reduced by load) === */
 .speed-reduced { color: var(--danger); font-weight: bold; }
 
+/* Per-mode movement block (Character tab) */
+.movement-block { margin-top: 0.5rem; }
+.movement-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.movement-title { font-weight: 600; color: var(--text); }
+.movement-title small { color: var(--text-muted); font-weight: 400; font-size: 0.72rem; }
+.movement-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.25rem;
+}
+.mv-row { display: flex; align-items: center; gap: 0.4rem; }
+.mv-row > label {
+  width: 48px; flex: 0 0 48px; color: var(--text-muted);
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em;
+}
+.mv-row .mv-base { width: 56px; padding: 0.15rem 0.35rem; }
+.mv-row .mv-maneuver { padding: 0.1rem 0.2rem; font-size: 0.75rem; max-width: 92px; }
+.mv-row .mv-arrow { color: var(--text-muted); }
+.mv-row .mv-cur { min-width: 34px; text-align: center; padding: 0.1rem 0.4rem; }
+
 /* === Build Timeline === */
 .bt-reconstructed-badge {
   margin-left: 0.4rem;

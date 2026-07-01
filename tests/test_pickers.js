@@ -1356,6 +1356,45 @@ test('data: categorizeACBonuses feeds the AC onion (excludes size/natural, split
   assertEq(cond.situational.length, 1, 'conditional AC → situational list');
 });
 
+test('movement: parseSpeedString structures per-mode feet + fly maneuverability', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const p = DND35.parseSpeedString.bind(DND35);
+  assertEq(p('30 ft.').land, 30, 'bare "N ft." → land');
+  assertEq(p('30 ft. (6 squares)').land, 30, '"(N squares)" annotation ignored');
+  const pixie = p('20 ft. (4 squares), fly 60 ft. (good)');
+  assertEq(pixie.land, 20, 'land parsed alongside fly');
+  assertEq(pixie.fly, 60, 'fly speed parsed');
+  assertEq(pixie.flyManeuver, 'good', 'fly maneuverability parsed');
+  const rap = p('30 ft.; glide 40 ft. (average); fly 40 ft. (average) at 5 HD');
+  assertEq(rap.land, 30, 'semicolon-separated land');
+  assertEq(rap.fly, 40, 'real fly supersedes glide; "at 5 HD" caveat ignored');
+  const dig = p('40 ft., burrow 20 ft., climb 20 ft.');
+  assertEq(dig.burrow, 20, 'burrow parsed');
+  assertEq(dig.climb, 20, 'climb parsed');
+  assertEq(p('10 ft., swim 60 ft.').swim, 60, 'swim parsed');
+  assertEq(p('fly 90 ft. (perfect)').land, null, 'pure-fly creature has null land');
+});
+
+test('movement: sheet wires per-mode boxes + save migration', () => {
+  const isrc = readSource('index.html');
+  for (const id of ['speed-land', 'speed-fly', 'speed-fly-maneuver',
+                    'speed-swim', 'speed-burrow', 'speed-climb',
+                    'fly-encumbered-ok']) {
+    assert(isrc.includes(`id="${id}"`), `index.html missing #${id}`);
+  }
+  const csrc = readSource('character.js');
+  // Old single char-speed field is gone from the collect/load field LISTS
+  // (a trailing-comma list item); the migration's data["char-speed"] read is
+  // the only remaining reference.
+  assert(!/"char-speed",/.test(csrc),
+    'character.js should no longer collect/load the single char-speed field.');
+  assert(/data\["char-speed"\][\s\S]{0,120}parseSpeedString/.test(csrc),
+    'loadData must migrate a legacy char-speed via parseSpeedString.');
+  // Fly-block rule: encumbered OR medium/heavy armor, unless fly-encumbered-ok.
+  assert(/flyBlocked[\s\S]{0,80}fly-encumbered-ok/.test(csrc),
+    'character.js must gate the fly-block on the fly-encumbered-ok exception.');
+});
+
 test('data: categorizeSaveBonuses splits unconditional vs situational + tags the save', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // Unconditional all-saves bonus → a TYPED entry in each save's direct list.

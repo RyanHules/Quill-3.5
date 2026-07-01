@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260701o';
+    window.CACHE_VERSION = '20260701q';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -242,10 +242,19 @@
             <div class="field"><label>Temp HP</label><input type="number" id="hp-temp" min="0"></div>
             <div class="field"><label>Nonlethal Damage</label><input type="number" id="hp-nonlethal" min="0"></div>
           </div>
-          <div class="hp-row">
-            <div class="field"><label>Speed (base)</label><input type="text" id="char-speed" placeholder="e.g. 30 ft."></div>
-            <div class="field"><label>Speed (current)</label><span id="speed-current" class="calc-field">--</span></div>
-            <div class="field"><label class="mi-toggle" title="Dwarves, certain class features (Mountain Movement), and other abilities ignore the speed reduction from medium/heavy load."><input type="checkbox" id="ignore-encumbrance"> Ignore encumbrance</label></div>
+          <div class="movement-block">
+            <div class="movement-head">
+              <span class="movement-title">Movement <small>(base → current, ft.)</small></span>
+              <label class="mi-toggle" title="Dwarves, certain class features (Mountain Movement), and other abilities ignore the speed reduction from medium/heavy load."><input type="checkbox" id="ignore-encumbrance"> Ignore encumbrance</label>
+              <label class="mi-toggle" title="Normally you can't fly while carrying a medium/heavy load or wearing medium/heavy armor. Check this if a feat, class feature, or item lets you (set automatically by such features once wired)."><input type="checkbox" id="fly-encumbered-ok"> Fly while encumbered</label>
+            </div>
+            <div class="movement-grid">
+              <div class="mv-row"><label>Land</label><input type="number" id="speed-land" class="mv-base" min="0" placeholder="0"><span class="mv-arrow">→</span><span id="speed-land-current" class="calc-field mv-cur">--</span></div>
+              <div class="mv-row"><label>Fly</label><input type="number" id="speed-fly" class="mv-base" min="0" placeholder="—"><select id="speed-fly-maneuver" class="mv-maneuver" title="Fly maneuverability"><option value="">—</option><option value="clumsy">Clumsy</option><option value="poor">Poor</option><option value="average">Average</option><option value="good">Good</option><option value="perfect">Perfect</option></select><span class="mv-arrow">→</span><span id="speed-fly-current" class="calc-field mv-cur">--</span></div>
+              <div class="mv-row"><label>Swim</label><input type="number" id="speed-swim" class="mv-base" min="0" placeholder="—"><span class="mv-arrow">→</span><span id="speed-swim-current" class="calc-field mv-cur">--</span></div>
+              <div class="mv-row"><label>Burrow</label><input type="number" id="speed-burrow" class="mv-base" min="0" placeholder="—"><span class="mv-arrow">→</span><span id="speed-burrow-current" class="calc-field mv-cur">--</span></div>
+              <div class="mv-row"><label>Climb</label><input type="number" id="speed-climb" class="mv-base" min="0" placeholder="—"><span class="mv-arrow">→</span><span id="speed-climb-current" class="calc-field mv-cur">--</span></div>
+            </div>
           </div>
         </section>
 

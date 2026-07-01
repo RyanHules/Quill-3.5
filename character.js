@@ -184,28 +184,56 @@ const Character = (function () {
     const effectiveMaxDex = Math.min(armorMaxDex, loadPenalties.maxDex);
     const effectiveCheckPenalty = Math.min(armorTotalCheckPen, loadPenalties.checkPenalty);
 
-    // Speed reduction from load (PHB Table 9-2). Light → no change;
-    // medium/heavy → reducedSpeed() drops by ~1/3 (rounded to 5 ft).
-    // Parses leading integer from the base-speed input ("30 ft." → 30)
-    // so the user can keep their preferred annotation format.
-    const baseSpeedRaw = String($("#char-speed")?.value || "");
-    const baseSpeedMatch = baseSpeedRaw.match(/-?\d+/);
-    const baseSpeed = baseSpeedMatch ? parseInt(baseSpeedMatch[0], 10) : 0;
-    const speedReduces = !ignoreEncumbrance &&
-                          (loadCategory === "medium" || loadCategory === "heavy");
-    const currentSpeed = speedReduces ? DND35.reducedSpeed(baseSpeed) : baseSpeed;
-    const speedEl = $("#speed-current");
-    if (speedEl) {
-      if (!baseSpeed) {
-        speedEl.textContent = "--";
-        speedEl.classList.remove("speed-reduced");
-      } else if (speedReduces && currentSpeed < baseSpeed) {
-        speedEl.textContent = `${currentSpeed} ft (from ${baseSpeed})`;
-        speedEl.classList.add("speed-reduced");
+    // Per-mode movement (PHB Table 9-2 + flight-encumbrance rule).
+    //  - LAND reduces under a medium/heavy load (reducedSpeed, ~2/3 → 5 ft),
+    //    unless "ignore encumbrance" is on.
+    //  - FLY is DISABLED while carrying a medium/heavy load OR wearing
+    //    medium/heavy armor, unless "fly while encumbered" is on (a feat /
+    //    class feature / item grants it). Maneuverability shown alongside.
+    //  - SWIM / BURROW / CLIMB are shown as entered (not load-reduced).
+    const encumbered = (loadCategory === "medium" || loadCategory === "heavy");
+    const landReduces = !ignoreEncumbrance && encumbered;
+    const armorHeavyish = /\b(med|heav)/i.test(String($("#armor-type")?.value || ""));
+    const flyBlocked = (encumbered || armorHeavyish) &&
+                       !($("#fly-encumbered-ok")?.checked);
+    const modeBase = (id) => parseInt($(`#${id}`)?.value, 10) || 0;
+
+    // Land
+    const landBase = modeBase("speed-land");
+    const landCur = landReduces ? DND35.reducedSpeed(landBase) : landBase;
+    const landEl = $("#speed-land-current");
+    if (landEl) {
+      if (!landBase) { landEl.textContent = "--"; landEl.classList.remove("speed-reduced"); }
+      else if (landReduces && landCur < landBase) {
+        landEl.textContent = `${landCur} (from ${landBase})`;
+        landEl.classList.add("speed-reduced");
+      } else { landEl.textContent = `${landCur}`; landEl.classList.remove("speed-reduced"); }
+    }
+    // Fly — the maneuverability shows in the adjacent dropdown, so the current
+    // value stays just the number (or "0" struck through when encumbrance
+    // blocks flight). A title tooltip carries the "encumbered" reason.
+    const flyBase = modeBase("speed-fly");
+    const flyEl = $("#speed-fly-current");
+    if (flyEl) {
+      if (!flyBase) {
+        flyEl.textContent = "--"; flyEl.title = "";
+        flyEl.classList.remove("speed-reduced");
+      } else if (flyBlocked) {
+        flyEl.textContent = "0";
+        flyEl.title = "Can't fly under a medium/heavy load or in medium/heavy armor — tick “Fly while encumbered” if a feature allows it.";
+        flyEl.classList.add("speed-reduced");
       } else {
-        speedEl.textContent = `${currentSpeed} ft`;
-        speedEl.classList.remove("speed-reduced");
+        flyEl.textContent = `${flyBase}`; flyEl.title = "";
+        flyEl.classList.remove("speed-reduced");
       }
+    }
+    // Swim / Burrow / Climb — shown as entered.
+    for (const m of ["swim", "burrow", "climb"]) {
+      const el = $(`#speed-${m}-current`);
+      if (!el) continue;
+      const b = modeBase(`speed-${m}`);
+      el.textContent = b ? `${b}` : "--";
+      el.classList.remove("speed-reduced");
     }
 
     // Auto-set armor check penalty (effective = worse of armor or load)
@@ -617,7 +645,11 @@ const Character = (function () {
       "char-name", "char-player", "char-class", "char-race", "char-type",
       "char-alignment", "char-deity", "char-level", "char-size", "char-age",
       "char-gender", "char-height", "char-weight", "char-eyes", "char-hair",
-      "char-skin", "char-campaign", "char-xp", "char-speed", "damage-reduction",
+      "char-skin", "char-campaign", "char-xp", "damage-reduction",
+      // Per-mode movement (replaced the single free-text char-speed 2026-07-01;
+      // old saves migrate on load).
+      "speed-land", "speed-fly", "speed-fly-maneuver",
+      "speed-swim", "speed-burrow", "speed-climb",
     ].forEach((id) => {
       const el = $(`#${id}`);
       if (el) data[id] = el.value;
@@ -663,6 +695,7 @@ const Character = (function () {
       });
     });
     data["ignore-encumbrance"] = $("#ignore-encumbrance")?.checked || false;
+    data["fly-encumbered-ok"] = $("#fly-encumbered-ok")?.checked || false;
 
     // Saves
     ["fort", "ref", "will"].forEach((prefix) => {
@@ -704,7 +737,9 @@ const Character = (function () {
       "char-name", "char-player", "char-class", "char-race", "char-type",
       "char-alignment", "char-deity", "char-level", "char-size", "char-age",
       "char-gender", "char-height", "char-weight", "char-eyes", "char-hair",
-      "char-skin", "char-campaign", "char-xp", "char-speed", "damage-reduction",
+      "char-skin", "char-campaign", "char-xp", "damage-reduction",
+      "speed-land", "speed-fly", "speed-fly-maneuver",
+      "speed-swim", "speed-burrow", "speed-climb",
       "hp-total", "hp-current", "hp-temp", "hp-nonlethal",
       "ac-natural", "ac-misc", "ac-miss-chance", "ac-defense-notes",
       "save-conditional", "init-misc", "bab-1", "grapple-misc",
@@ -758,6 +793,23 @@ const Character = (function () {
     }
     if (data["ignore-encumbrance"] !== undefined && $("#ignore-encumbrance")) {
       $("#ignore-encumbrance").checked = !!data["ignore-encumbrance"];
+    }
+    if (data["fly-encumbered-ok"] !== undefined && $("#fly-encumbered-ok")) {
+      $("#fly-encumbered-ok").checked = !!data["fly-encumbered-ok"];
+    }
+    // Migration: pre-2026-07-01 saves stored a single free-text `char-speed`
+    // ("30 ft., fly 60 ft. (good)"). Parse it into the new per-mode boxes when
+    // the new fields are absent, so no existing character loses their speed.
+    if (data["char-speed"] != null && data["speed-land"] == null &&
+        typeof DND35 !== "undefined" && DND35.parseSpeedString) {
+      const m = DND35.parseSpeedString(String(data["char-speed"]));
+      const set = (id, v) => { const el = $(`#${id}`); if (el && v != null) el.value = v; };
+      set("speed-land", m.land);
+      set("speed-fly", m.fly);
+      set("speed-fly-maneuver", m.flyManeuver || "");
+      set("speed-swim", m.swim);
+      set("speed-burrow", m.burrow);
+      set("speed-climb", m.climb);
     }
 
     // Saves

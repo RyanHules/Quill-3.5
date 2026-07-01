@@ -223,7 +223,8 @@
       }
     }
     clearOwned('ac-natural', '0', 'input');
-    clearOwned('char-speed', '', 'input');
+    ['speed-land', 'speed-fly', 'speed-fly-maneuver', 'speed-swim',
+     'speed-burrow', 'speed-climb'].forEach(id => clearOwned(id, '', 'input'));
     clearOwned('char-type', '', 'input');
     // NOTE: #char-race is the unified Race input the player typed into —
     // we no longer own/clear it (the old separate creature input is gone).
@@ -314,12 +315,24 @@
       }
     }
 
-    // 3. Speed — prefer the explicit prose string (carries fly/swim),
-    //    else the base land speed int.
+    // 3. Movement — parse the prose speed string (carries fly/swim/burrow/
+    //    climb + maneuverability) into the per-mode boxes.
     const speedText = ac.speed ||
       (ac.base_speed_ft != null ? `${ac.base_speed_ft} ft.` : null);
-    if (speedText && !setOwnedOrEmpty('char-speed', speedText, 'input')) {
-      notApplied.push(`speed (${speedText})`);
+    if (speedText && typeof DND35 !== 'undefined' && DND35.parseSpeedString) {
+      const mv = DND35.parseSpeedString(speedText);
+      let anyApplied = false;
+      const setMode = (id, val) => {
+        if (val == null || val === '') return;
+        if (setOwnedOrEmpty(id, String(val), 'input')) anyApplied = true;
+      };
+      setMode('speed-land', mv.land);
+      setMode('speed-fly', mv.fly);
+      setMode('speed-fly-maneuver', mv.flyManeuver);
+      setMode('speed-swim', mv.swim);
+      setMode('speed-burrow', mv.burrow);
+      setMode('speed-climb', mv.climb);
+      if (!anyApplied) notApplied.push(`speed (${speedText})`);
     }
 
     // 4. Natural armor (default field value is "0" → treat as unset).
