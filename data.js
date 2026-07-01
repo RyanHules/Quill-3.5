@@ -859,7 +859,12 @@ const DND35 = {
         const cond = b.condition ? String(b.condition).trim() : '';
         if (cond) out.situational.push({ mode, amount: amt, condition: cond,
           category: b.bonus_category, source: b.source });
-        else out[mode].add.push({ amount: amt, bonus_category: b.bonus_category });
+        else out[mode].add.push({ amount: amt, bonus_category: b.bonus_category,
+          // Monk / Scout fast movement only applies unarmored + ≤ light load;
+          // character.js drops these from the sum when the character is
+          // armored or encumbered.
+          requires_light: b.requires_light || undefined,
+          source: b.source });
       }
     }
     for (const m of MODES) out[m].addTotal = this.stackBonuses(out[m].add).total;

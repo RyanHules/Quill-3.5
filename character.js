@@ -200,12 +200,22 @@ const Character = (function () {
     const flyOk = ($("#fly-encumbered-ok")?.checked) || !!spd.flyEncumberedOk;
     const flyBlocked = (encumbered || armorHeavyish) && !flyOk;
     const modeBase = (id) => parseInt($(`#${id}`)?.value, 10) || 0;
+    // Monk / Scout fast movement (add entries flagged requires_light) applies
+    // only while unarmored AND not encumbered.
+    const unarmoredLight = !String($("#armor-type")?.value || "").trim() && !encumbered;
     // Effective base for a mode = max(box + typed-stacked add total, granted
     // set). The box is the character's own listed speed; add layers deltas
-    // (Longstrider), set grants/overrides a mode (Fly spell, a racial fly).
+    // (Longstrider, Barbarian fast movement), set grants/overrides a mode
+    // (Fly spell, a racial fly). requires_light adds are dropped when armored
+    // / encumbered; the surviving adds re-stack (typed: best-per-type + sum).
     const modeEff = (mode) => {
       const s = spd[mode] || {};
-      return Math.max(modeBase(`speed-${mode}`) + (s.addTotal || 0), s.set || 0);
+      const adds = (Array.isArray(s.add) ? s.add : [])
+        .filter(a => a && (!a.requires_light || unarmoredLight));
+      const addTotal = (typeof DND35.stackBonuses === "function")
+        ? DND35.stackBonuses(adds).total
+        : adds.reduce((t, a) => t + (a.amount || 0), 0);
+      return Math.max(modeBase(`speed-${mode}`) + addTotal, s.set || 0);
     };
 
     // Land — reduced by a medium/heavy load unless ignore-encumbrance.

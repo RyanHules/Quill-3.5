@@ -4971,9 +4971,47 @@
     }
   });
 
+  // Class-feature fast movement (effects-aggregator P4). Curated map of the
+  // classes whose feature grants a land-speed bonus: class name → (level) =>
+  // {amount, bonus_category, requires_light?} | null. Barbarian's is untyped
+  // and always on; Monk's is untyped but only unarmored + ≤ light load
+  // (requires_light — the gate lives in character.js, which knows the load /
+  // armor state). Extend as more speed-granting classes / PrCs are wired.
+  const CLASS_FAST_MOVEMENT = {
+    "Barbarian": (lvl) => lvl >= 1
+      ? { amount: 10, bonus_category: "untyped" } : null,
+    // Monk unarmored speed bonus (PHB/SRD Table 3-10): +10 @5th, +20 @9th,
+    // +30 @13th, +40 @17th.
+    "Monk": (lvl) => {
+      const amt = lvl >= 17 ? 40 : lvl >= 13 ? 30 : lvl >= 9 ? 20 : lvl >= 5 ? 10 : 0;
+      return amt ? { amount: amt, bonus_category: "untyped", requires_light: true } : null;
+    },
+  };
+  function getActiveSpeedBonuses() {
+    // Highest level per class name (multiclass-safe; a name can't appear twice
+    // but be defensive). Gestalt: a class on either side still grants it.
+    const byName = {};
+    for (const c of pickedClasses.concat(
+        (typeof pickedClassesB !== "undefined" && Array.isArray(pickedClassesB))
+          ? pickedClassesB : [])) {
+      if (!c || !c.className) continue;
+      const lvl = parseInt(c.level, 10) || 0;
+      byName[c.className] = Math.max(byName[c.className] || 0, lvl);
+    }
+    const out = [];
+    for (const [name, fn] of Object.entries(CLASS_FAST_MOVEMENT)) {
+      const lvl = byName[name];
+      if (!lvl) continue;
+      const b = fn(lvl);
+      if (b) out.push(Object.assign({ bonus_type: "speed", mode: "land", source: name }, b));
+    }
+    return out;
+  }
+
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
+    getActiveSpeedBonuses,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,

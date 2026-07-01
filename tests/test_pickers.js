@@ -1420,6 +1420,26 @@ test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legac
     true, 'fly_encumbered_ok flag surfaces');
 });
 
+test('movement P4: class fast movement (Barbarian always, Monk requires_light + scales)', () => {
+  const csrc = readSource('class-picker.js');
+  assert(/CLASS_FAST_MOVEMENT/.test(csrc) && /getActiveSpeedBonuses/.test(csrc),
+    'class-picker must expose getActiveSpeedBonuses from a CLASS_FAST_MOVEMENT map.');
+  // Barbarian +10 untyped, no requires_light; Monk scales + requires_light.
+  assert(/"Barbarian":[\s\S]{0,80}amount:\s*10/.test(csrc),
+    'Barbarian fast movement = +10 land.');
+  assert(/"Monk":[\s\S]{0,160}requires_light:\s*true/.test(csrc),
+    'Monk fast movement must be flagged requires_light.');
+  // app wires ClassPicker into the speed sources.
+  assert(/ClassPicker\s*:\s*null[\s\S]{0,400}getActiveSpeedBonuses/.test(readSource('app.js')) ||
+         /ClassPicker[\s\S]{0,40}getActiveSpeedBonuses/.test(readSource('app.js')),
+    'app.js must gather ClassPicker.getActiveSpeedBonuses.');
+  // character.js gates requires_light adds on unarmored + not encumbered.
+  const chr = readSource('character.js');
+  assert(/unarmoredLight\s*=\s*!String\(\$\("#armor-type"\)/.test(chr) &&
+         /requires_light\s*\|\|\s*unarmoredLight/.test(chr),
+    'character.js must drop requires_light adds when armored/encumbered.');
+});
+
 test('movement P3: structured movement field + consumers prefer it', (db) => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // movementListToModes maps the canonical list → the flat box shape.

@@ -233,6 +233,7 @@
     for (const mod of [
       typeof RacePicker !== "undefined" ? RacePicker : null,
       typeof TemplatePicker !== "undefined" ? TemplatePicker : null,
+      typeof ClassPicker !== "undefined" ? ClassPicker : null,
       typeof Feats !== "undefined" ? Feats : null,
       typeof ClassFeatures !== "undefined" ? ClassFeatures : null,
       typeof Bloodline !== "undefined" ? Bloodline : null,
