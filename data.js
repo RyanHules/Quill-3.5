@@ -536,6 +536,26 @@ const DND35 = {
   // per-fly-speed dropdown of these.
   maneuverabilityLevels: ["clumsy", "poor", "average", "good", "perfect"],
 
+  // Armor / load categories ranked light → heavy, for threshold comparisons
+  // (fast-movement gating, fly-block). "none" is armor-only (0 = no armor).
+  armorRank: { none: 0, light: 1, medium: 2, heavy: 3 },
+  loadRank: { light: 0, medium: 1, heavy: 2 },
+
+  // Classify the free-text `#armor-type` field ("Heavy Plate", "Chain Shirt
+  // (Light)", "Medium", "") into none/light/medium/heavy. The field's
+  // placeholder is "Light/Med/Heavy", so a category keyword is the intended
+  // input; armor text WITHOUT a keyword (a bare armor name) is treated as
+  // "light" — the least-restrictive real category, which still counts as
+  // "wearing armor" for a feature that requires NONE (Monk). Type the
+  // category to be exact for medium/heavy named armors.
+  armorCategory(str) {
+    const t = String(str == null ? "" : str).toLowerCase();
+    if (!t.trim()) return "none";
+    if (/heav/.test(t)) return "heavy";
+    if (/medium|\bmed\b/.test(t)) return "medium";
+    return "light";   // "light" keyword OR a bare armor name
+  },
+
   // Convert the DB's canonical `movement` list — [{mode, speed_ft,
   // maneuverability}] (build-derived, P3) — into the flat
   // {land, fly, flyManeuver, swim, burrow, climb} shape the per-mode boxes
@@ -860,12 +880,12 @@ const DND35 = {
         if (cond) out.situational.push({ mode, amount: amt, condition: cond,
           category: b.bonus_category, source: b.source });
         else out[mode].add.push({ amount: amt, bonus_category: b.bonus_category,
-          // Load/armor gates, dropped in character.js when exceeded:
-          //   requires_light    — unarmored + ≤ light load (Monk).
-          //   requires_not_heavy — not heavy armor + not heavy load, i.e.
-          //                        light/medium OK (Barbarian).
-          requires_light: b.requires_light || undefined,
-          requires_not_heavy: b.requires_not_heavy || undefined,
+          // Independent load/armor caps (heaviest tolerated), checked in
+          // character.js; the add is dropped when either is exceeded. Absent =
+          // no restriction on that axis. Monk = {none, light}; Barbarian =
+          // {medium, medium}; Scout = {light, light}.
+          max_armor: b.max_armor || undefined,
+          max_load: b.max_load || undefined,
           source: b.source });
       }
     }

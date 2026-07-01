@@ -1393,8 +1393,8 @@ test('movement: sheet wires per-mode boxes + save migration', () => {
   // Fly-block rule: encumbered OR medium/heavy armor, unless flyOk (manual
   // checkbox OR an aggregator-granted flyEncumberedOk).
   assert(/fly-encumbered-ok[\s\S]{0,80}flyEncumberedOk/.test(csrc) &&
-         /flyBlocked\s*=\s*\(encumbered\s*\|\|\s*armorHeavyish\)\s*&&\s*!flyOk/.test(csrc),
-    'character.js must gate the fly-block on the flyOk exception (checkbox or aggregator).');
+         /flyBlocked\s*=\s*\(encumbered\s*\|\|\s*armorRank\s*>=\s*2\)\s*&&\s*!flyOk/.test(csrc),
+    'character.js must gate the fly-block (medium+ armor via armorRank, or encumbered) on the flyOk exception.');
 });
 
 test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legacy shapes)', () => {
@@ -1420,29 +1420,33 @@ test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legac
     true, 'fly_encumbered_ok flag surfaces');
 });
 
-test('movement P4: class fast movement (Barbarian always, Monk requires_light + scales)', () => {
+test('movement P4: class fast movement + independent armor/load caps', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // armorCategory classifier.
+  assertEq(DND35.armorCategory(''), 'none', 'blank → none');
+  assertEq(DND35.armorCategory('Heavy Plate'), 'heavy', 'heavy keyword');
+  assertEq(DND35.armorCategory('Medium'), 'medium', 'medium keyword');
+  assertEq(DND35.armorCategory('Chain Shirt (Light)'), 'light', 'light keyword');
+  assertEq(DND35.armorCategory('Breastplate'), 'light', 'bare armor name → light default');
   const csrc = readSource('class-picker.js');
   assert(/CLASS_FAST_MOVEMENT/.test(csrc) && /getActiveSpeedBonuses/.test(csrc),
     'class-picker must expose getActiveSpeedBonuses from a CLASS_FAST_MOVEMENT map.');
-  // Barbarian +10 untyped requires_not_heavy; Monk scales + requires_light.
-  assert(/"Barbarian":[\s\S]{0,140}amount:\s*10[\s\S]{0,60}requires_not_heavy:\s*true/.test(csrc),
-    'Barbarian fast movement = +10 land, requires_not_heavy.');
-  assert(/"Monk":[\s\S]{0,200}requires_light:\s*true/.test(csrc),
-    'Monk fast movement must be flagged requires_light.');
+  // Each class declares its two caps independently.
+  assert(/"Barbarian":[\s\S]{0,160}max_armor:\s*"medium"[\s\S]{0,40}max_load:\s*"medium"/.test(csrc),
+    'Barbarian = {max_armor medium, max_load medium}.');
+  assert(/"Monk":[\s\S]{0,240}max_armor:\s*"none"[\s\S]{0,40}max_load:\s*"light"/.test(csrc),
+    'Monk = {max_armor none, max_load light}.');
+  assert(/"Scout":[\s\S]{0,200}max_armor:\s*"light"[\s\S]{0,40}max_load:\s*"light"/.test(csrc),
+    'Scout = {max_armor light, max_load light}.');
   // app wires ClassPicker into the speed sources.
   assert(/ClassPicker[\s\S]{0,60}getActiveSpeedBonuses/.test(readSource('app.js')) ||
          /getActiveSpeedBonuses[\s\S]*ClassPicker/.test(readSource('app.js')),
     'app.js must gather ClassPicker.getActiveSpeedBonuses.');
-  // character.js gates: requires_light (Monk: unarmored+light) and
-  // requires_not_heavy (Barbarian: not heavy armor/load) are both dropped when
-  // exceeded.
+  // character.js gates each axis independently via ranks — two conditionals.
   const chr = readSource('character.js');
-  assert(/unarmoredLight\s*=\s*!armorTypeStr\s*&&\s*!encumbered/.test(chr) &&
-         /notHeavy\s*=\s*loadCategory\s*!==\s*"heavy"\s*&&\s*!heavyArmor/.test(chr),
-    'character.js must define the unarmoredLight + notHeavy gates.');
-  assert(/a\.requires_light\s*&&\s*!unarmoredLight/.test(chr) &&
-         /a\.requires_not_heavy\s*&&\s*!notHeavy/.test(chr),
-    'character.js modeEff must drop requires_light + requires_not_heavy adds when exceeded.');
+  assert(/armorRank\s*<=\s*\(DND35\.armorRank\[a\.max_armor\]/.test(chr) &&
+         /loadRankNow\s*<=\s*\(DND35\.loadRank\[a\.max_load\]/.test(chr),
+    'character.js gatePasses must compare armorRank vs max_armor AND loadRank vs max_load.');
 });
 
 test('movement P3: structured movement field + consumers prefer it', (db) => {

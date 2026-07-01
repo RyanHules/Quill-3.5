@@ -4978,15 +4978,20 @@
   // (requires_light — the gate lives in character.js, which knows the load /
   // armor state). Extend as more speed-granting classes / PrCs are wired.
   const CLASS_FAST_MOVEMENT = {
-    // Barbarian (SRD): +10 land, wearing no/light/medium armor and NOT
-    // carrying a heavy load → requires_not_heavy.
+    // Barbarian (SRD): +10 land in no/light/medium armor, not a heavy load.
     "Barbarian": (lvl) => lvl >= 1
-      ? { amount: 10, bonus_category: "untyped", requires_not_heavy: true } : null,
+      ? { amount: 10, bonus_category: "untyped", max_armor: "medium", max_load: "medium" } : null,
     // Monk unarmored speed bonus (PHB/SRD Table 3-10): +10 @5th, +20 @9th,
-    // +30 @13th, +40 @17th.
+    // +30 @13th, +40 @17th. No armor, ≤ light load.
     "Monk": (lvl) => {
       const amt = lvl >= 17 ? 40 : lvl >= 13 ? 30 : lvl >= 9 ? 20 : lvl >= 5 ? 10 : 0;
-      return amt ? { amount: amt, bonus_category: "untyped", requires_light: true } : null;
+      return amt ? { amount: amt, bonus_category: "untyped", max_armor: "none", max_load: "light" } : null;
+    },
+    // Scout (Complete Adventurer): Fast Movement +10 @3rd, +20 @11th, in
+    // light/no armor and ≤ light load.
+    "Scout": (lvl) => {
+      const amt = lvl >= 11 ? 20 : lvl >= 3 ? 10 : 0;
+      return amt ? { amount: amt, bonus_category: "untyped", max_armor: "light", max_load: "light" } : null;
     },
   };
   function getActiveSpeedBonuses() {

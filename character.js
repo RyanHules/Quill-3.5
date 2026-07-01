@@ -193,34 +193,32 @@ const Character = (function () {
     //  - SWIM / BURROW / CLIMB are shown as entered (not load-reduced).
     const encumbered = (loadCategory === "medium" || loadCategory === "heavy");
     const landReduces = !ignoreEncumbrance && encumbered;
-    const armorHeavyish = /\b(med|heav)/i.test(String($("#armor-type")?.value || ""));
+    // Full armor granularity: classify #armor-type once and rank it.
+    const armorCat = DND35.armorCategory($("#armor-type")?.value);
+    const armorRank = DND35.armorRank[armorCat] || 0;   // none0/light1/medium2/heavy3
+    const loadRankNow = DND35.loadRank[loadCategory] ?? 0;   // light0/medium1/heavy2
     // Aggregator (P2): per-mode add/set + a fly-while-encumbered grant from a
     // feat / class feature / race (bonuses.speed via categorizeSpeedBonuses).
     const spd = (bonuses && bonuses.speed) || {};
     const flyOk = ($("#fly-encumbered-ok")?.checked) || !!spd.flyEncumberedOk;
-    const flyBlocked = (encumbered || armorHeavyish) && !flyOk;
+    // Can't fly under a medium/heavy load OR medium/heavy armor (unless flyOk).
+    const flyBlocked = (encumbered || armorRank >= 2) && !flyOk;
     const modeBase = (id) => parseInt($(`#${id}`)?.value, 10) || 0;
-    // Load/armor gates for fast-movement adds:
-    //   requires_light    — Monk: NO armor + light load only.
-    //   requires_not_heavy — Barbarian: not heavy armor + not heavy load
-    //                        (light/medium armor + light/medium load are fine).
-    const armorTypeStr = String($("#armor-type")?.value || "").trim();
-    const heavyArmor = /\bheav/i.test(armorTypeStr);
-    const unarmoredLight = !armorTypeStr && !encumbered;
-    const notHeavy = loadCategory !== "heavy" && !heavyArmor;
+    // Fast-movement adds carry independent caps (max_armor, max_load = heaviest
+    // tolerated); drop an add when EITHER axis is exceeded. Two conditionals,
+    // no per-combination cases: Monk={none,light}, Barbarian={medium,medium},
+    // Scout={light,light}.
+    const gatePasses = (a) =>
+      (a.max_armor == null || armorRank <= (DND35.armorRank[a.max_armor] ?? 3)) &&
+      (a.max_load == null || loadRankNow <= (DND35.loadRank[a.max_load] ?? 2));
     // Effective base for a mode = max(box + typed-stacked add total, granted
     // set). The box is the character's own listed speed; add layers deltas
     // (Longstrider, Barbarian/Monk fast movement), set grants/overrides a mode
-    // (Fly spell, a racial fly). Gated adds are dropped when their load/armor
-    // limit is exceeded; the surviving adds re-stack (typed: best-per-type + sum).
+    // (Fly spell, a racial fly). Gated adds drop when over their cap; the
+    // survivors re-stack (typed: best-per-type + sum).
     const modeEff = (mode) => {
       const s = spd[mode] || {};
-      const adds = (Array.isArray(s.add) ? s.add : []).filter(a => {
-        if (!a) return false;
-        if (a.requires_light && !unarmoredLight) return false;
-        if (a.requires_not_heavy && !notHeavy) return false;
-        return true;
-      });
+      const adds = (Array.isArray(s.add) ? s.add : []).filter(a => a && gatePasses(a));
       const addTotal = (typeof DND35.stackBonuses === "function")
         ? DND35.stackBonuses(adds).total
         : adds.reduce((t, a) => t + (a.amount || 0), 0);
