@@ -1141,12 +1141,24 @@ const Companion = (function () {
       }
     }
 
-    // Natural armor bonus from template — add to base creature's
-    // `armor_class` text so the existing parser in
-    // autoFillFromBaseCreature picks up the new total.
+    // Natural armor bonus from template — layer it onto BOTH the structured
+    // `natural_armor` integer (now the authoritative source in
+    // autoFillFromBaseCreature) AND the `armor_class` text (kept in sync for
+    // display / any legacy text parser). Recover the base NA from the field
+    // when present, else from the AC text, so a template applied to a creature
+    // whose field is absent still totals correctly.
     const tplNa = deriveTemplateNaturalArmor(tpl);
-    if (tplNa && typeof out.armor_class === 'string') {
-      out.armor_class = appendTemplateNaToAcText(out.armor_class, tplNa);
+    if (tplNa) {
+      const baseFieldNa = (typeof out.natural_armor === 'number')
+        ? out.natural_armor
+        : (() => {
+            const m = String(out.armor_class || '').match(/([+\-]?\d+)\s*natural/i);
+            return m ? parseInt(m[1], 10) : 0;
+          })();
+      out.natural_armor = baseFieldNa + tplNa;
+      if (typeof out.armor_class === 'string') {
+        out.armor_class = appendTemplateNaToAcText(out.armor_class, tplNa);
+      }
     }
 
     // Type, size, speed, alignment overrides.
@@ -1359,12 +1371,18 @@ const Companion = (function () {
       CHA: base.Cha || 0,
     };
 
-    // Pull natural armor out of the free-text armor_class string
-    // (e.g. "14 (+2 Dex, +2 natural), touch 12, flat-footed 12" →
-    // baseNA=2). Some creatures have no natural armor; default 0.
+    // Natural armor: prefer the structured `natural_armor` integer (the DB
+    // carries it on 1648 creatures; verified to agree with the armor_class
+    // text token on all 1645 where both exist, and to recover NA on a few
+    // where the text lacks a "+N natural" token). Fall back to parsing the
+    // free-text armor_class string ("14 (+2 Dex, +2 natural), …" → baseNA=2)
+    // for any blob without the field. Template NA is already folded into the
+    // field by applyTemplateToCreature above. Default 0 when neither present.
     const acText = String(creature.armor_class || '');
     const naMatch = acText.match(/([+\-]?\d+)\s*natural/i);
-    const baseNA = naMatch ? parseInt(naMatch[1], 10) : 0;
+    const baseNA = (typeof creature.natural_armor === 'number')
+      ? creature.natural_armor
+      : (naMatch ? parseInt(naMatch[1], 10) : 0);
 
     // Size escalation MUST be determined BEFORE we write ability
     // scores / natural armor, because crossing a size band applies

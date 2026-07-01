@@ -257,6 +257,17 @@
       damage_reduction: Array.isArray(parsed.damage_reduction) ? parsed.damage_reduction : null,
       immunities: Array.isArray(parsed.immunities) ? parsed.immunities : null,
       resistances: Array.isArray(parsed.resistances) ? parsed.resistances : null,
+      // Racial natural-armor bonus as a first-class integer (the DB carries
+      // it as top-level `natural_armor` on 58 races today). Preferred over the
+      // legacy bonuses-row / trait-text parse in the NA-apply block below — it
+      // recovers NA on the ~52 monster races that have the field but no
+      // structured `bonuses` natural-armor row. Variant races inherit the
+      // base's field DELTA-style when they carry none (mirrors mergeSenses /
+      // mergeBonuses inheritance); null falls back to the bonuses parse.
+      natural_armor: (typeof parsed.natural_armor === 'number')
+        ? parsed.natural_armor
+        : (baseParsed && typeof baseParsed.data.natural_armor === 'number'
+            ? baseParsed.data.natural_armor : null),
     };
 
     // Canonical schema (post-normalize_schema.py):
@@ -336,8 +347,12 @@
     // and monster-class extensions).
     // Variant races inherit the base's natural armor when they don't carry
     // their own (Arctic Kobold has empty bonuses but is still a +1-NA kobold).
-    const racialNA = naturalArmorFromBonuses(
-      mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses));
+    // Prefer the structured `natural_armor` integer; fall back to the legacy
+    // bonuses-row / trait-text parse for old DB blobs that lack the field.
+    const racialNA = (typeof race.natural_armor === 'number')
+      ? race.natural_armor
+      : naturalArmorFromBonuses(
+          mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses));
     if (racialNA != null && racialNA > 0) {
       raceSetOwned('ac-natural', String(racialNA), 'input', true);
     }
