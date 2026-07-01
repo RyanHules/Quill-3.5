@@ -9,6 +9,30 @@ const Skills = (function () {
   const expr = (v) => DND35.evalExpr(v);
   const fmt = (n) => (n >= 0 ? "+" + n : String(n));
 
+  // Frozen snapshot of the PRE-2026-07-01 skill INDEX order. Saves made
+  // before skills.js switched to name-keyed load/save carry only a numeric
+  // `index` (no `name`), so this table maps that legacy index → display
+  // name, letting old saves migrate onto the now-ALPHABETICAL DND35.skills
+  // array. DO NOT reorder or edit this — it is a historical key that
+  // nameless saves depend on, not the live skill order. New saves store
+  // `name`/`baseName` and never consult it.
+  const LEGACY_SKILL_ORDER = [
+    "Appraise", "Balance", "Bluff", "Climb", "Concentration", "Craft",
+    "Decipher Script", "Diplomacy", "Disable Device", "Disguise",
+    "Escape Artist", "Forgery", "Gather Information", "Handle Animal",
+    "Heal", "Hide", "Intimidate", "Jump", "Knowledge (Arcana)",
+    "Knowledge (Arch. & Eng.)", "Knowledge (Dungeoneering)",
+    "Knowledge (Geography)", "Knowledge (History)", "Knowledge (Local)",
+    "Knowledge (Nature)", "Knowledge (Nobility)", "Knowledge (The Planes)",
+    "Knowledge (Religion)", "Listen", "Move Silently", "Open Lock",
+    "Perform", "Profession", "Ride", "Search", "Sense Motive",
+    "Sleight of Hand", "Speak Language", "Spellcraft", "Spot", "Survival",
+    "Swim", "Tumble", "Use Magic Device", "Use Rope", "Autohypnosis",
+    "Control Shape", "Iaijutsu Focus", "Knowledge (Psionics)",
+    "Lucid Dreaming", "Martial Lore", "Psicraft", "Truespeak",
+    "Use Psionic Device",
+  ];
+
   // ============================================================
   // Build the skills table from DND35.skills
   // ============================================================
@@ -578,15 +602,26 @@ const Skills = (function () {
         skills.push({ type: "header", baseName: row.dataset.subtypeBase, index: int(row.dataset.skillIndex) });
         return;
       }
+      const isSub = row.dataset.isSubtype === "true";
       const entry = {
-        type: row.dataset.isSubtype === "true" ? "subtype" : "skill",
+        type: isSub ? "subtype" : "skill",
         classSkill: row.querySelector(".skill-class-check")?.checked || false,
         ranks: row.querySelector(".skill-ranks")?.value || "0",
         misc: row.querySelector(".skill-misc")?.value || "0",
         index: int(row.dataset.skillIndex),
       };
       const subtypeInput = row.querySelector(".skill-subtype-input");
-      if (subtypeInput) entry.subtypeName = subtypeInput.value;
+      if (isSub) {
+        // Subtype rows key to their editable group by base name (Craft/
+        // Perform/Profession) so the group survives an array reorder.
+        entry.baseName = row.dataset.subtypeOf || "";
+        if (subtypeInput) entry.subtypeName = subtypeInput.value;
+      } else {
+        // Regular / Knowledge rows key by display name ("Knowledge
+        // (Arcana)"), making load order-independent (see LEGACY_SKILL_ORDER).
+        entry.name = getRowSkillName(row);
+        if (subtypeInput) entry.subtypeName = subtypeInput.value;
+      }
       // Notes
       const toggleBtn = row.querySelector(".skill-notes-toggle");
       if (toggleBtn?.dataset.notes) entry.notes = toggleBtn.dataset.notes;
@@ -611,12 +646,23 @@ const Skills = (function () {
 
     const midpoint = Math.ceil(DND35.skills.length / 2);
 
-    // Index saved entries by their skill index for fast lookup.
-    // Each index maps to an array: [header?, subtype*, skill?]
-    const byIndex = {};
+    // Resolve each saved entry to a target skill BY NAME (order-independent),
+    // falling back to LEGACY_SKILL_ORDER[index] for pre-name-keyed saves.
+    // This lets DND35.skills be reordered (e.g. alphabetized) without
+    // breaking existing saves — see LEGACY_SKILL_ORDER above.
+    const targetName = (entry) => {
+      if (entry.name != null) return entry.name;          // regular skill (new)
+      if (entry.baseName != null) return entry.baseName;  // subtype / header (new)
+      return LEGACY_SKILL_ORDER[entry.index];             // legacy index fallback
+    };
+    const skillByName = {};      // "Knowledge (Arcana)" -> skill entry
+    const subtypesByBase = {};   // "Craft" -> [subtype entries]
     skillsData.forEach((entry) => {
-      if (!byIndex[entry.index]) byIndex[entry.index] = [];
-      byIndex[entry.index].push(entry);
+      const nm = targetName(entry);
+      if (nm == null) return;
+      if (entry.type === "subtype") (subtypesByBase[nm] = subtypesByBase[nm] || []).push(entry);
+      else if (entry.type === "skill") skillByName[nm] = entry;
+      // headers are implicit (always recreated); nothing to store.
     });
 
     // Walk every DND35.skills entry in order. Use saved data when present,
@@ -625,12 +671,12 @@ const Skills = (function () {
     // source, while keeping the correct display order.
     DND35.skills.forEach((skill, i) => {
       const tbody = i < midpoint ? tbodyL : tbodyR;
-      const saved = byIndex[i] || [];
+      const dispName = (skill.hasSubtype && skill.subtypeLabel)
+        ? `${skill.name} (${skill.subtypeLabel})` : skill.name;
 
       if (skill.editableSubtype) {
         // Subtype group (Craft, Perform, Profession)
-        const header = saved.find(e => e.type === "header");
-        const subtypes = saved.filter(e => e.type === "subtype");
+        const subtypes = subtypesByBase[skill.name] || [];
         // Always create the header row
         const headerTr = document.createElement("tr");
         headerTr.className = "subtype-header-row";
@@ -661,8 +707,8 @@ const Skills = (function () {
           addSubtypeEntry(tbody, skill, i, "");
         }
       } else {
-        // Regular skill
-        const entry = saved.find(e => e.type === "skill");
+        // Regular skill — matched by display name.
+        const entry = skillByName[dispName];
         const tr = addSkillRow(tbody, skill, i, getAbilityMod);
         if (entry) {
           tr.querySelector(".skill-class-check").checked = entry.classSkill;

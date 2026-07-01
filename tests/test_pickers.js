@@ -3816,6 +3816,53 @@ test('save: character attack calculator persists calc fields', () => {
     'fields would be silently dropped on load.');
 });
 
+test('save: skills load by name with a frozen legacy-index fallback', () => {
+  // 2026-07-01: DND35.skills was alphabetized + 9 supplemental skills added.
+  // Saves historically key skills by ARRAY INDEX, so the load path switched
+  // to NAME-based resolution with LEGACY_SKILL_ORDER as an index fallback for
+  // pre-existing (nameless) saves. A regression here silently corrupts every
+  // saved character's skill ranks.
+  const sk = readSource('skills.js');
+  const dat = readSource('data.js');
+
+  // collectData must emit name (regular) + baseName (subtype) so NEW saves
+  // are order-independent.
+  assert(/entry\.name\s*=\s*getRowSkillName/.test(sk),
+    'skills.js collectData no longer emits `name` on skill entries — new ' +
+    'saves would fall back to brittle index resolution.');
+  assert(/entry\.baseName\s*=\s*row\.dataset\.subtypeOf/.test(sk),
+    'skills.js collectData no longer emits `baseName` on subtype entries — ' +
+    'Craft/Perform/Profession subtypes would misgroup after a reorder.');
+
+  // loadData must fall back to LEGACY_SKILL_ORDER[index] for old saves.
+  assert(/LEGACY_SKILL_ORDER\[[^\]]*index[^\]]*\]/.test(sk),
+    'skills.js loadData no longer falls back to LEGACY_SKILL_ORDER[index] — ' +
+    'old index-only saves would not migrate onto the reordered array.');
+
+  // LEGACY_SKILL_ORDER must stay FROZEN in the OLD index order (supplements
+  // at the END), NOT re-sorted to match the now-alphabetical live array. If
+  // someone regenerates it from DND35.skills, every legacy save corrupts.
+  const legMatch = sk.match(/const\s+LEGACY_SKILL_ORDER\s*=\s*\[([\s\S]*?)\]/);
+  assert(legMatch, 'skills.js: LEGACY_SKILL_ORDER constant not found.');
+  const legNames = legMatch[1].match(/"([^"]+)"/g).map(s => s.slice(1, -1));
+  assert(legNames.length === 54,
+    `LEGACY_SKILL_ORDER has ${legNames.length} entries, expected 54 ` +
+    '(45 original + 9 supplemental). Do not shrink or re-sort it.');
+  const iUseRope = legNames.indexOf('Use Rope');
+  const iAuto = legNames.indexOf('Autohypnosis');
+  assert(iUseRope > -1 && iAuto > iUseRope,
+    'LEGACY_SKILL_ORDER must stay in ORIGINAL index order (Use Rope before ' +
+    'the appended Autohypnosis). It appears re-sorted to the alphabetical ' +
+    'live order — this silently corrupts every legacy save. It is a frozen ' +
+    'historical key, never the live order.');
+
+  // Sanity: the live array IS alphabetical (Autohypnosis precedes Use Rope) —
+  // i.e. genuinely distinct from the frozen legacy order.
+  assert(dat.indexOf('name: "Autohypnosis"') < dat.indexOf('name: "Use Rope"'),
+    'data.js DND35.skills is no longer alphabetical (Autohypnosis should ' +
+    'precede Use Rope).');
+});
+
 test('pickers: spell-adjacent tag-filter parity', () => {
   // 2026-06-27 parity pass: the spell-adjacent pickers gain the spell-picker's
   // multi-tag chip filter (via the shared PickerTagFilter helper) + a

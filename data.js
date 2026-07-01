@@ -21,13 +21,22 @@ const DND35 = {
     return Math.floor((parseInt(score) - 10) / 2);
   },
 
-  // Standard D&D 3.5 skills with key ability and whether they can be used untrained
+  // Standard D&D 3.5 skills with key ability and whether they can be
+  // used untrained. Kept ALPHABETICAL by display name (Knowledge
+  // subtypes grouped, "The Planes" filed under P). IMPORTANT: skills.js
+  // now saves/loads BY NAME (with a LEGACY_SKILL_ORDER index fallback for
+  // pre-2026-07-01 saves), so this array may be reordered freely WITHOUT
+  // breaking existing saves — but if you reorder, DO NOT edit
+  // LEGACY_SKILL_ORDER in skills.js (it is a frozen snapshot of the old
+  // index order that nameless saves depend on).
   skills: [
     { name: "Appraise", ability: "INT", untrained: true, armorPenalty: false },
+    { name: "Autohypnosis", ability: "WIS", untrained: false, armorPenalty: false },
     { name: "Balance", ability: "DEX", untrained: true, armorPenalty: true },
     { name: "Bluff", ability: "CHA", untrained: true, armorPenalty: false },
     { name: "Climb", ability: "STR", untrained: true, armorPenalty: true },
     { name: "Concentration", ability: "CON", untrained: true, armorPenalty: false },
+    { name: "Control Shape", ability: "WIS", untrained: false, armorPenalty: false },
     { name: "Craft", ability: "INT", untrained: true, armorPenalty: false, hasSubtype: true, editableSubtype: true },
     { name: "Decipher Script", ability: "INT", untrained: false, armorPenalty: false },
     { name: "Diplomacy", ability: "CHA", untrained: true, armorPenalty: false },
@@ -39,6 +48,7 @@ const DND35 = {
     { name: "Handle Animal", ability: "CHA", untrained: false, armorPenalty: false },
     { name: "Heal", ability: "WIS", untrained: true, armorPenalty: false },
     { name: "Hide", ability: "DEX", untrained: true, armorPenalty: true },
+    { name: "Iaijutsu Focus", ability: "CHA", untrained: false, armorPenalty: false },
     { name: "Intimidate", ability: "CHA", untrained: true, armorPenalty: false },
     { name: "Jump", ability: "STR", untrained: true, armorPenalty: true },
     { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Arcana" },
@@ -50,12 +60,16 @@ const DND35 = {
     { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Nature" },
     { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Nobility" },
     { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "The Planes" },
+    { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Psionics" },
     { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Religion" },
     { name: "Listen", ability: "WIS", untrained: true, armorPenalty: false },
+    { name: "Lucid Dreaming", ability: "WIS", untrained: false, armorPenalty: false },
+    { name: "Martial Lore", ability: "INT", untrained: false, armorPenalty: false },
     { name: "Move Silently", ability: "DEX", untrained: true, armorPenalty: true },
     { name: "Open Lock", ability: "DEX", untrained: false, armorPenalty: false },
     { name: "Perform", ability: "CHA", untrained: true, armorPenalty: false, hasSubtype: true, editableSubtype: true },
     { name: "Profession", ability: "WIS", untrained: false, armorPenalty: false, hasSubtype: true, editableSubtype: true },
+    { name: "Psicraft", ability: "INT", untrained: false, armorPenalty: false },
     { name: "Ride", ability: "DEX", untrained: true, armorPenalty: false },
     { name: "Search", ability: "INT", untrained: true, armorPenalty: false },
     { name: "Sense Motive", ability: "WIS", untrained: true, armorPenalty: false },
@@ -65,29 +79,11 @@ const DND35 = {
     { name: "Spot", ability: "WIS", untrained: true, armorPenalty: false },
     { name: "Survival", ability: "WIS", untrained: true, armorPenalty: false },
     { name: "Swim", ability: "STR", untrained: true, armorPenalty: true, doubleArmorPenalty: true },
+    { name: "Truespeak", ability: "INT", untrained: false, armorPenalty: false },
     { name: "Tumble", ability: "DEX", untrained: false, armorPenalty: true },
     { name: "Use Magic Device", ability: "CHA", untrained: false, armorPenalty: false },
-    { name: "Use Rope", ability: "DEX", untrained: true, armorPenalty: false },
-    // --- Supplemental 3.5 skills (psionics / ToB / ToM / lycanthropy) ---
-    // Appended at the END, not interleaved alphabetically, ON PURPOSE:
-    // saved characters key skill data by ARRAY INDEX (see skills.js
-    // collectData/loadData), so inserting mid-list would shift every
-    // later skill's index and silently corrupt existing saves. New
-    // entries take fresh trailing indices; pre-existing saves load
-    // unchanged (these render blank for characters that predate them).
-    // All are trained-only (untrained:false) and carry no armor penalty.
-    // Sources: Autohypnosis/Knowledge(Psionics)/Psicraft/Use Psionic
-    // Device — XPH; Martial Lore — ToB; Truespeak — ToM; Iaijutsu Focus
-    // — CW/OA; Lucid Dreaming — CAdv; Control Shape — MM (lycanthropes).
-    { name: "Autohypnosis", ability: "WIS", untrained: false, armorPenalty: false },
-    { name: "Control Shape", ability: "WIS", untrained: false, armorPenalty: false },
-    { name: "Iaijutsu Focus", ability: "CHA", untrained: false, armorPenalty: false },
-    { name: "Knowledge", ability: "INT", untrained: false, armorPenalty: false, hasSubtype: true, subtypeLabel: "Psionics" },
-    { name: "Lucid Dreaming", ability: "WIS", untrained: false, armorPenalty: false },
-    { name: "Martial Lore", ability: "INT", untrained: false, armorPenalty: false },
-    { name: "Psicraft", ability: "INT", untrained: false, armorPenalty: false },
-    { name: "Truespeak", ability: "INT", untrained: false, armorPenalty: false },
     { name: "Use Psionic Device", ability: "CHA", untrained: false, armorPenalty: false },
+    { name: "Use Rope", ability: "DEX", untrained: true, armorPenalty: false },
   ],
 
   // Table 9-2: Carrying Loads (PHB p.162)
