@@ -1390,9 +1390,48 @@ test('movement: sheet wires per-mode boxes + save migration', () => {
     'character.js should no longer collect/load the single char-speed field.');
   assert(/data\["char-speed"\][\s\S]{0,120}parseSpeedString/.test(csrc),
     'loadData must migrate a legacy char-speed via parseSpeedString.');
-  // Fly-block rule: encumbered OR medium/heavy armor, unless fly-encumbered-ok.
-  assert(/flyBlocked[\s\S]{0,80}fly-encumbered-ok/.test(csrc),
-    'character.js must gate the fly-block on the fly-encumbered-ok exception.');
+  // Fly-block rule: encumbered OR medium/heavy armor, unless flyOk (manual
+  // checkbox OR an aggregator-granted flyEncumberedOk).
+  assert(/fly-encumbered-ok[\s\S]{0,80}flyEncumberedOk/.test(csrc) &&
+         /flyBlocked\s*=\s*\(encumbered\s*\|\|\s*armorHeavyish\)\s*&&\s*!flyOk/.test(csrc),
+    'character.js must gate the fly-block on the flyOk exception (checkbox or aggregator).');
+});
+
+test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legacy shapes)', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const cat = DND35.categorizeSpeedBonuses.bind(DND35);
+  // Typed add: two enhancement don't stack (best=30), untyped sums.
+  const land = cat([
+    { bonus_type: 'speed', mode: 'land', amount: 10, bonus_category: 'enhancement' },
+    { bonus_type: 'speed', mode: 'land', amount: 30, bonus_category: 'enhancement' },
+    { bonus_type: 'speed', mode: 'land', amount: 10, bonus_category: 'untyped' }]).land;
+  assertEq(land.addTotal, 40, 'enhancement (best 30) + untyped 10 = 40');
+  // Canonical set + maneuver, highest wins.
+  const fly = cat([
+    { bonus_type: 'speed', mode: 'fly', set: 40, maneuver: 'average' },
+    { bonus_type: 'speed', mode: 'fly', set: 60, maneuver: 'good' }]).fly;
+  assertEq(fly.set, 60, 'highest set wins');
+  assertEq(fly.maneuver, 'good', 'maneuver follows the winning set');
+  // Legacy racial *_speed (value in condition) → set.
+  const leg = cat([{ bonus_type: 'fly_speed', condition: '10 ft. (perfect)' }]);
+  assertEq(leg.fly.set, 10, 'legacy fly_speed → fly set');
+  assertEq(leg.fly.maneuver, 'perfect', 'legacy maneuver parsed from condition');
+  assertEq(cat([{ bonus_type: 'speed', fly_encumbered_ok: true }]).flyEncumberedOk,
+    true, 'fly_encumbered_ok flag surfaces');
+});
+
+test('movement P2: aggregator wired (app collects, character consumes, sources expose)', () => {
+  assert(/bonuses\.speed\s*=\s*DND35\.categorizeSpeedBonuses/.test(readSource('app.js')),
+    'app.js collectActiveBonuses must build bonuses.speed via categorizeSpeedBonuses.');
+  assert(/getActiveSpeedBonuses/.test(readSource('app.js')),
+    'app.js must gather getActiveSpeedBonuses from the sources.');
+  const csrc = readSource('character.js');
+  assert(/bonuses\s*&&\s*bonuses\.speed/.test(csrc) && /modeEff/.test(csrc),
+    'character.js must consume bonuses.speed (modeEff = max(box+add, set)).');
+  for (const f of ['race-picker.js', 'feats.js']) {
+    assert(/getActiveSpeedBonuses/.test(readSource(f)),
+      `${f} must expose getActiveSpeedBonuses.`);
+  }
 });
 
 test('data: categorizeSaveBonuses splits unconditional vs situational + tags the save', () => {

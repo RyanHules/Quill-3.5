@@ -1062,6 +1062,13 @@ const Feats = (function () {
       ? DND35.categorizeACBonuses(getResolvedFeatBonuses())
       : { items: [], situational: [] };
   }
+  // Movement-speed feat bonuses (effects-aggregator P2). Returns the RAW
+  // speed-typed entries; app.js concats + categorizes across all sources.
+  // Empty until feats carry structured `bonus_type:'speed'` (P4 data pass).
+  function getActiveSpeedBonuses() {
+    return getResolvedFeatBonuses()
+      .filter(b => String(b.bonus_type || "").toLowerCase() === "speed");
+  }
 
   // Weapon Focus / Greater Weapon Focus → +1 (each) to attack rolls with the
   // named weapon. Returns { weaponNameLower: totalBonus }. Consumed by
@@ -1110,7 +1117,7 @@ const Feats = (function () {
     renderFeatRules,
     // Effects-aggregator phase 3.
     getResolvedFeatBonuses, getActiveSkillBonuses,
-    getActiveSaveBonuses, getActiveACBonuses,
+    getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getWeaponFocusBonuses, getSpellFocusBonuses,
     // Structured-feat-entry helpers (exposed for tests).
     parseFeatText, lookupFeatInfo,

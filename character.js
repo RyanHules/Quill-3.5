@@ -194,28 +194,37 @@ const Character = (function () {
     const encumbered = (loadCategory === "medium" || loadCategory === "heavy");
     const landReduces = !ignoreEncumbrance && encumbered;
     const armorHeavyish = /\b(med|heav)/i.test(String($("#armor-type")?.value || ""));
-    const flyBlocked = (encumbered || armorHeavyish) &&
-                       !($("#fly-encumbered-ok")?.checked);
+    // Aggregator (P2): per-mode add/set + a fly-while-encumbered grant from a
+    // feat / class feature / race (bonuses.speed via categorizeSpeedBonuses).
+    const spd = (bonuses && bonuses.speed) || {};
+    const flyOk = ($("#fly-encumbered-ok")?.checked) || !!spd.flyEncumberedOk;
+    const flyBlocked = (encumbered || armorHeavyish) && !flyOk;
     const modeBase = (id) => parseInt($(`#${id}`)?.value, 10) || 0;
+    // Effective base for a mode = max(box + typed-stacked add total, granted
+    // set). The box is the character's own listed speed; add layers deltas
+    // (Longstrider), set grants/overrides a mode (Fly spell, a racial fly).
+    const modeEff = (mode) => {
+      const s = spd[mode] || {};
+      return Math.max(modeBase(`speed-${mode}`) + (s.addTotal || 0), s.set || 0);
+    };
 
-    // Land
-    const landBase = modeBase("speed-land");
-    const landCur = landReduces ? DND35.reducedSpeed(landBase) : landBase;
+    // Land — reduced by a medium/heavy load unless ignore-encumbrance.
+    const landEff = modeEff("land");
+    const landCur = landReduces ? DND35.reducedSpeed(landEff) : landEff;
     const landEl = $("#speed-land-current");
     if (landEl) {
-      if (!landBase) { landEl.textContent = "--"; landEl.classList.remove("speed-reduced"); }
-      else if (landReduces && landCur < landBase) {
-        landEl.textContent = `${landCur} (from ${landBase})`;
+      if (!landEff) { landEl.textContent = "--"; landEl.classList.remove("speed-reduced"); }
+      else if (landReduces && landCur < landEff) {
+        landEl.textContent = `${landCur} (from ${landEff})`;
         landEl.classList.add("speed-reduced");
       } else { landEl.textContent = `${landCur}`; landEl.classList.remove("speed-reduced"); }
     }
-    // Fly — the maneuverability shows in the adjacent dropdown, so the current
-    // value stays just the number (or "0" struck through when encumbrance
-    // blocks flight). A title tooltip carries the "encumbered" reason.
-    const flyBase = modeBase("speed-fly");
+    // Fly — blocked (0, struck through) under a medium/heavy load OR medium/
+    // heavy armor unless flyOk. Maneuverability shows in the adjacent dropdown.
+    const flyEff = modeEff("fly");
     const flyEl = $("#speed-fly-current");
     if (flyEl) {
-      if (!flyBase) {
+      if (!flyEff) {
         flyEl.textContent = "--"; flyEl.title = "";
         flyEl.classList.remove("speed-reduced");
       } else if (flyBlocked) {
@@ -223,16 +232,16 @@ const Character = (function () {
         flyEl.title = "Can't fly under a medium/heavy load or in medium/heavy armor — tick “Fly while encumbered” if a feature allows it.";
         flyEl.classList.add("speed-reduced");
       } else {
-        flyEl.textContent = `${flyBase}`; flyEl.title = "";
+        flyEl.textContent = `${flyEff}`; flyEl.title = "";
         flyEl.classList.remove("speed-reduced");
       }
     }
-    // Swim / Burrow / Climb — shown as entered.
+    // Swim / Burrow / Climb — box + aggregator, not load-reduced.
     for (const m of ["swim", "burrow", "climb"]) {
       const el = $(`#speed-${m}-current`);
       if (!el) continue;
-      const b = modeBase(`speed-${m}`);
-      el.textContent = b ? `${b}` : "--";
+      const eff = modeEff(m);
+      el.textContent = eff ? `${eff}` : "--";
       el.classList.remove("speed-reduced");
     }
 

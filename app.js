@@ -226,6 +226,25 @@
     bonuses.spellFocus = (typeof Feats !== "undefined" && Feats.getSpellFocusBonuses)
       ? Feats.getSpellFocusBonuses() : {};
 
+    // Movement speed (per-mode add/set + fly-encumbered flag). Each source
+    // returns a RAW list of speed bonuses; categorize once so typed adds stack
+    // correctly across sources. character.js layers the result onto the boxes.
+    const speedRaw = [];
+    for (const mod of [
+      typeof RacePicker !== "undefined" ? RacePicker : null,
+      typeof TemplatePicker !== "undefined" ? TemplatePicker : null,
+      typeof Feats !== "undefined" ? Feats : null,
+      typeof ClassFeatures !== "undefined" ? ClassFeatures : null,
+      typeof Bloodline !== "undefined" ? Bloodline : null,
+      typeof Conditions !== "undefined" ? Conditions : null,
+    ]) {
+      if (mod && typeof mod.getActiveSpeedBonuses === "function") {
+        const s = mod.getActiveSpeedBonuses();
+        if (Array.isArray(s)) speedRaw.push(...s);
+      }
+    }
+    bonuses.speed = DND35.categorizeSpeedBonuses(speedRaw);
+
     return bonuses;
   }
 

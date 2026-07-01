@@ -788,6 +788,65 @@ const DND35 = {
     return { items, situational };
   },
 
+  // Movement-speed bonus aggregator (effects-aggregator P2). Consumes a flat
+  // list of speed bonuses from every source (race / feat / class feature /
+  // template / bloodline / condition) and returns per-mode totals the
+  // per-mode movement calc layers onto the box values.
+  //
+  // Shapes handled:
+  //   canonical ADD:  {bonus_type:'speed', mode, amount, bonus_category, condition?}
+  //   canonical SET:  {bonus_type:'speed', mode, set, maneuver?}   (grants/overrides a mode)
+  //   fly-encumbered: {bonus_type:'speed', fly_encumbered_ok:true} (a feature lets you fly loaded)
+  //   LEGACY per-mode: {bonus_type:'fly_speed'|'swim_speed'|'burrow_speed'|
+  //                     'climb_speed'|'land_speed', condition:'N ft. (maneuver)'}
+  //                    — the ad-hoc racial shape (value in `condition`); treated
+  //                    as a SET. P3 will canonicalize these into bonus_type:'speed'.
+  //
+  // Returns { land:{addTotal,set,maneuver}, fly:{…}, swim, burrow, climb,
+  //           flyEncumberedOk, situational:[{mode,amount,condition,…}] }.
+  // ADDs of the same type don't stack (stackBonuses); SET takes the highest.
+  categorizeSpeedBonuses(list) {
+    const MODES = ['land', 'fly', 'swim', 'burrow', 'climb'];
+    const out = { flyEncumberedOk: false, situational: [] };
+    MODES.forEach((m) => { out[m] = { add: [], set: 0, maneuver: null }; });
+    const LEGACY = { fly_speed: 'fly', swim_speed: 'swim', burrow_speed: 'burrow',
+                     climb_speed: 'climb', land_speed: 'land' };
+    const setMode = (mode, val, maneuverStr) => {
+      if (val > out[mode].set) {
+        out[mode].set = val;
+        if (mode === 'fly' && maneuverStr) {
+          const mn = String(maneuverStr).match(/\b(clumsy|poor|average|good|perfect)\b/i);
+          if (mn) out.fly.maneuver = mn[1].toLowerCase();
+        }
+      }
+    };
+    for (const b of (Array.isArray(list) ? list : [])) {
+      if (!b) continue;
+      const bt = String(b.bonus_type || '').toLowerCase();
+      if (b.fly_encumbered_ok || bt === 'fly_while_encumbered') { out.flyEncumberedOk = true; continue; }
+      if (LEGACY[bt]) {
+        const txt = String(b.condition == null ? (b.target || '') : b.condition);
+        const num = txt.match(/(\d+)\s*ft/i);
+        if (num) setMode(LEGACY[bt], parseInt(num[1], 10), txt);
+        continue;
+      }
+      if (bt !== 'speed') continue;
+      const mode = String(b.mode || 'land').toLowerCase();
+      if (!out[mode]) continue;
+      if (b.set != null) {
+        setMode(mode, parseInt(b.set, 10) || 0, b.maneuver);
+      } else if (b.amount != null) {
+        const amt = parseInt(b.amount, 10) || 0;
+        const cond = b.condition ? String(b.condition).trim() : '';
+        if (cond) out.situational.push({ mode, amount: amt, condition: cond,
+          category: b.bonus_category, source: b.source });
+        else out[mode].add.push({ amount: amt, bonus_category: b.bonus_category });
+      }
+    }
+    for (const m of MODES) out[m].addTotal = this.stackBonuses(out[m].add).total;
+    return out;
+  },
+
   // Carrying capacity by STR score (light load max, medium load max, heavy load max)
   carryingCapacity: {
     1: [3, 6, 10],

@@ -1107,6 +1107,31 @@
     return cat;
   }
 
+  // Racial movement-speed bonuses (effects-aggregator P2). Returns the RAW
+  // speed-typed bonus entries for the applied race; app.js concats them with
+  // the other sources and categorizes once. Covers both the canonical
+  // `bonus_type:'speed'` shape and the ad-hoc racial `*_speed` shapes
+  // (Air/Earth/Water Mephling, Lillend, …) whose value sits in `condition`.
+  const SPEED_BONUS_TYPES = new Set(["speed", "land_speed", "fly_speed",
+    "swim_speed", "burrow_speed", "climb_speed", "fly_while_encumbered"]);
+  function getActiveSpeedBonuses() {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return [];
+    const name = ((document.getElementById('char-race') || {}).value || '').trim()
+      .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
+    if (!name) return [];
+    const raceId = raceIndex.get(name.toLowerCase());
+    if (raceId === undefined) return [];
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return [];
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return []; }
+    const baseParsed = resolveVariantBase(parsed);
+    const merged = mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses);
+    return (Array.isArray(merged) ? merged : [])
+      .filter(b => b && SPEED_BONUS_TYPES.has(String(b.bonus_type || '').toLowerCase()))
+      .map(b => Object.assign({ source: name }, b));
+  }
+
   // ============================================================
   // Racial Spell-Like Abilities (structured `spell_likes` → SLA tab rows)
   // ============================================================
@@ -1192,7 +1217,7 @@
 
   window.RacePicker = {
     resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
-    getActiveSaveBonuses, getActiveACBonuses,
+    getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
   };
 
   // Wait for DB to load, then init.
