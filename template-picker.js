@@ -193,9 +193,17 @@
       level_adjustment: parsed.level_adjustment || null,
       new_creature_type: rawType,
       new_creature_type_clean: cleanCreatureType(rawType),
-      // Pull natural-armor bonus out of either a structured bonuses row
-      // OR the free-form armor_class text ("Natural armor +N", "+N natural").
-      natural_armor_bonus: deriveNaturalArmor(parsed),
+      // Natural armor from the template's STRUCTURED fields (the sheet reads
+      // the field, never re-derives from prose — the DB owns derivation).
+      //   natural_armor_change: additive DELTA (Half-Dragon +4, Gelatinous −2)
+      //   natural_armor_set: use-higher OVERLAP value → max(N, current NA)
+      //     (Lich +5, Mummified +8/+10, Paragon +5, …). Mutually exclusive.
+      natural_armor_change:
+        (typeof parsed.natural_armor_change === 'number')
+          ? parsed.natural_armor_change : null,
+      natural_armor_set:
+        (typeof parsed.natural_armor_set === 'number')
+          ? parsed.natural_armor_set : null,
       description: parsed.description || null,
       // Structured data tables (Half-Dragon breath weapon by variety,
       // Lycanthrope forms, slam-damage-by-size, …) — rendered below
@@ -269,35 +277,19 @@
     return { tpl, mods, traits, movement, resistance };
   }
 
-  // Pull a numeric natural-armor bonus out of either the bonuses list or
-  // the `armor_class` free-form description ("+4 natural armor",
-  // "Natural armor as base creature, +2"). Returns 0 if none found.
-  function deriveNaturalArmor(parsed) {
-    // Prefer the structured DB field (build-derived for 41 templates;
-    // approved 2026-06-12). It carries the signed DELTA the template
-    // applies ("natural armor improves by +3" → 3; Gelatinous −2), which
-    // the prose regexes below miss when the number trails the phrase
-    // ("Natural armor improves by +3"). The picker adds this to
-    // #ac-natural, so a negative value correctly subtracts.
-    if (typeof parsed.natural_armor_change === 'number') {
-      return parsed.natural_armor_change;
+  // Human display for a template record's natural-armor effect: an additive
+  // "+N" / "−N" for `natural_armor_change`, or "→ N (or base, whichever
+  // higher)" for the use-higher `natural_armor_set` overlap. null when the
+  // template touches no structured NA field.
+  function naDisplay(tpl) {
+    if (typeof tpl.natural_armor_change === 'number') {
+      const n = tpl.natural_armor_change;
+      return `${n >= 0 ? '+' : ''}${n}`;
     }
-    if (Array.isArray(parsed.bonuses)) {
-      for (const b of parsed.bonuses) {
-        if (b?.bonus_type === 'natural_armor' &&
-            typeof b.amount === 'number') {
-          return b.amount;
-        }
-      }
+    if (typeof tpl.natural_armor_set === 'number') {
+      return `→ ${tpl.natural_armor_set} (or base, whichever higher)`;
     }
-    const ac = parsed.armor_class;
-    if (typeof ac === 'string') {
-      const m = ac.match(/(?:^|\+|\b)(\d+)\s*natural\s*armor/i);
-      if (m) return parseInt(m[1], 10);
-      const m2 = ac.match(/natural\s*armor\s*(?:[+:]\s*)?(\d+)/i);
-      if (m2) return parseInt(m2[1], 10);
-    }
-    return 0;
+    return null;
   }
 
   // Parse a speed-change string like "Fly 30 ft (perfect)" into one or
@@ -416,8 +408,9 @@
     if (tpl.new_creature_type) {
       bits.push(`<b>Type → ${escapeHtml(tpl.new_creature_type)}</b>`);
     }
-    if (tpl.natural_armor_bonus) {
-      bits.push(`<b>Natural Armor:</b> +${tpl.natural_armor_bonus}`);
+    const naText = naDisplay(tpl);
+    if (naText) {
+      bits.push(`<b>Natural Armor:</b> ${naText}`);
     }
     if (tpl.level_adjustment) {
       bits.push(`<b>LA:</b> +${tpl.level_adjustment}`);
@@ -475,7 +468,7 @@
 
     // Prefer the rich `detail.tpl` over the index-row `tpl`. The index
     // query only selects a subset of columns; templateDetail() builds
-    // the full record including derived fields like natural_armor_bonus.
+    // the full record including the structured natural_armor_change / _set.
     const full = detail.tpl;
 
     // Capture the pre-template base creature type the first time a template
@@ -508,14 +501,26 @@
       reversal.abilityMods[m.ability] = m.modifier || 0;
     }
 
-    // 2. Natural armor bonus stacks into #ac-natural.
-    if (full.natural_armor_bonus) {
+    // 2. Natural armor → #ac-natural. A `change` is an additive delta; a
+    //    `set` is a use-higher overlap → the actual amount applied is
+    //    max(0, setVal − current) so the field becomes max(current, setVal).
+    //    Either way the applied delta is stored so removal reverses exactly
+    //    (max is otherwise irreversible without the recorded delta).
+    {
       const na = document.getElementById('ac-natural');
       if (na) {
         const cur = parseInt(na.value, 10) || 0;
-        na.value = cur + full.natural_armor_bonus;
-        na.dispatchEvent(new Event('input', { bubbles: true }));
-        reversal.naturalArmorAdded = full.natural_armor_bonus;
+        let delta = 0;
+        if (typeof full.natural_armor_change === 'number') {
+          delta = full.natural_armor_change;
+        } else if (typeof full.natural_armor_set === 'number') {
+          delta = Math.max(0, full.natural_armor_set - cur);
+        }
+        if (delta !== 0) {
+          na.value = cur + delta;
+          na.dispatchEvent(new Event('input', { bubbles: true }));
+          reversal.naturalArmorAdded = delta;
+        }
       }
     }
 
@@ -537,7 +542,8 @@
       summary.push(Object.entries(reversal.abilityMods)
         .map(([a, n]) => `${n > 0 ? '+' : ''}${n} ${a}`).join(', '));
     }
-    if (tpl.natural_armor_bonus) summary.push(`+${tpl.natural_armor_bonus} NA`);
+    const naSummary = naDisplay(tpl);
+    if (naSummary) summary.push(`${naSummary} NA`);
     if (tpl.level_adjustment) summary.push(`LA +${tpl.level_adjustment}`);
     flashPanel(infoPanel,
       `Applied ${tpl.name}${summary.length ? ': ' + summary.join('; ') : ''}.`,

@@ -1408,24 +1408,29 @@ test('template/race: Wild strips racial skills + carries structured bonuses; Sil
     'race-picker must write subtypes into #char-type');
 });
 
-test('template-picker: deriveNaturalArmor consumes the structured natural_armor_change field', (db) => {
-  // Regression: Proto-creature's armor_class prose "Natural armor improves
-  // by +3" doesn't match the trailing-number regexes, so the picker showed
-  // +0 NA. The structured natural_armor_change field must win.
-  const body = extractFunctionBody(readSource('template-picker.js'), 'deriveNaturalArmor');
-  assert(body, 'deriveNaturalArmor not found in template-picker.js');
-  const deriveNaturalArmor = new Function('parsed', body);
-  assertEq(deriveNaturalArmor({ natural_armor_change: 3 }), 3,
-    'natural_armor_change:3 must yield +3 (the Proto-creature case)');
-  assertEq(deriveNaturalArmor({ natural_armor_change: -2 }), -2,
-    'a negative natural_armor_change must pass through (Gelatinous-style)');
-  assertEq(deriveNaturalArmor({ armor_class: '+4 natural armor' }), 4,
-    'the prose fallback must still work when no structured field is present');
-  // And the live Proto-creature entry actually carries the field.
-  const row = execOne(db,
-    "SELECT json_extract(data,'$.natural_armor_change') AS nac " +
-    "FROM entry WHERE type='template' AND name='Proto-creature'");
-  assertEq(row && row.nac, 3, 'Proto-creature DB entry must have natural_armor_change=3');
+test('template-picker: reads structured NA fields (change additive, set overlap-max), no prose derive', (db) => {
+  // The picker must consume the DB's structured template-NA fields, NOT
+  // re-derive from prose. natural_armor_change is an additive delta;
+  // natural_armor_set is use-higher overlap → applied as max(0, set−cur) so
+  // #ac-natural becomes max(cur, set) and the delta reverses on removal.
+  const src = readSource('template-picker.js');
+  assert(/natural_armor_change:\s*\n?\s*\(typeof parsed\.natural_armor_change/.test(src),
+    'template-picker record must carry structured natural_armor_change.');
+  assert(/natural_armor_set:\s*\n?\s*\(typeof parsed\.natural_armor_set/.test(src),
+    'template-picker record must carry structured natural_armor_set.');
+  assert(/Math\.max\(0,\s*full\.natural_armor_set\s*-\s*cur\)/.test(src),
+    'apply must add max(0, set − cur) so #ac-natural becomes max(cur, set).');
+  assert(!/function deriveNaturalArmor\s*\(/.test(src),
+    'template-picker must no longer derive NA from prose.');
+  // Live DB: additive Half-Dragon carries change, overlap Lich carries set.
+  const hd = execOne(db,
+    "SELECT json_extract(data,'$.natural_armor_change') AS v FROM entry " +
+    "WHERE type='template' AND name='Half-Dragon' AND source='Monster Manual'");
+  assertEq(hd && hd.v, 4, 'Half-Dragon must carry natural_armor_change=4');
+  const lich = execOne(db,
+    "SELECT json_extract(data,'$.natural_armor_set') AS v FROM entry " +
+    "WHERE type='template' AND name='Lich' AND source='Monster Manual'");
+  assertEq(lich && lich.v, 5, 'Lich must carry natural_armor_set=5 (overlap)');
 });
 
 test('class-picker: Mystic Ranger spell-level offset is data-driven (starts at level 0)', (db) => {
