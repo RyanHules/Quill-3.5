@@ -186,6 +186,7 @@
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveSaveBonuses) ? RacePicker.getActiveSaveBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveSaveBonuses) ? TemplatePicker.getActiveSaveBonuses() : null,
+      (typeof ClassPicker !== "undefined" && ClassPicker.getActiveSaveBonuses) ? ClassPicker.getActiveSaveBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveSaveBonuses) ? Feats.getActiveSaveBonuses() : null,
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveSaveBonuses) ? TraitPicker.getActiveSaveBonuses() : null,
     ]) {
@@ -209,6 +210,7 @@
     for (const src of [
       (typeof RacePicker !== "undefined" && RacePicker.getActiveACBonuses) ? RacePicker.getActiveACBonuses() : null,
       (typeof TemplatePicker !== "undefined" && TemplatePicker.getActiveACBonuses) ? TemplatePicker.getActiveACBonuses() : null,
+      (typeof ClassPicker !== "undefined" && ClassPicker.getActiveACBonuses) ? ClassPicker.getActiveACBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveACBonuses) ? Feats.getActiveACBonuses() : null,
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveACBonuses) ? TraitPicker.getActiveACBonuses() : null,
     ]) {

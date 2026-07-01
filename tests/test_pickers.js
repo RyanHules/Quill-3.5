@@ -1420,6 +1420,40 @@ test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legac
     true, 'fly_encumbered_ok flag surfaces');
 });
 
+test('class-feature bonuses: DB-stamped + ClassPicker consumer + aggregator wiring', (db) => {
+  // DB carries the verified feature bonuses (Druid Nature Sense flat; Monk
+  // Still Mind conditional).
+  const druid = execOne(db,
+    "SELECT json_extract(data,'$.class_features') AS cf FROM entry " +
+    "WHERE type='class' AND name='Druid' LIMIT 1");
+  const ns = JSON.parse(druid.cf).find(f => f.name === 'Nature Sense');
+  assert(ns && Array.isArray(ns.bonuses) && ns.bonuses.some(b =>
+    b.bonus_type === 'skill' && /Knowledge \(nature\)/.test(b.target) &&
+    b.amount === 2 && b.condition == null),
+    'Druid Nature Sense must carry a flat +2 Knowledge(nature) skill bonus.');
+  const monk = execOne(db,
+    "SELECT json_extract(data,'$.class_features') AS cf FROM entry " +
+    "WHERE type='class' AND name='Monk' LIMIT 1");
+  const sm = JSON.parse(monk.cf).find(f => f.name === 'Still Mind');
+  assert(sm && sm.bonuses.some(b => b.bonus_type === 'save' && b.amount === 2 &&
+    /enchantment/i.test(b.condition || '')),
+    'Monk Still Mind must carry a conditional +2 save vs enchantment.');
+  // ClassPicker exposes the three consumers; app + skills wire them in.
+  const cp = readSource('class-picker.js');
+  for (const fn of ['getActiveSkillBonuses', 'getActiveSaveBonuses',
+                    'getActiveACBonuses', 'collectAcquiredFeatureBonuses']) {
+    assert(cp.includes(fn), `class-picker must define ${fn}.`);
+  }
+  assert(/level_acquired[\s\S]{0,40}>\s*lvl[\s\S]{0,20}continue/.test(cp),
+    'consumer must skip features not yet acquired (level_acquired > class level).');
+  const app = readSource('app.js');
+  assert(/ClassPicker[\s\S]{0,40}getActiveSaveBonuses/.test(app) &&
+         /ClassPicker[\s\S]{0,40}getActiveACBonuses/.test(app),
+    'app.js must gather ClassPicker save + AC bonuses.');
+  assert(/classSkill\s*=\s*\([\s\S]{0,60}ClassPicker\.getActiveSkillBonuses/.test(readSource('skills.js')),
+    'skills.js must pull ClassPicker skill bonuses.');
+});
+
 test('movement P4: class fast movement + independent armor/load caps', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // armorCategory classifier.

@@ -5015,10 +5015,62 @@
     return out;
   }
 
+  // Class-FEATURE flat/conditional bonuses (effects-aggregator, 2026-07-01).
+  // Collect the structured `bonuses` of every ACQUIRED feature (level_acquired
+  // ≤ the character's level in that class) across all applied classes, source-
+  // tagged with the feature name, then hand them to the shared categorizers —
+  // flat rows feed the direct total, condition-bearing rows become situational
+  // notes, exactly like feat bonuses.
+  function collectAcquiredFeatureBonuses() {
+    if (typeof DB === "undefined" || !DB.isLoaded || !DB.isLoaded()) return [];
+    const out = [];
+    const all = pickedClasses.concat(
+      (typeof pickedClassesB !== "undefined" && Array.isArray(pickedClassesB))
+        ? pickedClassesB : []);
+    const seen = new Set();
+    for (const c of all) {
+      if (!c || !c.className) continue;
+      const key = c.className.toLowerCase();
+      if (seen.has(key)) continue;   // one lookup per class name
+      seen.add(key);
+      const lvl = parseInt(c.level, 10) || 0;
+      const row = DB.queryOne(
+        "SELECT json_extract(data,'$.class_features') AS cf FROM entry " +
+        "WHERE type IN ('class','prc') AND name = ? COLLATE NOCASE LIMIT 1",
+        [c.className]);
+      if (!row || !row.cf) continue;
+      let feats;
+      try { feats = JSON.parse(row.cf); } catch (e) { continue; }
+      if (!Array.isArray(feats)) continue;
+      for (const f of feats) {
+        if (!f || !Array.isArray(f.bonuses)) continue;
+        if ((parseInt(f.level_acquired, 10) || 0) > lvl) continue;  // not yet gained
+        for (const b of f.bonuses) out.push(Object.assign({ source: f.name }, b));
+      }
+    }
+    return out;
+  }
+  function getActiveSkillBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeSkillBonuses)
+      ? DND35.categorizeSkillBonuses(collectAcquiredFeatureBonuses())
+      : { direct: {}, global: 0, situational: [] };
+  }
+  function getActiveSaveBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeSaveBonuses)
+      ? DND35.categorizeSaveBonuses(collectAcquiredFeatureBonuses())
+      : { direct: { fort: [], ref: [], will: [] }, situational: [] };
+  }
+  function getActiveACBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeACBonuses)
+      ? DND35.categorizeACBonuses(collectAcquiredFeatureBonuses())
+      : { items: [], situational: [] };
+  }
+
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
     getActiveSpeedBonuses,
+    getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,
