@@ -4314,6 +4314,19 @@
       });
       return out;
     }
+    // Specific Craft/Perform/Profession subtype, e.g. "Craft (alchemy)".
+    // Match an existing subtype row case-insensitively (rows may be
+    // user-made or auto-created by a structured bonus, e.g. Gnome alchemy).
+    const subM = specTrim.match(/^(Craft|Perform|Profession)\s*\((.+)\)\s*$/i);
+    if (subM) {
+      const base = subM[1].toLowerCase(), sub = subM[2].trim().toLowerCase();
+      tab.querySelectorAll('tr[data-subtype-of]').forEach(tr => {
+        if ((tr.dataset.subtypeOf || '').toLowerCase() !== base) return;
+        const s = (tr.querySelector('.skill-subtype-input')?.value || '').trim().toLowerCase();
+        if (s === sub) { const cb = tr.querySelector('.skill-class-check'); if (cb) out.push(cb); }
+      });
+      return out;
+    }
     // Plain skill — exact match by display name.
     tab.querySelectorAll('tr[data-skill-index]').forEach(tr => {
       const name = tr.querySelector('.skill-name')?.textContent?.trim() || '';

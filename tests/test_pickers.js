@@ -3863,6 +3863,32 @@ test('save: skills load by name with a frozen legacy-index fallback', () => {
     'precede Use Rope).');
 });
 
+test('skills: structured bonuses auto-create Craft/Perform/Profession subtypes', () => {
+  // 2026-07-01: a race/feat/template bonus to a SPECIFIC Craft/Perform/
+  // Profession subtype (Gnome "+2 Craft (alchemy)") only lands if a matching
+  // subtype row exists. skills.js.recalc calls syncBonusSubtypes to create the
+  // row on demand and reconcile it away when the source is gone; class-picker
+  // ticks a matching specific subtype as a class skill. Guard both hooks.
+  const sk = readSource('skills.js');
+  assert(/function syncBonusSubtypes\s*\(/.test(sk),
+    'skills.js: syncBonusSubtypes helper missing — specific Craft/Perform/' +
+    'Profession bonuses would have no row to land on.');
+  assert(/function ensureBonusSubtypeRow\s*\(/.test(sk),
+    'skills.js: ensureBonusSubtypeRow helper missing.');
+  assert(/syncBonusSubtypes\(directBonusKeys\)/.test(sk),
+    'skills.js: recalc no longer calls syncBonusSubtypes(directBonusKeys) — ' +
+    'auto subtype rows would never be created/reconciled.');
+  assert(/data-auto-bonus-subtype|autoBonusSubtype/.test(sk),
+    'skills.js: auto-created subtype rows are no longer tagged, so reconcile ' +
+    'cannot distinguish them from user rows (would delete user data or leak).');
+
+  const cp = readSource('class-picker.js');
+  assert(/\^\(Craft\|Perform\|Profession\)\\s\*\\\(/.test(cp),
+    'class-picker.js: findSkillCheckboxesForSpec lost its specific ' +
+    'Craft/Perform/Profession subtype branch — a class granting ' +
+    '"Craft (alchemy)" would not tick the matching subtype row.');
+});
+
 test('pickers: spell-adjacent tag-filter parity', () => {
   // 2026-06-27 parity pass: the spell-adjacent pickers gain the spell-picker's
   // multi-tag chip filter (via the shared PickerTagFilter helper) + a

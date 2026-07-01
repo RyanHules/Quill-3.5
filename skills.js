@@ -191,6 +191,59 @@ const Skills = (function () {
     tr.remove();
   }
 
+  // ── Auto-created subtype rows for structured bonuses ────────────────
+  // Races / feats / templates grant bonuses to SPECIFIC Craft / Perform /
+  // Profession subtypes (Gnome "+2 Craft (alchemy)"). The bonus only lands
+  // if a matching subtype row exists, so we auto-create one on demand
+  // (tagged `data-auto-bonus-subtype`) and reconcile it away when the
+  // granting source is gone — UNLESS the user has put ranks or notes in it,
+  // in which case it's promoted to an ordinary manual subtype row.
+  function findSubtypeRow(base, subtype) {
+    const bl = base.toLowerCase(), sl = subtype.toLowerCase();
+    return [...$$(".subtype-skill-group")].find((tr) =>
+      (tr.dataset.subtypeOf || "").toLowerCase() === bl &&
+      (tr.querySelector(".skill-subtype-input")?.value || "").trim().toLowerCase() === sl);
+  }
+
+  function ensureBonusSubtypeRow(base, subtype) {
+    if (findSubtypeRow(base, subtype)) return;   // manual/auto row already present
+    const idx = DND35.skills.findIndex((s) => s.name === base && s.editableSubtype);
+    if (idx < 0) return;
+    const header = [...$$(".subtype-header-row")].find((h) => h.dataset.subtypeBase === base);
+    const tbody = header ? header.closest("tbody") : $("#skills-body-left");
+    if (!tbody) return;
+    // Title-case for display (the bonus key arrives lowercased); matching is
+    // always case-insensitive so display casing never affects bonus landing.
+    const label = subtype.replace(/\b\w/g, (c) => c.toUpperCase());
+    const tr = addSubtypeEntry(tbody, DND35.skills[idx], idx, label);
+    tr.dataset.autoBonusSubtype = "1";
+  }
+
+  // directKeys: Set of lowercased bonus target names ("craft (alchemy)").
+  function syncBonusSubtypes(directKeys) {
+    const needed = new Map();   // "craft|alchemy" -> { base, subtype }
+    directKeys.forEach((key) => {
+      const m = key.match(/^(craft|perform|profession)\s*\((.+)\)\s*$/i);
+      if (!m) return;
+      const base = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+      needed.set(base.toLowerCase() + "|" + m[2].trim().toLowerCase(),
+        { base, subtype: m[2].trim() });
+    });
+    needed.forEach(({ base, subtype }) => ensureBonusSubtypeRow(base, subtype));
+    // Reconcile stale auto rows.
+    [...$$(".subtype-skill-group[data-auto-bonus-subtype]")].forEach((tr) => {
+      const base = (tr.dataset.subtypeOf || "").toLowerCase();
+      const sub = (tr.querySelector(".skill-subtype-input")?.value || "").trim().toLowerCase();
+      if (needed.has(base + "|" + sub)) return;   // still granted
+      const ranks = tr.querySelector(".skill-ranks")?.value;
+      const notes = tr.querySelector(".skill-notes-toggle")?.dataset.notes;
+      if ((ranks && ranks !== "0") || notes) { delete tr.dataset.autoBonusSubtype; return; }
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains("skill-notes-row-container")) next.remove();
+      tr.remove();
+    });
+  }
+
   // ============================================================
   // Skill notes (expandable per-skill)
   // ============================================================
@@ -279,6 +332,15 @@ const Skills = (function () {
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
       Array.isArray(tmplSkill.situational) ? tmplSkill.situational : []);
+
+    // Ensure a subtype row exists for any Craft/Perform/Profession-specific
+    // structured bonus so the bonus has somewhere to land (Gnome "+2 Craft
+    // (alchemy)"); reconcile auto-created rows when their source is removed.
+    const directBonusKeys = new Set();
+    [raceSkill, tmplSkill, featSkill, bloodlineSkill].forEach((s) => {
+      if (s && s.direct) Object.keys(s.direct).forEach((k) => directBonusKeys.add(k));
+    });
+    syncBonusSubtypes(directBonusKeys);
 
     // First pass: gather all skill ranks for synergy calculation
     const rankMap = {};
