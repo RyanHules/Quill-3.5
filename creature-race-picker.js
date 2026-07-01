@@ -315,12 +315,16 @@
       }
     }
 
-    // 3. Movement — parse the prose speed string (carries fly/swim/burrow/
-    //    climb + maneuverability) into the per-mode boxes.
+    // 3. Movement — prefer the structured `movement` list (P3); fall back to
+    //    parsing the prose speed string. Into the per-mode boxes.
     const speedText = ac.speed ||
       (ac.base_speed_ft != null ? `${ac.base_speed_ft} ft.` : null);
-    if (speedText && typeof DND35 !== 'undefined' && DND35.parseSpeedString) {
-      const mv = DND35.parseSpeedString(speedText);
+    if (typeof DND35 !== 'undefined') {
+      const mv = (Array.isArray(ac.movement) && ac.movement.length
+                  && DND35.movementListToModes)
+        ? DND35.movementListToModes(ac.movement)
+        : (speedText && DND35.parseSpeedString ? DND35.parseSpeedString(speedText) : null);
+      if (mv) {
       let anyApplied = false;
       const setMode = (id, val) => {
         if (val == null || val === '') return;
@@ -332,7 +336,8 @@
       setMode('speed-swim', mv.swim);
       setMode('speed-burrow', mv.burrow);
       setMode('speed-climb', mv.climb);
-      if (!anyApplied) notApplied.push(`speed (${speedText})`);
+      if (!anyApplied && speedText) notApplied.push(`speed (${speedText})`);
+      }
     }
 
     // 4. Natural armor (default field value is "0" → treat as unset).

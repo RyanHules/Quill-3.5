@@ -334,15 +334,21 @@
       }
     };
     if (race.base_speed_ft) setModeIfEmpty('speed-land', race.base_speed_ft);
-    if (typeof parsed.speed === 'string' && typeof DND35 !== 'undefined'
-        && DND35.parseSpeedString) {
-      const mv = DND35.parseSpeedString(parsed.speed);
-      setModeIfEmpty('speed-land', mv.land);   // prose land if base_speed_ft absent
-      setModeIfEmpty('speed-fly', mv.fly);
-      setModeIfEmpty('speed-fly-maneuver', mv.flyManeuver);
-      setModeIfEmpty('speed-swim', mv.swim);
-      setModeIfEmpty('speed-burrow', mv.burrow);
-      setModeIfEmpty('speed-climb', mv.climb);
+    // Prefer the structured `movement` field (P3); fall back to parsing the
+    // prose `speed` string for old blobs / land-only races (no movement field).
+    if (typeof DND35 !== 'undefined') {
+      const mv = (Array.isArray(parsed.movement) && parsed.movement.length
+                  && DND35.movementListToModes)
+        ? DND35.movementListToModes(parsed.movement)
+        : (DND35.parseSpeedString ? DND35.parseSpeedString(parsed.speed || '') : null);
+      if (mv) {
+        setModeIfEmpty('speed-land', mv.land);   // prose land if base_speed_ft absent
+        setModeIfEmpty('speed-fly', mv.fly);
+        setModeIfEmpty('speed-fly-maneuver', mv.flyManeuver);
+        setModeIfEmpty('speed-swim', mv.swim);
+        setModeIfEmpty('speed-burrow', mv.burrow);
+        setModeIfEmpty('speed-climb', mv.climb);
+      }
     }
 
     // 4. Languages textarea — only the automatic ones, comma-separated.

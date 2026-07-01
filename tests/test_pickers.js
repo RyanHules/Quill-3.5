@@ -1420,6 +1420,33 @@ test('movement P2: categorizeSpeedBonuses (add typed-stacked, set highest, legac
     true, 'fly_encumbered_ok flag surfaces');
 });
 
+test('movement P3: structured movement field + consumers prefer it', (db) => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // movementListToModes maps the canonical list → the flat box shape.
+  const modes = DND35.movementListToModes([
+    { mode: 'land', speed_ft: 20, maneuverability: null },
+    { mode: 'fly', speed_ft: 60, maneuverability: 'good' },
+    { mode: 'swim', speed_ft: 30, maneuverability: null }]);
+  assertEq(modes.land, 20, 'land mapped');
+  assertEq(modes.fly, 60, 'fly mapped');
+  assertEq(modes.flyManeuver, 'good', 'fly maneuverability mapped');
+  assertEq(modes.swim, 30, 'swim mapped');
+  // Live DB: a creature carries the canonical movement list.
+  const row = execOne(db,
+    "SELECT json_extract(data,'$.movement') AS m FROM entry " +
+    "WHERE type='creature' AND name='Aboleth'");
+  assert(row && row.m, 'Aboleth must carry a movement field');
+  const mv = JSON.parse(row.m);
+  assert(Array.isArray(mv) && mv.every(r =>
+    r && 'mode' in r && 'speed_ft' in r && 'maneuverability' in r),
+    'movement must be the canonical [{mode,speed_ft,maneuverability}] list');
+  // Consumers prefer the field over prose.
+  assert(/movementListToModes\(parsed\.movement\)/.test(readSource('race-picker.js')),
+    'race-picker must prefer parsed.movement over the prose parse.');
+  assert(/movementListToModes\(ac\.movement\)/.test(readSource('creature-race-picker.js')),
+    'creature-race-picker must prefer ac.movement over the prose parse.');
+});
+
 test('movement P2: aggregator wired (app collects, character consumes, sources expose)', () => {
   assert(/bonuses\.speed\s*=\s*DND35\.categorizeSpeedBonuses/.test(readSource('app.js')),
     'app.js collectActiveBonuses must build bonuses.speed via categorizeSpeedBonuses.');

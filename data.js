@@ -536,6 +536,25 @@ const DND35 = {
   // per-fly-speed dropdown of these.
   maneuverabilityLevels: ["clumsy", "poor", "average", "good", "perfect"],
 
+  // Convert the DB's canonical `movement` list — [{mode, speed_ft,
+  // maneuverability}] (build-derived, P3) — into the flat
+  // {land, fly, flyManeuver, swim, burrow, climb} shape the per-mode boxes
+  // consume. Consumers prefer this over re-parsing the prose `speed` string.
+  movementListToModes(list) {
+    const out = { land: null, fly: null, flyManeuver: null,
+                  swim: null, burrow: null, climb: null };
+    if (!Array.isArray(list)) return out;
+    for (const r of list) {
+      if (!r || !r.mode) continue;
+      const m = String(r.mode).toLowerCase();
+      const v = (typeof r.speed_ft === "number") ? r.speed_ft : parseInt(r.speed_ft, 10);
+      if (isNaN(v)) continue;
+      if (m === "fly") { out.fly = v; out.flyManeuver = r.maneuverability || null; }
+      else if (m in out) out[m] = v;
+    }
+    return out;
+  },
+
   // Parse a free-text speed line ("20 ft. (4 squares), fly 60 ft. (good),
   // swim 30 ft.") into structured per-mode feet + fly maneuverability. The
   // FIRST keyword-less "N ft." segment is land; fly/swim/burrow/climb are
