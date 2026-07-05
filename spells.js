@@ -369,6 +369,13 @@ const Spells = (function () {
 
     panel.querySelector(".sc-reset-slots").addEventListener("click", () => {
       panel.querySelectorAll(".sc-used").forEach((el) => { el.value = 0; });
+      // The per-spell "used" checkmarks track the same daily expenditure
+      // the slot counts do — a rest clears both together.
+      panel.querySelectorAll(".sc-prep-used:checked").forEach((cb) => {
+        cb.checked = false;
+        const list = cb.closest(".sc-prepared-list");
+        if (list) updatePreparedCount(panel, int(list.dataset.lvl), null);
+      });
       recalc();
     });
 
@@ -481,8 +488,18 @@ const Spells = (function () {
     const rmBtn    = row.querySelector(".sc-prep-remove");
     const panel    = listEl.closest("[data-caster-type='spellcasting']");
 
-    // Used checkbox: just a state toggle, recalc the per-level count.
+    // Used checkbox: sync the level's expended-slot count as a DELTA
+    // (+1 on check, -1 on uncheck, floored at 0) rather than a recount,
+    // so manual slot adjustments (spontaneous cure conversions, slots
+    // burned on non-prepared casting) survive alongside the checkboxes.
+    // Load-time restores set the checked attribute without firing
+    // `change`, so saved used-counts stay authoritative on load.
     usedCb.addEventListener("change", () => {
+      const usedInp = panel?.querySelector(`.sc-used[data-lvl="${lvl}"]`);
+      if (usedInp) {
+        usedInp.value = Math.max(0, int(usedInp.value) + (usedCb.checked ? 1 : -1));
+        recalc();
+      }
       if (panel) updatePreparedCount(panel, lvl, null);
     });
 

@@ -3011,6 +3011,23 @@ test('metamagic-preparer: module exposes expected public API', () => {
     'spells.js public API must export lookupMetamagicFromDB.');
 });
 
+test('spells: prepared-used checkboxes sync the expended-slot count + reset clears both', () => {
+  const sp = readSource('spells.js');
+  // Checkbox change delta-syncs the level's .sc-used input (+1/-1, not a
+  // recount, so manual slot adjustments survive), floored at 0.
+  const cbRegion = sp.slice(sp.indexOf('usedCb.addEventListener'),
+                            sp.indexOf('usedCb.addEventListener') + 700);
+  assert(/\.sc-used\[data-lvl="\$\{lvl\}"\]/.test(cbRegion),
+    'sc-prep-used change must target the matching level\'s .sc-used input');
+  assert(/Math\.max\(0,[\s\S]{0,80}usedCb\.checked \? 1 : -1/.test(cbRegion),
+    'used-count must delta by ±1 and floor at 0');
+  // Reset Expended Slots clears the per-spell used checkmarks too.
+  const resetRegion = sp.slice(sp.indexOf('.sc-reset-slots'),
+                               sp.indexOf('.sc-reset-slots') + 700);
+  assert(/\.sc-prep-used:checked/.test(resetRegion),
+    'Reset Expended Slots must uncheck every sc-prep-used checkbox');
+});
+
 test('metamagic-preparer: spells.js wires the ✨ button on Known rows', () => {
   // Regression guard for the v1 follow-up wiring. The button must:
   //   - exist in createKnownRow's row.innerHTML
