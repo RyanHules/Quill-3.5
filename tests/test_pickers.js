@@ -1538,6 +1538,30 @@ test('class-feature scaling: level-aware map emits scaled bonuses', () => {
     'collectAcquiredFeatureBonuses must emit the level-scaled rows.');
 });
 
+test('class-feature scaling: CAdv batch restores the marker-guard-skipped features', () => {
+  const cp = readSource('class-picker.js');
+  // The marker guard skips the CAdv walk's scaling-tagged DB rows, so every
+  // SELF-applying scaling feature must be re-emitted by the level map.
+  for (const cls of ['Dungeon Delver', 'Highland Stalker', 'Nightsong Infiltrator',
+                     'Ninja', 'Scout', 'Shadowbane Stalker', 'Spymaster', 'Tempest',
+                     'Thief-Acrobat', 'Vigilante', 'Wild Plains Outrider']) {
+    assert(new RegExp('"' + cls + '":\\s*\\[').test(cp),
+      cls + ' must be in CLASS_FEATURE_SCALING');
+  }
+  // Spot-check curves against the printed text.
+  assert(/"Ninja":[\s\S]{0,260}Math\.floor\(l \/ 5\)/.test(cp),
+    'Ninja AC Bonus scales floor(level/5) from 5th (+1/5/10/15/20 pattern)');
+  assert(/"Wild Plains Outrider":[\s\S]{0,160}_sk\("Ride", l, "competence"/.test(cp),
+    'WPO Ride Bonus = +class level competence on Ride');
+  assert(/"Scout":[\s\S]{0,300}l >= 19 \? 5 : l >= 15 \? 4 : l >= 11 \? 3 : l >= 7 \? 2 : 1/.test(cp),
+    'Scout Skirmish AC = +1@3 +2@7 +3@11 +4@15 +5@19');
+  // Allies-only features must NOT be re-emitted as self bonuses.
+  const mapRegion = cp.slice(cp.indexOf('CLASS_FEATURE_SCALING'),
+                             cp.indexOf('function collectAcquiredFeatureBonuses'));
+  assert(!/"Nightsong Enforcer":\s*\[/.test(mapRegion),
+    'Nightsong Enforcer Skill Teamwork (allies-only) stays out of the scaling map');
+});
+
 test('movement P4: class fast movement + independent armor/load caps', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   // armorCategory classifier.

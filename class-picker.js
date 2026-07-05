@@ -5041,6 +5041,19 @@
       fn: l => l >= 4 ? [_ac(l >= 9 ? 2 : 1, "untyped", null)] : null }],
     "Duelist": [{ feature: "Elaborate Parry (Ex)",
       fn: l => l >= 7 ? [_ac(l, "dodge", "when fighting defensively or using total defense in melee")] : null }],
+    // CAdv batch (2026-07-05): the walk's scaling-marked rows are skipped by
+    // the marker guard, so the self-applying ones live here. Curves read from
+    // each FULL description. Deliberately NOT here: Nightsong Enforcer Skill
+    // Teamwork (allies-only — never on the character's own sheet), Exemplar
+    // Sustaining Presence / Intellectual Agility + the Ninja Wis-to-AC half
+    // (ability-linked, Phase 3b's ability cascade), Streetfighter Always
+    // Ready + the Scout Battle Fortitude initiative half (no initiative
+    // consumer yet).
+    "Dungeon Delver": [
+      { feature: "Deep Survival",
+        fn: l => [_sk("Survival", l, "untyped", "in underground environments")] },
+      { feature: "Trap Sense", fn: l => { const a = l >= 10 ? 4 : l >= 7 ? 3 : l >= 4 ? 2 : 1;
+        return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
     "Dwarven Defender": [{ feature: "Trap Sense (Ex)", fn: l => { if (l < 4) return null;
       const a = l >= 8 ? 2 : 1; return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
     "Extreme Explorer": [
@@ -5051,13 +5064,53 @@
       fn: l => l >= 2 ? [_sv("all", l >= 7 ? 4 : 2, "untyped", "against fire or cold effects")] : null }],
     "Gnome Giant-Slayer": [{ feature: "Favored Enemy (Giant)",
       fn: l => _fivesk(l >= 10 ? 8 : l >= 7 ? 6 : l >= 4 ? 4 : 2, "against giants") }],
+    "Highland Stalker": [{ feature: "Skirmish",
+      fn: l => l >= 4 ? [_ac(l >= 8 ? 2 : 1, "competence",
+        "rounds in which she moves at least 10 feet (until start of next turn); light armor and light load only")] : null }],
     "Jester": [{ feature: "Jester's Audacity",
       fn: l => [_ac(l >= 20 ? 5 : l >= 15 ? 4 : l >= 10 ? 3 : l >= 5 ? 2 : 1, "dodge", null)] }],
+    "Nightsong Infiltrator": [
+      { feature: "Teamwork Trap Sense", fn: l => { const a = l >= 10 ? 4 : l >= 7 ? 3 : l >= 4 ? 2 : 1;
+        return [_sv("Reflex", a, "untyped", "vs traps (allies within 30 ft share this)"),
+                _ac(a, "dodge", "vs attacks made by traps (allies within 30 ft share this)")]; } },
+      { feature: "Teamwork Infiltration", fn: l => { if (l < 2) return null; const a = l >= 8 ? 4 : 2;
+        return ["Balance", "Climb", "Disable Device", "Hide", "Move Silently", "Open Lock", "Search", "Tumble"]
+          .map(s => _sk(s, a, "competence", "in a studied area, for 24 hours after 1 hour of study")); } }],
+    "Ninja": [
+      { feature: "AC Bonus",
+        fn: l => l >= 5 ? [_ac(Math.floor(l / 5), "untyped",
+          "unarmored, shieldless, and at most light load; applies to touch and flat-footed")] : null },
+      { feature: "Acrobatics", fn: l => { if (l < 6) return null; const a = l >= 18 ? 6 : l >= 12 ? 4 : 2;
+        return [_sk("Climb", a, "untyped", null), _sk("Jump", a, "untyped", null), _sk("Tumble", a, "untyped", null)]; } }],
     "Scarlet Corsair": [{ feature: "Sailor's Step",
       fn: l => l >= 4 ? [_ac(l >= 8 ? 4 : 2, "dodge", "while aboard a ship in light or no armor")] : null }],
+    "Scout": [
+      { feature: "Skirmish",
+        fn: l => l >= 3 ? [_ac(l >= 19 ? 5 : l >= 15 ? 4 : l >= 11 ? 3 : l >= 7 ? 2 : 1, "competence",
+          "rounds in which she moves at least 10 feet (until start of next turn); light armor and light load only")] : null },
+      { feature: "Battle Fortitude",
+        fn: l => l >= 2 ? [_sv("Fortitude", l >= 20 ? 3 : l >= 11 ? 2 : 1, "competence",
+          "in light or no armor and carrying a light load")] : null }],
+    "Shadowbane Stalker": [{ feature: "Discover Subterfuge",
+      fn: l => { if (l < 2) return null; const a = l >= 8 ? 6 : l >= 5 ? 4 : 2;
+        return [_sk("Search", a, "competence", null), _sk("Sense Motive", a, "competence", null)]; } }],
+    "Spymaster": [{ feature: "Scrying Defense",
+      fn: l => l >= 2 ? [_sv("Will", l, "untyped", "against divination (scrying) spells"),
+                         _sk("Spot", l, "untyped", "to notice scrying sensors")] : null }],
+    "Tempest": [{ feature: "Tempest Defense",
+      fn: l => [_ac(l >= 5 ? 3 : l >= 3 ? 2 : 1, "untyped",
+        "wielding a double weapon or two weapons, in light or no armor")] }],
     "Thayan Knight": [{ feature: "Horrors of Thay",
       fn: l => [_sv("all", l >= 4 ? 4 : 2, "morale", "vs fear effects"),
                 _sv("all", l >= 4 ? 2 : 1, "morale", "vs charm effects")] }],
+    "Thief-Acrobat": [{ feature: "Agile Fighting",
+      fn: l => l >= 2 ? [_ac(l >= 4 ? 2 : 1, "dodge",
+        "in light or no armor and light load (+1 higher when fighting defensively or using total defense)")] : null }],
+    "Vigilante": [{ feature: "Streetwise", fn: l => { const a = l >= 7 ? 4 : 2;
+      return [_sk("Gather Information", a, "competence", null), _sk("Knowledge (local)", a, "competence", null)]; } }],
+    "Wild Plains Outrider": [{ feature: "Ride Bonus",
+      fn: l => [_sk("Ride", l, "competence", null),
+                _sk("Handle Animal", l, "competence", "with his animal companion mount or special mount")] }],
   };
 
   // Class-FEATURE flat/conditional bonuses (effects-aggregator, 2026-07-01).
