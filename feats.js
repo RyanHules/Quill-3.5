@@ -1013,6 +1013,11 @@ const Feats = (function () {
       const spec = (m[2] || "").trim();
       const featName = m[1].trim();
       for (const b of bonuses) {
+        // Marker guard: scaling rows / ally- or enemy-scoped rows are not
+        // flat self bonuses — skip them here so the skill path's manual
+        // routing (which bypasses the categorizers) can't consume them.
+        if (typeof DND35 !== "undefined" && DND35.flatBonusRowOk &&
+            !DND35.flatBonusRowOk(b)) continue;
         const bonus = Object.assign({}, b);
         if (bonus.target === "@choice") {
           if (!spec) continue;             // unresolved specialization → skip

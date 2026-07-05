@@ -620,6 +620,26 @@ const DND35 = {
     "Colossal": { acMod: -8, grappleMod: 16, hideMod: -16, carryMult: 16 },
   },
 
+  // Marker guard for NON-FLAT bonus rows (walk emissions, 2026-07-02+).
+  // The DB walk tags rows the flat consumers can't evaluate:
+  //   `scaling`      — the amount grows with level (amount is null or just
+  //                    the starting value); handled by CLASS_FEATURE_SCALING
+  //                    today and the Phase 3b marker reader later.
+  //   `target_scope` — who the bonus applies to. Pure-other scopes
+  //                    ('allies', 'enemies', 'single_ally', …) never belong
+  //                    on this character's own totals OR situational notes;
+  //                    self-including scopes ('self', 'self_and_allies',
+  //                    'self_or_ally') stay.
+  // Every categorizer consults this so a marked row can neither corrupt a
+  // flat total nor surface a bonus the character doesn't get.
+  flatBonusRowOk(b) {
+    if (!b) return false;
+    if (b.scaling != null) return false;
+    if (b.target_scope == null) return true;
+    const scope = String(b.target_scope).toLowerCase().trim();
+    return scope === '' || scope === 'self' || scope.startsWith('self_');
+  },
+
   // Categorize a list of structured skill-bonus rows (the canonical
   // `bonuses` shape used by races / creatures / — once reshaped —
   // templates) into the form skills.js consumes. A row is
@@ -654,6 +674,7 @@ const DND35 = {
     const SUBTYPE_BASES = new Set(['craft', 'knowledge', 'perform', 'profession']);
     for (const b of bonuses) {
       if (!b || b.bonus_type !== 'skill') continue;
+      if (!this.flatBonusRowOk(b)) continue;
       const target = String(b.target == null ? '' : b.target).trim();
       const amount = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
       if (!target || !amount || isNaN(amount)) continue;
@@ -765,6 +786,7 @@ const DND35 = {
     const situational = [];
     for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
       if (!b || b.bonus_type !== 'save') continue;
+      if (!this.flatBonusRowOk(b)) continue;
       const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
       if (!amt || isNaN(amt)) continue;
       const target = String(b.target == null ? '' : b.target).trim();
@@ -808,6 +830,7 @@ const DND35 = {
     const situational = [];
     for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
       if (!b || b.bonus_type !== 'ac') continue;
+      if (!this.flatBonusRowOk(b)) continue;
       const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
       if (!amt || isNaN(amt)) continue;
       const cat = String(b.bonus_category == null ? '' : b.bonus_category).toLowerCase().trim();
@@ -861,6 +884,7 @@ const DND35 = {
     };
     for (const b of (Array.isArray(list) ? list : [])) {
       if (!b) continue;
+      if (!this.flatBonusRowOk(b)) continue;
       const bt = String(b.bonus_type || '').toLowerCase();
       if (b.fly_encumbered_ok || bt === 'fly_while_encumbered') { out.flyEncumberedOk = true; continue; }
       if (LEGACY[bt]) {

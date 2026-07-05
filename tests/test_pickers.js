@@ -1356,6 +1356,75 @@ test('data: categorizeACBonuses feeds the AC onion (excludes size/natural, split
   assertEq(cond.situational.length, 1, 'conditional AC → situational list');
 });
 
+test('data: marker guard — scaling / non-self target_scope rows never feed flat consumers', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // The walk (2026-07-02+) tags non-flat bonus rows with `scaling` (amount
+  // grows with level; stored amount is null or just the STARTING value) and
+  // `target_scope` (ally/enemy-directed). The first marked book (CAdv,
+  // 20260704-3fb53dfb) is deployed — every flat consumer must skip these so
+  // a null amount can't NaN a total, a starting amount can't understate a
+  // scaled bonus, and an ally-only bonus can't land on the character's own
+  // sheet. Self-including scopes (self_and_allies / self_or_ally) DO apply
+  // to the character and must survive.
+  const ok = DND35.flatBonusRowOk.bind(DND35);
+  assert(ok({ amount: 2 }), 'unmarked row passes');
+  assert(ok({ amount: 2, target_scope: 'self' }), 'explicit self passes');
+  assert(ok({ amount: 1, target_scope: 'self_and_allies' }), 'self_and_allies passes');
+  assert(ok({ amount: 4, target_scope: 'self_or_ally' }), 'self_or_ally passes');
+  assert(!ok({ amount: 2, target_scope: 'allies' }), 'allies-only is skipped');
+  assert(!ok({ amount: -4, target_scope: 'enemies' }), 'enemy-directed is skipped');
+  assert(!ok({ amount: 4, target_scope: 'single_ally' }), 'single_ally is skipped');
+  assert(!ok({ amount: null, target_scope: 'touched animal' }), 'other-creature scope is skipped');
+  assert(!ok({ amount: null, scaling: { kind: 'per_level', per: 1, step: 1 } }),
+    'scaling row (null amount) is skipped');
+  assert(!ok({ amount: 1, scaling: { kind: 'stepped' } }),
+    'scaling row with a numeric STARTING amount is skipped too');
+
+  // Skill: Nightsong Enforcer Skill Teamwork shape (allies + scaling + a real
+  // starting amount + a condition) — must produce NEITHER a direct bonus NOR
+  // a situational note; a plain flat row alongside it still lands.
+  const sk = DND35.categorizeSkillBonuses([
+    { bonus_type: 'skill', target: 'Hide', amount: 2, bonus_category: 'competence',
+      condition: 'allies within 30 feet who can see the enforcer',
+      target_scope: 'allies', scaling: { kind: 'stepped' } },
+    { bonus_type: 'skill', target: 'Ride', amount: null, bonus_category: 'competence',
+      condition: null, scaling: { kind: 'per_level', per: 1, step: 1 } },
+    { bonus_type: 'skill', target: 'Spot', amount: 2, bonus_category: 'racial', condition: null }]);
+  assertEq(sk.direct['spot'], 2, 'plain flat skill row still lands');
+  assertEq(Object.keys(sk.direct).length, 1, 'marked rows add no direct skill bonus');
+  assertEq(sk.situational.length, 0, 'marked rows add no situational skill note');
+
+  // Save: the future-shape hazard — an ally-scoped row WITHOUT a condition
+  // would previously have summed straight into the character's own saves.
+  const sv = DND35.categorizeSaveBonuses([
+    { bonus_type: 'save', target: 'all', amount: 1, bonus_category: 'morale',
+      condition: null, target_scope: 'allies' }]);
+  assertEq(sv.direct.fort.length + sv.direct.ref.length + sv.direct.will.length, 0,
+    'unconditional ally-scoped save bonus does not sum into own saves');
+  assertEq(sv.situational.length, 0, 'and produces no note');
+  // Self-including scope stays (Nightsong Infiltrator Teamwork Trap Sense).
+  const svSelf = DND35.categorizeSaveBonuses([
+    { bonus_type: 'save', target: 'Reflex', amount: 1, bonus_category: null,
+      condition: 'saves made to avoid traps', target_scope: 'self_and_allies' }]);
+  assertEq(svSelf.situational.length, 1,
+    'self_and_allies save row survives (situational via its condition)');
+
+  // AC + speed categorizers consult the same guard.
+  const ac = DND35.categorizeACBonuses([
+    { bonus_type: 'ac', amount: 1, bonus_category: 'dodge', condition: null,
+      scaling: { kind: 'stepped' } }]);
+  assertEq(ac.items.length + ac.situational.length, 0, 'scaling AC row is fully skipped');
+  const sp = DND35.categorizeSpeedBonuses([
+    { bonus_type: 'speed', mode: 'land', amount: 10, bonus_category: 'untyped',
+      scaling: { kind: 'per_level', per: 4, step: 10 } }]);
+  assertEq(sp.land.addTotal, 0, 'scaling speed row is skipped');
+
+  // feats.js getResolvedFeatBonuses routes skill rows around the categorizer
+  // (its own untyped-sum path), so it must apply the guard at the source.
+  assert(/flatBonusRowOk/.test(readSource('feats.js')),
+    'feats.js getResolvedFeatBonuses must consult DND35.flatBonusRowOk');
+});
+
 test('movement: parseSpeedString structures per-mode feet + fly maneuverability', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   const p = DND35.parseSpeedString.bind(DND35);
