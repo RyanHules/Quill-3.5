@@ -4615,15 +4615,28 @@
     makeClassFieldSetter(panel, className)('.invo-known-count', String(known));
   }
 
-  // Binder vestige counts. max_vestige_level is a top-level ordinal
-  // string on the row ("3rd") — parse the leading integer into the
-  // panel's Max Vestige Level field. Max Vestiges Bound isn't a table
-  // column (it's a level rule in the class text), so it's left for the
-  // player. Same setIfEmpty contract.
+  // Binder vestige counts. Two row shapes: the legacy extraction carried
+  // max_vestige_level as a top-level ordinal string ("3rd"); the ToM
+  // re-walk bakes it into the special column ("Pact augmentation
+  // (2 abilities); Maximum Vestige Level 3rd") — parse either into the
+  // panel's Max Vestige Level field. The walk's row is verbatim, so when
+  // a level row doesn't RE-STATE the maximum, scan downward for the most
+  // recent row that does (the table only prints it when it changes).
+  // Max Vestiges Bound isn't a table column (it's a level rule in the
+  // class text), so it's left for the player. Same setIfEmpty contract.
   function populateBinderPanelCounts(panel, className, level, classId) {
     if (!panel) return;
-    const row = classTableRowAt(classId, level);
-    const mv = parseOrdinalInt(row?.max_vestige_level);
+    const rowMax = (row) => {
+      if (!row) return null;
+      const direct = parseOrdinalInt(row.max_vestige_level);
+      if (direct != null) return direct;
+      const m = String(row.special || '').match(/maximum vestige level\s+(\d+)/i);
+      return m ? parseInt(m[1], 10) : null;
+    };
+    let mv = null;
+    for (let l = Number(level); l >= 1 && mv == null; l--) {
+      mv = rowMax(classTableRowAt(classId, l));
+    }
     if (mv == null) return;
     makeClassFieldSetter(panel, className)('.bind-max-vestige', String(mv));
   }

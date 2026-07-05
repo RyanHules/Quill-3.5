@@ -4348,6 +4348,39 @@ test('traits: DB carries structured bonuses + the sheet consumes them', (db) => 
     'character.js initiative no longer stacks bonuses.initiativeTyped.');
 });
 
+test('item-picker: base armors classify as equip-able under the canonical category', (db) => {
+  // 2026-06-23 category canonicalization collapsed "Light/Medium/Heavy
+  // Armor" to plain "Armor" (weight class moved to tags) — classifyItem's
+  // old regex stopped matching, so every base armor lost its + Equip Armor
+  // button (H3 playfeel red, found 2026-07-05). Pin both layers.
+  const r = execOne(db,
+    "SELECT json_extract(data,'$.category') AS cat, "
+    + "json_extract(data,'$.entry_kind') AS kind "
+    + "FROM entry WHERE name='Chainmail' AND type='armor'");
+  assertEq(r.kind, 'armor', 'Chainmail carries entry_kind=armor');
+  assertEq(r.cat, 'Armor', 'canonical category is plain "Armor"');
+  const ip = readSource('item-picker.js');
+  assert(/cat === 'armor'\s*\|\|\s*\/light armor\|medium armor\|heavy armor\//.test(ip),
+    "classifyItem must accept the canonical 'Armor' category alongside the legacy spellings");
+});
+
+test('class-picker: Binder max-vestige seeds from the walk-reshaped special column', (db) => {
+  // The ToM re-walk dropped the legacy top-level `max_vestige_level` row
+  // field — the ordinal now lives verbatim inside `special` ("…; Maximum
+  // Vestige Level 3rd"). SA2 playfeel red (found 2026-07-05). Pin the DB
+  // shape + the parser fallback.
+  const r = execOne(db,
+    "SELECT json_extract(data,'$.class_table[4].special') AS sp, "
+    + "json_extract(data,'$.class_table[4].max_vestige_level') AS legacy "
+    + "FROM entry WHERE name='Binder' AND type='class'");
+  assert(/maximum vestige level\s+3/i.test(r.sp),
+    'Binder L5 special must carry "Maximum Vestige Level 3rd"');
+  assertEq(r.legacy, null, 'legacy top-level field is gone (walk reshape)');
+  const cp = readSource('class-picker.js');
+  assert(/maximum vestige level\\s\+\(\\d\+\)/.test(cp),
+    'populateBinderPanelCounts must parse the special-column fallback');
+});
+
 test('pickers: spell-adjacent tag-filter parity', () => {
   // 2026-06-27 parity pass: the spell-adjacent pickers gain the spell-picker's
   // multi-tag chip filter (via the shared PickerTagFilter helper) + a
