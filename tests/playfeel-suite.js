@@ -1865,13 +1865,17 @@
     await wait(300);
     const panel = $('[data-caster-type="invocations"]');
     if (!panel) fail('SS3: invocations panel did not spawn');
-    // Fill some fields + a Known entry under Lesser.
+    // Fill scalars + Known entries under Lesser. Known invocations are
+    // structured ROWS since the 2026-06-08 rework (saved as
+    // invoList-<grade> arrays) — the per-grade textareas this test
+    // originally drove no longer exist. (Test modernized 2026-07-05,
+    // first full suite run since the rework.)
     panel.querySelector('.invo-level').value = '6';
     panel.querySelector('.invo-caster-level').value = '6';
     panel.querySelector('.invo-highest-grade').value = 'Lesser';
     panel.querySelector('.invo-known-count').value = '4';
-    panel.querySelector('.invo-text[data-grade="lesser"]').value =
-      'Eldritch Spear\nWalk Unseen';
+    Spells.addInvocationKnown(panel, 'lesser', 'Eldritch Spear');
+    Spells.addInvocationKnown(panel, 'lesser', 'Walk Unseen');
     // Force a dispatch so any input listeners catch it.
     panel.querySelectorAll('input, textarea').forEach(el => {
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1882,8 +1886,9 @@
     if (!invo) fail('SS3: collectData did not include invocations caster');
     expect(invo.invokerLevel, '6', 'SS3: invokerLevel round-tripped');
     expect(invo.highestGrade, 'Lesser', 'SS3: highestGrade round-tripped');
-    expect(invo['invo-lesser'], 'Eldritch Spear\nWalk Unseen',
-      'SS3: per-grade Known textarea round-tripped');
+    expect(JSON.stringify(invo['invoList-lesser']),
+      JSON.stringify(['Eldritch Spear', 'Walk Unseen']),
+      'SS3: per-grade Known rows round-tripped');
     // Wipe + reload.
     Spells.loadData({ casters: [] });
     await wait(200);
@@ -1894,9 +1899,11 @@
     if (!restored) fail('SS3: panel not rebuilt on loadData');
     expect(restored.querySelector('.invo-level').value, '6',
       'SS3: invokerLevel restored to panel');
-    expect(restored.querySelector('.invo-text[data-grade="lesser"]').value,
-      'Eldritch Spear\nWalk Unseen',
-      'SS3: Lesser textarea restored');
+    const names = [...restored.querySelectorAll(
+      '.invo-known-list[data-grade="lesser"] .invo-known-row .invo-known-name')]
+      .map(i => i.value.trim()).filter(Boolean);
+    expect(JSON.stringify(names), JSON.stringify(['Eldritch Spear', 'Walk Unseen']),
+      'SS3: Lesser known rows restored');
   });
 
   regression('PS1: prepared-used checkbox syncs expended slots (delta, floor, reset, removal walk-back)', async () => {
