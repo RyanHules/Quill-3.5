@@ -561,7 +561,12 @@
       if (full.entry_kind === 'armor') {
         const cat = String(full.category || '').toLowerCase();
         if (cat === 'shield') return 'shield';
-        if (/light armor|medium armor|heavy armor/.test(cat)) return 'armor';
+        // Canonical category (2026-06-23 normalization) is plain "Armor" —
+        // the weight class moved to tags (light-armor/medium-armor/…). The
+        // legacy "Light/Medium/Heavy Armor" spellings are kept for older
+        // blobs. (Regression found 2026-07-05: H3 playfeel red — every base
+        // armor lost its + Equip Armor button after the canon deploy.)
+        if (cat === 'armor' || /light armor|medium armor|heavy armor/.test(cat)) return 'armor';
         // "Armor Extra" → Masterwork upgrade, shield spikes, etc. —
         // not a base equip; fall through to Gear/Magic Item.
         return null;
