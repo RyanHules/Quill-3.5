@@ -268,21 +268,22 @@ const TraitPicker = (function () {
     return merged;
   }
 
-  // Initiative bonus (untyped, stacks) — summed. The aggregator has no
-  // initiative onion yet, so character.js consumes this scalar directly.
-  function getActiveInitBonus() {
-    let total = 0;
+  // Initiative bonuses (typed onion feed, mirrors getActiveSaveBonuses).
+  // Replaced the old unconditional scalar 2026-07-05 when the initiative
+  // aggregator landed — app.js now stacks the typed list cross-source.
+  function getActiveInitiativeBonuses() {
+    const merged = { direct: [], situational: [] };
+    if (typeof DND35 === 'undefined' || !DND35.categorizeInitiativeBonuses) return merged;
     for (const a of applied) {
       const d = resolveData(a);
       if (!d || !Array.isArray(d.bonuses)) continue;
-      for (const b of d.bonuses) {
-        if (b && b.bonus_type === 'initiative' && !b.condition) {
-          const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
-          if (amt && !isNaN(amt)) total += amt;
-        }
-      }
+      const cat = DND35.categorizeInitiativeBonuses(d.bonuses);
+      cat.direct.forEach(b => { b.source = a.name; });
+      cat.situational.forEach(s => { s.source = a.name; });
+      merged.direct.push(...cat.direct);
+      merged.situational.push(...cat.situational);
     }
-    return total;
+    return merged;
   }
 
   // ---- persistence (monkey-patch Character) --------------------------
@@ -343,7 +344,7 @@ const TraitPicker = (function () {
     getActiveSkillBonuses,
     getActiveSaveBonuses,
     getActiveACBonuses,
-    getActiveInitBonus,
+    getActiveInitiativeBonuses,
     _rebuildCatalog: buildCatalog,
   };
   window.TraitPicker = api;

@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260705c';
+    window.CACHE_VERSION = '20260705e';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -266,6 +266,7 @@
             <div class="field"><label>DEX Modifier</label><span id="init-dex" class="calc-field">+0</span></div>
             <div class="field"><label>Misc Modifier</label><input type="text" id="init-misc" value="0" class="misc-expr" placeholder="e.g. 2+1"></div>
           </div>
+          <div id="init-situational-auto" class="save-situational-auto" style="display:none"></div>
         </section>
 
         <!-- Base Attack & Grapple -->

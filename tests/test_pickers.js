@@ -1425,6 +1425,79 @@ test('data: marker guard — scaling / non-self target_scope rows never feed fla
     'feats.js getResolvedFeatBonuses must consult DND35.flatBonusRowOk');
 });
 
+test('data: resolveAbilityLinkedBonus turns scaling:ability rows into flat rows', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const mods = { Wis: 3, Cha: 2, Int: -1, Dex: 4 };
+  const fn = (ab) => mods[ab];
+  const resolve = (b) => DND35.resolveAbilityLinkedBonus(b, fn);
+  // Additive ("adds her X bonus (if any)") — amount = the mod, clamped at 0.
+  const ninja = resolve({ bonus_type: 'ac', amount: null, bonus_category: 'untyped',
+    condition: 'unarmored and unencumbered', scaling: { kind: 'ability', ability: 'Wis' } });
+  assertEq(ninja.amount, 3, 'Ninja Wis-to-AC resolves to the Wis mod');
+  assert(!('scaling' in ninja), 'resolved row strips the scaling marker');
+  assert(DND35.flatBonusRowOk(ninja), 'resolved row passes the marker guard');
+  const negAdd = resolve({ bonus_type: 'save', amount: null, condition: null,
+    scaling: { kind: 'ability', ability: 'Int' } });
+  assertEq(negAdd.amount, 0, 'additive with a negative mod grants nothing (bonus "if any")');
+  // Substitution ("substitutes X modifier for Y") — raw mod, may be negative.
+  const subst = resolve({ bonus_type: 'save', target: 'Reflex', amount: null,
+    condition: 'substitutes Int modifier for Dex modifier',
+    scaling: { kind: 'ability', ability: 'Int' } });
+  assertEq(subst.amount, -1, 'substitution keeps the raw (negative) mod — the swap is mandatory');
+  // Non-ability rows and missing accessors return null (caller keeps the raw row).
+  assertEq(resolve({ amount: 2 }), null, 'plain flat row → null (not ability-linked)');
+  assertEq(resolve({ amount: null, scaling: { kind: 'per_level', per: 1 } }), null,
+    'per-level scaling row → null');
+  assertEq(DND35.resolveAbilityLinkedBonus(
+    { amount: null, scaling: { kind: 'ability', ability: 'Wis' } }, () => NaN), null,
+    'unresolvable mod → null');
+  // Both collectors resolve ability-linked rows before the guard drops them.
+  assert(/resolveAbilityLinkedBonus/.test(readSource('feats.js')),
+    'feats.js getResolvedFeatBonuses must try resolveAbilityLinkedBonus');
+  assert(/resolveAbilityLinkedBonus/.test(readSource('class-picker.js')),
+    'class-picker.js collectAcquiredFeatureBonuses must try resolveAbilityLinkedBonus');
+});
+
+test('data: categorizeInitiativeBonuses + the initiative onion wiring', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const cat = DND35.categorizeInitiativeBonuses([
+    { bonus_type: 'initiative', amount: 2, bonus_category: 'untyped', condition: null },      // Quick Reconnoiter
+    { bonus_type: 'initiative', amount: -6, bonus_category: 'untyped', condition: null },     // Unreactive
+    { bonus_type: 'initiative', amount: 1, bonus_category: 'competence',
+      condition: 'in light or no armor' },                                                    // Scout Battle Fortitude
+    { bonus_type: 'initiative', amount: null, bonus_category: 'competence', condition: null,
+      scaling: { kind: 'table', rows: [{ level: 1, amount: 1 }] } },                          // marked → skipped
+    { bonus_type: 'save', amount: 2, condition: null },                                       // wrong type
+  ]);
+  assertEq(cat.direct.length, 2, 'two unconditional flat init rows → direct');
+  assertEq(cat.direct[0].amount + cat.direct[1].amount, -4, 'direct keeps signed amounts');
+  assertEq(cat.situational.length, 1, 'conditional init row → situational note');
+  assertEq(DND35.stackBonuses(cat.direct).total, -4, 'untyped bonus + penalty both apply');
+  // Consumers: the three sources expose the feed; app.js aggregates; the
+  // Character tab stacks + renders the situational note.
+  for (const [f, label] of [['feats.js', 'Feats'], ['class-picker.js', 'ClassPicker'],
+                            ['trait-picker.js', 'TraitPicker']]) {
+    assert(/getActiveInitiativeBonuses/.test(readSource(f)),
+      `${label} must expose getActiveInitiativeBonuses`);
+  }
+  const app = readSource('app.js');
+  assert(/initiativeTyped/.test(app) && /initiativeSituational/.test(app),
+    'app.js collectActiveBonuses must gather initiativeTyped + initiativeSituational');
+  const chr = readSource('character.js');
+  assert(/stackBonuses\(initTyped\)/.test(chr),
+    'character.js must stack the typed initiative list');
+  assert(/renderSituationalInit/.test(chr) && /init-situational-auto/.test(chr),
+    'character.js must render situational initiative notes');
+  assert(/init-situational-auto/.test(readSource('index.html')),
+    'index.html must carry the #init-situational-auto container');
+  // The scaling map supplies the init halves the marker guard skips.
+  const cp = readSource('class-picker.js');
+  assert(/"Streetfighter":[\s\S]{0,120}_init\(/.test(cp),
+    'Streetfighter Always Ready must emit init rows from the scaling map');
+  assert(/_init\(a, "competence", cond\)/.test(cp),
+    'Scout Battle Fortitude must emit its init half alongside the Fort half');
+});
+
 test('movement: parseSpeedString structures per-mode feet + fly maneuverability', () => {
   const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
   const p = DND35.parseSpeedString.bind(DND35);
@@ -3026,6 +3099,12 @@ test('spells: prepared-used checkboxes sync the expended-slot count + reset clea
                                sp.indexOf('.sc-reset-slots') + 700);
   assert(/\.sc-prep-used:checked/.test(resetRegion),
     'Reset Expended Slots must uncheck every sc-prep-used checkbox');
+  // Removing a still-checked row walks its expenditure back (Ryan
+  // 2026-07-05: walkbacks are common; no phantom used slots).
+  const rmRegion = sp.slice(sp.indexOf('rmBtn.addEventListener'),
+                            sp.indexOf('rmBtn.addEventListener') + 700);
+  assert(/usedCb\.checked/.test(rmRegion) && /Math\.max\(0,/.test(rmRegion),
+    'removing a checked prepared row must decrement the used count (floor 0)');
 });
 
 test('metamagic-preparer: spells.js wires the ✨ button on Known rows', () => {
@@ -4244,7 +4323,7 @@ test('traits: DB carries structured bonuses + the sheet consumes them', (db) => 
   // (b) picker exposes the four aggregator feeds.
   const tp = readSource('trait-picker.js');
   for (const m of ['getActiveSkillBonuses', 'getActiveSaveBonuses',
-                   'getActiveACBonuses', 'getActiveInitBonus']) {
+                   'getActiveACBonuses', 'getActiveInitiativeBonuses']) {
     assert(new RegExp(m).test(tp), `trait-picker.js missing ${m}`);
   }
   assert(/return api/.test(tp) && /window\.TraitPicker = api/.test(tp),
@@ -4260,8 +4339,13 @@ test('traits: DB carries structured bonuses + the sheet consumes them', (db) => 
   assert(/window\.recalcAll = recalcAll/.test(app),
     'app.js no longer exposes window.recalcAll — external pickers (trait/template) '
     + 'call it to trigger a recalc; without it their apply() does nothing.');
-  assert(/TraitPicker.*getActiveInitBonus/.test(readSource('character.js')),
-    'character.js initiative no longer adds the TraitPicker init bonus.');
+  // 2026-07-05: the trait init scalar was upgraded to the typed initiative
+  // onion — app.js aggregates TraitPicker.getActiveInitiativeBonuses into
+  // bonuses.initiativeTyped and character.js stacks the whole list.
+  assert(/TraitPicker.*getActiveInitiativeBonuses/.test(app),
+    'app.js collectActiveBonuses no longer aggregates TraitPicker initiative bonuses.');
+  assert(/initiativeTyped/.test(readSource('character.js')),
+    'character.js initiative no longer stacks bonuses.initiativeTyped.');
 });
 
 test('pickers: spell-adjacent tag-filter parity', () => {

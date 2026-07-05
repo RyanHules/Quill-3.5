@@ -5026,6 +5026,8 @@
     amount, bonus_category: cat || "untyped", condition: cond || null });
   const _ac = (amount, cat, cond) => ({ bonus_type: "ac", target: null,
     amount, bonus_category: cat || "untyped", condition: cond || null });
+  const _init = (amount, cat, cond) => ({ bonus_type: "initiative", target: null,
+    amount, bonus_category: cat || "untyped", condition: cond || null });
   const _fivesk = (a, cond) => ["Bluff", "Listen", "Sense Motive", "Spot", "Survival"]
     .map(s => _sk(s, a, "untyped", cond));
   const CLASS_FEATURE_SCALING = {
@@ -5088,15 +5090,18 @@
       { feature: "Skirmish",
         fn: l => l >= 3 ? [_ac(l >= 19 ? 5 : l >= 15 ? 4 : l >= 11 ? 3 : l >= 7 ? 2 : 1, "competence",
           "rounds in which she moves at least 10 feet (until start of next turn); light armor and light load only")] : null },
-      { feature: "Battle Fortitude",
-        fn: l => l >= 2 ? [_sv("Fortitude", l >= 20 ? 3 : l >= 11 ? 2 : 1, "competence",
-          "in light or no armor and carrying a light load")] : null }],
+      { feature: "Battle Fortitude", fn: l => { if (l < 2) return null;
+        const a = l >= 20 ? 3 : l >= 11 ? 2 : 1;
+        const cond = "in light or no armor and carrying a light load";
+        return [_sv("Fortitude", a, "competence", cond), _init(a, "competence", cond)]; } }],
     "Shadowbane Stalker": [{ feature: "Discover Subterfuge",
       fn: l => { if (l < 2) return null; const a = l >= 8 ? 6 : l >= 5 ? 4 : 2;
         return [_sk("Search", a, "competence", null), _sk("Sense Motive", a, "competence", null)]; } }],
     "Spymaster": [{ feature: "Scrying Defense",
       fn: l => l >= 2 ? [_sv("Will", l, "untyped", "against divination (scrying) spells"),
                          _sk("Spot", l, "untyped", "to notice scrying sensors")] : null }],
+    "Streetfighter": [{ feature: "Always Ready",
+      fn: l => [_init(l >= 5 ? 3 : l >= 3 ? 2 : 1, "competence", null)] }],
     "Tempest": [{ feature: "Tempest Defense",
       fn: l => [_ac(l >= 5 ? 3 : l >= 3 ? 2 : 1, "untyped",
         "wielding a double weapon or two weapons, in light or no armor")] }],
@@ -5143,7 +5148,17 @@
       for (const f of feats) {
         if (!f || !Array.isArray(f.bonuses)) continue;
         if ((parseInt(f.level_acquired, 10) || 0) > lvl) continue;  // not yet gained
-        for (const b of f.bonuses) out.push(Object.assign({ source: f.name }, b));
+        for (const b of f.bonuses) {
+          // Ability-linked rows (Exemplar Cha-to-Fort/Concentration,
+          // Ninja Wis-to-AC) resolve against the live ability mods; the
+          // categorizers' marker guard drops whatever stays non-flat.
+          let row = b;
+          if (typeof DND35 !== "undefined" && DND35.resolveAbilityLinkedBonus) {
+            const resolved = DND35.resolveAbilityLinkedBonus(b);
+            if (resolved) row = resolved;
+          }
+          out.push(Object.assign({ source: f.name }, row));
+        }
       }
       // Level-scaling features (Trap Sense, favored-enemy, …) — each fn gates
       // on the class level itself and returns the scaled rows (or null).
@@ -5170,12 +5185,18 @@
       ? DND35.categorizeACBonuses(collectAcquiredFeatureBonuses())
       : { items: [], situational: [] };
   }
+  function getActiveInitiativeBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeInitiativeBonuses)
+      ? DND35.categorizeInitiativeBonuses(collectAcquiredFeatureBonuses())
+      : { direct: [], situational: [] };
+  }
 
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
     getActiveSpeedBonuses,
     getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
+    getActiveInitiativeBonuses,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,

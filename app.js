@@ -219,6 +219,23 @@
       if (Array.isArray(src.situational)) bonuses.acSituational.push(...src.situational);
     }
 
+    // Initiative bonuses (structured `bonuses`, bonus_type=initiative).
+    // Unconditional ones stay a TYPED list so character.js stacks them
+    // cross-source (Quick Reconnoiter untyped + Streetfighter competence
+    // sum; two competence sources don't); conditional ones render as a
+    // note under the Initiative block.
+    bonuses.initiativeTyped = [];
+    bonuses.initiativeSituational = [];
+    for (const src of [
+      (typeof ClassPicker !== "undefined" && ClassPicker.getActiveInitiativeBonuses) ? ClassPicker.getActiveInitiativeBonuses() : null,
+      (typeof Feats !== "undefined" && Feats.getActiveInitiativeBonuses) ? Feats.getActiveInitiativeBonuses() : null,
+      (typeof TraitPicker !== "undefined" && TraitPicker.getActiveInitiativeBonuses) ? TraitPicker.getActiveInitiativeBonuses() : null,
+    ]) {
+      if (!src) continue;
+      if (Array.isArray(src.direct)) bonuses.initiativeTyped.push(...src.direct);
+      if (Array.isArray(src.situational)) bonuses.initiativeSituational.push(...src.situational);
+    }
+
     // Weapon Focus / Spell Focus (parameterized feats). Weapon Focus feeds the
     // per-attack calculator (character.js matches the weapon name); Spell Focus
     // is surfaced as a per-school DC note by spells.js (the DC display is

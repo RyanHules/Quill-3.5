@@ -1013,12 +1013,20 @@ const Feats = (function () {
       const spec = (m[2] || "").trim();
       const featName = m[1].trim();
       for (const b of bonuses) {
+        // Ability-linked rows (Force of Personality Cha-for-Wis, Tactile
+        // Trapsmith Dex-for-Int) resolve to a flat row off the live
+        // ability mods FIRST; whatever stays non-flat is then guarded.
+        let src = b;
+        if (typeof DND35 !== "undefined" && DND35.resolveAbilityLinkedBonus) {
+          const resolved = DND35.resolveAbilityLinkedBonus(b);
+          if (resolved) src = resolved;
+        }
         // Marker guard: scaling rows / ally- or enemy-scoped rows are not
         // flat self bonuses — skip them here so the skill path's manual
         // routing (which bypasses the categorizers) can't consume them.
         if (typeof DND35 !== "undefined" && DND35.flatBonusRowOk &&
-            !DND35.flatBonusRowOk(b)) continue;
-        const bonus = Object.assign({}, b);
+            !DND35.flatBonusRowOk(src)) continue;
+        const bonus = Object.assign({}, src);
         if (bonus.target === "@choice") {
           if (!spec) continue;             // unresolved specialization → skip
           bonus.target = spec;
@@ -1066,6 +1074,11 @@ const Feats = (function () {
     return (typeof DND35 !== "undefined" && DND35.categorizeACBonuses)
       ? DND35.categorizeACBonuses(getResolvedFeatBonuses())
       : { items: [], situational: [] };
+  }
+  function getActiveInitiativeBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeInitiativeBonuses)
+      ? DND35.categorizeInitiativeBonuses(getResolvedFeatBonuses())
+      : { direct: [], situational: [] };
   }
   // Movement-speed feat bonuses (effects-aggregator P2). Returns the RAW
   // speed-typed entries; app.js concats + categorizes across all sources.
@@ -1123,6 +1136,7 @@ const Feats = (function () {
     // Effects-aggregator phase 3.
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
+    getActiveInitiativeBonuses,
     getWeaponFocusBonuses, getSpellFocusBonuses,
     // Structured-feat-entry helpers (exposed for tests).
     parseFeatText, lookupFeatInfo,

@@ -620,6 +620,54 @@ const DND35 = {
     "Colossal": { acMod: -8, grappleMod: 16, hideMod: -16, carryMult: 16 },
   },
 
+  // Read an ability MOD straight off the Character tab — the same four
+  // fields app.js's getAbilityMod sums (score + racial + template + temp,
+  // with the "—" no-score → +0 guard), minus the transient active-bonus
+  // layer (rage / bloodline bumps), which is a recalc-time input this
+  // standalone reader doesn't have. Used to resolve ability-LINKED bonus
+  // rows; a temporary bump to the linked ability won't flow in until the
+  // accessor is centralized (Phase 3b). Returns null outside a browser or
+  // when the ability's inputs aren't present.
+  readAbilityModFromSheet(ability) {
+    if (typeof document === 'undefined') return null;
+    const ab = String(ability || '').toLowerCase().slice(0, 3);
+    if (!ab) return null;
+    const field = (id) => document.getElementById(`${ab}-${id}`);
+    const base = field('score')?.value;
+    if (base == null) return null;
+    if (base === '—' || base === '–' || base === '-') return 0;
+    let score = parseInt(base) || 0;
+    score += parseInt(field('race')?.value) || 0;
+    score += parseInt(field('template')?.value) || 0;
+    score += parseInt(field('temp')?.value) || 0;
+    return this.abilityModifier(score);
+  },
+
+  // Resolve an ability-LINKED bonus row (scaling {kind:'ability',
+  // ability:'Wis'}) into a plain flat row: the amount IS an ability
+  // modifier (Ninja adds Wis to AC; Force of Personality substitutes Cha
+  // for Wis on some Will saves). Two sub-shapes, told apart by the
+  // condition text:
+  //   additive     — "adds her X bonus (if any)": clamped at 0, a negative
+  //                  mod grants nothing.
+  //   substitution — condition contains "substitut…": the raw mod (may be
+  //                  negative — the swap is mandatory); these rows always
+  //                  carry a condition, so they surface as situational
+  //                  notes, never a summed total.
+  // Returns the resolved flat row (scaling stripped, so it passes
+  // flatBonusRowOk), or null when the row isn't ability-linked or the
+  // sheet's ability inputs aren't available.
+  resolveAbilityLinkedBonus(b, getAbilityModFn) {
+    if (!b || !b.scaling || b.scaling.kind !== 'ability' || !b.scaling.ability) return null;
+    const fn = getAbilityModFn || this.readAbilityModFromSheet;
+    const mod = fn.call(this, b.scaling.ability);
+    if (typeof mod !== 'number' || isNaN(mod)) return null;
+    const isSubst = /substitut/i.test(String(b.condition || ''));
+    const out = Object.assign({}, b, { amount: isSubst ? mod : Math.max(0, mod) });
+    delete out.scaling;
+    return out;
+  },
+
   // Marker guard for NON-FLAT bonus rows (walk emissions, 2026-07-02+).
   // The DB walk tags rows the flat consumers can't evaluate:
   //   `scaling`      — the amount grows with level (amount is null or just
@@ -848,6 +896,31 @@ const DND35 = {
       });
     }
     return { items, situational };
+  },
+
+  // Categorize an entry's structured initiative bonuses (bonus_type=
+  // 'initiative') the way categorizeSaveBonuses does for saves. Returns
+  //   { direct:[{amount, bonus_category, source}], situational:[…] }
+  // `direct` stays a TYPED list (not pre-stacked) so the consumer can
+  // stack across all sources at once; condition-bearing rows become
+  // situational notes. Sources today: Quick Reconnoiter (feat, +2),
+  // Aggressive / Torpid traits (±2), Unreactive flaw (−6), Streetfighter
+  // Always Ready + Scout Battle Fortitude (scaling map), Exemplar
+  // Intellectual Agility (ability-linked, resolved upstream).
+  categorizeInitiativeBonuses(bonuses) {
+    const direct = [];
+    const situational = [];
+    for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
+      if (!b || b.bonus_type !== 'initiative') continue;
+      if (!this.flatBonusRowOk(b)) continue;
+      const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!amt || isNaN(amt)) continue;
+      const cond = (b.condition == null) ? '' : String(b.condition).trim();
+      const cat = b.bonus_category != null ? b.bonus_category : null;
+      if (cond) situational.push({ amount: amt, condition: cond, category: cat, source: b.source });
+      else direct.push({ amount: amt, bonus_category: cat, source: b.source });
+    }
+    return { direct, situational };
   },
 
   // Movement-speed bonus aggregator (effects-aggregator P2). Consumes a flat

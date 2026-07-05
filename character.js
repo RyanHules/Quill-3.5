@@ -60,6 +60,24 @@ const Character = (function () {
       `<div class="ss-grp"><ul>${items}</ul></div>`;
     el.style.display = "";
   }
+  // Render auto-derived situational initiative modifiers (conditional
+  // class-feature/trait rows, e.g. Scout Battle Fortitude's armor-gated
+  // +N) into #init-situational-auto.
+  function renderSituationalInit(list) {
+    const el = document.getElementById("init-situational-auto");
+    if (!el) return;
+    if (!Array.isArray(list) || !list.length) {
+      el.style.display = "none"; el.innerHTML = ""; return;
+    }
+    const amt = (n) => (n >= 0 ? "+" + n : String(n));
+    const items = list.map((s) =>
+      `<li>${amt(s.amount)} ${_esc(_typeLabel(s.category))}${_esc(s.condition || "")}` +
+      (s.source ? ` <span class="ss-src">(${_esc(s.source)})</span>` : "") +
+      `</li>`).join("");
+    el.innerHTML = `<div class="ss-head">Situational initiative (auto-derived):</div>` +
+      `<div class="ss-grp"><ul>${items}</ul></div>`;
+    el.style.display = "";
+  }
   "use strict";
 
   const $ = (sel) => document.querySelector(sel);
@@ -425,14 +443,17 @@ const Character = (function () {
     // save where the data names/implies one; general ones grouped separately.
     renderSituationalSaves(bonuses.saveSituational || []);
 
-    // Initiative — DEX + misc + UA trait/flaw initiative bonuses (Aggressive
-    // +2, Torpid -2, Unreactive -6; untyped, summed). No init aggregator onion
-    // yet, so consume the picker's scalar directly.
+    // Initiative — DEX + misc + the typed cross-source stack (traits/flaws,
+    // feats like Quick Reconnoiter, class features like Streetfighter's
+    // Always Ready or Exemplar's Int-linked Intellectual Agility). Same-type
+    // bonuses don't stack; untyped do. Conditional ones render as a note.
     const initDex = getAbilityMod("DEX");
-    const initTrait = (typeof TraitPicker !== "undefined" && TraitPicker.getActiveInitBonus)
-      ? TraitPicker.getActiveInitBonus() : 0;
+    const initTyped = Array.isArray(bonuses.initiativeTyped) ? bonuses.initiativeTyped : [];
+    const initStacked = (typeof DND35 !== "undefined" && DND35.stackBonuses)
+      ? DND35.stackBonuses(initTyped).total : 0;
     $("#init-dex").textContent = fmt(initDex);
-    $("#init-total").textContent = fmt(initDex + expr($("#init-misc").value) + initTrait);
+    $("#init-total").textContent = fmt(initDex + expr($("#init-misc").value) + initStacked);
+    renderSituationalInit(bonuses.initiativeSituational || []);
 
     // BAB boxes (4 iterative attacks: highest, -5, -10, -15)
     const bab1 = int($("#bab-1").value);
