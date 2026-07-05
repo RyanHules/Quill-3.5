@@ -694,7 +694,12 @@
   // picker's own raceIndex so resolution matches what the user could pick
   // (3.5-preferred, newest source).
   function resolveVariantBase(parsed) {
-    const baseName = variantBaseName(parsed && parsed.traits);
+    // Explicit structured link (`variant_of`, a bare base-race name) wins;
+    // fall back to the legacy "standard <base> racial traits" pointer trait.
+    const baseName = (parsed && typeof parsed.variant_of === 'string'
+      && parsed.variant_of.trim())
+      ? parsed.variant_of.trim()
+      : variantBaseName(parsed && parsed.traits);
     if (!baseName) return null;
     const baseId = raceIndex.get(baseName.toLowerCase());
     if (baseId === undefined) return null;

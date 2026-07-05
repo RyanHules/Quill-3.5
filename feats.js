@@ -620,7 +620,8 @@ const Feats = (function () {
     if (!raceName) return null;
     const row = DB.queryOne(
       "SELECT name, source, version, " +
-      "  json_extract(data, '$.traits') AS t " +
+      "  json_extract(data, '$.traits') AS t, " +
+      "  json_extract(data, '$.variant_of') AS variant_of " +
       "FROM entry WHERE type='race' AND name = ? COLLATE NOCASE " +
       "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
       [raceName]
@@ -642,11 +643,12 @@ const Feats = (function () {
     // won't be in the variant's own `traits` list.
     let sourceRaceName = row.name;
     if (!trait) {
-      // Reuse race-picker's single source of truth for the pointer pattern
-      // (window.RacePicker.variantBaseName) so the two can't drift; skip the
-      // base fallback gracefully if the picker module isn't present.
-      const baseName = (window.RacePicker && RacePicker.variantBaseName)
-        ? RacePicker.variantBaseName(traits) : null;
+      // Prefer the explicit `variant_of` link; else reuse race-picker's
+      // pointer-trait derivation (single source of truth) so the two can't
+      // drift. Skip the base fallback gracefully if neither is present.
+      const baseName = (row.variant_of && String(row.variant_of).trim())
+        || ((window.RacePicker && RacePicker.variantBaseName)
+          ? RacePicker.variantBaseName(traits) : null);
       if (baseName) {
         const brow = DB.queryOne(
           "SELECT name, json_extract(data, '$.traits') AS t " +

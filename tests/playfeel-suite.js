@@ -2128,10 +2128,16 @@
     }
 
     // 2. Splat race with a typed trait — the [Ex]/[Su]/[Sp] tag surfaces.
-    set('char-race', 'Aquatic Elf');
+    //    Use the Stormwrack printing by its ACTUAL name, "Elf, Aquatic"
+    //    (the bare "Aquatic Elf" now exact-matches the UA environmental
+    //    variant, whose low-light is the plain ×2 — no "Superior" trait).
+    //    Stormwrack's aquatic elf carries the typed Superior Low-Light
+    //    Vision (Ex) racial trait. (DB fix 2026-07-05: the appendix
+    //    sample-NPC stat block had been clobbering the Ch.2 race writeup.)
+    set('char-race', 'Elf, Aquatic');
     await wait(200);
     const slv = panelTextFor('Superior Low-Light Vision');
-    if (slv == null) fail('SA-INFO: Aquatic Elf did not auto-fill Superior Low-Light Vision');
+    if (slv == null) fail('SA-INFO: Elf, Aquatic did not auto-fill Superior Low-Light Vision');
     expectIncludes(slv, '[Ex]', 'SA-INFO: typed racial trait surfaces its Ex/Su/Sp tag');
 
     // 3. Skill trick (special-ability-picker format) resolves + shows Benefit.
