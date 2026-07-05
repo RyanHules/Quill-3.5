@@ -557,6 +557,15 @@ const Spells = (function () {
     });
 
     rmBtn.addEventListener("click", () => {
+      // Removing a still-checked row walks back its expenditure too —
+      // un-preparing a used spell shouldn't leave a phantom used slot.
+      if (usedCb.checked) {
+        const usedInp = panel?.querySelector(`.sc-used[data-lvl="${lvl}"]`);
+        if (usedInp) {
+          usedInp.value = Math.max(0, int(usedInp.value) - 1);
+          recalc();
+        }
+      }
       row.remove();
       if (panel) updatePreparedCount(panel, lvl, null);
     });

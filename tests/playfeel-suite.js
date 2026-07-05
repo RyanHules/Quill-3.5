@@ -1899,6 +1899,51 @@
       'SS3: Lesser textarea restored');
   });
 
+  regression('PS1: prepared-used checkbox syncs expended slots (delta, floor, reset, removal walk-back)', async () => {
+    await newCharacter();
+    document.querySelector('[data-tab="tab-spells"]').click();
+    await wait(150);
+    $('#btn-add-spellcasting').click();
+    await wait(300);
+    const panels = $$('[data-caster-type="spellcasting"]');
+    const panel = panels[panels.length - 1];
+    if (!panel) fail('PS1: spellcasting panel did not spawn');
+    const usedInp = panel.querySelector('.sc-used[data-lvl="1"]');
+    if (!usedInp) fail('PS1: level-1 .sc-used input missing');
+    // Pre-existing manual expenditure — the checkbox must DELTA on top of
+    // it (a recount would clobber spontaneous-conversion bookkeeping).
+    usedInp.value = 2;
+    const addPrep = panel.querySelector('.sc-add-prepared[data-lvl="1"]');
+    addPrep.click(); addPrep.click();
+    const rows = panel.querySelectorAll('.sc-prepared-list[data-lvl="1"] .sc-prepared-row');
+    if (rows.length !== 2) fail('PS1: expected 2 prepared rows, got ' + rows.length);
+    const cb1 = rows[0].querySelector('.sc-prep-used');
+    const cb2 = rows[1].querySelector('.sc-prep-used');
+    const toggle = (cb) => {
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    toggle(cb1);
+    expect(usedInp.value, '3', 'PS1: check adds +1 on the manual base');
+    toggle(cb2);
+    expect(usedInp.value, '4', 'PS1: second check adds another +1');
+    toggle(cb1);
+    expect(usedInp.value, '3', 'PS1: uncheck walks back -1');
+    usedInp.value = 0;
+    toggle(cb2);
+    expect(usedInp.value, '0', 'PS1: uncheck floors at 0');
+    // Removing a still-checked row walks its expenditure back too.
+    toggle(cb1); toggle(cb2);           // both checked, used 0 -> 2
+    expect(usedInp.value, '2', 'PS1: both re-checked');
+    rows[0].querySelector('.sc-prep-remove').click();
+    await wait(50);
+    expect(usedInp.value, '1', 'PS1: removing a checked row decrements');
+    // Reset clears the count AND the surviving checkmark together.
+    panel.querySelector('.sc-reset-slots').click();
+    expect(usedInp.value, '0', 'PS1: reset zeroes the used count');
+    expect(cb2.checked, false, 'PS1: reset unchecks the surviving prep-used box');
+  });
+
   regression('SS2: data-from-class markers survive a save/load round-trip', async () => {
     await newCharacter();
     setAbilities({ CHA: 14 });
