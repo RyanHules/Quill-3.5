@@ -2909,6 +2909,11 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // deeper spellcasting) — names the keyword, grants nothing. Mirrors the
     // None entry ("Mystic Ranger", "Animal Companion") in _companion_metadata.
     'Mystic Ranger/Animal Companion',
+    // 2026-07-07 Dragon #312 Despot: "Code of Conduct" names "henchmen,
+    // followers, or cohorts" as an associates RESTRICTION — the cohort is
+    // granted by the Leadership feat, not this feature. Mirrors the None
+    // entry ("Despot", "Code of Conduct") in _companion_metadata.
+    'Despot/Code of Conduct',
     // 2026-07-04 CAdv walk-v3: per-level Ride/Handle Animal skill bonus that
     // mentions the companion but grants no progression (that's the PrC's
     // Animal Companion/Special Mount feature). Mirrors the None entry.

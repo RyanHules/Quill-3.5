@@ -248,6 +248,7 @@
     'Cleric': 'divine',  'Druid': 'divine',
     'Paladin': 'divine', 'Ranger': 'divine',
     'Mystic Ranger': 'divine',  // Dragon Magazine #336 variant ranger (earlier, deeper divine casting)
+    'Despot': 'divine',         // Dragon Magazine #312 paladin variant (own 1st-4th divine spell list)
     'Healer': 'divine',  'Shugenja': 'divine',
     'Spirit Shaman': 'divine', 'Sohei': 'divine',
     'Apostle of Peace': 'divine', 'Blackguard': 'divine',
@@ -306,6 +307,7 @@
     'Paladin': 'prepared',
     'Ranger': 'prepared',
     'Mystic Ranger': 'prepared',  // Dragon Magazine #336 variant ranger (divine, prepared)
+    'Despot': 'prepared',         // Dragon Magazine #312 paladin variant (divine, prepared)
     'Archivist': 'prepared',
     // (Shugenja moved to spontaneous below — DB description confirms
     // "spontaneously without preparation".)
