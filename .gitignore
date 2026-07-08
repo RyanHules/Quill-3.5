@@ -7,4 +7,8 @@ data/**
 # of completeness). Active characters live in saves/active/ and ARE
 # tracked. Anything you want to commit, move out of library/ first.
 saves/library/**
+# Review-flagging store (2026-07-09): ephemeral working notes (entry-review
+# flags + sheet bug/feature reports), written by save_server /api/flags. Like
+# saves/library, local working data — the DB-side reader reads the live file.
+reviews/**
 __pycache__/**

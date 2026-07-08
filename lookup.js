@@ -339,6 +339,41 @@
         search(link.getAttribute('data-lookup-search'));
         return;
       }
+      // Entry-review flag: add a flag (prompt for an optional note) or
+      // resolve an existing one. Re-renders just the flag row in place.
+      const flagBtn = tgt?.closest('[data-action="flag-entry"]');
+      if (flagBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        let ref;
+        try { ref = JSON.parse(flagBtn.getAttribute('data-flag-ref')); }
+        catch (e) { return; }
+        const note = window.prompt(
+          `Flag "${ref.name}" for review — note (optional):`, '');
+        if (note !== null && window.ReviewFlags) {
+          ReviewFlags.add(ref, note).then(() => {
+            const row = flagBtn.closest('.lookup-flag-row');
+            if (row) row.outerHTML = renderFlagRow(ref);
+          });
+        }
+        return;
+      }
+      const resolveBtn = tgt?.closest('[data-action="resolve-flag"]');
+      if (resolveBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const row = resolveBtn.closest('.lookup-flag-row');
+        let ref = null;
+        try { ref = row && JSON.parse(row.getAttribute('data-flag-ref')); }
+        catch (e) { /* ignore */ }
+        const id = resolveBtn.getAttribute('data-flag-id');
+        if (window.ReviewFlags) {
+          ReviewFlags.resolve(id).then(() => {
+            if (row && ref) row.outerHTML = renderFlagRow(ref);
+          });
+        }
+        return;
+      }
       // Show more / less toggle for collapsed rule descriptions.
       const toggle = tgt?.closest('[data-action="toggle-desc"]');
       if (toggle) {
@@ -391,7 +426,24 @@
     // theirs inside renderRuleExtra, ordered before See-also).
     if (type !== 'rule') bits.push(renderEntryTables(d));
     bits.push(renderTags(d));
+    bits.push(renderFlagRow({ name: d.name || '', source: d.source || '', type }));
     return bits.filter(Boolean).join('');
+  }
+
+  // Entry-review flag control (DB-facing). Shows any open flags for this entry
+  // (with a resolve button) + a "Flag for review" button. No-op if ReviewFlags
+  // isn't loaded (graceful degradation). Keyed by name/source/type ref.
+  function renderFlagRow(ref) {
+    if (!window.ReviewFlags) return '';
+    const refAttr = escapeHtml(JSON.stringify(ref));
+    const open = ReviewFlags.openFor(ref);
+    const openHtml = open.map(f =>
+      `<div class="lookup-flag-open">⚑ ${escapeHtml(f.note || 'Flagged for review')}` +
+      ` <button type="button" class="lookup-flag-resolve" data-action="resolve-flag"` +
+      ` data-flag-id="${escapeHtml(f.id)}">resolve</button></div>`).join('');
+    return `<div class="lookup-flag-row" data-flag-ref="${refAttr}">${openHtml}` +
+      `<button type="button" class="lookup-flag-btn" data-action="flag-entry"` +
+      ` data-flag-ref="${refAttr}">⚑ Flag for review</button></div>`;
   }
 
   // Collapse rule descriptions when structured tables/mechanics make

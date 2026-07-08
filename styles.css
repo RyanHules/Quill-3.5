@@ -4001,3 +4001,119 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   margin-left: 0.25rem;
   white-space: nowrap;
 }
+
+/* ==================== Review flagging ==================== */
+/* Header ⚑ trigger — mirrors .book-filter-trigger chrome. */
+.review-flags-trigger {
+  padding: 0.2rem 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  position: relative;
+  margin-left: 0.3rem;
+}
+.review-flags-trigger:hover { background: rgba(255, 255, 255, 0.15); }
+.review-flags-trigger.review-flags-active {
+  border-color: #c8a14a;
+  background: rgba(200, 161, 74, 0.18);
+}
+.review-flags-trigger .rf-badge[hidden] { display: none; }
+.review-flags-trigger .rf-badge {
+  display: inline-block;
+  min-width: 1.1em;
+  padding: 0 0.3em;
+  background: #c8a14a;
+  color: #222;
+  border-radius: 8px;
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Entry-flag control inside the lookup detail panel. */
+.lookup-flag-row {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #444;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.lookup-flag-btn {
+  padding: 0.15rem 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.lookup-flag-btn:hover { background: rgba(200, 161, 74, 0.18); border-color: #c8a14a; }
+.lookup-flag-open {
+  font-size: 0.82rem;
+  color: #e0c37a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.lookup-flag-resolve, .rf-list button {
+  padding: 0 0.4rem;
+  background: transparent;
+  color: #9ad;
+  border: 1px solid #567;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.lookup-flag-resolve:hover, .rf-list button:hover { background: rgba(120, 160, 200, 0.18); }
+
+/* Review dashboard modal. */
+.review-flags-modal { position: fixed; inset: 0; z-index: 9100;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 4rem 1rem 1rem; }
+.review-flags-modal[hidden] { display: none; }
+.review-flags-modal .rf-backdrop { position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px); }
+.review-flags-modal .rf-card { position: relative; width: min(620px, 100%);
+  max-height: calc(100vh - 5rem); overflow-y: auto; background: #222;
+  color: #eee; border: 1px solid #555; border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); padding: 1rem 1.2rem; }
+.review-flags-modal .rf-head { display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 0.8rem; }
+.review-flags-modal .rf-head h2 { margin: 0; font-size: 1.15rem; }
+.review-flags-modal .rf-close { background: none; border: none; color: #aaa;
+  font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.review-flags-modal .rf-report-form label,
+.review-flags-modal .rf-section h3 { display: block; font-size: 0.85rem;
+  color: #c8a14a; margin: 0.8rem 0 0.4rem; }
+.review-flags-modal .rf-report-row { display: flex; gap: 0.4rem; }
+.review-flags-modal .rf-report-row input { flex: 1 1 auto; }
+.review-flags-modal .rf-report-row select,
+.review-flags-modal .rf-report-row input { background: #1a1a1a; color: #eee;
+  border: 1px solid #555; border-radius: 4px; padding: 0.25rem 0.4rem; }
+.review-flags-modal #rf-report-submit { padding: 0.25rem 0.7rem;
+  background: rgba(200, 161, 74, 0.2); color: #eee; border: 1px solid #c8a14a;
+  border-radius: 4px; cursor: pointer; }
+.review-flags-modal .rf-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.review-flags-modal .rf-item { display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.85rem; padding: 0.3rem 0.4rem; background: rgba(255,255,255,0.03);
+  border-radius: 4px; }
+.review-flags-modal .rf-note { flex: 1 1 auto; color: #ddd; }
+.review-flags-modal .rf-kind { font-size: 0.72rem; text-transform: uppercase;
+  padding: 0 0.35em; border-radius: 3px; font-weight: 600; }
+.review-flags-modal .rf-kind-bug { background: #6b2b2b; color: #f0c9c9; }
+.review-flags-modal .rf-kind-feature { background: #2b5b2b; color: #c9f0c9; }
+.review-flags-modal .rf-ref { font-weight: 600; color: #eee; }
+.review-flags-modal .rf-src { font-weight: 400; opacity: 0.6; margin-left: 0.3em;
+  font-size: 0.9em; }
+.review-flags-modal .rf-empty { color: #888; font-size: 0.82rem; font-style: italic; }

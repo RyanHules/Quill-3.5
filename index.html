@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260708a';
+    window.CACHE_VERSION = '20260709a';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -852,6 +852,10 @@
       // version badges (all consumed by its catalog + info panel).
       'bloodline.js',
       'lookup.js', 'book-filter-ui.js', 'homebrew-filter-ui.js',
+      // Review-flagging: DB-facing entry flags (wired into lookup.js) +
+      // char-sheet bug/feature reports (header button). Both persist via
+      // SaveBackend to the /api/flags surfaces.
+      'review-flags.js', 'sheet-reports.js', 'review-flags-ui.js',
       // -- Play-feel test suite (browser-side). Self-gates on
       // `?playfeel=1` in the URL; otherwise this is a near-zero-cost
       // no-op. See tests/playfeel-suite.js for the scenario list.

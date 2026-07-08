@@ -66,6 +66,21 @@ _PROJECT_ROOT = Path(__file__).parent.resolve()
 SAVE_DIR = _PROJECT_ROOT / "saves"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Review-flagging store (2026-07-09). Kept OUTSIDE saves/ so flags never appear
+# in the character list (list_saves rglob's the whole saves/ tree). Two fixed
+# surfaces with distinct consumers: entry-flags feed the DB project's worklist;
+# sheet-reports are char-sheet bug/feature notes. Fixed allowlist — no
+# user-supplied filenames, so no slugify / traversal surface here.
+REVIEWS_DIR = _PROJECT_ROOT / "reviews"
+_FLAG_SURFACES = {"entry-flags", "sheet-reports"}
+
+
+def flags_path(surface: str) -> Path:
+    """Path for a review-flag surface, or None if `surface` isn't allowlisted."""
+    if surface not in _FLAG_SURFACES:
+        return None
+    return REVIEWS_DIR / f"{surface}.json"
+
 # One-time migration from the previous home-dir location. The first
 # version of this server stored saves under ~/.dnd-sheet/saves/. If
 # any files exist there AND the in-project saves/ dir is empty (i.e.
@@ -336,12 +351,16 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._send_json(200, {"saves": list_saves()})
         if self.path.startswith("/api/saves/"):
             return self._api_get_save()
+        if self.path.startswith("/api/flags/"):
+            return self._api_get_flags()
         # Everything else is a static file.
         return super().do_GET()
 
     def do_PUT(self):
         if self.path.startswith("/api/saves/"):
             return self._api_put_save()
+        if self.path.startswith("/api/flags/"):
+            return self._api_put_flags()
         self.send_error(405, "method not allowed")
 
     def do_POST(self):
@@ -452,6 +471,69 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
                 parent = parent.parent
         except OSError:
             pass  # parent dir not empty or already gone — fine
+        self.send_response(204)
+        self.end_headers()
+
+    # ---- API: review flags GET/PUT -------------------------------------
+
+    def _flag_surface(self):
+        """Extract + validate the surface from /api/flags/<surface>. Sends the
+        error + returns None on a bad surface."""
+        surface = urllib.parse.unquote(self.path[len("/api/flags/"):]).strip("/")
+        if flags_path(surface) is None:
+            self._send_json(404, {"error": "unknown flag surface"})
+            return None
+        return surface
+
+    def _api_get_flags(self):
+        surface = self._flag_surface()
+        if surface is None:
+            return
+        path = flags_path(surface)
+        if not path.exists():
+            # Empty store — return the canonical empty shape, not a 404, so the
+            # client can treat "no file yet" and "no flags yet" identically.
+            return self._send_json(200, {"flags": []})
+        try:
+            body = path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except OSError as e:
+            self._send_json(500, {"error": str(e)})
+
+    def _api_put_flags(self):
+        surface = self._flag_surface()
+        if surface is None:
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return self._send_json(400, {"error": "empty body"})
+        if length > 5 * 1024 * 1024:
+            return self._send_json(413, {"error": "payload too large"})
+        raw = self.rfile.read(length)
+        try:
+            payload = json.loads(raw)
+            if not isinstance(payload, dict):
+                raise ValueError("flags payload must be a JSON object")
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._send_json(400, {"error": f"invalid JSON: {e}"})
+        path = flags_path(surface)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        try:
+            with tmp.open("w", encoding="utf-8") as fp:
+                json.dump(payload, fp, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+        except OSError as e:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return self._send_json(500, {"error": str(e)})
         self.send_response(204)
         self.end_headers()
 

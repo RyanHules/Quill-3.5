@@ -323,12 +323,55 @@
 
   function getServerInfo() { return serverInfo; }
 
+  // ---- Review flags (2026-07-09) -------------------------------------
+  // Separate store from character saves — server mode uses the dedicated
+  // /api/flags/<surface> endpoints (a file outside saves/, so flags never
+  // pollute the character list); localStorage mode falls back to a keyed dict.
+  // Surfaces: 'entry-flags' (DB-facing) | 'sheet-reports' (char-sheet-facing).
+  const FLAGS_LS_PREFIX = 'dnd35-flags-';
+
+  async function loadFlags(surface) {
+    await ready;
+    if (mode === 'server') {
+      try {
+        const r = await fetch('/api/flags/' + encodeURIComponent(surface),
+                              { cache: 'no-store' });
+        if (!r.ok) return { flags: [] };
+        return await r.json();
+      } catch (e) {
+        return { flags: [] };
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem(FLAGS_LS_PREFIX + surface))
+             || { flags: [] };
+    } catch (e) {
+      return { flags: [] };
+    }
+  }
+
+  async function saveFlags(surface, data) {
+    await ready;
+    if (mode === 'server') {
+      const r = await fetch('/api/flags/' + encodeURIComponent(surface), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) throw new Error('saveFlags failed: ' + r.status);
+      return;
+    }
+    localStorage.setItem(FLAGS_LS_PREFIX + surface, JSON.stringify(data));
+  }
+
   window.SaveBackend = {
     ready,
     get mode() { return mode; },
     list,
     load,
     save,
+    loadFlags,
+    saveFlags,
     delete: del,
     move,
     serverInfo: getServerInfo,
