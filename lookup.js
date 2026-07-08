@@ -549,6 +549,54 @@
     }).filter(Boolean).join('; ');
   }
 
+  // Render a creature's `special_abilities` — the structured rules text
+  // for each named ability (Pale Aura, Frightful Presence, breath weapons,
+  // etc.). Canonical shape is a list of {name, kind?, description,
+  // save_type?/save_dc?/save_ability_basis?}; tolerate a plain string, a
+  // single dict, or a {name: description} map for older/odd entries.
+  // Returns an array of ESCAPED HTML lines (one per ability) so the caller
+  // can splice them into its `lines[]` list. Without this the lookup modal
+  // showed only the one-line `special_attacks`/`special_qualities` SUMMARY
+  // and dropped the actual mechanics (the Slaymate "missing mechanics"
+  // report, 2026-07-08 — 1074/2113 creatures carry this block).
+  function formatSpecialAbilities(v) {
+    if (v == null) return [];
+    if (typeof v === 'string') {
+      const s = v.trim();
+      return s ? [escapeHtml(s)] : [];
+    }
+    let rows;
+    if (Array.isArray(v)) rows = v;
+    else if (typeof v === 'object') {
+      // {name: description} map, or a single ability dict.
+      rows = ('description' in v || 'name' in v)
+        ? [v]
+        : Object.entries(v).map(([name, description]) => ({ name, description }));
+    } else return [escapeHtml(formatValue(v))];
+    return rows.map(row => {
+      if (row == null) return '';
+      if (typeof row === 'string') return escapeHtml(row);
+      const name = String(row.name || '').trim();
+      const kind = String(row.kind || '').trim();
+      const head = name
+        ? `<b>${escapeHtml(name)}${kind ? ` (${escapeHtml(kind)})` : ''}:</b> `
+        : '';
+      const desc = escapeHtml(String(row.description || row.text || '').trim());
+      // Some rows carry save fields separately from the prose.
+      const saveBits = [];
+      if (row.save_type || row.save_dc != null) {
+        const st = row.save_type ? escapeHtml(String(row.save_type)) : 'Save';
+        const dc = row.save_dc != null ? ` DC ${escapeHtml(String(row.save_dc))}` : '';
+        const basis = row.save_ability_basis
+          ? ` (${escapeHtml(String(row.save_ability_basis))}-based)` : '';
+        saveBits.push(`${st}${dc}${basis}`);
+      }
+      const saveStr = saveBits.length && !desc.includes('DC ')
+        ? ` <i>[${saveBits.join('; ')}]</i>` : '';
+      return (head + desc + saveStr).trim();
+    }).filter(Boolean);
+  }
+
   // Per-type meta fields, in display order. The first key in each
   // tuple is the label; the second is the key (or list of keys) on
   // the entry/data dict.
@@ -1884,6 +1932,9 @@
     }
     if (d.special_attacks)    lines.push(`<b>Special attacks:</b> ${escapeHtml(formatValue(d.special_attacks))}`);
     if (d.special_qualities)  lines.push(`<b>Special qualities:</b> ${escapeHtml(formatValue(d.special_qualities))}`);
+    // Full rules text for each named special ability (the mechanics behind
+    // the one-line special_attacks/special_qualities summaries above).
+    formatSpecialAbilities(d.special_abilities).forEach(l => lines.push(l));
     // Prefer the legacy spell_like_abilities field; fall back to the
     // canonical structured spell_likes (the 2026-06 standard) so creatures
     // whose SLAs live there (e.g. Infernal Conflagration Ooze) still show.
