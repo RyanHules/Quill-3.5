@@ -345,14 +345,37 @@
       if (flagBtn) {
         ev.preventDefault();
         ev.stopPropagation();
-        let ref;
-        try { ref = JSON.parse(flagBtn.getAttribute('data-flag-ref')); }
+        const row = flagBtn.closest('.lookup-flag-row');
+        const form = row?.querySelector('.lookup-flag-form');
+        if (form) {
+          flagBtn.hidden = true;
+          form.hidden = false;
+          form.querySelector('.lookup-flag-note')?.focus();
+        }
+        return;
+      }
+      const flagCancel = tgt?.closest('[data-action="flag-cancel"]');
+      if (flagCancel) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const row = flagCancel.closest('.lookup-flag-row');
+        let ref = null;
+        try { ref = row && JSON.parse(row.getAttribute('data-flag-ref')); }
+        catch (e) { /* ignore */ }
+        if (row && ref) row.outerHTML = renderFlagRow(ref);
+        return;
+      }
+      const flagSubmit = tgt?.closest('[data-action="flag-submit"]');
+      if (flagSubmit) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const row = flagSubmit.closest('.lookup-flag-row');
+        let ref = null;
+        try { ref = row && JSON.parse(row.getAttribute('data-flag-ref')); }
         catch (e) { return; }
-        const note = window.prompt(
-          `Flag "${ref.name}" for review — note (optional):`, '');
-        if (note !== null && window.ReviewFlags) {
+        const note = row?.querySelector('.lookup-flag-note')?.value || '';
+        if (ref && window.ReviewFlags) {
           ReviewFlags.add(ref, note).then(() => {
-            const row = flagBtn.closest('.lookup-flag-row');
             if (row) row.outerHTML = renderFlagRow(ref);
           });
         }
@@ -443,7 +466,14 @@
       ` data-flag-id="${escapeHtml(f.id)}">resolve</button></div>`).join('');
     return `<div class="lookup-flag-row" data-flag-ref="${refAttr}">${openHtml}` +
       `<button type="button" class="lookup-flag-btn" data-action="flag-entry"` +
-      ` data-flag-ref="${refAttr}">⚑ Flag for review</button></div>`;
+      ` data-flag-ref="${refAttr}">⚑ Flag for review</button>` +
+      `<div class="lookup-flag-form" hidden>` +
+        `<textarea class="lookup-flag-note" rows="2"` +
+        ` placeholder="Note (optional): what's wrong with this entry?"></textarea>` +
+        `<div class="lookup-flag-form-actions">` +
+          `<button type="button" class="lookup-flag-submit" data-action="flag-submit">Add flag</button>` +
+          `<button type="button" class="lookup-flag-cancel" data-action="flag-cancel">Cancel</button>` +
+        `</div></div></div>`;
   }
 
   // Collapse rule descriptions when structured tables/mechanics make
@@ -2475,6 +2505,7 @@
       types: new Set(),
       tags: new Set(),
       sources: new Set(),
+      flaggedOnly: false,
     };
     const parts = [];
     for (const token of String(raw || '').split(/\s+/)) {
@@ -2484,6 +2515,8 @@
         const k = m[1].toLowerCase();
         const v = m[2];
         if (k === 'tag' && v)       out.tags.add(v.toLowerCase());
+        else if (k === 'flag' && v.toLowerCase() === 'open')
+                                    out.flaggedOnly = true;
         else if ((k === '@source' || k === 'source') && v)
                                     out.sources.add(v.toLowerCase());
         else if (k === 'type' && v) out.types.add(v.toLowerCase());
@@ -2535,6 +2568,13 @@
   // 0 = no match; higher = better.
   function score(entry, parsed) {
     // Hard filters first.
+    // `flag:open` — restrict to entries with an open review flag.
+    if (parsed.flaggedOnly) {
+      if (!window.ReviewFlags ||
+          !ReviewFlags.isFlagged({ name: entry.name, source: entry.source, type: entry.type })) {
+        return 0;
+      }
+    }
     if (parsed.types.size && !parsed.types.has(entry.type)) {
       // Also accept type:item matching item/weapon/armor/gear.
       if (!(parsed.types.has('item') &&
@@ -2842,7 +2882,7 @@
     // searches. Both are clickable: a type chip narrows by type, a recent
     // chip re-fills the input.
     if (!parsed.q && !activeTypes.size && !parsed.types.size &&
-        !parsed.tags.size && !parsed.sources.size) {
+        !parsed.tags.size && !parsed.sources.size && !parsed.flaggedOnly) {
       renderEmptyState();
       setCount('');
       lastResults = [];
@@ -2910,6 +2950,15 @@
           );
           row.querySelector('.lookup-row-name').appendChild(ind);
         }
+      }
+      // ⚑ marker if this entry has an open review flag.
+      if (window.ReviewFlags &&
+          ReviewFlags.isFlagged({ name: e.name, source: e.source, type: e.type })) {
+        const flag = document.createElement('span');
+        flag.className = 'lookup-row-flag';
+        flag.textContent = ' ⚑';
+        flag.title = 'Flagged for review';
+        row.querySelector('.lookup-row-name').appendChild(flag);
       }
       row.addEventListener('click', () => {
         selectedIdx = i;

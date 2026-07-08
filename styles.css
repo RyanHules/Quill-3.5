@@ -4039,6 +4039,9 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   font-variant-numeric: tabular-nums;
 }
 
+/* ⚑ marker on a flagged lookup result row. */
+.lookup-row-flag { color: #e0c37a; font-size: 0.9em; }
+
 /* Entry-flag control inside the lookup detail panel. */
 .lookup-flag-row {
   margin-top: 0.6rem;
@@ -4059,6 +4062,37 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   cursor: pointer;
 }
 .lookup-flag-btn:hover { background: rgba(200, 161, 74, 0.18); border-color: #c8a14a; }
+.lookup-flag-form { flex: 1 1 100%; display: flex; flex-direction: column; gap: 0.35rem; }
+.lookup-flag-form[hidden] { display: none; }
+.lookup-flag-note {
+  width: 100%;
+  background: #1a1a1a;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  resize: vertical;
+}
+.lookup-flag-form-actions { display: flex; gap: 0.4rem; }
+.lookup-flag-submit {
+  padding: 0.15rem 0.6rem;
+  background: rgba(200, 161, 74, 0.2);
+  color: #eee;
+  border: 1px solid #c8a14a;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.lookup-flag-cancel {
+  padding: 0.15rem 0.6rem;
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
 .lookup-flag-open {
   font-size: 0.82rem;
   color: #e0c37a;

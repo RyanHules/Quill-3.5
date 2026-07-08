@@ -2475,6 +2475,41 @@
            failures.slice(0, 6).join('\n  '));
   });
 
+  regression('SS-FLAG: entry review flag persists, reloads, and resolves', async () => {
+    if (!window.ReviewFlags) fail('SS-FLAG: ReviewFlags not loaded');
+    const ref = { name: '__pf_test_entry__', source: 'Playfeel', type: 'creature' };
+    // Clean any residue from a prior aborted run.
+    for (const f of ReviewFlags.getAll().filter(f => f.ref && f.ref.name === ref.name))
+      await ReviewFlags.remove(f.id);
+    await wait(50);
+    await ReviewFlags.add(ref, 'pf test note');
+    expect(ReviewFlags.isFlagged(ref), true, 'SS-FLAG: entry flagged after add');
+    expect(ReviewFlags.openFor(ref).length, 1, 'SS-FLAG: exactly one open flag');
+    // Persistence round-trip: re-init from the store, flag must survive.
+    await ReviewFlags.init();
+    await wait(50);
+    expect(ReviewFlags.isFlagged(ref), true, 'SS-FLAG: flag survives reload (persisted to store)');
+    const id = ReviewFlags.openFor(ref)[0].id;
+    await ReviewFlags.resolve(id);
+    expect(ReviewFlags.isFlagged(ref), false, 'SS-FLAG: resolved flag no longer counts as open');
+    await ReviewFlags.remove(id);   // leave the store clean
+  });
+
+  regression('SS-FLAG: sheet report persists and resolves', async () => {
+    if (!window.SheetReports) fail('SS-FLAG: SheetReports not loaded');
+    const before = SheetReports.getOpen().length;
+    const rep = await SheetReports.add('bug', '__pf_test_report__');
+    expect(SheetReports.getOpen().length, before + 1, 'SS-FLAG: report added to open set');
+    await SheetReports.init();
+    await wait(50);
+    const found = SheetReports.getAll().find(r => r.note === '__pf_test_report__');
+    if (!found) fail('SS-FLAG: sheet report did not survive reload (not persisted)');
+    await SheetReports.resolve(found.id);
+    expect(SheetReports.getOpen().some(r => r.id === found.id), false,
+      'SS-FLAG: resolved report no longer open');
+    await SheetReports.remove(found.id);   // leave the store clean
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {
