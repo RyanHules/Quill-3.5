@@ -2922,6 +2922,11 @@ test('companion: every relevant class feature has metadata or explicit exclusion
   // (We could DB-query for the OVERRIDES set but a Python-vs-JS mirror
   // is simpler and self-documents the intentional exclusions here.)
   const EXCLUSIONS = new Set([
+    // 2026-07-09 Races of the Wild walk: Arcane Hierophant's "Channel Animal"
+    // lets you channel touch spells THROUGH your existing animal companion —
+    // it names the keyword but grants no companion (the advanced druid levels
+    // do). No progression to model.
+    'Arcane Hierophant/Channel Animal (Sp)',
     // 2026-06-29 Dragon #336 Mystic Ranger variant class: its "Animal
     // Companion" feature explicitly TRADES AWAY the companion (for earlier/
     // deeper spellcasting) — names the keyword, grants nothing. Mirrors the
