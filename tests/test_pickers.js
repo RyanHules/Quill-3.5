@@ -87,6 +87,24 @@ test('count of races > 80', (db) => {
   assertGE(r.n, 80);
 });
 
+test('RotD web enhancement: kobold optional_features + standalone entries', (db) => {
+  // The 4 variant kobold traits are folded onto the RotD Kobold race as
+  // `optional_features` (additive, combinable, inherited by the UA kobold
+  // variants). A rebuild dropping the field or clearing the rotd_we_* emit
+  // dirs would silently regress the web enhancement — guard both here.
+  // (2026-07-09)
+  const of = execOne(db,
+    "SELECT json_array_length(json_extract(data,'$.optional_features')) AS n "
+    + "FROM entry WHERE type='race' AND name='Kobold' "
+    + "AND source='Races of the Dragon'");
+  assertEq(of.n, 4, 'RotD Kobold should carry 4 optional_features');
+  // 9 standalone web-enh entries (4 weapon, 1 domain, 3 rule, 1 feat).
+  const we = execOne(db,
+    "SELECT COUNT(*) AS n FROM entry "
+    + "WHERE source='Races of the Dragon Web Enhancement'");
+  assertEq(we.n, 9, 'expected 9 standalone web-enhancement entries');
+});
+
 test('count of spells > 2500', (db) => {
   const r = execOne(db,
     "SELECT COUNT(*) AS n FROM entry WHERE type = 'spell'");

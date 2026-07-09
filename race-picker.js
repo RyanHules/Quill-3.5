@@ -30,6 +30,12 @@
   // Dropped in populate() (DB-ready + book-filter change).
   let _skillBonusCache = null;
 
+  // The current race's optional_features (own or inherited from the base for a
+  // variant), captured at pick time so the info-panel "+ Add" chips can resolve
+  // a clicked feature to its full text without re-querying. See
+  // addOptionalFeatureToCharacter.
+  let _currentOptionalFeatures = [];
+
   function init() {
     const raceInput = document.getElementById('char-race');
     if (!raceInput) {
@@ -59,6 +65,16 @@
         'border-left: 3px solid #6a8a6a; border-radius: 3px; display: none;';
       raceInput.parentElement.parentElement.appendChild(infoPanel);
     }
+    // Delegation: clicking an "+ Add" optional-feature chip in the info panel
+    // applies that feature onto the character (Feats-tab Special Abilities).
+    // Attached once here (showInfo rewrites innerHTML each render, so a
+    // per-render listener would stack). Mirrors deity-picker's domain-chip
+    // insert pattern.
+    infoPanel.addEventListener('click', (ev) => {
+      const chip = ev.target.closest('[data-optfeat]');
+      if (!chip) return;
+      addOptionalFeatureToCharacter(chip.dataset.optfeat);
+    });
 
     // 2b. Browsing-chip wall — surfaces the full race list as
     // clickable chips below the input, so the player can scan rather
@@ -282,6 +298,16 @@
     // variant's own modification traits (dropping the bare pointer line).
     // For a normal race this is just the race's own traits.
     const traits = buildTraitList(parsed.traits, baseParsed && baseParsed.data);
+    // Optional racial features — an ADDITIVE, independently-selectable menu of
+    // traits (RotD web-enhancement kobold options) that layer onto the race in
+    // any combination and trade nothing out. Lives on the BASE race, so a
+    // variant inherits it via baseParsed (no per-variant duplication) — an
+    // Arctic Kobold gets the same optional kit as the base Kobold.
+    const optionalFeatures = Array.isArray(parsed.optional_features)
+      ? parsed.optional_features
+      : (baseParsed && Array.isArray(baseParsed.data.optional_features)
+          ? baseParsed.data.optional_features : []);
+    _currentOptionalFeatures = optionalFeatures;
 
     // 1. Type field — include subtypes parenthetically ("Humanoid (human,
     //    dragonblood)") so subtypes carried in the data show on the type.
@@ -424,7 +450,7 @@
     }
 
     // 5. Info panel — always show for the chosen race.
-    showInfo(race, abilityMods, languages, traits);
+    showInfo(race, abilityMods, languages, traits, optionalFeatures);
 
     // 6. Special abilities. For a monster race (racial HD + a type=creature
     // counterpart) auto-fill the creature's INDIVIDUAL special abilities —
@@ -548,7 +574,7 @@
     }
   }
 
-  function showInfo(race, abilityMods, languages, traits) {
+  function showInfo(race, abilityMods, languages, traits, optionalFeatures) {
     const panel = document.getElementById('race-info');
     if (!panel) return;
     const bits = [];
@@ -610,6 +636,21 @@
       }).join(', ');
       bits.push(`<b>Traits:</b> ${trait_html}`);
     }
+    // Optional Features — additive racial-trait menu (RotD web-enhancement
+    // kobold options). Independently selectable + combinable + inherited by
+    // every kobold variant. Shown distinctly from the always-on traits.
+    if (Array.isArray(optionalFeatures) && optionalFeatures.length) {
+      const of_html = optionalFeatures.map(f => {
+        const desc = (f.description || '').replace(/"/g, '&quot;');
+        return `<span class="race-optfeat-chip" data-optfeat="${escapeHtml(f.name)}" ` +
+               `title="${desc}" role="button" tabindex="0" ` +
+               `style="cursor:pointer; border:1px solid #6a8a6a; border-radius:3px; ` +
+               `padding:0 .35em; margin:0 .15em; display:inline-block;">` +
+               `+ ${escapeHtml(f.name)}</span>`;
+      }).join(' ');
+      bits.push(`<b>Optional Features:</b> ${of_html}` +
+        ` <span style="opacity:.6">(click to add)</span>`);
+    }
 
     panel.innerHTML = bits.join(' &nbsp;·&nbsp; ');
     // race-picker's info panel doesn't repeat the race name (it's in
@@ -620,6 +661,65 @@
     // common case stays uncluttered.
     if (window.VersionBadge) VersionBadge.attach(panel, race.version);
     panel.style.display = bits.length ? 'block' : 'none';
+  }
+
+  // Apply an optional racial feature onto the character: append it to the
+  // Feats-tab Special Abilities list. This is OPT-IN — optional features are
+  // deliberately NOT part of the auto-populated always-on racial traits. The
+  // full verbatim text goes inline so the row is self-contained; the feats.js
+  // ⓘ resolver does NOT resolve optional features (they live in
+  // `optional_features`, not `traits`), so no confusing cross-lookup surfaces.
+  // De-dupes by feature name.
+  function addOptionalFeatureToCharacter(name) {
+    const want = (name || '').trim().toLowerCase();
+    const feat = (_currentOptionalFeatures || []).find(
+      f => f && (f.name || '').trim().toLowerCase() === want
+    );
+    if (!feat) return;
+    if (typeof Feats === 'undefined' || typeof Feats.addSpecialAbility !== 'function') {
+      flashOptFeatNote('Feats module not ready.', true);
+      return;
+    }
+    // De-dupe: skip if a Special Abilities row already leads with this name
+    // (first line up to a ": " separator — the same key the ⓘ resolver uses).
+    const container = document.getElementById('special-abilities-container');
+    const already = container && Array.from(
+      container.querySelectorAll('.special-ability-entry')
+    ).some(ta => {
+      const first = (ta.value || '').split(/\r?\n/)[0].split(/:\s/)[0].trim().toLowerCase();
+      return first === feat.name.trim().toLowerCase();
+    });
+    if (already) { flashOptFeatNote(`${feat.name} already added.`); return; }
+    // The book prints each trait's text leading with its own "Label: …". Drop
+    // that leading label when it duplicates the (possibly disambiguated) feature
+    // name, so the row isn't "Slight Build\nSlight Build: …". Only strips when
+    // the label is a prefix of the name, so unrelated leading clauses survive.
+    let desc = (feat.description || '').trim();
+    const m = desc.match(/^([^:\n]{1,40}):\s+/);
+    if (m && feat.name.trim().toLowerCase().startsWith(m[1].trim().toLowerCase())) {
+      desc = desc.slice(m[0].length);
+    }
+    Feats.addSpecialAbility(`${feat.name}\n${desc}`);
+    flashOptFeatNote(`Added ${feat.name} to Special Abilities.`);
+  }
+
+  // Transient status note appended under the race info panel (mirrors
+  // deity-picker's flashChipNote). Cleared on a timer; also wiped whenever
+  // showInfo re-renders the panel.
+  function flashOptFeatNote(msg, warn) {
+    const panel = document.getElementById('race-info');
+    if (!panel) return;
+    let note = panel.querySelector('.race-optfeat-note');
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'race-optfeat-note';
+      note.style.cssText = 'margin-top:.35em; font-size:.9em;';
+      panel.appendChild(note);
+    }
+    note.textContent = msg;
+    note.style.color = warn ? '#d88' : '#8a8';
+    clearTimeout(note._t);
+    note._t = setTimeout(() => { if (note && note.parentElement) note.textContent = ''; }, 2500);
   }
 
   function hideInfo() {
