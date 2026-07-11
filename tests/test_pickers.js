@@ -2952,7 +2952,7 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     'Cerebremancer/Spells per Day/Powers Known',  // walk feature name (no spaces around slash; was "Day / Powers" pre-2026-06-02)
     'Hierophant/Power of Nature (Su)',
     'Hierophant/Power of Nature [druid-only special ability]',
-    'Blighter/Unbond',                  // Sp attack that severs OTHERS' bonds, not a companion (CDiv walk 2026-07-11)
+    'Blighter/Unbond (Sp)',             // Sp attack that severs OTHERS' bonds, not a companion (CDiv walk 2026-07-11)
     'Spirit Shaman/Spirit Guide',       // ability-granting nature spirit, not a stat-blocked companion
     "Sha'ir/Spells",
     'Prestige Paladin/Class Features',
