@@ -1488,6 +1488,10 @@
     // used to be truncated to 80 chars but that hid level-tier
     // descriptors (Crusader's "Furious counterstrike, steely resolve"
     // fit, but PrC entries with long "Special" prose got cut).
+    // Set when the main class table renders per-level Spells/Day columns, so
+    // the standalone "Spells per day:" progression table below can be suppressed
+    // as redundant (the class table now IS the spells/day grid).
+    let mainTableHasSpdCols = false;
     if (Array.isArray(d.class_table) && d.class_table.length) {
       const VISIBLE = 5;
       // Unified class table that combines:
@@ -1637,9 +1641,35 @@
       const prettify = k => k.replace(/_/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase());
 
-      // Detect whether any row has effective spells_per_day
-      const hasSpd = d.class_table.some(r => effectiveSpd(r) != null);
-      const spdHead = hasSpd ? `<th>Spells/Day</th>` : '';
+      // Spells/Day columns. The DB normalizes array spells_per_day to 10
+      // absolute-level columns (index = spell level), so we render ONE column
+      // per spell level the class actually casts — dropping the all-dash levels
+      // it can't — labeled by spell level (0 / 1st / … / 9th). This replaces the
+      // old single slash-joined cell ("— / 3 / 3 / 3 / 3 / — / …") with a clean,
+      // book-faithful grid. A non-array (advance-string) spells_per_day — the
+      // "+1 level of existing spellcasting class" PrCs — keeps the single cell.
+      const spellLvlLabel = (i) => i === 0 ? '0'
+        : i === 1 ? '1st' : i === 2 ? '2nd' : i === 3 ? '3rd' : `${i}th`;
+      const isDashCell = (v) => v == null || v === '' || v === '-' || v === '—';
+      const arrSpdRows = d.class_table.filter(
+        r => Array.isArray(r.spells_per_day) && r.spells_per_day.length);
+      const spellCols = [];
+      if (arrSpdRows.length) {
+        const maxLen = Math.max(...arrSpdRows.map(r => r.spells_per_day.length));
+        for (let i = 0; i < maxLen; i++) {
+          if (arrSpdRows.some(r => !isDashCell(r.spells_per_day[i]))) spellCols.push(i);
+        }
+      }
+      const usePerLevelSpd = spellCols.length > 0;
+      mainTableHasSpdCols = usePerLevelSpd;
+      // Non-array (advance-string) spells_per_day still uses a single cell.
+      const hasStringSpd = !usePerLevelSpd
+        && d.class_table.some(r => effectiveSpd(r) != null);
+      const spdHead = usePerLevelSpd
+        ? spellCols.map(i =>
+            `<th class="lookup-spd-col" title="Spells per day: ${spellLvlLabel(i)}-level">` +
+            `${spellLvlLabel(i)}</th>`).join('')
+        : (hasStringSpd ? `<th>Spells/Day</th>` : '');
       const colHeads = activeColKeys.map(k =>
         `<th title="${escapeHtml(k)}">${escapeHtml(COL_LABELS[k] || k)}</th>`).join('');
       const extraHeads = activeExtraKeys.map(k =>
@@ -1649,10 +1679,14 @@
       const body = d.class_table.map((r, i) => {
         const [cleanedSpecial, advText] = extractAdvance(r.special || '');
         const specialDisplay = cleanedSpecial || '—';
-        const spdValue = r.spells_per_day != null
-          ? r.spells_per_day : advText;
-        const spdCell = hasSpd
-          ? `<td>${escapeHtml(fmtSpd(spdValue))}</td>` : '';
+        const spdCell = usePerLevelSpd
+          ? spellCols.map(idx => {
+              const v = Array.isArray(r.spells_per_day) ? r.spells_per_day[idx] : null;
+              return `<td>${escapeHtml(isDashCell(v) ? '—' : String(v))}</td>`;
+            }).join('')
+          : (hasStringSpd
+              ? `<td>${escapeHtml(fmtSpd(r.spells_per_day != null ? r.spells_per_day : advText))}</td>`
+              : '');
         const colCells = activeColKeys.map(k => {
           const v = r.columns && r.columns[k];
           const display = (v == null || v === '') ? '—' : String(v);
@@ -1687,7 +1721,7 @@
     // Pattern B columns are now merged into the main class_table above,
     // so the standalone "Class resources" sub-table is suppressed for
     // them. See renderProgressionTables for the per-shape logic.
-    const progTables = renderProgressionTables(d.class_table, true);
+    const progTables = renderProgressionTables(d.class_table, true, mainTableHasSpdCols);
     if (progTables) lines.push(progTables);
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
@@ -1715,7 +1749,7 @@
   // manifesters carry both). Both tables render in that case. Same
   // 5-rows-visible + "(click to expand)" treatment as the BAB/save
   // table — uses the existing data-action="expand-table" handler.
-  function renderProgressionTables(classTable, suppressPatternB) {
+  function renderProgressionTables(classTable, suppressPatternB, suppressSpd) {
     if (!Array.isArray(classTable) || !classTable.length) return '';
     const VISIBLE = 5;
     const blocks = [];
@@ -1843,7 +1877,10 @@
         `<table class="lookup-class-table">${head}${body}</table>${more}`;
     }
 
-    const spdHtml = buildSpellTable('spells_per_day', 'Spells per day:');
+    // Skip the standalone Spells/Day table when the main class table already
+    // renders per-level Spells/Day columns (redundant); Spells Known still
+    // renders (the class table doesn't carry it).
+    const spdHtml = suppressSpd ? '' : buildSpellTable('spells_per_day', 'Spells per day:');
     if (spdHtml) blocks.push(spdHtml);
     const skHtml = buildSpellTable('spells_known', 'Spells known:');
     if (skHtml) blocks.push(skHtml);
