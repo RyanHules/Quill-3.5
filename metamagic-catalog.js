@@ -96,11 +96,14 @@
       effect: 'Spell takes effect 1-5 full rounds after casting. Choose the delay at the time of casting.',
     },
 
-    // ---------- Complete Divine ----------
-    'Empower Turning': {
-      levelAdjustment: 0,
-      effect: 'Treat your turning check result as if you rolled a 23 (when your actual roll would yield a lower result). Costs one turning attempt.',
-    },
+    // NOTE: Empower Turning is deliberately NOT here. It's a [General]
+    // feat (Complete Divine / Libris Mortis) that boosts your TURNING
+    // damage — not a metamagic feat, and it never applies to spells. It
+    // was previously mis-listed here, so the spells-tab metamagic UI
+    // (which falls back to this catalog when the DB has no metamagic
+    // block) wrongly offered it as a spell metamagic option (P2, fixed
+    // 2026-07-13). The DB correctly tags it General, so removing it here
+    // is the whole fix.
 
     // ---------- Book of Exalted Deeds ----------
     'Consecrate Spell': {

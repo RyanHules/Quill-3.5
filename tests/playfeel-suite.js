@@ -2395,6 +2395,36 @@
     expect(kr.replacesFeatures.includes('improved uncanny dodge'), true, 'SS11: replacesFeatures collected');
   });
 
+  regression('SS12: Dread Necromancer spells/day land in the correct level box (P1)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS12: DB not loaded — re-run after [DB] Loaded appears in console.');
+    await applyClass('Dread Necromancer', 4);
+    // DN L4 spells/day: 6 first-level, 3 second-level, no cantrips. Array is
+    // ['-', 6, 3, ...] with a leading level-0 placeholder — the offset must be
+    // 0 so index 1 (6) maps to the 1st-level box, not the 2nd.
+    const perDay = (lvl) =>
+      document.querySelector(`#spells-content .sc-per-day[data-lvl="${lvl}"]`)?.value;
+    if (document.querySelector('#spells-content .sc-per-day[data-lvl="1"]') == null)
+      fail('SS12: no DN spellcasting panel / slots created');
+    expect(perDay(1), '6', 'SS12: 1st-level slots = 6 (was landing in the 2nd box)');
+    expect(perDay(2), '3', 'SS12: 2nd-level slots = 3');
+    expect(perDay(0) || '', '', 'SS12: no 0-level (cantrip) slots');
+  });
+
+  regression('SS13: Empower Turning is not treated as a spell metamagic feat (P2)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS13: DB not loaded — re-run after [DB] Loaded appears in console.');
+    expect(MetamagicCatalog.has('Empower Turning'), false,
+      'SS13: Empower Turning removed from the metamagic catalog');
+    // DB tags it [General] with no metamagic block, so the spells-tab lookup
+    // (DB → catalog fallback) now returns null.
+    expect(Spells.lookupMetamagicFromDB('Empower Turning'), null,
+      'SS13: lookupMetamagicFromDB returns null for Empower Turning');
+    // Sanity: a genuine metamagic feat still resolves.
+    const emp = Spells.lookupMetamagicFromDB('Empower Spell');
+    expect(!!emp && emp.levelAdjustment === 2, true, 'SS13: Empower Spell still resolves (+2)');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

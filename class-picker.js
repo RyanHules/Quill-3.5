@@ -3765,6 +3765,18 @@
   // first, falls back to a length-based heuristic when no spell_class_level
   // entries exist for the class.
   function getSpellLevelOffset(className, spdLength) {
+    // The offset maps spells_per_day_json[i] → spell level (offset + i), so the
+    // LAST index can never exceed 9th level. That caps the offset at
+    // 10 - spdLength — which is what fixes the no-cantrip full-list casters:
+    // Dread Necromancer / Beguiler-style arrays are length 10 (levels 0-9) but
+    // carry a leading level-0 PLACEHOLDER ('-') even though their min castable
+    // spell level is 1. The MIN(level) query below reads that as offset 1 and
+    // shoves every slot up one box (the P1 bug: 1st-level slots landing in the
+    // 2nd-level box). A length-10 array clamps to offset 0; Paladin/Ranger
+    // (length 4) still clamp-allow offset 1. See spell-slot mapping in
+    // upsertSpellcastingPanel.
+    const cap = spdLength ? Math.max(0, 10 - spdLength) : 9;
+    const clamp = (o) => Math.max(0, Math.min(o, cap));
     const variants = SPELL_CLASS_VARIANTS[className];
     if (variants && variants.length) {
       const placeholders = variants.map(() => '?').join(',');
@@ -3773,12 +3785,12 @@
         `WHERE class_name IN (${placeholders})`,
         variants
       );
-      if (r && r.mn !== null && r.mn !== undefined) return r.mn;
+      if (r && r.mn !== null && r.mn !== undefined) return clamp(r.mn);
     }
     // Heuristic fallback by progression length:
     //   ≥7 (full caster, bard) → starts at 0-level
     //   <7 (paladin/ranger/etc.) → starts at 1st-level
-    return spdLength >= 7 ? 0 : 1;
+    return clamp(spdLength >= 7 ? 0 : 1);
   }
 
   // Returns { spd, sk } at the given level if the class grants any spell
