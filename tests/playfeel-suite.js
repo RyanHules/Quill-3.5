@@ -2271,6 +2271,50 @@
     expect(document.getElementById('sm-cap-bonus-note').hidden, true, 'SS8: note hidden again');
   });
 
+  regression('SS9: soulmeld effects live in a collapsible ⓘ panel, round-trip intact (S4)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS9: DB not loaded — re-run after [DB] Loaded appears in console.');
+    document.querySelector('[data-tab="tab-equipment"]').click();
+    await wait(100);
+    const slot = $('.magic-item-slot[data-slot-id="hands"]');
+    const q = (s) => slot.querySelector(s);
+    const chk = q('.slot-soulmeld-check'); chk.checked = true; chk.dispatchEvent(new Event('change'));
+
+    // Simulate the picker filling the (now hidden) effect fields.
+    q('.slot-sm-base').value = 'Claws deal 1d6';
+    q('.slot-sm-bind-effect').value = '(Hands) +2 on grapple';
+
+    // The panel + its edit fields start hidden — this is the layout fix (long
+    // prose no longer towers in the slot).
+    const panel = slot.querySelector('.slot-soulmeld-area > .slot-sm-info');
+    expect(panel.hidden, true, 'SS9: effect panel hidden by default');
+    expect(panel.querySelector('.slot-sm-edit-fields').hidden, true, 'SS9: edit fields hidden by default');
+
+    // ⓘ opens a read-only view of the effects.
+    slot.querySelector('.slot-soulmeld-area > .slot-sm-nameline .btn-sm-info').click();
+    expect(panel.hidden, false, 'SS9: ⓘ opens the panel');
+    const viewText = panel.querySelector('.slot-sm-info-view').innerText;
+    expectIncludes(viewText, 'Claws deal 1d6', 'SS9: view shows the Base effect');
+    expectIncludes(viewText, '+2 on grapple', 'SS9: view shows the Bind effect');
+    expect(panel.querySelector('.slot-sm-edit-fields').hidden, true, 'SS9: read-only until ✎ Edit');
+
+    // ✎ Edit reveals the editable fields (homebrew / override path).
+    panel.querySelector('.btn-sm-edit').click();
+    expect(panel.querySelector('.slot-sm-edit-fields').hidden, false, 'SS9: Edit reveals the fields');
+
+    // Save-stability: effect text still round-trips (the fields just moved).
+    const blob = Equipment.collectData();
+    expect(blob.slotSoulmelds.hands.base, 'Claws deal 1d6', 'SS9: base still collected');
+    expect(blob.slotSoulmelds.hands.bindEffect, '(Hands) +2 on grapple', 'SS9: bind still collected');
+    const empty = Equipment.collectData(); delete empty.slotSoulmelds;
+    Equipment.loadData(empty); await wait(40);
+    expect(q('.slot-sm-base').value, '', 'SS9: cleared on load-empty');
+    Equipment.loadData(blob); await wait(40);
+    expect(q('.slot-sm-base').value, 'Claws deal 1d6', 'SS9: base restored on load');
+    expect(slot.querySelector('.slot-soulmeld-area > .slot-sm-info').hidden, true,
+      'SS9: panel reset to collapsed after load');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

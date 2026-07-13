@@ -419,29 +419,47 @@ const Equipment = (function () {
         </div>
         <input type="text" id="slot-${slot.id}" class="slot-item-name" placeholder="Item name">
         <div class="slot-soulmeld-area" style="display:none">
-          <input type="text" class="slot-sm-name" placeholder="Soulmeld name">
+          <div class="slot-sm-nameline">
+            <input type="text" class="slot-sm-name" placeholder="Soulmeld name">
+            <button type="button" class="btn-sm-info" title="Show effect details" aria-label="Show effect details">ⓘ</button>
+          </div>
           <div class="slot-sm-options">
             <label class="mi-toggle"><input type="checkbox" class="slot-sm-bound"> Bound</label>
             <label class="mi-toggle"><input type="checkbox" class="slot-sm-split"> Split Chakra</label>
             <label class="mi-toggle"><input type="checkbox" class="slot-sm-double"> Double Chakra</label>
           </div>
           <div class="slot-sm-fields">
-            <div class="field field-sm"><label>Base Effect</label><textarea class="slot-sm-base" rows="1"></textarea></div>
-            <div class="field field-sm"><label>Bind Effect</label><textarea class="slot-sm-bind-effect" rows="1"></textarea></div>
             <div class="field field-sm"><label>Extra Capacity</label><input type="number" class="slot-sm-extra-cap" min="0" value="0"></div>
+          </div>
+          <div class="slot-sm-info" hidden>
+            <div class="slot-sm-info-view"></div>
+            <div class="slot-sm-edit-fields" hidden>
+              <div class="field field-sm"><label>Base Effect</label><textarea class="slot-sm-base" rows="1"></textarea></div>
+              <div class="field field-sm"><label>Bind Effect</label><textarea class="slot-sm-bind-effect" rows="1"></textarea></div>
+            </div>
+            <button type="button" class="btn-sm-edit">✎ Edit effects</button>
           </div>
           <div class="essentia-pips">
             <label>Essentia:</label>
           </div>
           <div class="slot-sm-second" style="display:none">
-            <input type="text" class="slot-sm2-name" placeholder="Second soulmeld">
+            <div class="slot-sm-nameline">
+              <input type="text" class="slot-sm2-name" placeholder="Second soulmeld">
+              <button type="button" class="btn-sm-info" title="Show effect details" aria-label="Show effect details">ⓘ</button>
+            </div>
             <div class="slot-sm-options">
               <label class="mi-toggle"><input type="checkbox" class="slot-sm2-bound"> Bound</label>
             </div>
             <div class="slot-sm-fields">
-              <div class="field field-sm"><label>Base Effect</label><textarea class="slot-sm2-base" rows="1"></textarea></div>
-              <div class="field field-sm"><label>Bind Effect</label><textarea class="slot-sm2-bind-effect" rows="1"></textarea></div>
               <div class="field field-sm"><label>Extra Capacity</label><input type="number" class="slot-sm2-extra-cap" min="0" value="0"></div>
+            </div>
+            <div class="slot-sm-info" hidden>
+              <div class="slot-sm-info-view"></div>
+              <div class="slot-sm-edit-fields" hidden>
+                <div class="field field-sm"><label>Base Effect</label><textarea class="slot-sm2-base" rows="1"></textarea></div>
+                <div class="field field-sm"><label>Bind Effect</label><textarea class="slot-sm2-bind-effect" rows="1"></textarea></div>
+              </div>
+              <button type="button" class="btn-sm-edit">✎ Edit effects</button>
             </div>
             <div class="essentia-pips essentia-pips-2">
               <label>Essentia:</label>
@@ -491,28 +509,46 @@ const Equipment = (function () {
     totemDiv.innerHTML = `
       <details>
         <summary>Totem (Totemist only)</summary>
-        <input type="text" class="slot-sm-name" id="totem-sm-name" placeholder="Totem soulmeld">
+        <div class="slot-sm-nameline">
+          <input type="text" class="slot-sm-name" id="totem-sm-name" placeholder="Totem soulmeld">
+          <button type="button" class="btn-sm-info" title="Show effect details" aria-label="Show effect details">ⓘ</button>
+        </div>
         <div class="slot-sm-options">
           <label class="mi-toggle"><input type="checkbox" id="totem-sm-bound"> Bound</label>
           <label class="mi-toggle"><input type="checkbox" id="totem-sm-double"> Double Chakra</label>
         </div>
         <div class="slot-sm-fields">
-          <div class="field field-sm"><label>Base Effect</label><input type="text" id="totem-sm-base"></div>
-          <div class="field field-sm"><label>Bind Effect</label><input type="text" id="totem-sm-bind-effect"></div>
           <div class="field field-sm"><label>Extra Capacity</label><input type="number" id="totem-sm-extra-cap" min="0" value="0"></div>
+        </div>
+        <div class="slot-sm-info" hidden>
+          <div class="slot-sm-info-view"></div>
+          <div class="slot-sm-edit-fields" hidden>
+            <div class="field field-sm"><label>Base Effect</label><input type="text" id="totem-sm-base"></div>
+            <div class="field field-sm"><label>Bind Effect</label><input type="text" id="totem-sm-bind-effect"></div>
+          </div>
+          <button type="button" class="btn-sm-edit">✎ Edit effects</button>
         </div>
         <div class="essentia-pips" id="totem-essentia-pips">
           <label>Essentia:</label>
         </div>
         <div id="totem-sm-second" style="display:none">
-          <input type="text" id="totem-sm2-name" placeholder="Second soulmeld">
+          <div class="slot-sm-nameline">
+            <input type="text" id="totem-sm2-name" placeholder="Second soulmeld">
+            <button type="button" class="btn-sm-info" title="Show effect details" aria-label="Show effect details">ⓘ</button>
+          </div>
           <div class="slot-sm-options">
             <label class="mi-toggle"><input type="checkbox" id="totem-sm2-bound"> Bound</label>
           </div>
           <div class="slot-sm-fields">
-            <div class="field field-sm"><label>Base Effect</label><input type="text" id="totem-sm2-base"></div>
-            <div class="field field-sm"><label>Bind Effect</label><input type="text" id="totem-sm2-bind-effect"></div>
             <div class="field field-sm"><label>Extra Capacity</label><input type="number" id="totem-sm2-extra-cap" min="0" value="0"></div>
+          </div>
+          <div class="slot-sm-info" hidden>
+            <div class="slot-sm-info-view"></div>
+            <div class="slot-sm-edit-fields" hidden>
+              <div class="field field-sm"><label>Base Effect</label><input type="text" id="totem-sm2-base"></div>
+              <div class="field field-sm"><label>Bind Effect</label><input type="text" id="totem-sm2-bind-effect"></div>
+            </div>
+            <button type="button" class="btn-sm-edit">✎ Edit effects</button>
           </div>
           <div class="essentia-pips" id="totem-essentia-pips-2">
             <label>Essentia:</label>
@@ -547,6 +583,59 @@ const Equipment = (function () {
     // so the listener registers once.
     document.addEventListener("classes-changed", () => { rebuildAllPips(); recalcSoulmelds(); });
     updateCapacityBonusNote();
+
+    // Soulmeld effect ⓘ panels (S4): the Base/Bind effect fields live inside a
+    // collapsible per-soulmeld panel (read-only view by default; ✎ Edit reveals
+    // the fields), so long canonical prose no longer towers over the layout.
+    // One delegated handler covers every body slot + the totem (all under grid).
+    grid.addEventListener("click", (ev) => {
+      const infoBtn = ev.target.closest(".btn-sm-info");
+      if (infoBtn) {
+        const panel = smInfoPanelFor(infoBtn);
+        if (panel) {
+          const show = panel.hidden;
+          panel.hidden = !show;
+          if (show) renderSmInfoView(panel);
+        }
+        return;
+      }
+      const editBtn = ev.target.closest(".btn-sm-edit");
+      if (editBtn) {
+        const panel = editBtn.closest(".slot-sm-info");
+        const fields = panel?.querySelector(".slot-sm-edit-fields");
+        if (!fields) return;
+        const startEditing = fields.hidden;
+        fields.hidden = !startEditing;
+        editBtn.textContent = startEditing ? "✓ Done" : "✎ Edit effects";
+        if (!startEditing) renderSmInfoView(panel);   // closing edit → refresh view
+      }
+    });
+  }
+
+  // Find the .slot-sm-info panel owned by a given ⓘ button. Second-soulmeld
+  // blocks are checked first (more specific) so a double-chakra slot's two
+  // buttons resolve to their own panels; `:scope > .slot-sm-info` keeps a
+  // primary button from grabbing the nested second panel.
+  function smInfoPanelFor(btn) {
+    const block = btn.closest(".slot-sm-second") || btn.closest("#totem-sm-second")
+      || btn.closest(".slot-soulmeld-area") || btn.closest("details");
+    return block ? block.querySelector(":scope > .slot-sm-info") : null;
+  }
+
+  // Render the read-only Base/Bind view from the panel's own effect fields
+  // (textarea for body slots, text input for the totem — grab whichever).
+  function renderSmInfoView(panel) {
+    const view = panel.querySelector(".slot-sm-info-view");
+    if (!view) return;
+    const fields = panel.querySelectorAll(
+      ".slot-sm-edit-fields textarea, .slot-sm-edit-fields input[type='text']");
+    const baseVal = (fields[0]?.value || "").trim();
+    const bindVal = (fields[1]?.value || "").trim();
+    const rows = [];
+    if (baseVal) rows.push(`<div class="sm-info-row"><span class="sm-info-label">Base:</span> ${escapeHtml(baseVal)}</div>`);
+    if (bindVal) rows.push(`<div class="sm-info-row"><span class="sm-info-label">Bind:</span> ${escapeHtml(bindVal)}</div>`);
+    view.innerHTML = rows.length ? rows.join("")
+      : `<div class="sm-info-empty">No effect details yet — pick a soulmeld or use Edit.</div>`;
   }
 
   // ============================================================
@@ -690,6 +779,23 @@ const Equipment = (function () {
     rebuildEssentiaPips(slotDiv, true);
     fillPips(slotDiv.querySelector(".essentia-pips:not(.essentia-pips-2)"), 0);
     fillPips(slotDiv.querySelector(".essentia-pips-2"), 0);
+    resetSmInfoPanels(slotDiv);
+  }
+
+  // Collapse + de-edit every soulmeld ⓘ panel in a container and clear its
+  // rendered view, so a reused slot (load-over-load) never shows a stale-open
+  // panel from the previous character.
+  function resetSmInfoPanels(container) {
+    if (!container) return;
+    container.querySelectorAll(".slot-sm-info").forEach(panel => {
+      panel.hidden = true;
+      const fields = panel.querySelector(".slot-sm-edit-fields");
+      if (fields) fields.hidden = true;
+      const editBtn = panel.querySelector(".btn-sm-edit");
+      if (editBtn) editBtn.textContent = "✎ Edit effects";
+      const view = panel.querySelector(".slot-sm-info-view");
+      if (view) view.innerHTML = "";
+    });
   }
 
   // Totem equivalent of clearSlotSoulmeld — same S2 bleed applies (data.totem is
@@ -706,6 +812,7 @@ const Equipment = (function () {
     rebuildTotemPips(true);
     fillPips($("#totem-essentia-pips"), 0);
     fillPips($("#totem-essentia-pips-2"), 0);
+    resetSmInfoPanels($(".slot-totem"));
   }
 
   // ============================================================

@@ -1069,6 +1069,54 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
   cursor: help;
 }
 
+/* Soulmeld name chip + ⓘ effect panel (S4). Keeps long canonical Base/Bind
+   prose out of the always-on layout: name on a row with an ⓘ toggle, effects
+   in a collapsible read-only panel with an ✎ Edit escape hatch. */
+.slot-sm-nameline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.slot-sm-nameline input { flex: 1 1 auto; min-width: 0; }
+.btn-sm-info {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border, #444);
+  border-radius: 50%;
+  background: var(--panel-alt, #2a2a2a);
+  color: var(--text, #ddd);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.btn-sm-info:hover { background: var(--panel, #333); }
+.slot-sm-info {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #444);
+  border-radius: 4px;
+  background: var(--panel-alt, #232323);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.sm-info-row { margin-bottom: 3px; }
+.sm-info-row:last-child { margin-bottom: 0; }
+.sm-info-label { font-weight: 700; color: var(--accent, #c9a227); }
+.sm-info-empty { opacity: 0.6; font-style: italic; }
+.btn-sm-edit {
+  margin-top: 5px;
+  padding: 1px 8px;
+  font-size: 0.62rem;
+  border: 1px solid var(--border, #444);
+  border-radius: 3px;
+  background: var(--panel, #2c2c2c);
+  color: var(--text, #ddd);
+  cursor: pointer;
+}
+.btn-sm-edit:hover { background: var(--panel-hover, #383838); }
+
 .counter-over { background: var(--danger) !important; color: white !important; }
 
 .slot-header {
