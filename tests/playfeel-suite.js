@@ -2451,6 +2451,54 @@
     }
   });
 
+  regression('SS15: Empower Turning surfaces a chip in the Turn/Rebuke section', async () => {
+    await newCharacter();
+    const host = document.getElementById('turn-feat-chips');
+    if (!host) fail('SS15: #turn-feat-chips container missing');
+    const recalc = () =>
+      document.getElementById('char-level').dispatchEvent(new Event('input', { bubbles: true }));
+    recalc(); await wait(50);
+    expect(host.querySelector('.turn-feat-chip'), null, 'SS15: no chip without the feat');
+
+    Feats.addFeat('Empower Turning');
+    recalc(); await wait(80);
+    const chip = host.querySelector('.turn-feat-chip');
+    if (!chip) fail('SS15: chip not rendered after adding Empower Turning');
+    expectIncludes(host.querySelector('.turn-feat-chip-name').textContent, 'Empower Turning',
+      'SS15: chip names the feat');
+    expectIncludes(host.querySelector('.turn-feat-chip-eff').textContent, '1.5',
+      'SS15: chip shows the ×1.5 turning-damage effect');
+  });
+
+  regression('SS16: multiple bloodlines joined by " // " in the Class & Level label', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS16: DB not loaded — re-run after [DB] Loaded appears in console.');
+    const rows = DB.query("SELECT name, source FROM entry WHERE type='bloodline' ORDER BY name LIMIT 2");
+    if (rows.length < 2) fail('SS16: need 2 bloodlines in the DB');
+    Bloodline.loadData({ _bloodlines: [
+      { name: rows[0].name, source: rows[0].source, strength: 'minor', slotsPaid: [true], notes: '' },
+      { name: rows[1].name, source: rows[1].source, strength: 'minor', slotsPaid: [true], notes: '' },
+    ] });
+    await wait(60);
+    const label = Bloodline.getClassLevelLabel();
+    Bloodline.loadData({ _bloodlines: null });   // cleanup
+    expectIncludes(label, ' // ', 'SS16: bloodlines separated by " // " (gestalt-style)');
+    if (/,\s/.test(label)) fail('SS16: should not use a comma separator between bloodlines');
+  });
+
+  regression('SS17: LoadTracker load-telemetry API is present + tracking', async () => {
+    if (typeof LoadTracker !== 'object') fail('SS17: window.LoadTracker missing');
+    // Mechanism, not environment outcome — a transient module 404 legitimately
+    // flips isReady() false (that's the feature working), so we don't assert it.
+    expect(typeof LoadTracker.isReady, 'function', 'SS17: isReady() exposed');
+    expect(typeof LoadTracker.onReady, 'function', 'SS17: onReady() exposed');
+    const st = LoadTracker.status();
+    expect(typeof st.modules.total, 'number', 'SS17: status().modules.total is numeric');
+    if (st.modules.total < 40) fail('SS17: expected the full module set tracked, got ' + st.modules.total);
+    expect(typeof st.db, 'string', 'SS17: DB state tracked (pending/done/failed)');
+    if (!Array.isArray(st.modules.pending)) fail('SS17: status().modules.pending is a list');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

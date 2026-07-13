@@ -125,6 +125,7 @@
 
   // Load: fetch sql.js, then fetch the DB blob, then open it.
   const ready = (async function load() {
+    if (window.LoadTracker) LoadTracker.dbStart();
     try {
       // initSqlJs is exposed globally by sql-wasm.js.
       const SQL = await window.initSqlJs({
@@ -147,10 +148,12 @@
         + "WHERE type IN ('item','weapon','armor','gear')");
       console.log(`[DB] Loaded ${DB_PATH} — ${races.n} races, ` +
         `${spells.n} spells, ${feats.n} feats, ${items.n} items`);
+      if (window.LoadTracker) LoadTracker.dbDone();
       return db;
     } catch (err) {
       console.warn('[DB] Failed to load — sheet will operate without ' +
         'database-driven features:', err);
+      if (window.LoadTracker) LoadTracker.dbFail(err && err.message ? err.message : String(err));
       showLoadFailureBanner(err);
       return null;
     }

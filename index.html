@@ -25,10 +25,130 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260713j';
+    window.CACHE_VERSION = '20260713n';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
+  </script>
+  <!-- ====================================================================
+       Module load telemetry (LoadTracker). Tracks each module <script>'s
+       start / done / fail plus the DB, so we KNOW when the sheet is fully
+       ready and get a LOUD signal (console + banner + `load-failed` event)
+       when something dies silently instead of waiting forever. Defined here
+       in <head> so it exists before the body module-loader runs and can
+       catch execution-time throws via window 'error'. API on window.LoadTracker:
+         expect(list) start(src) done(src) fail(src,reason)
+         dbStart() dbDone() dbFail(reason)
+         onReady(cb) onFail(cb) isReady() status()
+       Fires document event `modules-ready` when all modules + DB are up.
+       ==================================================================== -->
+  <script>
+    window.LoadTracker = (function () {
+      var expected = [], started = {}, done = {}, failed = {};
+      var db = 'pending';                 // 'pending' | 'done' | 'failed'
+      var readyFired = false, stalledFired = false, timer = null;
+      var STALL_MS = 45000;               // long enough to not false-alarm a slow (working) DB
+      var listeners = { ready: [], fail: [] };
+      var t0 = (window.performance && performance.now) ? performance.now() : null;
+      function now() { return t0 != null ? Math.round(performance.now() - t0) : 0; }
+      function pending() { return expected.filter(function (s) { return !done[s] && !failed[s]; }); }
+      function allModulesDone() { return expected.length > 0 && pending().length === 0; }
+
+      function banner(msg, kind) {
+        try {
+          var el = document.getElementById('load-tracker-banner');
+          if (!el) {
+            el = document.createElement('div');
+            el.id = 'load-tracker-banner';
+            el.className = 'load-tracker-banner';
+            // Prepend to the TOP of the page (like the DB-fail banner) so it's
+            // seen — appending would bury it below the fold.
+            var parent = document.body || document.documentElement;
+            parent.insertBefore(el, parent.firstChild);
+          }
+          el.textContent = msg;
+          el.setAttribute('data-kind', kind || 'error');
+          el.style.display = '';
+        } catch (e) {}
+      }
+      function hideBanner() {
+        var el = document.getElementById('load-tracker-banner');
+        if (el) el.style.display = 'none';
+      }
+      function fireFail(reason) {
+        listeners.fail.forEach(function (cb) { try { cb(reason); } catch (e) {} });
+        try { document.dispatchEvent(new CustomEvent('load-failed', { detail: reason })); } catch (e) {}
+      }
+      function checkReady() {
+        if (readyFired) return;
+        if (allModulesDone() && db === 'done' && Object.keys(failed).length === 0) {
+          readyFired = true;
+          if (timer) { clearTimeout(timer); timer = null; }
+          hideBanner();
+          console.log('[load] all ready in ' + now() + 'ms (' +
+            Object.keys(done).length + '/' + expected.length + ' modules + DB)');
+          listeners.ready.forEach(function (cb) { try { cb(); } catch (e) {} });
+          try { document.dispatchEvent(new CustomEvent('modules-ready')); } catch (e) {}
+        }
+      }
+      function onStall() {
+        if (readyFired || stalledFired) return;
+        stalledFired = true;
+        var miss = pending(), parts = [];
+        if (miss.length) parts.push(miss.length + ' module(s) still loading: ' + miss.join(', '));
+        if (db !== 'done') parts.push('DB ' + db);
+        if (Object.keys(failed).length) parts.push('FAILED: ' + Object.keys(failed).join(', '));
+        var msg = 'Load slow/stalled after ' + Math.round(STALL_MS / 1000) + 's — ' + parts.join(' | ');
+        console.error('[load] ' + msg);
+        banner('⚠ ' + msg + ' — see console. (Reloading may help.)', 'warn');
+        fireFail(msg);
+      }
+      // Map a bare filename (from a window 'error' event) back to its expected src.
+      function srcForBasename(base) {
+        for (var i = 0; i < expected.length; i++) {
+          if (expected[i] === base || expected[i].split('/').pop() === base) return expected[i];
+        }
+        return base;
+      }
+      return {
+        expect: function (list) { expected = (list || []).slice(); if (!timer) timer = setTimeout(onStall, STALL_MS); },
+        start: function (src) { started[src] = now(); },
+        done: function (src) { if (failed[src]) return; done[src] = now(); checkReady(); },
+        fail: function (src, reason) {
+          src = srcForBasename(src);
+          // Only track failures of EXPECTED modules — ignore stray errors from
+          // inline scripts / untracked sources so we never false-alarm.
+          if (expected.indexOf(src) === -1) return;
+          if (done[src] || failed[src]) return;
+          failed[src] = reason || 'error';
+          console.error('[load] module FAILED: ' + src + ' (' + failed[src] + ')');
+          banner('⚠ Failed to load ' + src + ' (' + failed[src] + ') — the sheet may misbehave. See console.', 'error');
+          fireFail('module ' + src + ' failed: ' + failed[src]);
+        },
+        dbStart: function () { db = 'pending'; },
+        dbDone: function () { db = 'done'; console.log('[load] DB ready in ' + now() + 'ms'); checkReady(); },
+        // database.js already shows its own (DB-specific) failure banner, so
+        // here we only record state + fire the event + console.
+        dbFail: function (reason) { db = 'failed'; console.error('[load] DB FAILED: ' + reason); fireFail('DB failed: ' + reason); },
+        onReady: function (cb) { if (readyFired) { try { cb(); } catch (e) {} } else listeners.ready.push(cb); },
+        onFail: function (cb) { listeners.fail.push(cb); },
+        isReady: function () { return readyFired; },
+        status: function () {
+          return { ready: readyFired, ms: now(), db: db,
+            modules: { total: expected.length, done: Object.keys(done).length,
+                       pending: pending(), failed: Object.assign({}, failed) } };
+        },
+      };
+    })();
+    // A module that LOADS but THROWS during its IIFE still fires onload, so the
+    // network handler alone would miss it — catch execution throws here and
+    // attribute them to the offending file.
+    window.addEventListener('error', function (ev) {
+      if (!ev || !ev.filename || !window.LoadTracker) return;
+      if (LoadTracker.isReady()) return;   // past load phase — ignore normal runtime errors
+      var base = ev.filename.split('/').pop().split('?')[0];
+      if (base) LoadTracker.fail(base, 'threw: ' + (ev.message || 'error'));
+    });
   </script>
 </head>
 <body>
@@ -694,6 +814,7 @@
             <div class="field"><label>Turning Damage</label><input type="text" id="turn-damage" placeholder="2d6 + level + CHA mod"></div>
           </div>
           <div id="turn-synergy-note" class="synergy-notes" style="display:none;margin-top:0.3rem;"></div>
+          <div id="turn-feat-chips" class="turn-feat-chips"></div>
         </section>
 
         <!-- Rage -->
@@ -861,8 +982,16 @@
       // no-op. See tests/playfeel-suite.js for the scenario list.
       'tests/playfeel-suite.js',
     ];
+    // Register the expected module set, then emit each tag with load telemetry.
+    // onload → the script finished executing OK; onerror → it 404'd / network-
+    // failed. Execution throws are caught by the window 'error' handler in
+    // <head>. LoadTracker is defined in <head>, so it's always available here.
+    window.LoadTracker && LoadTracker.expect(modules);
     for (const src of modules) {
-      document.write('<script src="' + src + v + '"><' + '/script>');
+      window.LoadTracker && LoadTracker.start(src);
+      document.write('<script src="' + src + v + '"' +
+        ' onload="LoadTracker.done(\'' + src + '\')"' +
+        ' onerror="LoadTracker.fail(\'' + src + '\',\'load error / 404\')"><' + '/script>');
     }
   </script>
 </body>

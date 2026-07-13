@@ -605,6 +605,29 @@ const Skills = (function () {
     updateClassFeatureSynergies(rankMap);
   }
 
+  // Turning feats that earn a recognition chip in the Turn/Rebuke section.
+  // Matched by name via Feats.hasFeat; extensible (add Improved Turning,
+  // Extra Turning, Sacred Boost, … here as needed).
+  const TURN_FEATS = [
+    { name: "Empower Turning", label: "Empower Turning",
+      effect: "×1.5 turning damage (after adding level + Cha)" },
+  ];
+
+  function renderTurnFeatChips() {
+    const host = $("#turn-feat-chips");
+    if (!host) return;
+    const has = (typeof Feats !== "undefined" && Feats.hasFeat)
+      ? Feats.hasFeat : () => false;
+    const chips = TURN_FEATS.filter(f => has(f.name));
+    // Static, trusted label/effect strings (no user input) — safe to inline.
+    host.innerHTML = chips.map(f =>
+      `<span class="turn-feat-chip" title="${f.effect}">` +
+      `<span class="turn-feat-chip-name">${f.label}</span>` +
+      `<span class="turn-feat-chip-eff">${f.effect}</span></span>`
+    ).join("");
+    host.style.display = chips.length ? "" : "none";
+  }
+
   function updateClassFeatureSynergies(rankMap) {
     // Turn/Rebuke Undead from Knowledge (Religion) 5+ ranks
     const turnEl = $("#turn-synergy-note");
@@ -616,6 +639,12 @@ const Skills = (function () {
         turnEl.style.display = "none";
       }
     }
+
+    // Turning-feat recognition: render a read-only chip for each turning feat
+    // the character has (Empower Turning today; the table is extensible). Runs
+    // here because updateClassFeatureSynergies already owns the Turn/Rebuke
+    // section and re-runs on recalcAll (which fires on Feats-tab edits).
+    renderTurnFeatChips();
 
     // Spellcraft note from Wizard Specialty School (now per-caster in spells tab)
     const schools = [];
