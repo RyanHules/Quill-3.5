@@ -2499,6 +2499,27 @@
     if (!Array.isArray(st.modules.pending)) fail('SS17: status().modules.pending is a list');
   });
 
+  regression('SS18: normalized spells/day land in the correct level boxes (offset retired)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS18: DB not loaded — re-run after [DB] Loaded appears in console.');
+    const perDay = (lvl) =>
+      document.querySelector(`#spells-content .sc-per-day[data-lvl="${lvl}"]`)?.value ?? '';
+    // Dread Necromancer — no cantrips, casts 1st-9th: box 0 empty, box 1 has slots
+    // (previously offset +1, landing 1st-level in the 2nd box).
+    await applyClass('Dread Necromancer', 20);
+    expect(perDay(0), '', 'SS18: DN has no 0-level (cantrip) box filled');
+    expect(perDay(1), '6', 'SS18: DN 1st-level slots in the 1st box');
+    expect(perDay(9), '5', 'SS18: DN 9th-level slots present');
+    // Reset before the next class — applyClass ADDS a caster panel, and perDay()
+    // reads the first panel; a fresh character leaves exactly one.
+    await newCharacter();
+    // Magewright — a length-6 CANTRIP caster (0-5): box 0 = cantrips (previously
+    // the length heuristic shoved them into the 1st box).
+    await applyClass('Magewright', 20);
+    expect(perDay(0), '3', 'SS18: Magewright cantrips in the 0-level box');
+    expect(perDay(5), '2', 'SS18: Magewright 5th-level slots present');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
