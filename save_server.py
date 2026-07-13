@@ -446,7 +446,31 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_move_save()
         if self.path.startswith("/api/flags/"):
             return self._api_post_flags()
+        if self.path == "/api/loadstatus":
+            return self._api_loadstatus()
         self.send_error(405, "method not allowed")
+
+    def _api_loadstatus(self):
+        """Dev-only: the sheet's LoadTracker POSTs its terminal load state here
+        (only when the page URL carries ?loadsignal), and we drop it in
+        reviews/_loadstatus.json. A watcher (or the developer) can poll that file
+        to know when the page finished loading / gave up, instead of polling the
+        browser. Not used in normal operation."""
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            payload = json.loads(raw) if raw.strip() else {}
+            if not isinstance(payload, dict):
+                payload = {}
+        except (ValueError, json.JSONDecodeError):
+            payload = {}
+        try:
+            REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+            (REVIEWS_DIR / "_loadstatus.json").write_text(
+                json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError as e:
+            return self._send_json(500, {"error": str(e)})
+        return self._send_json(200, {"ok": True})
 
     def do_DELETE(self):
         if self.path.startswith("/api/saves/"):

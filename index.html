@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260713o';
+    window.CACHE_VERSION = '20260713p';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -80,6 +80,17 @@
         listeners.fail.forEach(function (cb) { try { cb(reason); } catch (e) {} });
         try { document.dispatchEvent(new CustomEvent('load-failed', { detail: reason })); } catch (e) {}
       }
+      // Dev-only: when the page URL carries ?loadsignal, POST the TERMINAL load
+      // state (ready or gave-up) to the server so a watcher can be pinged instead
+      // of polling the browser. No-op in normal use.
+      function signal(payload) {
+        if (location.search.indexOf('loadsignal') === -1) return;
+        try {
+          fetch('/api/loadstatus', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload) });
+        } catch (e) {}
+      }
       // Once every module script has resolved (done or failed), decide what to
       // do about any failures: auto-reload the whole page for TRANSIENT network
       // failures (a dropped request — a reload almost always recovers it, and a
@@ -108,6 +119,7 @@
             ? 'auto-retry gave up after ' + MAX_RETRIES + ' attempts'
             : 'code error — a reload won\'t help';
           banner('⚠ Failed to load: ' + fails.join(', ') + ' (' + why + '). See console.', 'error');
+          signal({ status: 'failed', ms: now(), failed: fails, why: why });
           fireFail('load failed: ' + fails.join(', '));
         }
       }
@@ -120,6 +132,7 @@
           hideBanner();
           console.log('[load] all ready in ' + now() + 'ms (' +
             Object.keys(done).length + '/' + expected.length + ' modules + DB)');
+          signal({ status: 'ready', ms: now(), modules: expected.length });
           listeners.ready.forEach(function (cb) { try { cb(); } catch (e) {} });
           try { document.dispatchEvent(new CustomEvent('modules-ready')); } catch (e) {}
         }
