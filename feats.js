@@ -1098,6 +1098,18 @@ const Feats = (function () {
   // yields +2). Feats without a parenthetical (no chosen weapon) are skipped —
   // there's nothing to match against. Derived bonus-feat rows are included
   // (they're .feat-entry rows too).
+  // Does the character currently have a feat by this name? Case-insensitive
+  // and tolerant of a trailing "(...)" qualifier (e.g. "Power Attack (Str 17)").
+  // Cross-module effect recognition uses this — e.g. class-picker's Divine Grace
+  // checks for the Serenity feat to swap the linked ability Cha → Wis.
+  function hasFeat(name) {
+    const target = String(name || "").trim().toLowerCase();
+    if (!target) return false;
+    return Array.from(document.querySelectorAll("#feats-container .feat-entry"))
+      .some((ta) => String(ta.value || "").trim().toLowerCase()
+        .replace(/\s*\([^)]*\)\s*$/, "") === target);
+  }
+
   function getWeaponFocusBonuses() {
     const out = {};
     document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
@@ -1140,6 +1152,8 @@ const Feats = (function () {
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
     getWeaponFocusBonuses, getSpellFocusBonuses,
+    // Feat presence check for cross-module effect recognition (e.g. Serenity).
+    hasFeat,
     // Structured-feat-entry helpers (exposed for tests).
     parseFeatText, lookupFeatInfo,
   };

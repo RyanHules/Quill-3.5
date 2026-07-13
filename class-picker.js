@@ -5043,11 +5043,26 @@
     amount, bonus_category: cat || "untyped", condition: cond || null });
   const _init = (amount, cat, cond) => ({ bonus_type: "initiative", target: null,
     amount, bonus_category: cat || "untyped", condition: cond || null });
+  // Ability-LINKED save row (amount is the given ability's mod, resolved live by
+  // DND35.resolveAbilityLinkedBonus). Divine Grace = Cha to all saves.
+  const _svAbil = (target, ability, cond) => ({ bonus_type: "save", target,
+    amount: null, bonus_category: "untyped", condition: cond || null,
+    scaling: { kind: "ability", ability } });
   const _fivesk = (a, cond) => ["Bluff", "Listen", "Sense Motive", "Spot", "Survival"]
     .map(s => _sk(s, a, "untyped", cond));
   const CLASS_FEATURE_SCALING = {
     "Assassin": [{ feature: "Save Bonus Against Poison",
       fn: l => l >= 2 ? [_sv("all", Math.floor(l / 2), "untyped", "against poison")] : null }],
+    // Divine Grace: Cha bonus on ALL saves (>=2nd). The Serenity feat (Dragon
+    // Compendium) swaps Cha → Wis for divine grace; recognized here.
+    "Paladin": [{ feature: "Divine Grace", fn: l => l >= 2 ? [_svAbil("all",
+      (typeof Feats !== "undefined" && Feats.hasFeat && Feats.hasFeat("Serenity")) ? "wis" : "cha")] : null }],
+    // Mental Bastion: +2 (>=4th), +4 (>=14th) vs sleep/stunning/paralysis/
+    // poison/disease. Conditional → surfaces as a situational save note.
+    "Dread Necromancer": [{ feature: "Mental Bastion", fn: l => l >= 4
+      ? [_sv("all", l >= 14 ? 4 : 2, "untyped",
+          "vs sleep, stunning, paralysis, poison, and disease")]
+      : null }],
     "Barbarian": [{ feature: "Trap Sense", fn: l => { if (l < 3) return null;
       const a = Math.floor(l / 3); return [_sv("Reflex", a, "untyped", "vs traps"), _ac(a, "dodge", "vs traps")]; } }],
     "Cavalier": [{ feature: "Ride Bonus +2",
@@ -5180,7 +5195,16 @@
       const scaleDefs = CLASS_FEATURE_SCALING[c.className];
       if (scaleDefs) for (const def of scaleDefs) {
         const rows = def.fn(lvl);
-        if (rows) for (const b of rows) out.push(Object.assign({ source: def.feature }, b));
+        if (rows) for (const b of rows) {
+          // Ability-linked rows (Divine Grace's Cha/Wis-to-saves) resolve
+          // against the live ability mods, exactly like the DB-bonus path.
+          let row = b;
+          if (typeof DND35 !== "undefined" && DND35.resolveAbilityLinkedBonus) {
+            const resolved = DND35.resolveAbilityLinkedBonus(b);
+            if (resolved) row = resolved;
+          }
+          out.push(Object.assign({ source: def.feature }, row));
+        }
       }
     }
     return out;

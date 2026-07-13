@@ -2315,6 +2315,38 @@
       'SS9: panel reset to collapsed after load');
   });
 
+  regression('SS10: Divine Grace (+Serenity swap) + Mental Bastion save recognition (A1/A2)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS10: DB not loaded — re-run after [DB] Loaded appears in console.');
+    // Cha 16 (+3), Wis 12 (+1) so the Cha→Wis Serenity swap is distinguishable.
+    set('cha-score', '16');
+    set('wis-score', '12');
+    await wait(50);
+
+    // Divine Grace (Paladin 2): +Cha (+3) on ALL saves, unconditional.
+    await applyClass('Paladin', 2);
+    let sv = ClassPicker.getActiveSaveBonuses();
+    expect(sv.direct.fort.some(e => e.amount === 3), true, 'SS10: Divine Grace +3 (Cha) on Fort');
+    expect(sv.direct.ref.some(e => e.amount === 3) && sv.direct.will.some(e => e.amount === 3), true,
+      'SS10: Divine Grace applies to all three saves');
+
+    // Serenity feat swaps Cha → Wis (+1) for Divine Grace.
+    Feats.addFeat('Serenity');
+    await wait(30);
+    sv = ClassPicker.getActiveSaveBonuses();
+    expect(sv.direct.fort.some(e => e.amount === 1), true, 'SS10: with Serenity, Divine Grace uses Wis (+1)');
+    expect(sv.direct.fort.some(e => e.amount === 3), false, 'SS10: Cha (+3) no longer applied under Serenity');
+
+    // Mental Bastion (Dread Necromancer 4): +2 vs sleep/stun/…, a SITUATIONAL note.
+    await applyClass('Dread Necromancer', 4);
+    sv = ClassPicker.getActiveSaveBonuses();
+    const mb = sv.situational.find(s =>
+      /Mental Bastion/i.test(s.source || '') || /sleep, stunning/i.test(s.condition || ''));
+    if (!mb) fail('SS10: Mental Bastion did not surface as a situational save note');
+    expect(mb.amount, 2, 'SS10: Mental Bastion is +2 at level 4');
+    expect(mb.appliesAll, true, 'SS10: Mental Bastion applies to all saves (conditionally)');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
