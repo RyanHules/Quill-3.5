@@ -1841,18 +1841,39 @@ test('template-picker: reads structured NA fields (change additive, set overlap-
   assertEq(lich && lich.v, 5, 'Lich must carry natural_armor_set=5 (overlap)');
 });
 
-test('class-picker: Mystic Ranger spell-level offset is data-driven (starts at level 0)', (db) => {
-  // Regression: a 6-slot spells_per_day list (0th-5th) is < 7, so the
-  // length heuristic mislabels it as a no-cantrip caster (offset 1) and
-  // shifts every column up. Routing through SPELL_CLASS_VARIANTS uses
-  // MIN(level) from spell_class_level (= 0) instead.
-  assert(/SPELL_CLASS_VARIANTS[\s\S]*?'Mystic Ranger'/.test(readSource('class-picker.js')),
-    'class-picker.js: Mystic Ranger must be in SPELL_CLASS_VARIANTS so its ' +
-    'spell-level offset is data-driven, not length-heuristic.');
-  const r = execOne(db,
-    "SELECT MIN(level) AS mn FROM spell_class_level WHERE class_name='Mystic Ranger'");
-  assertEq(r && r.mn, 0,
-    'Mystic Ranger must have level-0 (orison) spell access so the offset resolves to 0');
+test('class-picker: spells_per_day normalized to 10 absolute-level columns (offset always 0)', (db) => {
+  // The DB now emits spells_per_day as a full 10-column array indexed by
+  // ABSOLUTE spell level (0..9), dead levels = "-" (DB normalize_schema), so
+  // the char-sheet offset is a constant 0 — the old SPELL_CLASS_VARIANTS
+  // MIN(level) lookup + length heuristic are retired. Verify the max-level
+  // shape for the three cases that used to break: a length-6 CANTRIP caster
+  // (index 0 must be a real value), a 1st-start caster (index 0 dash), and a
+  // no-cantrip full caster (index 0 dash).
+  assert(/function getSpellLevelOffset[\s\S]{0,600}?return 0;/.test(readSource('class-picker.js')),
+    'getSpellLevelOffset must be a constant 0 now that the DB is normalized.');
+  const isDash = (v) => v === '-' || v === '—' || v === '–';
+  const maxSpd = (name) => {
+    const row = execOne(db,
+      "SELECT data FROM entry WHERE name = ? AND type IN ('class','prc') LIMIT 1",
+      [name]);
+    if (!row) return null;
+    const ct = (JSON.parse(row.data).class_table) || [];
+    const withSpd = ct.filter(
+      (r) => Array.isArray(r.spells_per_day) && r.spells_per_day.length);
+    if (!withSpd.length) return null;
+    return withSpd.reduce((a, b) => ((b.level || 0) > (a.level || 0) ? b : a)).spells_per_day;
+  };
+  // [name, index-0 must be a dash?]  — cantrip casters: false; no-cantrip: true.
+  for (const [name, idx0Dash] of [
+    ['Mystic Ranger', false], ['Magewright', false], ['Duskblade', false],
+    ['Paladin', true], ['Dread Necromancer', true], ['Death Delver', true],
+  ]) {
+    const spd = maxSpd(name);
+    assert(spd && spd.length === 10,
+      `${name}: spells_per_day must be exactly 10 columns (got ${spd && spd.length})`);
+    assertEq(isDash(spd[0]), idx0Dash,
+      `${name}: index 0 ${idx0Dash ? 'must be a dash (no cantrips)' : 'must be a real cantrip value'}`);
+  }
 });
 
 // ---- tests: special-ability-picker (skill tricks) -------------------------

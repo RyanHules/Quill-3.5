@@ -50,37 +50,10 @@
     'Blackguard': 'WIS',
   };
 
-  // Variants of class names appearing in spell_class_level.class_name
-  // (which mixes abbreviations, full names, case variants, and parser-
-  // fragmented forms). Used to look up the offset between the
-  // spells_per_day_json array index and actual spell level.
-  const SPELL_CLASS_VARIANTS = {
-    'Wizard':   ['Wiz', 'Wizard', 'wizard'],
-    'Sorcerer': ['Sor', 'Sorcerer', 'sorcerer'],
-    'Cleric':   ['Clr', 'Cleric', 'cleric', 'C l e r i c'],
-    'Druid':    ['Drd', 'Druid', 'druid', 'd r u i d'],
-    'Paladin':  ['Pal', 'Paladin', 'paladin'],
-    'Ranger':   ['Rgr', 'Ranger', 'ranger', 'r a n g e r'],
-    // Mystic Ranger (Dragon #336) casts 0th-5th level spells — its
-    // spells_per_day list starts at level 0 (orisons). Routing it through
-    // the data-driven offset (MIN(level)=0 from spell_class_level) is
-    // required: the length heuristic would mis-read its 6-slot list (<7)
-    // as a no-cantrip caster and shift every column up by one.
-    'Mystic Ranger': ['Mystic Ranger'],
-    'Bard':     ['Brd', 'Bard', 'bard'],
-    'Hexblade': ['Hexblade', 'hexblade'],
-    'Warmage':  ['Wmg', 'Warmage', 'warmage'],
-    'Beguiler': ['Beguiler', 'beguiler'],
-    'Healer':   ['Healer', 'healer'],
-    'Wu Jen':   ['Wuj', 'Wij', 'Wu Jen', 'wu jen'],
-    'Shugenja': ['Shu', 'Sha', 'Shugenja', 'shugenja'],
-    'Duskblade':['Duskblade', 'duskblade'],
-    'Assassin': ['Asn', 'Assassin', 'assassin'],
-    'Blackguard':['Blk', 'Blackguard', 'blackguard'],
-    'Dread Necromancer': ['Dread Necromancer', 'Dread necromancer', 'dread necromancer'],
-    'Spirit Shaman': ['Spirit Shaman'],
-    'Apostle of Peace': ['Apostle of peace', 'apostle of peace', 'Apostle of Peace'],
-  };
+  // (SPELL_CLASS_VARIANTS removed 2026-07-13 — it existed only to derive the
+  // per-class spells_per_day offset from spell_class_level's MIN(level). The DB
+  // now emits 10-column absolute-level arrays, so getSpellLevelOffset is always
+  // 0 and the class-name variant map is no longer needed.)
 
   // Classes that grant power points / power-known progressions. Used to
   // auto-create a Psionics tab even when the parsed `class_level` rows
@@ -3761,39 +3734,18 @@
   // Class → Spells-tab integration
   // ============================================================
 
-  // Look up the offset between spells_per_day_json[i] and actual spell
-  // level. Wizards/Sorcerers/Bards/Clerics/Druids/Shugenja: 0 (have
-  // cantrips). Paladins/Rangers/Hexblades/Assassins/Blackguards: 1 (no
-  // cantrips). Drives the data-driven query against spell_class_level
-  // first, falls back to a length-based heuristic when no spell_class_level
-  // entries exist for the class.
-  function getSpellLevelOffset(className, spdLength) {
-    // The offset maps spells_per_day_json[i] → spell level (offset + i), so the
-    // LAST index can never exceed 9th level. That caps the offset at
-    // 10 - spdLength — which is what fixes the no-cantrip full-list casters:
-    // Dread Necromancer / Beguiler-style arrays are length 10 (levels 0-9) but
-    // carry a leading level-0 PLACEHOLDER ('-') even though their min castable
-    // spell level is 1. The MIN(level) query below reads that as offset 1 and
-    // shoves every slot up one box (the P1 bug: 1st-level slots landing in the
-    // 2nd-level box). A length-10 array clamps to offset 0; Paladin/Ranger
-    // (length 4) still clamp-allow offset 1. See spell-slot mapping in
-    // upsertSpellcastingPanel.
-    const cap = spdLength ? Math.max(0, 10 - spdLength) : 9;
-    const clamp = (o) => Math.max(0, Math.min(o, cap));
-    const variants = SPELL_CLASS_VARIANTS[className];
-    if (variants && variants.length) {
-      const placeholders = variants.map(() => '?').join(',');
-      const r = DB.queryOne(
-        `SELECT MIN(level) AS mn FROM spell_class_level ` +
-        `WHERE class_name IN (${placeholders})`,
-        variants
-      );
-      if (r && r.mn !== null && r.mn !== undefined) return clamp(r.mn);
-    }
-    // Heuristic fallback by progression length:
-    //   ≥7 (full caster, bard) → starts at 0-level
-    //   <7 (paladin/ranger/etc.) → starts at 1st-level
-    return clamp(spdLength >= 7 ? 0 : 1);
+  // Offset between spells_per_day_json[i] and the actual spell level.
+  // ALWAYS 0 now: the DB normalizes every class's spells_per_day to a full
+  // 10-column array indexed by ABSOLUTE spell level (0..9), dead levels = "-"
+  // (DB project: normalize_schema._normalize_spell_columns, 2026-07-13). So
+  // array[i] IS spell level i — no per-class offset, no query, no length
+  // heuristic. This retired the whole offset-guessing mess (and the classes it
+  // silently mis-shelved: Dread Necromancer, Death Delver, Magewright). The
+  // function is kept so callers stay unchanged; a stale un-normalized DB (all
+  // arrays would then start at their min level) is the only thing this would
+  // mis-handle, which the DB build gate prevents.
+  function getSpellLevelOffset(_className, _spdLength) {
+    return 0;
   }
 
   // Returns { spd, sk } at the given level if the class grants any spell
