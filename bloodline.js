@@ -385,7 +385,10 @@ const Bloodline = (function () {
       if (n < 1) continue;
       parts.push(`${bl.name} Bloodline ${n}`);
     }
-    return parts.join(', ');
+    // Separate multiple bloodlines with " // " — same notation gestalt uses for
+    // its parallel tracks (class-picker), since bloodlines are independent
+    // tracks too. Clearer than a comma.
+    return parts.join(' // ');
   }
 
   // Total bloodline levels across every applied bloodline (= paid slots). These
