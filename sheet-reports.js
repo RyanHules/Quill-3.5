@@ -19,10 +19,13 @@
     document.dispatchEvent(new CustomEvent('sheet-reports-changed'));
   }
 
+  function adopt(data) {
+    state = (data && Array.isArray(data.flags)) ? data : { flags: [] };
+  }
+
   async function init() {
     try {
-      const data = await SaveBackend.loadFlags(SURFACE);
-      state = (data && Array.isArray(data.flags)) ? data : { flags: [] };
+      adopt(await SaveBackend.loadFlags(SURFACE));
     } catch (e) {
       console.warn('[sheet-reports] load failed', e);
       state = { flags: [] };
@@ -31,12 +34,26 @@
     emit();
   }
 
-  async function persist() {
+  // Re-pull authoritative state so an open tab reflects reports filed in other
+  // tabs (wired to focus / dashboard-open in review-flags-ui.js).
+  async function refresh() {
     try {
-      await SaveBackend.saveFlags(SURFACE, state);
+      adopt(await SaveBackend.loadFlags(SURFACE));
+      emit();
     } catch (e) {
-      console.warn('[sheet-reports] save failed', e);
+      console.warn('[sheet-reports] refresh failed', e);
     }
+  }
+
+  // Atomic op through the backend; adopt the returned authoritative state so
+  // concurrent tabs can't clobber each other's reports.
+  async function op(o) {
+    try {
+      adopt(await SaveBackend.flagOp(SURFACE, o));
+    } catch (e) {
+      console.warn('[sheet-reports] op failed', e);
+    }
+    emit();
   }
 
   function newId() {
@@ -52,32 +69,23 @@
       created: new Date().toISOString(),
       status: 'open',
     };
-    state.flags.push(rep);
-    emit();
-    await persist();
+    await op({ op: 'add', flag: rep });
     return rep;
   }
 
   async function resolve(id) {
-    const r = state.flags.find(x => x.id === id);
-    if (!r) return;
-    r.status = 'resolved';
-    r.resolved = new Date().toISOString();
-    emit();
-    await persist();
+    await op({ op: 'resolve', id, resolved: new Date().toISOString() });
   }
 
   async function remove(id) {
-    const before = state.flags.length;
-    state.flags = state.flags.filter(x => x.id !== id);
-    if (state.flags.length !== before) { emit(); await persist(); }
+    await op({ op: 'remove', id });
   }
 
   const getAll = () => state.flags.slice();
   const getOpen = () => state.flags.filter(r => r.status !== 'resolved');
   const isLoaded = () => loaded;
 
-  window.SheetReports = { init, add, resolve, remove, getAll, getOpen, isLoaded };
+  window.SheetReports = { init, refresh, add, resolve, remove, getAll, getOpen, isLoaded };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

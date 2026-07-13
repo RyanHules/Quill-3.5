@@ -364,6 +364,51 @@
     localStorage.setItem(FLAGS_LS_PREFIX + surface, JSON.stringify(data));
   }
 
+  // Apply a single atomic op (add / resolve / remove) to a flag surface and
+  // return the full new state. The whole-array PUT above let concurrent tabs
+  // clobber each other (each sent its own stale array; the server replaced
+  // wholesale). Op-based writes never transmit the array, so there's nothing to
+  // clobber — and the returned authoritative state lets a tab pick up flags
+  // other tabs added. In server mode the merge happens server-side under a lock;
+  // in localStorage mode we read-modify-write the shared (cross-tab) store here.
+  function applyFlagOpLocal(data, op) {
+    if (!Array.isArray(data.flags)) data.flags = [];
+    if (op.op === 'add') {
+      if (op.flag && op.flag.id &&
+          !data.flags.some(f => f.id === op.flag.id)) {
+        data.flags.push(op.flag);
+      }
+    } else if (op.op === 'resolve') {
+      const f = data.flags.find(x => x.id === op.id);
+      if (f) { f.status = 'resolved'; f.resolved = op.resolved || new Date().toISOString(); }
+    } else if (op.op === 'remove') {
+      data.flags = data.flags.filter(x => x.id !== op.id);
+    }
+    return data;
+  }
+
+  async function flagOp(surface, op) {
+    await ready;
+    if (mode === 'server') {
+      const r = await fetch('/api/flags/' + encodeURIComponent(surface), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(op),
+      });
+      if (!r.ok) throw new Error('flagOp failed: ' + r.status);
+      return await r.json();
+    }
+    let data;
+    try {
+      data = JSON.parse(localStorage.getItem(FLAGS_LS_PREFIX + surface)) || { flags: [] };
+    } catch (e) {
+      data = { flags: [] };
+    }
+    applyFlagOpLocal(data, op);
+    localStorage.setItem(FLAGS_LS_PREFIX + surface, JSON.stringify(data));
+    return data;
+  }
+
   window.SaveBackend = {
     ready,
     get mode() { return mode; },
@@ -372,6 +417,7 @@
     save,
     loadFlags,
     saveFlags,
+    flagOp,
     delete: del,
     move,
     serverInfo: getServerInfo,

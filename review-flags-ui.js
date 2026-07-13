@@ -118,11 +118,51 @@
     ).join('') : '<div class="rf-empty">None.</div>';
   }
 
-  function open() { ensureModal(); modalEl.hidden = false; renderLists(); }
-  function close() { if (modalEl) modalEl.hidden = true; }
+  // Re-pull both surfaces from the backend so the list reflects flags filed in
+  // other concurrently-open tabs. The `*-changed` events the modules emit on
+  // adopt() drive refreshBadge + renderLists, so we don't render here directly.
+  function refreshFromBackend() {
+    if (window.SheetReports && SheetReports.refresh) SheetReports.refresh();
+    if (window.ReviewFlags && ReviewFlags.refresh) ReviewFlags.refresh();
+  }
+
+  let pollTimer = null;
+  function startPoll() {
+    if (pollTimer) return;
+    // Only meaningful while the dashboard is open AND the tab is visible — a
+    // background tab's flags will be pulled the moment it regains focus.
+    pollTimer = setInterval(() => {
+      if (modalEl && !modalEl.hidden && document.visibilityState === 'visible') {
+        refreshFromBackend();
+      }
+    }, 8000);
+  }
+  function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  function open() {
+    ensureModal();
+    modalEl.hidden = false;
+    renderLists();
+    refreshFromBackend();  // pull the freshest state on open
+    startPoll();
+  }
+  function close() { if (modalEl) modalEl.hidden = true; stopPoll(); }
 
   document.addEventListener('review-flags-changed', () => { refreshBadge(); renderLists(); });
   document.addEventListener('sheet-reports-changed', () => { refreshBadge(); renderLists(); });
+
+  // Reactive refresh on tab focus / visibility — switching back to a tab pulls
+  // whatever other tabs have filed since, updating the badge even when the
+  // dashboard is closed.
+  window.addEventListener('focus', refreshFromBackend);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshFromBackend();
+  });
+  // localStorage-mode tabs share the store synchronously; the storage event
+  // lets a passive tab react to a sibling tab's write without polling.
+  window.addEventListener('storage', (e) => {
+    if (e.key && e.key.indexOf('dnd35-flags-') === 0) refreshFromBackend();
+  });
 
   function init() { ensureTriggerButton(); }
   if (document.readyState === 'loading') {

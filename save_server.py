@@ -56,6 +56,7 @@ import json
 import os
 import re
 import sys
+import threading
 import urllib.parse
 
 from datetime import datetime, timezone
@@ -74,12 +75,84 @@ SAVE_DIR.mkdir(parents=True, exist_ok=True)
 REVIEWS_DIR = _PROJECT_ROOT / "reviews"
 _FLAG_SURFACES = {"entry-flags", "sheet-reports"}
 
+# Serializes the read-modify-write in the op-based flag endpoint. The server is
+# a ThreadingHTTPServer, so two concurrent tabs POSTing ops to the same surface
+# would otherwise race on the file. The lock is process-wide (all surfaces share
+# it) — flag ops are rare + tiny, so there's no contention worth sharding for.
+_FLAGS_LOCK = threading.Lock()
+
 
 def flags_path(surface: str) -> Path:
     """Path for a review-flag surface, or None if `surface` isn't allowlisted."""
     if surface not in _FLAG_SURFACES:
         return None
     return REVIEWS_DIR / f"{surface}.json"
+
+
+def _read_flags(path: Path) -> dict:
+    """Load a flag surface's state, tolerating a missing / malformed file."""
+    if not path.exists():
+        return {"flags": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"flags": []}
+    if not isinstance(data, dict) or not isinstance(data.get("flags"), list):
+        return {"flags": []}
+    return data
+
+
+def _write_flags(path: Path, data: dict) -> None:
+    """Atomically persist a flag surface (write-tmp, rename)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as fp:
+        json.dump(data, fp, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def apply_flag_op(path: Path, op: dict) -> dict:
+    """Apply a single atomic op to a flag surface and return the new state.
+
+    Ops (each mutates by id, never by transmitting the whole array — so
+    concurrent tabs can't clobber each other the way the old whole-array PUT
+    let them):
+      {"op": "add", "flag": {...}}          append (idempotent on id)
+      {"op": "resolve", "id", "resolved"?}  mark one flag resolved
+      {"op": "remove", "id"}                drop one flag
+
+    Runs under _FLAGS_LOCK so the read-modify-write is atomic across threads.
+    Raises ValueError on a malformed op.
+    """
+    kind = op.get("op")
+    with _FLAGS_LOCK:
+        data = _read_flags(path)
+        flags = data["flags"]
+        if kind == "add":
+            flag = op.get("flag")
+            if not isinstance(flag, dict) or not flag.get("id"):
+                raise ValueError("add op requires a flag object with an id")
+            if not any(f.get("id") == flag["id"] for f in flags):
+                flags.append(flag)
+        elif kind == "resolve":
+            fid = op.get("id")
+            if not fid:
+                raise ValueError("resolve op requires an id")
+            for f in flags:
+                if f.get("id") == fid:
+                    f["status"] = "resolved"
+                    f["resolved"] = op.get("resolved") or \
+                        datetime.now(timezone.utc).isoformat()
+                    break
+        elif kind == "remove":
+            fid = op.get("id")
+            if not fid:
+                raise ValueError("remove op requires an id")
+            data["flags"] = [f for f in flags if f.get("id") != fid]
+        else:
+            raise ValueError(f"unknown op: {kind!r}")
+        _write_flags(path, data)
+        return data
 
 # One-time migration from the previous home-dir location. The first
 # version of this server stored saves under ~/.dnd-sheet/saves/. If
@@ -371,6 +444,8 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         # unambiguous. Body: {"from": "<qualified>", "to": "<qualified>"}.
         if self.path == "/api/move":
             return self._api_move_save()
+        if self.path.startswith("/api/flags/"):
+            return self._api_post_flags()
         self.send_error(405, "method not allowed")
 
     def do_DELETE(self):
@@ -504,6 +579,35 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
         except OSError as e:
             self._send_json(500, {"error": str(e)})
+
+    def _api_post_flags(self):
+        """Atomic op-based mutation of a flag surface. Body is a single op
+        (add / resolve / remove — see apply_flag_op). Returns the full new
+        state so the client can adopt authoritative state (picking up any
+        flags other tabs added concurrently) instead of trusting its own
+        stale snapshot. This replaces the whole-array PUT for mutations."""
+        surface = self._flag_surface()
+        if surface is None:
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return self._send_json(400, {"error": "empty body"})
+        if length > 1 * 1024 * 1024:
+            return self._send_json(413, {"error": "payload too large"})
+        raw = self.rfile.read(length)
+        try:
+            op = json.loads(raw)
+            if not isinstance(op, dict):
+                raise ValueError("op payload must be a JSON object")
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._send_json(400, {"error": f"invalid JSON: {e}"})
+        try:
+            data = apply_flag_op(flags_path(surface), op)
+        except ValueError as e:
+            return self._send_json(400, {"error": str(e)})
+        except OSError as e:
+            return self._send_json(500, {"error": str(e)})
+        return self._send_json(200, data)
 
     def _api_put_flags(self):
         surface = self._flag_surface()
