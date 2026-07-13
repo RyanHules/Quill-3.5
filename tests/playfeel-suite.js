@@ -2090,6 +2090,89 @@
       'SS5b: table must not overflow its section when the panel is open');
   });
 
+  regression('SS6: report/flag mutations route through atomic ops + adopt authoritative state (R0)', async () => {
+    // Client half of the R0 fix (the server/concurrency half lives in
+    // tests/test_save_server.py, which can drive real threads — playfeel
+    // can't). Here we stub SaveBackend's flag layer with an in-memory store
+    // (mirroring the server's op semantics) so the test NEVER touches the real
+    // reviews/sheet-reports.json, and assert: every mutation routes a single
+    // atomic op (add/resolve/remove) instead of a whole-array persist; the
+    // module adopts the authoritative state the op returns; refresh() pulls in
+    // another tab's writes; and a local add can't clobber a concurrently-added
+    // report. SheetReports + ReviewFlags share this exact path — SheetReports
+    // is representative.
+    if (!window.SheetReports || !window.SaveBackend) fail('SS6: modules missing');
+    const realOp = SaveBackend.flagOp;
+    const realLoad = SaveBackend.loadFlags;
+    const store = { flags: [] };
+    const ops = [];
+    SaveBackend.flagOp = async (surface, op) => {
+      ops.push(op);
+      if (op.op === 'add') {
+        if (op.flag && op.flag.id && !store.flags.some(f => f.id === op.flag.id)) {
+          store.flags.push(op.flag);
+        }
+      } else if (op.op === 'resolve') {
+        const f = store.flags.find(x => x.id === op.id);
+        if (f) { f.status = 'resolved'; f.resolved = op.resolved; }
+      } else if (op.op === 'remove') {
+        store.flags = store.flags.filter(x => x.id !== op.id);
+      }
+      return JSON.parse(JSON.stringify(store));   // authoritative snapshot
+    };
+    SaveBackend.loadFlags = async () => JSON.parse(JSON.stringify(store));
+
+    try {
+      await SheetReports.refresh();
+      expect(SheetReports.getOpen().length, 0, 'SS6: starts empty against the stub store');
+
+      // add -> single add op, module adopts result
+      const rep = await SheetReports.add('bug', 'SS6 test report');
+      expect(ops[ops.length - 1].op, 'add', 'SS6: add routes an atomic add op');
+      expect(ops[ops.length - 1].flag.id, rep.id, 'SS6: add op carries the built flag (not a whole array)');
+      expect(SheetReports.getOpen().length, 1, 'SS6: module adopted the add');
+
+      // A DIFFERENT tab writes directly to the shared store (stale-snapshot case).
+      store.flags.push({ id: 'other-tab', kind: 'bug', note: 'from another tab', status: 'open' });
+      expect(SheetReports.getOpen().length, 1, 'SS6: this tab is unaware pre-refresh');
+      await SheetReports.refresh();
+      expect(SheetReports.getOpen().length, 2,
+        'SS6: refresh() pulls the other tab\'s report (live cross-tab refresh)');
+
+      // Local add must NOT clobber the concurrently-added report — this is the
+      // exact failure R0 was: adopt-authoritative keeps both.
+      const rep2 = await SheetReports.add('feature', 'SS6 second');
+      const openIds = SheetReports.getOpen().map(r => r.id);
+      if (!openIds.includes('other-tab') || !openIds.includes(rep2.id)) {
+        fail('SS6: local add clobbered a concurrently-added report (adopt-authoritative regressed)');
+      }
+      expect(SheetReports.getOpen().length, 3, 'SS6: all three coexist, no clobber');
+
+      // resolve -> resolve op with id + timestamp, leaves the open list
+      await SheetReports.resolve(rep.id);
+      const rOp = ops[ops.length - 1];
+      expect(rOp.op, 'resolve', 'SS6: resolve routes a resolve op');
+      expect(rOp.id, rep.id, 'SS6: resolve op carries the id');
+      if (!rOp.resolved) fail('SS6: resolve op carries a timestamp');
+      if (SheetReports.getOpen().some(r => r.id === rep.id)) {
+        fail('SS6: resolved report should leave the open list');
+      }
+
+      // remove -> remove op, gone from everything
+      await SheetReports.remove('other-tab');
+      expect(ops[ops.length - 1].op, 'remove', 'SS6: remove routes a remove op');
+      if (SheetReports.getAll().some(r => r.id === 'other-tab')) {
+        fail('SS6: removed report should be gone from getAll');
+      }
+    } finally {
+      // Restore the real backend and reload the real store into the module so
+      // the suite leaves the user's actual reports untouched.
+      SaveBackend.flagOp = realOp;
+      SaveBackend.loadFlags = realLoad;
+      await SheetReports.refresh();
+    }
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
