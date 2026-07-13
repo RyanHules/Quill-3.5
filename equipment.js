@@ -623,6 +623,51 @@ const Equipment = (function () {
     recalcSoulmelds();
   }
 
+  // Reset a body-slot's soulmeld sub-fields to their empty defaults. loadData
+  // calls this for EVERY slot before repopulating, because a soulmeld is only
+  // serialized when its checkbox is on (collectData gates on it) — so loading a
+  // character with no soulmeld in a slot would otherwise leave the PREVIOUS
+  // character's soulmeld sitting in that slot (the S2 cross-save bleed). Clears
+  // both the primary and the double-chakra second soulmeld, and empties the
+  // pips (buildPipButtons preserves filled count, so rebuild-then-fill(0)).
+  function clearSlotSoulmeld(slotDiv) {
+    if (!slotDiv) return;
+    const setVal = (sel, v) => { const el = slotDiv.querySelector(sel); if (el) el.value = v; };
+    const setChk = (sel) => { const el = slotDiv.querySelector(sel); if (el) el.checked = false; };
+    setChk(".slot-soulmeld-check");
+    const area = slotDiv.querySelector(".slot-soulmeld-area");
+    if (area) area.style.display = "none";
+    setVal(".slot-sm-name", ""); setChk(".slot-sm-bound"); setChk(".slot-sm-split");
+    setChk(".slot-sm-double"); setVal(".slot-sm-base", ""); setVal(".slot-sm-bind-effect", "");
+    setVal(".slot-sm-extra-cap", "0");
+    setVal(".slot-sm2-name", ""); setChk(".slot-sm2-bound"); setVal(".slot-sm2-base", "");
+    setVal(".slot-sm2-bind-effect", ""); setVal(".slot-sm2-extra-cap", "0");
+    const second = slotDiv.querySelector(".slot-sm-second");
+    if (second) second.style.display = "none";
+    // Soulmeld off => the plain magic-item input for this slot is shown again.
+    const itemInput = slotDiv.querySelector(".slot-item-name");
+    if (itemInput) itemInput.style.display = "";
+    rebuildEssentiaPips(slotDiv, true);
+    fillPips(slotDiv.querySelector(".essentia-pips:not(.essentia-pips-2)"), 0);
+    fillPips(slotDiv.querySelector(".essentia-pips-2"), 0);
+  }
+
+  // Totem equivalent of clearSlotSoulmeld — same S2 bleed applies (data.totem is
+  // only present when a totem soulmeld is set).
+  function clearTotem() {
+    const setVal = (id, v) => { const el = $(`#${id}`); if (el) el.value = v; };
+    const setChk = (id) => { const el = $(`#${id}`); if (el) el.checked = false; };
+    setVal("totem-sm-name", ""); setChk("totem-sm-bound"); setChk("totem-sm-double");
+    setVal("totem-sm-base", ""); setVal("totem-sm-bind-effect", ""); setVal("totem-sm-extra-cap", "0");
+    setVal("totem-sm2-name", ""); setChk("totem-sm2-bound"); setVal("totem-sm2-base", "");
+    setVal("totem-sm2-bind-effect", ""); setVal("totem-sm2-extra-cap", "0");
+    const second = $("#totem-sm-second"); if (second) second.style.display = "none";
+    const details = $(".slot-totem details"); if (details) details.open = false;
+    rebuildTotemPips(true);
+    fillPips($("#totem-essentia-pips"), 0);
+    fillPips($("#totem-essentia-pips-2"), 0);
+  }
+
   // ============================================================
   // Soulmeld counter recalculation
   // ============================================================
@@ -873,9 +918,13 @@ const Equipment = (function () {
       const key = `slot-${slot.id}`;
       if (data[key] !== undefined) $(`#${key}`).value = data[key];
 
+      // Always clear the slot's soulmeld first, so a soulmeld from a
+      // previously-loaded character can't bleed into this one (S2).
+      const slotDiv = $(`.magic-item-slot[data-slot-id="${slot.id}"]`);
+      clearSlotSoulmeld(slotDiv);
+
       const sm = data.slotSoulmelds?.[slot.id];
       if (sm?.enabled) {
-        const slotDiv = $(`.magic-item-slot[data-slot-id="${slot.id}"]`);
         if (!slotDiv) return;
         const check = slotDiv.querySelector(".slot-soulmeld-check");
         check.checked = true;
@@ -906,7 +955,8 @@ const Equipment = (function () {
       }
     });
 
-    // Totem
+    // Totem — clear first so a previous character's totem can't bleed (S2).
+    clearTotem();
     if (data.totem) {
       const details = $(".slot-totem details");
       if (details) details.open = true;

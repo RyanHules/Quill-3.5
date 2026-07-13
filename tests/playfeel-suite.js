@@ -2173,6 +2173,63 @@
     }
   });
 
+  regression('SS7: soulmelds do not bleed across a load-over-load (S2)', async () => {
+    await newCharacter();
+    const slot = $('.magic-item-slot[data-slot-id="hands"]');
+    if (!slot) fail('SS7: hands slot not built');
+    const q = (s) => slot.querySelector(s);
+
+    // Character A: a bound soulmeld in the hands slot + a totem.
+    const chk = q('.slot-soulmeld-check');
+    chk.checked = true; chk.dispatchEvent(new Event('change'));
+    q('.slot-sm-name').value = 'Bloodtalons';
+    q('.slot-sm-base').value = 'Base A';
+    q('.slot-sm-bind-effect').value = 'Bind A';
+    q('.slot-sm-bound').checked = true;
+    $('#totem-sm-name').value = 'Blink Shirt';
+    $('#totem-sm-base').value = 'Totem base A';
+
+    const blobA = Equipment.collectData();
+    if (!blobA.slotSoulmelds?.hands) fail('SS7: A did not collect a hands soulmeld');
+    if (!blobA.totem) fail('SS7: A did not collect a totem');
+
+    // A round-trips (positive path must still populate).
+    Equipment.loadData(blobA);
+    await wait(60);
+    expect(q('.slot-sm-name').value, 'Bloodtalons', 'SS7: soulmeld restores on its own load');
+    expect($('#totem-sm-name').value, 'Blink Shirt', 'SS7: totem restores on its own load');
+
+    // Character B has NO soulmelds. Loading B over A must clear the slot + totem
+    // (the S2 bug left A's soulmeld sitting in the slot).
+    const blobB = Equipment.collectData();
+    delete blobB.slotSoulmelds;
+    delete blobB.totem;
+    Equipment.loadData(blobB);
+    await wait(60);
+    expect(q('.slot-soulmeld-check').checked, false, 'SS7: slot checkbox cleared (no bleed)');
+    expect(q('.slot-sm-name').value, '', 'SS7: slot soulmeld name cleared (no bleed)');
+    expect(q('.slot-sm-base').value, '', 'SS7: slot base cleared');
+    expect(q('.slot-sm-bind-effect').value, '', 'SS7: slot bind effect cleared');
+    expect(q('.slot-sm-bound').checked, false, 'SS7: slot bound flag cleared');
+    expect(q('.slot-soulmeld-area').style.display, 'none', 'SS7: soulmeld area hidden');
+    expect($('#totem-sm-name').value, '', 'SS7: totem name cleared (no bleed)');
+    expect($('#totem-sm-base').value, '', 'SS7: totem base cleared');
+
+    // Double-chakra -> single must clear the second soulmeld too.
+    chk.checked = true; chk.dispatchEvent(new Event('change'));
+    const dbl = q('.slot-sm-double'); dbl.checked = true; dbl.dispatchEvent(new Event('change'));
+    q('.slot-sm-name').value = 'Primary'; q('.slot-sm2-name').value = 'Second';
+    const blobDbl = Equipment.collectData();
+    const smSingle = JSON.parse(JSON.stringify(blobDbl));
+    smSingle.slotSoulmelds.hands.double = false;
+    delete smSingle.slotSoulmelds.hands.name2;
+    Equipment.loadData(smSingle);
+    await wait(60);
+    expect(q('.slot-sm-double').checked, false, 'SS7: double flag cleared on single load');
+    expect(q('.slot-sm2-name').value, '', 'SS7: second soulmeld name cleared on double->single');
+    expect(q('.slot-sm-second').style.display, 'none', 'SS7: second soulmeld section hidden');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
