@@ -1177,7 +1177,10 @@
       const blLabel = (window.Bloodline
         && typeof Bloodline.getClassLevelLabel === 'function')
         ? Bloodline.getClassLevelLabel() : '';
-      if (blLabel) classStr = classStr ? `${classStr} / ${blLabel}` : blLabel;
+      // Separate the bloodline track(s) from the class track(s) with " // " too
+      // — bloodlines are independent tracks, same as gestalt sides (and each
+      // other), so e.g. "Fighter 5 // Fireclaw Bloodline 3".
+      if (blLabel) classStr = classStr ? `${classStr} // ${blLabel}` : blLabel;
       ta.value = classStr;
       ta.dispatchEvent(new Event('input', { bubbles: true }));
     }
