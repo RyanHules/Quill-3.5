@@ -114,6 +114,11 @@ const ClassFeatures = (function () {
       level: meta.level != null && meta.level !== '' ? Number(meta.level) : null,
       race: meta.race ? String(meta.race) : '',
       replaces: meta.replaces ? String(meta.replaces) : '',
+      // Clean '|'-joined replaced-feature names (drives the class-picker
+      // strikethrough); may be empty on legacy saves / hand-added rows.
+      replacesFeatures: meta.replacesFeatures ? String(meta.replacesFeatures) : '',
+      // What the customization grants — shown so the row isn't just a name.
+      grants: meta.grants ? String(meta.grants) : '',
       source: meta.source ? String(meta.source) : '',
       notes: meta.notes ? String(meta.notes) : '',
     };
@@ -179,6 +184,8 @@ const ClassFeatures = (function () {
     const classLine = lvlBits.join(' ');
     const raceLine = meta.race
       ? `<span class="cf-cust-race">${escapeHtml(meta.race)}</span>` : '';
+    const grantsLine = meta.grants
+      ? `<div class="cf-cust-grants"><b>Grants:</b> ${escapeHtml(meta.grants)}</div>` : '';
     const replacesLine = meta.replaces
       ? `<div class="cf-cust-replaces"><b>Replaces:</b> ${escapeHtml(meta.replaces)}</div>` : '';
     const sourceLine = meta.source
@@ -193,6 +200,7 @@ const ClassFeatures = (function () {
         <button class="cf-cust-remove btn-remove" type="button"
                 title="Remove this customization">×</button>
       </div>
+      ${grantsLine}
       ${replacesLine}
       <textarea class="cf-cust-notes auto-expand" rows="1"
                 placeholder="Notes (e.g. which weapon you focused, current charges, etc.)">${escapeHtml(meta.notes || '')}</textarea>

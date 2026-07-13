@@ -2599,13 +2599,15 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
 .cf-cust-remove {
   margin-left: 0.3rem;
 }
-.cf-cust-replaces {
+.cf-cust-replaces,
+.cf-cust-grants {
   font-size: 0.82em;
   color: #ccd;
   margin: 0.2rem 0;
   line-height: 1.35;
 }
 .cf-cust-replaces b { color: #c8a14a; }
+.cf-cust-grants b { color: #6bbf59; }
 .cf-cust-notes {
   width: 100%;
   margin-top: 0.2rem;

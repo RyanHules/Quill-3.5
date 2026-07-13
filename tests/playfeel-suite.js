@@ -2347,6 +2347,54 @@
     expect(mb.appliesAll, true, 'SS10: Mental Bastion applies to all saves (conditionally)');
   });
 
+  regression('SS11: ACF/sub-level customizations extract grants + real replaces, strike features (C1/C2)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS11: DB not loaded — re-run after [DB] Loaded appears in console.');
+    if (typeof ClassVariants === 'undefined') fail('SS11: ClassVariants missing');
+
+    // --- Extraction correctness (the C1 nuance) ---
+    // Kobold Rogue: L1 alters trapfinding + L3 augments trap sense (NOT
+    // replacements) — only L8 Improved Uncanny Dodge is truly replaced.
+    const subs = ClassVariants.getSubLevels('Rogue');
+    const kobold = subs.find(r => r.name === 'Kobold Rogue');
+    if (!kobold) fail('SS11: Kobold Rogue sub-level not found for Rogue');
+    const kri = ClassVariants.replaceInfo(kobold);
+    expect(kri.features.includes('improved uncanny dodge'), true,
+      'SS11: Kobold Rogue replaces improved uncanny dodge (L8)');
+    expect(kri.features.some(f => /trapfinding|trap sense/.test(f)), false,
+      'SS11: altered/augmented features are NOT counted as replaced');
+    const kg = ClassVariants.grantsInfo(kobold);
+    expectIncludes(kg, 'Rapid Retreat', 'SS11: Kobold Rogue grants summarized from levels');
+
+    // Dungeon Specialist ACF: prose "give up both fast movement and evasion".
+    const acfs = ClassVariants.getACFs('Scout');
+    const dspec = acfs.find(r => r.name === 'Dungeon Specialist');
+    if (!dspec) fail('SS11: Dungeon Specialist ACF not found for Scout');
+    const dri = ClassVariants.replaceInfo(dspec);
+    expect(dri.features.includes('fast movement') && dri.features.includes('evasion'), true,
+      'SS11: Dungeon Specialist replaces fast movement + evasion (parsed from prose)');
+
+    // --- Customization row shows Grants + Replaces (C2) ---
+    ClassFeatures.getCustomizations().slice().forEach((_, i) => {}); // no-op; ensure API
+    ClassFeatures.addCustomization({
+      kind: 'Sub Level', name: 'Kobold Rogue', class: 'Rogue', level: 1,
+      race: 'Kobold', replaces: kri.display, replacesFeatures: kri.features.join('|'),
+      grants: kg, source: 'Races of the Dragon',
+    });
+    const row = document.querySelector('#class-customizations-list .cf-customization[data-cust-key="Kobold Rogue|Rogue"]');
+    if (!row) fail('SS11: customization row not created');
+    expect(!!row.querySelector('.cf-cust-grants'), true, 'SS11: row shows a Grants line');
+    expect(!!row.querySelector('.cf-cust-replaces'), true, 'SS11: row shows a Replaces line');
+    expectIncludes(row.querySelector('.cf-cust-grants').textContent, 'Rapid Retreat',
+      'SS11: Grants line names the gained feature');
+
+    // --- Round-trip: grants + replacesFeatures survive collect/load ---
+    const custs = ClassFeatures.getCustomizations();
+    const kr = custs.find(c => c.name === 'Kobold Rogue');
+    expect(kr.grants.includes('Rapid Retreat'), true, 'SS11: grants collected');
+    expect(kr.replacesFeatures.includes('improved uncanny dodge'), true, 'SS11: replacesFeatures collected');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

@@ -3321,13 +3321,22 @@
       : (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
     const map = new Map();
     for (const c of customs) {
-      if (!c.replaces || !matchesCls(className, c.class)) continue;
-      // Split on commas, semicolons, "and". Strip any parenthesized
-      // clarifications ("(8th level)") and trim.
-      const tokens = c.replaces
-        .split(/\s*(?:,|;|\band\b)\s*/i)
-        .map(t => t.replace(/\([^)]*\)/g, '').trim())
-        .filter(Boolean);
+      if (!matchesCls(className, c.class)) continue;
+      // Prefer the clean, pre-extracted replaced-feature list (class-variants
+      // parses it out of the entry, honoring "alters/augments — does not
+      // replace"). Fall back to tokenizing the prose `replaces` for
+      // hand-added rows / legacy saves that lack it.
+      let tokens;
+      if (c.replacesFeatures) {
+        tokens = String(c.replacesFeatures).split('|').map(t => t.trim()).filter(Boolean);
+      } else if (c.replaces) {
+        tokens = c.replaces
+          .split(/\s*(?:,|;|\band\b)\s*/i)
+          .map(t => t.replace(/\([^)]*\)/g, '').trim())
+          .filter(Boolean);
+      } else {
+        continue;
+      }
       for (const t of tokens) {
         const key = t.toLowerCase();
         if (!map.has(key)) map.set(key, { kind: c.kind, name: c.name });

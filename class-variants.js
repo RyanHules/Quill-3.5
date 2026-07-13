@@ -285,6 +285,64 @@ const ClassVariants = (function () {
     return sortByEffLevel(own);
   }
 
+  // ---- Replaces / Grants extraction (C1/C2, 2026-07-13) -------------
+  //
+  // A customization needs two derived things the raw entry doesn't hand over
+  // cleanly:
+  //   - what it GRANTS (for the Class Customizations display), and
+  //   - a CLEAN list of the feature names it actually replaces (for the
+  //     class-picker strikethrough), honoring "alters/augments (does not
+  //     replace)" prose so an altered feature is never struck.
+  // Sub-levels carry this per-level in `levels[]` (top-level `replaces` is
+  // usually empty); ACFs carry a single prose `replaces` + `benefit`.
+
+  const _NON_REPLACE = /\b(?:does not replace|alters|augments)\b/i;
+  function _cleanFeatureName(s) {
+    return String(s || '')
+      .replace(/\([^)]*\)/g, '')
+      .replace(/\b(?:the|a|an|standard|normal|class features?|features?)\b/gi, '')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  // → { display, features[] }. `display` is human prose for the Replaces line;
+  // `features` are the actually-replaced feature names (lowercased, deduped).
+  function replaceInfo(r) {
+    const displayParts = [], features = [];
+    const consume = (text, label) => {
+      if (!text) return;
+      displayParts.push(label ? `${label}: ${text}` : text);
+      if (_NON_REPLACE.test(text)) return;           // altered/augmented ≠ replaced
+      const m = String(text).match(/give up (?:both )?(.+?)(?:\.|$)/i);
+      const src = (m ? m[1] : text).replace(/\([^)]*\)/g, '');   // drop parens BEFORE split
+      for (const piece of src.split(/\s*(?:,|;|\band\b|\bor\b|\bin exchange for\b)\s*/i)) {
+        const f = _cleanFeatureName(piece);
+        if (f.length >= 3) features.push(f.toLowerCase());
+      }
+    };
+    if (r.levels_json) {
+      try {
+        const lvls = JSON.parse(r.levels_json);
+        if (Array.isArray(lvls)) for (const l of lvls) consume(l.replaces, `L${l.level}`);
+      } catch (e) { /* ignore */ }
+    }
+    if (r.replaces) consume(r.replaces, null);
+    return { display: displayParts.join('; '), features: [...new Set(features)] };
+  }
+
+  // → human summary of what the variant GRANTS. Sub-levels: per-level features;
+  // ACFs: the benefit text.
+  function grantsInfo(r) {
+    if (r.levels_json) {
+      try {
+        const lvls = JSON.parse(r.levels_json);
+        if (Array.isArray(lvls) && lvls.length) {
+          return lvls.map(l => `L${l.level}: ${l.special || l.description || '—'}`).join('; ');
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return r.benefit || r.description || '';
+  }
+
   // ---- Rendering ----------------------------------------------------
 
   function escapeHtml(s) {
@@ -311,14 +369,16 @@ const ClassVariants = (function () {
 
   function renderACFItem(r) {
     const effLevel = r._effLevel != null ? r._effLevel : r.level;
-    const replaces = r.replaces
-      ? `<div class="cv-replaces"><b>Replaces:</b> ${escapeHtml(r.replaces)}</div>`
+    const ri = replaceInfo(r);
+    const grants = grantsInfo(r);
+    const replaces = ri.display
+      ? `<div class="cv-replaces"><b>Replaces:</b> ${escapeHtml(ri.display)}</div>`
       : '';
     const prereq = r.prerequisite
       ? `<div class="cv-prereq"><b>Prereq:</b> ${escapeHtml(r.prerequisite)}</div>`
       : '';
-    const benefit = r.benefit
-      ? `<div class="cv-benefit"><b>Benefit:</b> ${escapeHtml(r.benefit)}</div>`
+    const grantsLine = grants
+      ? `<div class="cv-benefit"><b>Grants:</b> ${escapeHtml(grants)}</div>`
       : '';
     return `
       <div class="cv-variant cv-variant-acf${r._inheritedFrom ? ' cv-inherited-item' : ''}"
@@ -326,7 +386,9 @@ const ClassVariants = (function () {
            data-kind="ACF"
            data-class="${escapeHtml(r._effClass || r.class_field)}"
            data-level="${escapeHtml(effLevel ?? '')}"
-           data-replaces="${escapeHtml(r.replaces ?? '')}"
+           data-replaces="${escapeHtml(ri.display)}"
+           data-replaces-features="${escapeHtml(ri.features.join('|'))}"
+           data-grants="${escapeHtml(grants)}"
            data-source="${escapeHtml(r.source ?? '')}">
         <details>
           <summary>
@@ -337,37 +399,26 @@ const ClassVariants = (function () {
               + To Customizations
             </button>
           </summary>
-          ${replaces}${prereq}${benefit}
+          ${replaces}${prereq}${grantsLine}
         </details>
       </div>
     `;
   }
 
   function renderSubLevelItem(r) {
-    // For MoI-style entries the `levels` field is a JSON array of
-    // {level, special, description} rows. Render a compact summary.
-    let levelsSummary = '';
-    if (r.levels_json) {
-      try {
-        const lvls = JSON.parse(r.levels_json);
-        if (Array.isArray(lvls) && lvls.length) {
-          levelsSummary = '<div class="cv-sub-levels"><b>Levels:</b> ' +
-            lvls.map(l => `L${escapeHtml(l.level)}: ${escapeHtml(l.special || '—')}`).join('; ') +
-            '</div>';
-        }
-      } catch (e) { /* ignore */ }
-    }
     const effLevel = r._effLevel != null ? r._effLevel : r.level;
+    const ri = replaceInfo(r);
+    const grants = grantsInfo(r);
     const raceTag = r.race
       ? ` <span class="cv-race">${escapeHtml(r.race)}</span>` : '';
-    const replaces = r.replaces
-      ? `<div class="cv-replaces"><b>Replaces:</b> ${escapeHtml(r.replaces)}</div>`
+    const replaces = ri.display
+      ? `<div class="cv-replaces"><b>Replaces:</b> ${escapeHtml(ri.display)}</div>`
       : '';
     const prereq = (r.prerequisites || r.requirements)
       ? `<div class="cv-prereq"><b>Prereq:</b> ${escapeHtml(r.prerequisites || r.requirements)}</div>`
       : '';
-    const benefit = r.benefit
-      ? `<div class="cv-benefit"><b>Benefit:</b> ${escapeHtml(r.benefit)}</div>`
+    const grantsLine = grants
+      ? `<div class="cv-benefit"><b>Grants:</b> ${escapeHtml(grants)}</div>`
       : '';
     return `
       <div class="cv-variant cv-variant-sub${r._inheritedFrom ? ' cv-inherited-item' : ''}"
@@ -376,7 +427,9 @@ const ClassVariants = (function () {
            data-class="${escapeHtml(r._effClass || r.class_field || r.base_class_field)}"
            data-level="${escapeHtml(effLevel ?? '')}"
            data-race="${escapeHtml(r.race ?? '')}"
-           data-replaces="${escapeHtml(r.replaces ?? '')}"
+           data-replaces="${escapeHtml(ri.display)}"
+           data-replaces-features="${escapeHtml(ri.features.join('|'))}"
+           data-grants="${escapeHtml(grants)}"
            data-source="${escapeHtml(r.source ?? '')}">
         <details>
           <summary>
@@ -387,7 +440,7 @@ const ClassVariants = (function () {
               + To Customizations
             </button>
           </summary>
-          ${replaces}${prereq}${benefit}${partialNote(r)}${levelsSummary}
+          ${replaces}${prereq}${grantsLine}${partialNote(r)}
         </details>
       </div>
     `;
@@ -464,6 +517,10 @@ const ClassVariants = (function () {
       level:    meta.level || null,
       race:     meta.race || '',
       replaces: meta.replaces || '',
+      // Clean list of actually-replaced feature names (for the strikethrough);
+      // '|'-joined in the dataset. Distinct from the prose `replaces` display.
+      replacesFeatures: meta.replacesFeatures || '',
+      grants:   meta.grants || '',
       source:   meta.source || '',
       notes:    '',
     });
@@ -473,5 +530,6 @@ const ClassVariants = (function () {
     getACFs, getSubLevels, renderInto, matchesClass,
     // Exposed for the test suite + introspection:
     buildFeatureLevelMap, evaluateReplaces, matchFeatureLevel, getClassData,
+    replaceInfo, grantsInfo,
   };
 })();
