@@ -388,6 +388,18 @@ const Bloodline = (function () {
     return parts.join(', ');
   }
 
+  // Total bloodline levels across every applied bloodline (= paid slots). These
+  // count toward the character level for the max-skill-ranks cap (K1); character
+  // .js folds this into `#char-level` when computing #max-class-ranks.
+  function getTotalBloodlineLevels() {
+    let total = 0;
+    for (const bl of states) {
+      if (!bl.name) continue;
+      total += (bl.slotsPaid || []).filter(Boolean).length;
+    }
+    return total;
+  }
+
   // ------------------------------------------------------------------
   // Rendering
   // ------------------------------------------------------------------
@@ -829,6 +841,7 @@ const Bloodline = (function () {
     getActiveBonuses,
     getActiveSkillBonuses,
     getClassLevelLabel,
+    getTotalBloodlineLevels,
     collectData,
     loadData,
     // Exposed for tests / debugging.

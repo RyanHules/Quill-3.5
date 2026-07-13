@@ -2425,6 +2425,32 @@
     expect(!!emp && emp.levelAdjustment === 2, true, 'SS13: Empower Spell still resolves (+2)');
   });
 
+  regression('SS14: bloodline levels count toward max skill ranks (K1)', async () => {
+    await newCharacter();
+    set('char-level', '10');
+    await wait(30);
+    const maxClass = () => document.getElementById('max-class-ranks').textContent;
+    const maxCross = () => document.getElementById('max-crossclass-ranks').textContent;
+    // Baseline (no bloodline): max class ranks = level + 3.
+    expect(maxClass(), '13', 'SS14: base max class ranks = 13 at L10');
+
+    // With 3 bloodline levels, the cap folds them in (10 + 3 + 3 = 16). Stub the
+    // count so the test doesn't have to drive the full bloodline UI; this
+    // exercises the actual fix (character.js reads getTotalBloodlineLevels and
+    // recomputes on the bloodline-changed event).
+    const orig = Bloodline.getTotalBloodlineLevels;
+    Bloodline.getTotalBloodlineLevels = () => 3;
+    try {
+      document.dispatchEvent(new CustomEvent('bloodline-changed'));
+      await wait(30);
+      expect(maxClass(), '16', 'SS14: +3 bloodline levels -> max class ranks 16');
+      expect(maxCross(), '8', 'SS14: cross-class = 16 / 2 = 8');
+    } finally {
+      Bloodline.getTotalBloodlineLevels = orig;
+      document.dispatchEvent(new CustomEvent('bloodline-changed'));
+    }
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

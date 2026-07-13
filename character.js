@@ -529,10 +529,17 @@ const Character = (function () {
       }
     });
 
-    // Max skill ranks
+    // Max skill ranks. Bloodline levels (UA) count toward the character level
+    // for the max-ranks cap (K1, Ryan's independent-track model) — #char-level
+    // holds class levels only, so fold the bloodline levels in here. recalcAll
+    // re-fires on the bloodline-changed event, so this stays current.
     const level = int($("#char-level").value) || 1;
-    $("#max-class-ranks").textContent = level + 3;
-    $("#max-crossclass-ranks").textContent = (level + 3) / 2;
+    const bloodlineLevels = (typeof Bloodline !== "undefined" &&
+                             Bloodline.getTotalBloodlineLevels)
+      ? Bloodline.getTotalBloodlineLevels() : 0;
+    const effLevel = level + bloodlineLevels;
+    $("#max-class-ranks").textContent = effLevel + 3;
+    $("#max-crossclass-ranks").textContent = (effLevel + 3) / 2;
 
     // XP progress (PHB Table 3-2). XP_for(L) = 1000 * L * (L-1) / 2.
     // The character "is" level N from XP_for(N) through XP_for(N+1)-1.
