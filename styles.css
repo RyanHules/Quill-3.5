@@ -1057,6 +1057,18 @@ input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700
 .soulmeld-counters .field-sm input,
 .soulmeld-counters .field-sm .calc-field { text-align: center;}
 
+/* Recognized class-feature capacity bonus badge (Incarnate Expanded Soulmeld
+   Capacity — S3). Sits under the Base Capacity input. */
+.sm-cap-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.5rem;
+  line-height: 1.1;
+  color: var(--accent, #c9a227);
+  font-weight: 600;
+  cursor: help;
+}
+
 .counter-over { background: var(--danger) !important; color: white !important; }
 
 .slot-header {

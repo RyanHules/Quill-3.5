@@ -399,7 +399,7 @@ const Equipment = (function () {
       <div class="field field-sm"><label>Max Soulmelds</label><input type="number" id="sm-max-soulmelds" min="0" value="0"></div>
       <div class="field field-sm"><label>Max Essentia</label><input type="number" id="sm-max-essentia" min="0" value="0"></div>
       <div class="field field-sm"><label>Max Binds</label><input type="number" id="sm-max-binds" min="0" value="0"></div>
-      <div class="field field-sm"><label>Base Capacity</label><input type="number" id="sm-base-capacity" min="0" value="0"></div>
+      <div class="field field-sm"><label>Base Capacity</label><input type="number" id="sm-base-capacity" min="0" value="0"><span id="sm-cap-bonus-note" class="sm-cap-note" hidden></span></div>
       <div class="field field-sm"><label>Shaped</label><span id="sm-count-shaped" class="calc-field">0</span></div>
       <div class="field field-sm"><label>Essentia Used</label><span id="sm-count-essentia" class="calc-field">0</span></div>
       <div class="field field-sm"><label>Binds Used</label><span id="sm-count-binds" class="calc-field">0</span></div>
@@ -541,15 +541,36 @@ const Equipment = (function () {
       const el = $(`#${id}`);
       if (el) el.addEventListener("input", () => { rebuildAllPips(); recalcSoulmelds(); });
     });
+
+    // A class change can add/remove the Incarnate capacity bonus (S3) — re-derive
+    // every soulmeld's capacity + refresh the note. This slot builder runs once,
+    // so the listener registers once.
+    document.addEventListener("classes-changed", () => { rebuildAllPips(); recalcSoulmelds(); });
+    updateCapacityBonusNote();
   }
 
   // ============================================================
   // Essentia pip management
   // ============================================================
+  // Recognized capacity from class features (Incarnate's Expanded Soulmeld
+  // Capacity: +1 at 3rd, +2 at 15th). Added on top of the manually-entered
+  // Base Capacity for every soulmeld. See ClassPicker.getActiveSoulmeldCapacityBonus.
+  function classCapacityBonus() {
+    return (typeof ClassPicker !== "undefined" &&
+            typeof ClassPicker.getActiveSoulmeldCapacityBonus === "function")
+      ? ClassPicker.getActiveSoulmeldCapacityBonus() : 0;
+  }
+
+  // Per-soulmeld base capacity = the manual Base Capacity field + any recognized
+  // class-feature bonus. The single source of truth for all three capacity reads
+  // (slot primary, slot second, totem).
+  function effectiveBaseCapacity() {
+    return (parseInt($("#sm-base-capacity")?.value) || 0) + classCapacityBonus();
+  }
+
   function getCapacity(slotDiv) {
-    const base = parseInt($("#sm-base-capacity")?.value) || 0;
     const extra = parseInt(slotDiv.querySelector(".slot-sm-extra-cap")?.value) || 0;
-    return base + extra;
+    return effectiveBaseCapacity() + extra;
   }
 
   function rebuildEssentiaPips(slotDiv, alsoSecond) {
@@ -557,7 +578,7 @@ const Equipment = (function () {
     const pipsContainer = slotDiv.querySelector(".essentia-pips:not(.essentia-pips-2)");
     buildPipButtons(pipsContainer, cap);
     if (alsoSecond || slotDiv.querySelector(".slot-sm-double")?.checked) {
-      const base = parseInt($("#sm-base-capacity")?.value) || 0;
+      const base = effectiveBaseCapacity();
       const extra2 = parseInt(slotDiv.querySelector(".slot-sm2-extra-cap")?.value) || 0;
       const pips2 = slotDiv.querySelector(".essentia-pips-2");
       if (pips2) buildPipButtons(pips2, base + extra2);
@@ -566,7 +587,7 @@ const Equipment = (function () {
   }
 
   function rebuildTotemPips(alsoSecond) {
-    const base = parseInt($("#sm-base-capacity")?.value) || 0;
+    const base = effectiveBaseCapacity();
     const extra = parseInt($("#totem-sm-extra-cap")?.value) || 0;
     const pips = $("#totem-essentia-pips");
     if (pips) buildPipButtons(pips, base + extra);
@@ -579,6 +600,7 @@ const Equipment = (function () {
   }
 
   function rebuildAllPips() {
+    updateCapacityBonusNote();
     $$(".magic-item-slot[data-slot-id]").forEach(slot => {
       if (slot.querySelector(".slot-soulmeld-check")?.checked) {
         rebuildEssentiaPips(slot);
@@ -586,6 +608,24 @@ const Equipment = (function () {
     });
     // Totem
     if ($("#totem-sm-name")?.value) rebuildTotemPips($("#totem-sm-double")?.checked);
+  }
+
+  // Surface the recognized class-feature capacity bonus next to Base Capacity so
+  // the player can see the sheet is already counting it (and doesn't double-add
+  // it via the manual field).
+  function updateCapacityBonusNote() {
+    const note = $("#sm-cap-bonus-note");
+    if (!note) return;
+    const bonus = classCapacityBonus();
+    if (bonus > 0) {
+      note.textContent = `+${bonus} Incarnate`;
+      note.title = "Incarnate: Expanded Soulmeld Capacity (+1 at 3rd, +2 at 15th) — " +
+        "added to every soulmeld's capacity automatically.";
+      note.hidden = false;
+    } else {
+      note.textContent = "";
+      note.hidden = true;
+    }
   }
 
   function buildPipButtons(container, maxPips) {

@@ -5206,12 +5206,35 @@
       : { direct: [], situational: [] };
   }
 
+  // Soulmeld essentia-capacity bonus from class features. Distinct from the
+  // save/skill/AC categorizers (capacity isn't one of those bonus types), so it
+  // gets its own accessor that the Equipment tab folds into per-slot capacity.
+  // Today the only source is the Incarnate's "Expanded Soulmeld Capacity" class
+  // feature (MoI): +1 essentia capacity for incarnate soulmelds at 3rd, +2 at
+  // 15th. Hardcoded like CLASS_FEATURE_SCALING (the feature text is prose, not
+  // structured). Returns the flat bonus to add to each incarnate soulmeld's
+  // capacity (0 when no qualifying class).
+  function getActiveSoulmeldCapacityBonus() {
+    const all = pickedClasses.concat(
+      (typeof pickedClassesB !== "undefined" && Array.isArray(pickedClassesB))
+        ? pickedClassesB : []);
+    let bonus = 0;
+    for (const c of all) {
+      if (!c || !c.className) continue;
+      if (c.className.toLowerCase() !== "incarnate") continue;
+      const lvl = parseInt(c.level, 10) || 0;
+      if (lvl >= 15) bonus = Math.max(bonus, 2);
+      else if (lvl >= 3) bonus = Math.max(bonus, 1);
+    }
+    return bonus;
+  }
+
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
     getActiveSpeedBonuses,
     getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
-    getActiveInitiativeBonuses,
+    getActiveInitiativeBonuses, getActiveSoulmeldCapacityBonus,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,

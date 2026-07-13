@@ -2230,6 +2230,47 @@
     expect(q('.slot-sm-second').style.display, 'none', 'SS7: second soulmeld section hidden');
   });
 
+  regression('SS8: Incarnate Expanded Soulmeld Capacity folds into capacity (S3)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS8: DB not loaded — re-run after [DB] Loaded appears in console.');
+    document.querySelector('[data-tab="tab-equipment"]').click();
+    await wait(100);
+    const slot = $('.magic-item-slot[data-slot-id="hands"]');
+    if (!slot) fail('SS8: hands slot not built');
+    const q = (s) => slot.querySelector(s);
+    const pipCount = () =>
+      q('.essentia-pips:not(.essentia-pips-2)').querySelectorAll('.essentia-pip').length;
+
+    // Shape a soulmeld with a base capacity of 2, no meldshaping class yet.
+    const chk = q('.slot-soulmeld-check');
+    chk.checked = true; chk.dispatchEvent(new Event('change'));
+    set('sm-base-capacity', '2');
+    await wait(50);
+    expect(pipCount(), 2, 'SS8: base capacity 2, no class -> 2 pips');
+    expect(ClassPicker.getActiveSoulmeldCapacityBonus(), 0, 'SS8: no Incarnate -> +0');
+    expect(document.getElementById('sm-cap-bonus-note').hidden, true, 'SS8: note hidden with no bonus');
+
+    // Incarnate 3 -> +1 capacity to every soulmeld.
+    await applyClass('Incarnate', 3);
+    expect(ClassPicker.getActiveSoulmeldCapacityBonus(), 1, 'SS8: Incarnate 3 -> +1');
+    expect(pipCount(), 3, 'SS8: capacity now 3 (base 2 + Incarnate 1)');
+    const note = document.getElementById('sm-cap-bonus-note');
+    expect(note.hidden, false, 'SS8: capacity note visible');
+    expectIncludes(note.textContent, 'Incarnate', 'SS8: note names Incarnate');
+
+    // Incarnate 15 -> +2.
+    await applyClass('Incarnate', 15);
+    expect(ClassPicker.getActiveSoulmeldCapacityBonus(), 2, 'SS8: Incarnate 15 -> +2');
+    expect(pipCount(), 4, 'SS8: capacity now 4 (base 2 + 2)');
+
+    // Remove the class -> bonus gone, capacity back to the manual base.
+    removeClass('Incarnate');
+    await wait(400);
+    expect(ClassPicker.getActiveSoulmeldCapacityBonus(), 0, 'SS8: Incarnate removed -> +0');
+    expect(pipCount(), 2, 'SS8: capacity back to base 2');
+    expect(document.getElementById('sm-cap-bonus-note').hidden, true, 'SS8: note hidden again');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
