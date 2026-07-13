@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260713n';
+    window.CACHE_VERSION = '20260713o';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -48,6 +48,7 @@
       var db = 'pending';                 // 'pending' | 'done' | 'failed'
       var readyFired = false, stalledFired = false, timer = null;
       var STALL_MS = 45000;               // long enough to not false-alarm a slow (working) DB
+      var RETRY_KEY = 'dnd35-load-retries', MAX_RETRIES = 2, reloadScheduled = false;
       var listeners = { ready: [], fail: [] };
       var t0 = (window.performance && performance.now) ? performance.now() : null;
       function now() { return t0 != null ? Math.round(performance.now() - t0) : 0; }
@@ -79,11 +80,43 @@
         listeners.fail.forEach(function (cb) { try { cb(reason); } catch (e) {} });
         try { document.dispatchEvent(new CustomEvent('load-failed', { detail: reason })); } catch (e) {}
       }
+      // Once every module script has resolved (done or failed), decide what to
+      // do about any failures: auto-reload the whole page for TRANSIENT network
+      // failures (a dropped request — a reload almost always recovers it, and a
+      // full reload preserves the strict module load order that an out-of-order
+      // single-script retry would break), but NOT for genuine code throws (a
+      // reload won't fix a bug) or once we've exhausted MAX_RETRIES.
+      function checkSettled() {
+        if (readyFired || reloadScheduled) return;
+        if (!allModulesDone()) return;                 // modules still loading
+        var fails = Object.keys(failed);
+        if (!fails.length) return;                     // clean — checkReady handles ready
+        var hasNetwork = fails.some(function (s) { return String(failed[s]).indexOf('threw:') !== 0; });
+        var retries = 0;
+        try { retries = parseInt(sessionStorage.getItem(RETRY_KEY), 10) || 0; } catch (e) {}
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (hasNetwork && retries < MAX_RETRIES) {
+          reloadScheduled = true;
+          try { sessionStorage.setItem(RETRY_KEY, String(retries + 1)); } catch (e) {}
+          console.warn('[load] transient load failure(s): ' + fails.join(', ') +
+            ' — auto-reloading (' + (retries + 1) + '/' + MAX_RETRIES + ')');
+          banner('Some files failed to load (likely a dropped request) — retrying… (' +
+            (retries + 1) + '/' + MAX_RETRIES + ')', 'warn');
+          setTimeout(function () { try { location.reload(); } catch (e) {} }, 500);
+        } else {
+          var why = hasNetwork
+            ? 'auto-retry gave up after ' + MAX_RETRIES + ' attempts'
+            : 'code error — a reload won\'t help';
+          banner('⚠ Failed to load: ' + fails.join(', ') + ' (' + why + '). See console.', 'error');
+          fireFail('load failed: ' + fails.join(', '));
+        }
+      }
       function checkReady() {
         if (readyFired) return;
         if (allModulesDone() && db === 'done' && Object.keys(failed).length === 0) {
           readyFired = true;
           if (timer) { clearTimeout(timer); timer = null; }
+          try { sessionStorage.removeItem(RETRY_KEY); } catch (e) {}   // clean load — reset retry budget
           hideBanner();
           console.log('[load] all ready in ' + now() + 'ms (' +
             Object.keys(done).length + '/' + expected.length + ' modules + DB)');
@@ -113,7 +146,7 @@
       return {
         expect: function (list) { expected = (list || []).slice(); if (!timer) timer = setTimeout(onStall, STALL_MS); },
         start: function (src) { started[src] = now(); },
-        done: function (src) { if (failed[src]) return; done[src] = now(); checkReady(); },
+        done: function (src) { if (failed[src]) return; done[src] = now(); checkReady(); checkSettled(); },
         fail: function (src, reason) {
           src = srcForBasename(src);
           // Only track failures of EXPECTED modules — ignore stray errors from
@@ -122,8 +155,9 @@
           if (done[src] || failed[src]) return;
           failed[src] = reason || 'error';
           console.error('[load] module FAILED: ' + src + ' (' + failed[src] + ')');
-          banner('⚠ Failed to load ' + src + ' (' + failed[src] + ') — the sheet may misbehave. See console.', 'error');
-          fireFail('module ' + src + ' failed: ' + failed[src]);
+          // No banner here — checkSettled() decides (auto-reload vs give-up)
+          // once all module scripts have resolved.
+          checkSettled();
         },
         dbStart: function () { db = 'pending'; },
         dbDone: function () { db = 'done'; console.log('[load] DB ready in ' + now() + 'ms'); checkReady(); },
