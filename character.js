@@ -103,6 +103,9 @@ const Character = (function () {
     // getAbilityMod folds in the Temp adjustment (delta).
     let anyTplbl = false;
     let anyMisc = false;
+    // Effective STR score (base + race + template + active bonuses + temp),
+    // captured from the loop below for carrying-capacity math further down.
+    let strTotalScore = 10;
     DND35.abilities.forEach((ab) => {
       const lower = ab.toLowerCase();
       const bonus = abilityBonuses[ab] || 0;             // merged active bonus
@@ -116,6 +119,8 @@ const Character = (function () {
       // left (base, race, template/bloodline, misc, temp) sums into it, so
       // Total and the Modifier next to it stay consistent.
       const totalScore = rawScore + raceMod + tplMod + bonus + tempDelta;
+      // Capture effective STR for carrying capacity below (full total, not base).
+      if (ab === "STR") strTotalScore = rawScore ? totalScore : 10;
       // Misc column — non-bloodline active bonuses; hides when empty.
       const miscEl = $(`#${lower}-misc`);
       if (miscEl) miscEl.textContent = miscBonus ? fmt(miscBonus) : "";
@@ -161,7 +166,11 @@ const Character = (function () {
     $("#ac-shield").textContent = shieldACBonus;
 
     // ---- Carrying load penalties (Table 9-2, PHB p.162) ----
-    const strScore = int($("#str-score").value) || 10;
+    // Carrying capacity uses the EFFECTIVE Strength score captured above
+    // (base + race + template + active bonuses + temp) — a belt of giant
+    // strength, Rage, Bull's Strength, etc. all raise how much you can haul.
+    // Previously this read the raw #str-score base input, ignoring every bonus.
+    const strScore = strTotalScore;
     const rawCapacity = DND35.getCarryingCapacity(strScore);
     const carryMult = sizeData.carryMult || 1;
     const capacity = rawCapacity.map(v => Math.floor(v * carryMult));
