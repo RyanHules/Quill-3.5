@@ -37,7 +37,13 @@
     shoulders: ['Shoulders'],
     hands:     ['Hands'],
     arms:      ['Arms'],
-    body:      ['Heart'],
+    // MoI chakra↔body-slot map: the SOUL chakra corresponds to the Body
+    // slot (robe/armor — "soulbound armor" binds to the soul chakra, MoI
+    // p.108), while the HEART chakra corresponds to the Torso slot (vest/
+    // vestment/shirt — a "blink shirt occupies his heart chakra", MoI p.90).
+    // Previously `body` was mis-mapped to Heart (duplicating torso) and Soul
+    // had no slot at all, so Soul-chakra soulmelds got no send-to-slot button.
+    body:      ['Soul'],
     torso:     ['Heart'],
     waist:     ['Waist'],
     feet:      ['Feet'],
@@ -415,14 +421,21 @@
   function parseDescription(text) {
     const out = { base: '', essentia: '', binds: [] };
     if (!text) return out;
+    // Colon required after Base/Essentia (so the bare words don't match
+    // mid-prose, e.g. "invest essentia"); colon OPTIONAL after a
+    // "Chakra Bind (<chakra>)" header — a few source entries (Fellmist Robe,
+    // Necrocarnum Mantle, Spellward Shirt, plus the second bind on Brass Mane
+    // and Sphinx Claws) omit it. Requiring it previously left those binds
+    // unparsed AND spilled their text into the preceding essentia field.
     const headerRx =
-      /(Base|Essentia|Chakra Bind\s*\(([^)]+)\))\s*:\s*/g;
+      /(Base|Essentia)\s*:\s*|Chakra Bind\s*\(([^)]+)\)\s*:?\s*/g;
     const matches = [];
     let m;
     while ((m = headerRx.exec(text)) !== null) {
+      const isBind = m[2] != null;
       matches.push({
-        kind: m[1].startsWith('Chakra Bind') ? 'bind' : m[1].toLowerCase(),
-        chakra: m[2] ? m[2].trim() : null,
+        kind: isBind ? 'bind' : m[1].toLowerCase(),
+        chakra: isBind ? m[2].trim() : null,
         headerStart: m.index,
         bodyStart: m.index + m[0].length,
       });
