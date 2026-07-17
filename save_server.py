@@ -120,6 +120,7 @@ def apply_flag_op(path: Path, op: dict) -> dict:
       {"op": "add", "flag": {...}}          append (idempotent on id)
       {"op": "resolve", "id", "resolved"?}  mark one flag resolved
       {"op": "remove", "id"}                drop one flag
+      {"op": "edit", "id", "note"?, "kind"?} amend a flag's note / kind in place
 
     Runs under _FLAGS_LOCK so the read-modify-write is atomic across threads.
     Raises ValueError on a malformed op.
@@ -149,6 +150,19 @@ def apply_flag_op(path: Path, op: dict) -> dict:
             if not fid:
                 raise ValueError("remove op requires an id")
             data["flags"] = [f for f in flags if f.get("id") != fid]
+        elif kind == "edit":
+            fid = op.get("id")
+            if not fid:
+                raise ValueError("edit op requires an id")
+            for f in flags:
+                if f.get("id") == fid:
+                    if isinstance(op.get("note"), str):
+                        f["note"] = op["note"].strip()
+                    if op.get("kind") in ("bug", "feature"):
+                        f["kind"] = op["kind"]
+                    f["edited"] = op.get("edited") or \
+                        datetime.now(timezone.utc).isoformat()
+                    break
         else:
             raise ValueError(f"unknown op: {kind!r}")
         _write_flags(path, data)

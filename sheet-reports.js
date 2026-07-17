@@ -81,11 +81,21 @@
     await op({ op: 'remove', id });
   }
 
+  // Amend an existing report in place (re-phrase the note / switch bug↔feature)
+  // so refining a report doesn't mean filing a duplicate.
+  async function edit(id, changes) {
+    changes = changes || {};
+    const o = { op: 'edit', id, edited: new Date().toISOString() };
+    if (typeof changes.note === 'string') o.note = changes.note.trim();
+    if (changes.kind === 'bug' || changes.kind === 'feature') o.kind = changes.kind;
+    await op(o);
+  }
+
   const getAll = () => state.flags.slice();
   const getOpen = () => state.flags.filter(r => r.status !== 'resolved');
   const isLoaded = () => loaded;
 
-  window.SheetReports = { init, refresh, add, resolve, remove, getAll, getOpen, isLoaded };
+  window.SheetReports = { init, refresh, add, resolve, remove, edit, getAll, getOpen, isLoaded };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

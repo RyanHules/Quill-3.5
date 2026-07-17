@@ -383,6 +383,13 @@
       if (f) { f.status = 'resolved'; f.resolved = op.resolved || new Date().toISOString(); }
     } else if (op.op === 'remove') {
       data.flags = data.flags.filter(x => x.id !== op.id);
+    } else if (op.op === 'edit') {
+      const f = data.flags.find(x => x.id === op.id);
+      if (f) {
+        if (typeof op.note === 'string') f.note = op.note.trim();
+        if (op.kind === 'bug' || op.kind === 'feature') f.kind = op.kind;
+        f.edited = op.edited || new Date().toISOString();
+      }
     }
     return data;
   }

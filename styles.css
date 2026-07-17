@@ -4254,3 +4254,12 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .review-flags-modal .rf-src { font-weight: 400; opacity: 0.6; margin-left: 0.3em;
   font-size: 0.9em; }
 .review-flags-modal .rf-empty { color: #888; font-size: 0.82rem; font-style: italic; }
+/* Inline report editor (✎ edit → textarea + save/cancel) */
+.review-flags-modal .rf-item-editing { align-items: flex-start; }
+.review-flags-modal .rf-edit-textarea { flex: 1 1 auto; background: #1a1a1a; color: #eee;
+  border: 1px solid #444; border-radius: 4px; padding: 0.25rem 0.4rem; font: inherit;
+  resize: vertical; min-height: 2.2em; }
+.review-flags-modal .rf-edit-kind { background: #1a1a1a; color: #eee; border: 1px solid #444;
+  border-radius: 4px; padding: 0.15rem; }
+.review-flags-modal .rf-edit-btn { opacity: 0.7; }
+.review-flags-modal .rf-edit-btn:hover { opacity: 1; }

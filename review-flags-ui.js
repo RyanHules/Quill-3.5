@@ -8,6 +8,9 @@
 (function () {
   'use strict';
   let triggerBtn = null, badgeEl = null, modalEl = null;
+  // While a report is being edited inline, editingKey = '<surface>:<id>' (e.g.
+  // 'sheet:r...' / 'entry:f...'). renderLists() swaps that row for an editor.
+  let editingKey = null;
 
   function openCount() {
     const s = window.SheetReports ? SheetReports.getOpen().length : 0;
@@ -83,6 +86,36 @@
         ReviewFlags.resolve(resolveEntry.getAttribute('data-resolve-entry'));
         return;
       }
+      // ---- inline edit: enter / cancel / save ----
+      const editSheet = t.closest('[data-edit-sheet]');
+      if (editSheet) {
+        editingKey = 'sheet:' + editSheet.getAttribute('data-edit-sheet');
+        renderLists(); focusEditor(); return;
+      }
+      const editEntry = t.closest('[data-edit-entry]');
+      if (editEntry) {
+        editingKey = 'entry:' + editEntry.getAttribute('data-edit-entry');
+        renderLists(); focusEditor(); return;
+      }
+      if (t.closest('.rf-edit-cancel')) { editingKey = null; renderLists(); return; }
+      const saveSheet = t.closest('[data-save-sheet]');
+      if (saveSheet && window.SheetReports) {
+        const row = saveSheet.closest('.rf-item');
+        const note = row.querySelector('.rf-edit-textarea').value;
+        const kindEl = row.querySelector('.rf-edit-kind');
+        editingKey = null;
+        SheetReports.edit(saveSheet.getAttribute('data-save-sheet'),
+          { note, kind: kindEl ? kindEl.value : undefined });
+        return;
+      }
+      const saveEntry = t.closest('[data-save-entry]');
+      if (saveEntry && window.ReviewFlags) {
+        const row = saveEntry.closest('.rf-item');
+        const note = row.querySelector('.rf-edit-textarea').value;
+        editingKey = null;
+        ReviewFlags.edit(saveEntry.getAttribute('data-save-entry'), { note });
+        return;
+      }
     });
     modalEl.querySelector('#rf-report-submit').addEventListener('click', () => {
       const kind = modalEl.querySelector('#rf-report-kind').value;
@@ -99,6 +132,30 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
 
+  function focusEditor() {
+    const ta = modalEl && modalEl.querySelector('.rf-edit-textarea');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+
+  // Inline editor for the row currently being edited. Preserves any in-progress
+  // text across re-renders (e.g. a background poll) by reading the live textarea.
+  function editorRowHtml(item, surface) {
+    const existing = modalEl.querySelector('.rf-edit-textarea');
+    const preserved = (existing && existing.dataset.editId === item.id)
+      ? existing.value : (item.note || '');
+    const kindSel = surface === 'sheet'
+      ? '<select class="rf-edit-kind">' +
+          `<option value="bug"${item.kind === 'bug' ? ' selected' : ''}>bug</option>` +
+          `<option value="feature"${item.kind === 'feature' ? ' selected' : ''}>feature</option>` +
+        '</select>'
+      : '';
+    return '<div class="rf-item rf-item-editing">' + kindSel +
+      `<textarea class="rf-edit-textarea" data-edit-id="${escapeHtml(item.id)}" rows="2">` +
+      `${escapeHtml(preserved)}</textarea>` +
+      `<button type="button" class="rf-edit-save" data-save-${surface}="${escapeHtml(item.id)}">save</button>` +
+      '<button type="button" class="rf-edit-cancel">cancel</button></div>';
+  }
+
   function renderLists() {
     if (!modalEl) return;
     const sheetList = modalEl.querySelector('#rf-sheet-list');
@@ -106,14 +163,18 @@
     const reports = window.SheetReports ? SheetReports.getOpen() : [];
     const flags = window.ReviewFlags ? ReviewFlags.getOpen() : [];
     sheetList.innerHTML = reports.length ? reports.map(r =>
+      editingKey === 'sheet:' + r.id ? editorRowHtml(r, 'sheet') :
       `<div class="rf-item"><span class="rf-kind rf-kind-${r.kind}">${r.kind}</span>` +
       `<span class="rf-note">${escapeHtml(r.note)}</span>` +
+      `<button type="button" class="rf-edit-btn" data-edit-sheet="${escapeHtml(r.id)}" title="Edit report">✎</button>` +
       `<button type="button" data-resolve-sheet="${escapeHtml(r.id)}">resolve</button></div>`
     ).join('') : '<div class="rf-empty">None.</div>';
     entryList.innerHTML = flags.length ? flags.map(f =>
+      editingKey === 'entry:' + f.id ? editorRowHtml(f, 'entry') :
       `<div class="rf-item"><span class="rf-ref">${escapeHtml(f.ref.name || '?')}` +
       `<span class="rf-src">${escapeHtml(f.ref.source || '')}</span></span>` +
       `<span class="rf-note">${escapeHtml(f.note || '')}</span>` +
+      `<button type="button" class="rf-edit-btn" data-edit-entry="${escapeHtml(f.id)}" title="Edit flag note">✎</button>` +
       `<button type="button" data-resolve-entry="${escapeHtml(f.id)}">resolve</button></div>`
     ).join('') : '<div class="rf-empty">None.</div>';
   }
@@ -132,6 +193,8 @@
     // Only meaningful while the dashboard is open AND the tab is visible — a
     // background tab's flags will be pulled the moment it regains focus.
     pollTimer = setInterval(() => {
+      // Don't pull mid-edit — a re-render would disrupt the open editor.
+      if (editingKey) return;
       if (modalEl && !modalEl.hidden && document.visibilityState === 'visible') {
         refreshFromBackend();
       }

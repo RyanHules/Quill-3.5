@@ -2117,6 +2117,13 @@
         if (f) { f.status = 'resolved'; f.resolved = op.resolved; }
       } else if (op.op === 'remove') {
         store.flags = store.flags.filter(x => x.id !== op.id);
+      } else if (op.op === 'edit') {
+        const f = store.flags.find(x => x.id === op.id);
+        if (f) {
+          if (typeof op.note === 'string') f.note = op.note;
+          if (op.kind === 'bug' || op.kind === 'feature') f.kind = op.kind;
+          f.edited = op.edited;
+        }
       }
       return JSON.parse(JSON.stringify(store));   // authoritative snapshot
     };
@@ -2157,6 +2164,17 @@
       if (SheetReports.getOpen().some(r => r.id === rep.id)) {
         fail('SS6: resolved report should leave the open list');
       }
+
+      // edit -> edit op amends note + kind in place (re-phrase without re-filing)
+      await SheetReports.edit(rep2.id, { note: 'SS6 revised note', kind: 'bug' });
+      const eOp = ops[ops.length - 1];
+      expect(eOp.op, 'edit', 'SS6: edit routes an edit op');
+      expect(eOp.id, rep2.id, 'SS6: edit op carries the id (not a whole array)');
+      const edited = SheetReports.getAll().find(r => r.id === rep2.id);
+      expect(edited.note, 'SS6 revised note', 'SS6: edit updated the note in the adopted state');
+      expect(edited.kind, 'bug', 'SS6: edit switched the kind (feature -> bug)');
+      if (!edited.edited) fail('SS6: edit op stamps an edited timestamp');
+      expect(edited.status, 'open', 'SS6: edit preserves status');
 
       // remove -> remove op, gone from everything
       await SheetReports.remove('other-tab');

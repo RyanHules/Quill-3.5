@@ -94,6 +94,14 @@
     await op({ op: 'remove', id });
   }
 
+  // Amend an existing flag's note in place (re-phrase without re-filing).
+  async function edit(id, changes) {
+    changes = changes || {};
+    const o = { op: 'edit', id, edited: new Date().toISOString() };
+    if (typeof changes.note === 'string') o.note = changes.note.trim();
+    await op(o);
+  }
+
   const getAll = () => state.flags.slice();
   const getOpen = () => state.flags.filter(f => f.status !== 'resolved');
   const flagsFor = (ref) => {
@@ -105,7 +113,7 @@
   const isLoaded = () => loaded;
 
   window.ReviewFlags = {
-    init, refresh, add, resolve, remove,
+    init, refresh, add, resolve, remove, edit,
     getAll, getOpen, flagsFor, openFor, isFlagged, isLoaded, refKey,
   };
 
