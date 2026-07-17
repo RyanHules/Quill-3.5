@@ -3158,6 +3158,12 @@
   function stemOf(text) {
     let s = cleanDisplay(text).toLowerCase();
     if (!s) return '';
+    // Strip a trailing parenthetical that contains a DIE expression
+    // ("(+1d6, +1 AC)", "(2d6; 15-ft. cone)") so dice-scaling tiers of the
+    // same feature (Skirmish, Breath weapon) collapse onto one stem and
+    // dedupSpecials keeps only the latest tier. Ordinal / instance parens with
+    // no dice ("(1st)", "(2nd)", "(1 plane)") carry identity, so they're kept.
+    s = s.replace(/\s*\([^)]*\d+\s*d\s*\d+[^)]*\)\s*$/, '');
     // Remove "+Nd6" / "Nd6"
     s = s.replace(/[+\-]?\s*\d+\s*d\s*\d+/g, '');
     // Remove "N/day", "N/week", "N/round", "N/encounter", "N/hour", "N/minute"
@@ -3183,6 +3189,27 @@
     return false;
   }
 
+  // Split a `special` column into feature entries on top-level commas AND
+  // semicolons, but NEVER on separators inside parentheses. The source data
+  // uses both separators ("Skirmish (+1d6), trapfinding" vs "Harvest soul
+  // (1 minute); improved meldshaper level") and packs comma-lists inside
+  // parens ("skirmish (+1d6, +1 AC)", "Chakra binds (arms, brow, shoulders)").
+  // A naive `.split(/,/)` shattered those into fragments ("skirmish (+1d6",
+  // "+1 AC)") and never split the semicolon at all — so a whole feature could
+  // hide behind another (the Necrocarnate meldshaper-level bug).
+  function splitSpecial(str) {
+    const parts = [];
+    let depth = 0, cur = '';
+    for (const ch of String(str)) {
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      if ((ch === ',' || ch === ';') && depth === 0) { parts.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts.filter(Boolean);
+  }
+
   // Collapse all `special` rows from levels 1..N into a deduplicated list.
   // For each "stem group":
   //   - If all originals match (case-insensitive), it's a stacking feature
@@ -3193,7 +3220,7 @@
     const groups = new Map(); // stem → [{level, original}, ...]
     for (const row of levelRows) {
       if (!row.special) continue;
-      const entries = String(row.special).split(/\s*,\s*/);
+      const entries = splitSpecial(row.special);
       for (const raw of entries) {
         const entry = cleanDisplay(raw);
         if (isJunkEntry(entry)) continue;
