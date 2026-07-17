@@ -22,6 +22,7 @@ const TraitPicker = (function () {
   let applied = [];
   let catalog = [];          // [{name, source, kind}] in scope
   const SOFT_LIMIT = 2;
+  const TRAIT_PICKER_OPEN_KEY = 'dnd35-trait-picker-open';  // collapse-state persistence
 
   // ---- catalog -------------------------------------------------------
   function inScope(row) {
@@ -126,7 +127,7 @@ const TraitPicker = (function () {
     if (!host || host.dataset.built === '1') return;
     host.dataset.built = '1';
     host.innerHTML =
-      '<details class="picker-section" id="trait-picker" open>'
+      '<details class="picker-section" id="trait-picker">'
       + '<summary style="cursor:pointer;font-weight:600">Traits &amp; Flaws '
       + '<span style="font-weight:400;opacity:0.6;font-size:0.85em">(UA — 2 each at creation)</span></summary>'
       + '<div style="display:flex;gap:0.4rem;margin:0.4rem 0;flex-wrap:wrap">'
@@ -154,6 +155,18 @@ const TraitPicker = (function () {
       if (c) showInfo(c);
     });
     populateDatalist();
+
+    // Remember the collapse state across page reloads. This section used to
+    // force `open` on every load (unlike the other picker-sections, which
+    // default folded); now it defaults folded for a first-time user and then
+    // persists whatever the user chooses.
+    const details = document.getElementById('trait-picker');
+    if (details) {
+      try { details.open = localStorage.getItem(TRAIT_PICKER_OPEN_KEY) === '1'; } catch (e) {}
+      details.addEventListener('toggle', () => {
+        try { localStorage.setItem(TRAIT_PICKER_OPEN_KEY, details.open ? '1' : '0'); } catch (e) {}
+      });
+    }
   }
 
   function renderApplied() {
