@@ -509,7 +509,9 @@ textarea {
 .attack-calc-row .atk-calc-ability { padding: 0.1rem 0.2rem; font-size: 0.75rem; min-width: 56px; }
 .attack-calc-row .atk-calc-misc { width: 64px; padding: 0.1rem 0.3rem; font-size: 0.8rem; }
 .atk-calc-auto { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-muted); font-size: 0.72rem; margin-left: auto; cursor: pointer; white-space: nowrap; }
-input.atk-bonus-auto { background: var(--calc-bg); color: #fff; font-weight: 700; }
+/* Match the auto-fill look of other computed fields (.calc-field): gold-on-
+   purple, bold, centered — instead of the old white, left-aligned value. */
+input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font-weight: 700; text-align: center; }
 
 .btn-add {
   background: var(--btn-bg);
