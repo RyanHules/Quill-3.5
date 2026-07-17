@@ -2538,6 +2538,47 @@
     expect(perDay(5), '2', 'SS18: Magewright 5th-level slots present');
   });
 
+  regression('SS19: worn magic-item save bonuses apply, type-stack, and round-trip (Cloak of Resistance)', async () => {
+    await newCharacter();
+    const fortTotal = () => parseInt(document.querySelector('#fort-total').textContent) || 0;
+    const base = fortTotal();
+    // Cloak of Resistance +2 — resistance to all three saves, worn.
+    Equipment.addMagicItem({ name: 'Cloak of Resistance +2', worn: true, hasSaveBonuses: true,
+      saveBonuses: { fort: '2', ref: '2', will: '2', type: 'resistance' } });
+    window.recalcAll(); await wait(20);
+    expect(fortTotal(), base + 2, 'SS19: worn resistance +2 raises Fort by 2');
+    const agg = Equipment.getActiveSaveBonuses();
+    expect(agg.direct.fort.some(e => e.amount === 2 && e.bonus_category === 'resistance'), true,
+      'SS19: aggregator exposes the item resistance bonus on Fort');
+    // A 2nd resistance bonus must NOT stack (highest wins).
+    Equipment.addMagicItem({ name: 'Ring of Resistance +1', worn: true, hasSaveBonuses: true,
+      saveBonuses: { fort: '1', ref: '1', will: '1', type: 'resistance' } });
+    window.recalcAll(); await wait(20);
+    expect(fortTotal(), base + 2, 'SS19: a 2nd resistance bonus does not stack (max wins)');
+    // A different type (luck) DOES stack.
+    const items = $$('.magic-item-entry');
+    const ring = items[items.length - 1];
+    ring.querySelector('.mi-save-type').value = 'luck';
+    ring.querySelector('.mi-save-type').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(20);
+    expect(fortTotal(), base + 3, 'SS19: resistance (+2) + luck (+1) stack to +3');
+    // Unworn items drop out.
+    const cloak = items[0];
+    cloak.querySelector('.mi-worn').checked = false;
+    cloak.querySelector('.mi-worn').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(20);
+    expect(fortTotal(), base + 1, 'SS19: unworn cloak drops out (only luck +1 remains)');
+    // collect -> load round-trip: identical total + persisted fields intact.
+    const blob = App.collectData();
+    const saved = (blob.magicItems || []).find(m => m.hasSaveBonuses && m.name === 'Cloak of Resistance +2');
+    if (!saved) fail('SS19: cloak save bonuses not captured by collectData');
+    expect(saved.saveBonuses.type, 'resistance', 'SS19: saved bonus type persists');
+    expect(String(saved.saveBonuses.fort), '2', 'SS19: saved per-save amount persists');
+    App.loadData(blob);
+    window.recalcAll(); await wait(20);
+    expect(fortTotal(), base + 1, 'SS19: Fort total identical after a collect/load round-trip');
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(

@@ -189,6 +189,8 @@
       (typeof ClassPicker !== "undefined" && ClassPicker.getActiveSaveBonuses) ? ClassPicker.getActiveSaveBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveSaveBonuses) ? Feats.getActiveSaveBonuses() : null,
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveSaveBonuses) ? TraitPicker.getActiveSaveBonuses() : null,
+      // Worn magic items (Cloak of Resistance, etc.) — resistance/luck/… save bonuses.
+      (typeof Equipment !== "undefined" && Equipment.getActiveSaveBonuses) ? Equipment.getActiveSaveBonuses() : null,
     ]) {
       if (!src) continue;
       if (src.direct) {

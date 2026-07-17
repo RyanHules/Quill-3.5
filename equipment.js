@@ -217,6 +217,12 @@ const Equipment = (function () {
     return html;
   }
 
+  // Save-bonus categories a magic item can grant. Resistance (Cloak of
+  // Resistance) is the default; the value is the lowercase bonus_category the
+  // stacking engine keys on (same category → highest wins; untyped stacks).
+  const SAVE_BONUS_TYPES = ["resistance", "luck", "competence", "insight",
+                            "morale", "sacred", "profane", "untyped"];
+
   function addMagicItem(data = {}) {
     const container = $("#magic-items-container");
     const div = document.createElement("div");
@@ -241,6 +247,7 @@ const Equipment = (function () {
         <label class="mi-toggle"><input type="checkbox" class="mi-protective-toggle" ${isProtective ? "checked" : ""}> Protective Item</label>
         <label class="mi-toggle"><input type="checkbox" class="mi-ability-toggle" ${hasAbility ? "checked" : ""}> Ability Bonuses</label>
         <label class="mi-toggle"><input type="checkbox" class="mi-skill-toggle" ${data.hasSkillBonuses ? "checked" : ""}> Skill Bonuses</label>
+        <label class="mi-toggle"><input type="checkbox" class="mi-save-toggle" ${data.hasSaveBonuses ? "checked" : ""}> Save Bonuses</label>
       </div>
       <div class="mi-protective-section" style="${isProtective ? "" : "display:none"}">
         <div class="mi-ac-bonuses"></div>
@@ -255,6 +262,13 @@ const Equipment = (function () {
         <div class="mi-skill-bonuses"></div>
         <button class="btn-add mi-btn-add-skill" style="margin-top:0.3rem">+ Add Skill Bonus</button>
       </div>
+      <div class="mi-save-section" style="${data.hasSaveBonuses ? "" : "display:none"}">
+        <div class="mi-row">
+          ${["fort", "ref", "will"].map(s => `<div class="field field-sm"><label>${s.charAt(0).toUpperCase() + s.slice(1)}</label><input type="number" class="mi-save mi-save-${s}" value="${(data.saveBonuses && data.saveBonuses[s]) || ""}"></div>`).join("")}
+          <div class="field field-sm"><label>Bonus type</label><select class="mi-save-type">${SAVE_BONUS_TYPES.map(t => `<option value="${t}"${t === ((data.saveBonuses && data.saveBonuses.type) || "resistance") ? " selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join("")}</select></div>
+        </div>
+        <div class="mi-save-hint" style="font-size:0.8em;opacity:0.6;margin-top:0.15rem">Cloak of Resistance: same bonus in all three. Only worn items apply.</div>
+      </div>
     `;
     container.appendChild(div);
 
@@ -262,12 +276,15 @@ const Equipment = (function () {
     const protToggle = div.querySelector(".mi-protective-toggle");
     const abilToggle = div.querySelector(".mi-ability-toggle");
     const skillToggle = div.querySelector(".mi-skill-toggle");
+    const saveToggle = div.querySelector(".mi-save-toggle");
     const protSection = div.querySelector(".mi-protective-section");
     const abilSection = div.querySelector(".mi-ability-section");
     const skillSection = div.querySelector(".mi-skill-section");
+    const saveSection = div.querySelector(".mi-save-section");
     protToggle.addEventListener("change", () => protSection.style.display = protToggle.checked ? "" : "none");
     abilToggle.addEventListener("change", () => abilSection.style.display = abilToggle.checked ? "" : "none");
     skillToggle.addEventListener("change", () => skillSection.style.display = skillToggle.checked ? "" : "none");
+    saveToggle.addEventListener("change", () => saveSection.style.display = saveToggle.checked ? "" : "none");
 
     // Wire body slot linkage
     const slotSelect = div.querySelector(".mi-slot");
@@ -973,6 +990,15 @@ const Equipment = (function () {
           if (skill) item.skillBonuses.push({ skill, bonus });
         });
       }
+      // Save bonuses (e.g. Cloak of Resistance): per-save amount + one type.
+      item.hasSaveBonuses = entry.querySelector(".mi-save-toggle")?.checked || false;
+      if (item.hasSaveBonuses) {
+        item.saveBonuses = { type: entry.querySelector(".mi-save-type")?.value || "resistance" };
+        ["fort", "ref", "will"].forEach(s => {
+          const v = entry.querySelector(`.mi-save-${s}`)?.value;
+          if (v) item.saveBonuses[s] = v;
+        });
+      }
       data.magicItems.push(item);
     });
 
@@ -1232,6 +1258,30 @@ const Equipment = (function () {
   }
 
   // ============================================================
+  // Save bonuses from worn magic items (e.g. Cloak of Resistance +2 →
+  // resistance +2 to all three saves). Returns the aggregator shape
+  // { direct: {fort:[], ref:[], will:[]}, situational: [] } that app.js's
+  // collectActiveBonuses merges into saveTyped — same path race / template /
+  // trait use, so it stacks correctly (two resistance bonuses don't stack).
+  // Only WORN items with the Save Bonuses toggle contribute.
+  // ============================================================
+  function getActiveSaveBonuses() {
+    const out = { direct: { fort: [], ref: [], will: [] }, situational: [] };
+    $$(".magic-item-entry").forEach((entry) => {
+      const worn = entry.querySelector(".mi-worn")?.checked;
+      const hasSave = entry.querySelector(".mi-save-toggle")?.checked;
+      if (!worn || !hasSave) return;
+      const type = entry.querySelector(".mi-save-type")?.value || "resistance";
+      const source = (entry.querySelector(".mi-name")?.value || "").trim() || "magic item";
+      ["fort", "ref", "will"].forEach((s) => {
+        const amt = parseInt(entry.querySelector(`.mi-save-${s}`)?.value) || 0;
+        if (amt) out.direct[s].push({ amount: amt, bonus_category: type, source });
+      });
+    });
+    return out;
+  }
+
+  // ============================================================
   // Paper Doll
   // ============================================================
   function updatePaperDoll() {
@@ -1288,6 +1338,7 @@ const Equipment = (function () {
   return {
     addGearRow, addMagicItem, buildMagicItemSlots, removeMagicItem,
     recalcWeight, getProtectiveItems, getActiveBonuses, getSkillBonuses,
+    getActiveSaveBonuses,
     updatePaperDoll, collectData, loadData,
     // Exposed so other item surfaces (e.g. the Magic Items list) can
     // reuse the same name→DB rules lookup the Possessions ⓘ panel uses.
