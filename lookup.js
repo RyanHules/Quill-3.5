@@ -864,6 +864,7 @@
       return `<div class="lookup-detail-extra"><b>Augment:</b> ${escapeHtml(d.augment)}</div>`;
     if (type === 'class' || type === 'prc') return renderClassExtra(d);
     if (type === 'race')        return renderRaceExtra(d);
+    if (type === 'template')    return renderTemplateExtra(d);
     if (type === 'creature')    return renderCreatureExtra(d);
     if (type === 'weapon')      return renderWeaponExtra(d);
     if (type === 'item' || type === 'armor' || type === 'gear')
@@ -2067,6 +2068,122 @@
     if (d.organization)   lines.push(`<b>Organization:</b> ${escapeHtml(formatValue(d.organization))}`);
     if (d.treasure)       lines.push(`<b>Treasure:</b> ${escapeHtml(d.treasure)}`);
     if (d.advancement)    lines.push(`<b>Advancement:</b> ${escapeHtml(formatValue(d.advancement))}`);
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
+  // Templates carry a large, drift-prone field set (~90 distinct keys, many
+  // variant-named). Rather than hand-list a subset (the old behaviour: only
+  // the 4 meta-strip fields showed, everything else was hidden), render the
+  // common fields in a curated stat-block order AND a catch-all that surfaces
+  // every remaining non-empty field — so the panel exposes ALL of a template's
+  // data, robust to naming drift and future fields.
+  function renderTemplateExtra(d) {
+    const lines = [];
+    const shown = new Set();
+    const humanize = (k) => String(k).replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+
+    // One value → ESCAPED HTML across the shapes the data uses: string
+    // (newlines → <br>), array<string>, array<object> ({name,description} or
+    // DR {amount,bypass}), and dict (ability_changes {"Str":"+4"}). Recurses
+    // into nested objects (e.g. a sample_creature stat block) so nothing
+    // renders as "[object Object]".
+    const fmtVal = (v) => {
+      if (v == null) return '';
+      if (typeof v === 'string') {
+        const s = v.trim();
+        return (!s || s === '—') ? '' : escapeHtml(s).replace(/\n/g, '<br>');
+      }
+      if (Array.isArray(v)) {
+        const items = v.map(fmtVal).filter(Boolean);
+        if (!items.length) return '';
+        return items.some(i => /<b>|<br>/.test(i)) ? items.join('<br>') : items.join(', ');
+      }
+      if (typeof v === 'object') {
+        if ('amount' in v && 'bypass' in v) return escapeHtml(`${v.amount}/${v.bypass}`);
+        const nm = v.name || v.ability || '';
+        const desc = v.description || v.text || v.effect || '';
+        const keyCount = Object.keys(v).length;
+        // Small named item (a special-attack / quality entry): "name: desc".
+        if (nm && desc && keyCount <= 4) {
+          return `<b>${escapeHtml(String(nm))}</b>: ${escapeHtml(String(desc))}`;
+        }
+        if (nm && keyCount === 1) return escapeHtml(String(nm));
+        // Generic (possibly nested) dict — recurse each non-empty entry.
+        const e = Object.entries(v).filter(([, vv]) => vv != null && vv !== '' && vv !== '—');
+        return e.map(([k, vv]) => {
+          const inner = (typeof vv === 'object') ? fmtVal(vv) : escapeHtml(String(vv));
+          return inner ? `${escapeHtml(k)} ${inner}` : '';
+        }).filter(Boolean).join(', ');
+      }
+      return escapeHtml(String(v));
+    };
+    const row = (label, keys) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      list.forEach(k => shown.add(k));
+      const rendered = fmtVal(pickField(d, list));
+      if (rendered) lines.push(`<b>${escapeHtml(label)}:</b> ${rendered}`);
+    };
+
+    // Curated, roughly stat-block order; pickField folds variant key names.
+    row('Subtypes',                  ['subtypes']);
+    row('Size change',               ['size_change']);
+    row('Alignment change',          ['alignment_change', 'alignment_note']);
+    row('Ability changes',           ['ability_changes', 'ability_changes_full', 'abilities_change']);
+    row('Hit Dice',                  ['hit_dice_change', 'hit_dice_note']);
+    row('Natural armor',             ['natural_armor_change', 'natural_armor_set']);
+    row('Armor Class',               ['armor_class', 'armor_class_change']);
+    row('Speed',                     ['speed_change']);
+    row('Initiative',                ['initiative']);
+    row('Attack',                    ['attack', 'attack_changes', 'attacks_change', 'attack_note']);
+    row('Full attack',               ['full_attack']);
+    row('Base atk/grapple',          ['base_attack_grapple', 'base_attack_grapple_change', 'base_attack_change']);
+    row('Damage',                    ['damage', 'damage_change']);
+    row('Special attacks (added)',   ['special_attacks_added', 'special_attacks_change']);
+    row('Special attacks (removed)', ['special_attacks_removed']);
+    row('Special qualities (added)', ['special_qualities_added', 'special_qualities_change']);
+    row('Damage reduction',          ['damage_reduction']);
+    row('Spell resistance',          ['spell_resistance']);
+    row('Fast healing',              ['fast_healing']);
+    row('Immunities',                ['immunities']);
+    row('Resistances',               ['resistances']);
+    row('Senses',                    ['senses']);
+    row('Saves',                     ['saves_change', 'saves_changes', 'saves_bonus', 'save_dc_note']);
+    row('Skills',                    ['skill_changes', 'skills_change', 'skills_bonus', 'skills_note', 'skills', 'strips_racial_skill_bonuses']);
+    row('Feats',                     ['feat_changes', 'feats_change', 'feats']);
+    row('Languages',                 ['languages_added']);
+    row('Challenge Rating',          ['challenge_rating', 'challenge_rating_change', 'cr_modifier']);
+    row('Space/Reach',               ['space_reach']);
+    row('Advancement',               ['advancement', 'advancement_change']);
+    row('Organization',              ['organization']);
+    row('Environment',               ['environment', 'environment_change']);
+    row('Treasure',                  ['treasure', 'typical_treasure']);
+    row('Combat notes',              ['combat']);
+    row('Construction',              ['construction']);
+    row('Sample creature',           ['sample_creature', 'sample_creatures', 'sample', 'vampire_characters']);
+
+    // Catch-all: every remaining non-empty field not already shown here or
+    // rendered elsewhere (header / meta strip / description / tables / tags /
+    // errata badge). This is what makes the panel expose ALL info.
+    const skip = new Set([
+      'name', 'source', 'version', 'tags', 'description',
+      'tables', 'errata',
+      'cr_adjustment', 'level_adjustment', 'la_adjustment',
+      'type_change', 'new_creature_type', 'source_creature_type',
+      'type', 'page', 'parent', 'template_category', 'template_type',
+      // Denormalized index columns fetchDetail() merges onto the data object
+      // (not part of the template's own JSON) — skip so they never show as
+      // noise or duplicate the real *_change fields.
+      'id', 'school', 'subschool', 'descriptor', 'types_csv', 'item_type',
+      'body_slot', 'aura', 'caster_level', 'price', 'weight',
+      'creature_size', 'creature_type', 'cr', 'alignment', 'discipline',
+    ]);
+    for (const k of Object.keys(d)) {
+      if (shown.has(k) || skip.has(k)) continue;
+      const rendered = fmtVal(d[k]);
+      if (rendered) lines.push(`<b>${escapeHtml(humanize(k))}:</b> ${rendered}`);
+    }
+
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
