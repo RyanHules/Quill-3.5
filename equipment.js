@@ -475,18 +475,16 @@ const Equipment = (function () {
       const itemInput = div.querySelector(".slot-item-name");
       smCheck.addEventListener("change", () => {
         smArea.style.display = smCheck.checked ? "" : "none";
-        if (smCheck.checked && !div.querySelector(".slot-sm-split").checked) {
-          itemInput.style.display = "none";
-        } else {
-          itemInput.style.display = "";
-        }
+        updateSlotItemVisibility(div);
         rebuildEssentiaPips(div);
         recalcSoulmelds();
       });
 
-      // Wire split chakra (shows item input alongside soulmeld)
+      // Split Chakra feat toggle — lets a BOUND soulmeld share the slot with a
+      // magic item (an unbound soulmeld already shares it; see
+      // updateSlotItemVisibility).
       div.querySelector(".slot-sm-split").addEventListener("change", () => {
-        itemInput.style.display = (smCheck.checked && !div.querySelector(".slot-sm-split").checked) ? "none" : "";
+        updateSlotItemVisibility(div);
         recalcSoulmelds();
       });
 
@@ -497,7 +495,10 @@ const Equipment = (function () {
         recalcSoulmelds();
       });
 
-      div.querySelector(".slot-sm-bound").addEventListener("change", recalcSoulmelds);
+      div.querySelector(".slot-sm-bound").addEventListener("change", () => {
+        updateSlotItemVisibility(div);   // binding closes the slot; unbinding reopens it
+        recalcSoulmelds();
+      });
       div.querySelector(".slot-sm2-bound").addEventListener("change", recalcSoulmelds);
       div.querySelector(".slot-sm-extra-cap").addEventListener("input", () => rebuildEssentiaPips(div));
       div.querySelector(".slot-sm2-extra-cap").addEventListener("input", () => rebuildEssentiaPips(div, true));
@@ -818,6 +819,24 @@ const Equipment = (function () {
   // ============================================================
   // Soulmeld counter recalculation
   // ============================================================
+  // Show/hide a body-slot's magic-item input per the MoI chakra-bind rule.
+  // An UNBOUND soulmeld never closes its body slot — a magic item can share
+  // the slot freely (no feat needed). A BOUND soulmeld closes the slot (item
+  // unavailable) UNLESS the character has the Split Chakra feat for that
+  // chakra (the `.slot-sm-split` toggle), which lets a bound soulmeld and a
+  // magic item coexist. So the item input is hidden only when a soulmeld is
+  // present AND bound AND Split Chakra is off. (Previously this gated on
+  // Split Chakra alone, wrongly hiding the item for unbound soulmelds.)
+  function updateSlotItemVisibility(slotDiv) {
+    if (!slotDiv) return;
+    const itemInput = slotDiv.querySelector(".slot-item-name");
+    if (!itemInput) return;
+    const smOn  = slotDiv.querySelector(".slot-soulmeld-check")?.checked;
+    const bound = slotDiv.querySelector(".slot-sm-bound")?.checked;
+    const split = slotDiv.querySelector(".slot-sm-split")?.checked;
+    itemInput.style.display = (smOn && bound && !split) ? "none" : "";
+  }
+
   function recalcSoulmelds() {
     let shaped = 0, essentia = 0, binds = 0;
 
@@ -1083,9 +1102,9 @@ const Equipment = (function () {
         slotDiv.querySelector(".slot-sm-base").value = sm.base || "";
         slotDiv.querySelector(".slot-sm-bind-effect").value = sm.bindEffect || "";
         slotDiv.querySelector(".slot-sm-extra-cap").value = sm.extraCap || "0";
-        // Show/hide item based on split
-        const itemInput = slotDiv.querySelector(".slot-item-name");
-        itemInput.style.display = sm.split ? "" : "none";
+        // Show/hide item per the MoI bound / Split-Chakra rule (bound+split
+        // states are set just above, so this reads the loaded values).
+        updateSlotItemVisibility(slotDiv);
         // Build pips and fill
         rebuildEssentiaPips(slotDiv);
         fillPips(slotDiv.querySelector(".essentia-pips:not(.essentia-pips-2)"), sm.essentia || 0);
