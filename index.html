@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260724a';
+    window.CACHE_VERSION = '20260724d';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -945,6 +945,9 @@
       // item-bonuses.js before equipment.js — equipment's magic-item name
       // handler reads always-on bonuses through it.
       'data.js', 'skills.js', 'character.js', 'item-bonuses.js', 'equipment.js',
+      // class-level-stacking.js before class-picker.js — the cumulative
+      // class-features render consults it for Swift Ambusher and kin.
+      'class-level-stacking.js',
       'shadowcaster.js', 'sla.js', 'spells.js', 'metamagic-preparer.js',
       // item-familiar.js must load BEFORE companion.js — companion's
       // buildCompanionHTML / wireCompanion / collectData branch on

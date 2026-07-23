@@ -4378,3 +4378,17 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   opacity: 0.75;
 }
 .turn-rules-panel b { color: #dde; }
+
+/* A class feature whose tier is advanced by a level-stacking feat
+   (Swift Ambusher and kin — see class-level-stacking.js). */
+.cf-stacked { color: #cfe6c8; }
+.cf-stacked-tag {
+  margin-left: 0.25rem;
+  padding: 0 0.3rem;
+  font-size: 0.78em;
+  font-style: italic;
+  color: #9cb894;
+  background: rgba(140, 190, 130, 0.14);
+  border-radius: 3px;
+  white-space: nowrap;
+}

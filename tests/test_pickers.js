@@ -3805,6 +3805,157 @@ test('FeatPrereqs: parse extracts canonical atom kinds', () => {
 // ("no levels in Constitution"). The reported symptom was only the first
 // family. These lock the whole set.
 
+// ---- tests: class-level stacking feats (Swift Ambusher and kin) ----------
+//
+// Complete Scoundrel prints a worked example for each of these, which is
+// real ground truth rather than my arithmetic — so the tests assert the
+// book's own numbers.
+function loadLevelStacking() {
+  const src = readSource('class-level-stacking.js');
+  return new Function(src + '\nreturn ClassLevelStacking;')();
+}
+
+test('ClassLevelStacking: reproduces the books\' worked examples', () => {
+  const CLS = loadLevelStacking();
+  const has = (...names) => (n) => names.includes(n);
+
+  // Swift Ambusher — "a 4th-level scout / 7th-level rogue … as if she were
+  // an 11th-level scout".
+  let g = CLS.resolve([{ className: 'Scout', level: 4 }, { className: 'Rogue', level: 7 }],
+                      has('Swift Ambusher'));
+  assertEq(g.length, 1, 'Swift Ambusher grants exactly one boost');
+  assertEq(g[0].target, 'Scout', 'targets Scout');
+  assertEq(g[0].effectiveLevel, 11, 'scout 4 + rogue 7 = 11');
+  assertEq(g[0].baseLevel, 4, 'base scout level is 4');
+
+  // Swift Hunter — "a 4th-level scout / 1st-level ranger … as if she were a
+  // 5th-level scout", AND favored enemies as a 5th-level ranger.
+  g = CLS.resolve([{ className: 'Scout', level: 4 }, { className: 'Ranger', level: 1 }],
+                  has('Swift Hunter'));
+  assertEq(g.length, 2, 'Swift Hunter boosts two progressions');
+  const scout = g.find(x => x.target === 'Scout');
+  const ranger = g.find(x => x.target === 'Ranger');
+  assertEq(scout.effectiveLevel, 5, 'skirmish as a 5th-level scout');
+  assertEq(ranger.effectiveLevel, 5, 'favored enemy as a 5th-level ranger');
+
+  // Daring Outlaw — "a 7th-level rogue / 4th-level swashbuckler … as if she
+  // were an 11th-level swashbuckler", and sneak attack as an 11th-level rogue.
+  g = CLS.resolve([{ className: 'Rogue', level: 7 }, { className: 'Swashbuckler', level: 4 }],
+                  has('Daring Outlaw'));
+  assertEq(g.length, 2, 'Daring Outlaw boosts swashbuckler AND rogue progressions');
+  assertEq(g.find(x => x.target === 'Swashbuckler').effectiveLevel, 11, 'grace/dodge at 11');
+  assertEq(g.find(x => x.target === 'Rogue').effectiveLevel, 11, 'sneak attack at 11');
+
+  // Daring Warrior — "a 6th-level fighter / 5th-level swashbuckler".
+  g = CLS.resolve([{ className: 'Fighter', level: 6 }, { className: 'Swashbuckler', level: 5 }],
+                  has('Daring Warrior'));
+  assertEq(g.length, 1, 'one boost (the fighter-prereq half isn\'t a feature tier)');
+  assertEq(g[0].effectiveLevel, 11, 'as an 11th-level swashbuckler');
+});
+
+test('ClassLevelStacking: does nothing without the feat, the pair, or a gain', () => {
+  const CLS = loadLevelStacking();
+  const yes = () => true, no = () => false;
+  const pair = [{ className: 'Scout', level: 4 }, { className: 'Rogue', level: 7 }];
+  assertEq(CLS.resolve(pair, no).length, 0, 'no feat -> no boost');
+  // Feat but only ONE of the two classes.
+  assertEq(CLS.resolve([{ className: 'Scout', level: 4 }], yes).length, 0,
+    'needs BOTH classes');
+  // Level cap: class tables stop at 20.
+  const capped = CLS.resolve(
+    [{ className: 'Scout', level: 14 }, { className: 'Rogue', level: 14 }], yes);
+  assertEq(capped.find(x => x.target === 'Scout').effectiveLevel, 20,
+    'effective level is capped at 20');
+  // Gestalt: the same class on both sides must not double.
+  const gestalt = CLS.resolve(
+    [{ className: 'Scout', level: 5 }, { className: 'Scout', level: 5 },
+     { className: 'Rogue', level: 3 }], has => true);
+  assertEq(gestalt.find(x => x.target === 'Scout').effectiveLevel, 8,
+    'scout 5 (not 10) + rogue 3 = 8');
+});
+
+test('ClassLevelStacking: labelMatches is prefix-aligned, not substring', () => {
+  const CLS = loadLevelStacking();
+  assert(CLS.labelMatches('Sneak attack +6d6', ['sneak attack']), 'scaling suffix matches');
+  assert(CLS.labelMatches('Skirmish (+3d6, +3 AC)', ['skirmish']), 'parenthetical matches');
+  assert(CLS.labelMatches('Grace +2', ['grace']), 'grace matches');
+  // The same trap the ACF matcher had: a different feature that merely
+  // CONTAINS the stem must not match.
+  assert(!CLS.labelMatches('Psionic sneak attack +2d6', ['sneak attack']),
+    'psionic sneak attack is a DIFFERENT feature');
+  assert(!CLS.labelMatches('Impromptu sneak attack 1/day', ['sneak attack']),
+    'impromptu sneak attack is a different feature');
+});
+
+test('ClassLevelStacking: smite-evil feats are deliberately NOT modelled', () => {
+  const CLS = loadLevelStacking();
+  // The paladin class_table's `special` tracks smite evil USES/DAY, but every
+  // feat that stacks levels for smite does so for the DAMAGE and explicitly
+  // grants no extra uses. Substituting a higher paladin row would hand out
+  // free daily smites, so these are listed as unmodelled instead.
+  const names = CLS.CATALOG.map(c => c.name);
+  for (const n of ['Ascetic Knight', 'Devoted Performer', 'Devoted Tracker',
+                   'Initiate of Bahamut']) {
+    assert(!names.includes(n), `${n} must NOT be in the substitution catalog`);
+    assert(CLS.UNMODELLED.some(u => u.name === n), `${n} should be listed as unmodelled`);
+  }
+  // And the player is told about them rather than left guessing.
+  const surfaced = CLS.unmodelledFor((n) => n === 'Devoted Tracker');
+  assertEq(surfaced.length, 1, 'unmodelledFor surfaces a held feat');
+  assert(/smite/i.test(surfaced[0].why), 'and explains why');
+});
+
+test('class-picker: level-stacking pairs base and boosted on the SAME feature', () => {
+  // Regression: Daring Outlaw boosts grace AND the dodge bonus, and the
+  // first implementation looked up the boosted row against the grant's whole
+  // feature list — so "Grace +1" got paired with "Dodge bonus +2", showing
+  // the right number attached to the wrong feature. The substitution must
+  // resolve one stem at a time.
+  const src = readSource('class-picker.js');
+  const fn = src.match(/function applyLevelStacking[\s\S]*?\n  \}/);
+  assert(fn, 'applyLevelStacking not found in class-picker.js');
+  const body = fn[0];
+  assert(/for \(const stem of g\.features\)/.test(body),
+    'applyLevelStacking must iterate feature stems individually');
+  // The lookups must both be scoped to the single stem, never the whole list.
+  const matchCalls = body.match(/labelMatches\([^)]*\)/g) || [];
+  assert(matchCalls.length >= 2, 'expected base and boosted lookups');
+  for (const c of matchCalls) {
+    assert(!/g\.features/.test(c),
+      `labelMatches must not be called with the whole feature list: ${c}`);
+  }
+});
+
+test('ClassLevelStacking: catalogued classes and features exist in the DB', (db) => {
+  const CLS = loadLevelStacking();
+  const problems = [];
+  for (const entry of CLS.CATALOG) {
+    // The feat itself must be a real feat.
+    const feat = execAll(db,
+      "SELECT 1 AS x FROM entry WHERE type='feat' AND name=? COLLATE NOCASE LIMIT 1",
+      [entry.name]);
+    if (!feat.length) problems.push(`feat "${entry.name}" not in DB`);
+    for (const g of entry.grants) {
+      const rows = execAll(db,
+        "SELECT data FROM entry WHERE type IN ('class','prc') AND name=? " +
+        "COLLATE NOCASE LIMIT 1", [g.target]);
+      if (!rows.length) { problems.push(`class "${g.target}" not in DB`); continue; }
+      let d; try { d = JSON.parse(rows[0].data); } catch (e) { continue; }
+      const specials = (d.class_table || []).map(r => String(r.special || '').toLowerCase());
+      for (const f of g.features) {
+        // The feature must appear in `special` on MORE THAN ONE row —
+        // a single row can't scale, so there'd be nothing to advance to.
+        const n = specials.filter(s => s.includes(f)).length;
+        if (n < 2) {
+          problems.push(`${entry.name}: "${f}" appears on ${n} row(s) of ` +
+                        `${g.target}'s table — nothing to advance`);
+        }
+      }
+    }
+  }
+  assert(problems.length === 0, 'catalog / DB mismatches:\n  ' + problems.join('\n  '));
+});
+
 // ---- tests: spell-addition catalogs resolve to REAL spells ---------------
 //
 // The catalog is hand-typed from book text, and its own header says the

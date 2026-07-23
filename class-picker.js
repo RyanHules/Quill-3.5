@@ -3406,6 +3406,66 @@
     return best;
   }
 
+  // Build label -> boost for the cumulative list of `cls` at `level`, given
+  // the character's classes and feats. Returns an empty Map when no stacking
+  // feat applies, which is the overwhelmingly common case.
+  //
+  // The substitution is deliberately per-FEATURE: only the progression the
+  // feat names advances. Everything else in the list stays at the real class
+  // level, because that's what the feats actually say.
+  function applyLevelStacking(cls, level, cumulative) {
+    const out = new Map();
+    const additions = [];
+    const empty = { map: out, additions };
+    if (typeof ClassLevelStacking === 'undefined') return empty;
+    const hasFeat = (typeof Feats !== 'undefined' && Feats.hasFeat)
+      ? Feats.hasFeat : null;
+    if (!hasFeat) return empty;
+    // The class being previewed counts at the level being previewed, even if
+    // it isn't applied yet — so the preview answers "what would I get?".
+    const levels = [...pickedClasses, ...pickedClassesB]
+      .map(e => ({ className: e.className, level: e.level }));
+    levels.push({ className: cls.class, level: Number(level) || 0 });
+    const grants = ClassLevelStacking.resolve(levels, hasFeat)
+      .filter(g => String(g.target).toLowerCase() === String(cls.class).toLowerCase());
+    if (!grants.length) return empty;
+
+    for (const g of grants) {
+      // The same class table, read at the effective level.
+      const boosted = dedupSpecials(levelsUpTo(cls.class_id, g.effectiveLevel));
+      // Pair base and boosted on the SAME feature stem, one stem at a time.
+      // Matching against the grant's whole feature list instead cross-wires
+      // multi-feature grants: Daring Outlaw boosts both grace and the dodge
+      // bonus, and a list-wide lookup paired "Grace +1" with "Dodge bonus
+      // +2" — the right numbers attached to the wrong feature.
+      for (const stem of g.features) {
+        const one = [stem];
+        const base = cumulative.find(c => ClassLevelStacking.labelMatches(c.label, one));
+        const hit = boosted.find(b => ClassLevelStacking.labelMatches(b.label, one));
+        if (!hit) continue;
+        if (!base) {
+          // The effective level GRANTS a feature the real level hasn't
+          // reached yet — Daring Outlaw's dodge bonus starts at swashbuckler
+          // 5, so a rogue 7 / swashbuckler 4 doesn't have it in their own
+          // list, but the book's own example says the feat confers it.
+          additions.push({
+            label: hit.label, baseLabel: null, feat: g.feat,
+            target: g.target, baseLevel: g.baseLevel,
+            effectiveLevel: g.effectiveLevel, from: g.from,
+          });
+          continue;
+        }
+        if (hit.label === base.label) continue;
+        out.set(base.label, {
+          label: hit.label, baseLabel: base.label, feat: g.feat,
+          target: g.target, baseLevel: g.baseLevel,
+          effectiveLevel: g.effectiveLevel, from: g.from,
+        });
+      }
+    }
+    return { map: out, additions };
+  }
+
   function updatePreview(panel, typedName, levelStr) {
     const cls = lookupClass(typedName);
     const level = parseInt(levelStr, 10);
@@ -3475,21 +3535,47 @@
       // the end (Scout's "Fast movement +20 ft." lands at L11), so a naive
       // slice-then-check left exactly the replaced features unchecked and
       // invisible — the Dungeon Specialist report.
+      // Class-level stacking feats (Swift Ambusher, Daring Outlaw, …) make
+      // ONE progression advance as if the character's levels in two classes
+      // were combined. Re-read this class's table at the effective level and
+      // swap in just the affected feature's tier, leaving everything else at
+      // the real class level.
+      const stacked = applyLevelStacking(cls, level, cumulative);
       const marked = cumulative.map(c => ({
         c, replacedBy: findReplacement(c.label, replacedMap),
+        boost: stacked.map.get(c.label) || null,
       }));
+      // Features the effective level grants that the real level hasn't
+      // reached — they belong in the list even though the class table at
+      // this level never mentions them.
+      for (const add of stacked.additions) {
+        marked.push({ c: { label: add.label, firstLevel: add.effectiveLevel },
+                      replacedBy: null, boost: add });
+      }
       // Show the first 8, then pull in any replaced feature that would
       // otherwise be hidden — showing what a customization took away is the
       // entire point of the strikethrough, so it outranks the display cap.
       const shown = marked.slice(0, 8);
       const rescued = marked.slice(8).filter(m => m.replacedBy);
       const visible = shown.concat(rescued);
-      const head = visible.map(({ c, replacedBy }) => {
+      const head = visible.map(({ c, replacedBy, boost }) => {
         if (replacedBy) {
           return `<span class="cf-replaced" title="Replaced by ` +
             `${escapeHtml(replacedBy.kind)}: ${escapeHtml(replacedBy.name)} ` +
             `(gained at level ${c.firstLevel})">` +
             `<s>${escapeHtml(c.label)}</s></span>`;
+        }
+        if (boost) {
+          // Show the boosted tier, and say WHY — an unexplained higher
+          // number in a level-N class's feature list reads as a bug.
+          return `<span class="cf-stacked" title="${escapeHtml(boost.feat)}: ` +
+            `${escapeHtml(boost.from.join(' + '))} levels stack, so this ` +
+            `advances as ${escapeHtml(boost.target)} ${boost.effectiveLevel} ` +
+            (boost.baseLabel
+              ? `(normally ${escapeHtml(boost.baseLabel)} at ${escapeHtml(boost.target)} ${boost.baseLevel})`
+              : `(not yet granted at ${escapeHtml(boost.target)} ${boost.baseLevel})`) +
+            `">${escapeHtml(boost.label)}` +
+            `<span class="cf-stacked-tag">${escapeHtml(boost.feat)}</span></span>`;
         }
         return `<span title="Gained at level ${c.firstLevel}">` +
                escapeHtml(c.label) + '</span>';
