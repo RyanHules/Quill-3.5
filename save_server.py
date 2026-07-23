@@ -413,6 +413,25 @@ def list_saves() -> list:
 class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
     """Static-file handler with /api/saves overlay."""
 
+    # HTTP/1.1 so connections are KEPT ALIVE and reused. The default
+    # (HTTP/1.0) forces one TCP connection per request, and a cold page
+    # load asks for ~62 module scripts plus the 30 MB DB blob all at once
+    # — 64 simultaneous connections, which overflowed the accept queue and
+    # got individual scripts reset (WinError 10054). That surfaced as
+    # random "module FAILED: class-picker.js (load error / 404)" entries
+    # and a LoadTracker auto-reload. With keep-alive the browser reuses
+    # its ~6 per-origin sockets instead.
+    #
+    # Safe here because every response sets an accurate Content-Length:
+    # _send_json does, SimpleHTTPRequestHandler.send_head does for static
+    # files, send_error does, and the two 204 replies carry no body by
+    # definition. Without that, HTTP/1.1 keep-alive would desync the stream.
+    protocol_version = "HTTP/1.1"
+
+    # Don't let an abandoned keep-alive socket hold its worker thread
+    # forever (each connection owns one under ThreadingHTTPServer).
+    timeout = 60
+
     # Disable the default request logging — too noisy with the
     # picker queries hammering the DB blob on every modal open.
     # Keep API requests + errors though so the user can see saves
@@ -788,6 +807,23 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class CharacterSheetServer(http.server.ThreadingHTTPServer):
+    """Threading server with a listen backlog sized for a cold page load.
+
+    socketserver's default request_queue_size is 5. The sheet opens far
+    more sockets than that in its first burst, and everything past the
+    backlog gets refused by the OS before any worker thread can accept
+    it — the other half of the dropped-script bug (see the handler's
+    protocol_version note). 128 leaves plenty of headroom for several
+    tabs loading at once.
+    """
+
+    request_queue_size = 128
+    # Re-bind immediately after a restart instead of tripping over a
+    # socket still in TIME_WAIT.
+    allow_reuse_address = True
+
+
 def main():
     port = 3000
     if len(sys.argv) > 1:
@@ -815,8 +851,7 @@ def main():
     # directly from elsewhere.
     os.chdir(Path(__file__).parent)
 
-    server = http.server.ThreadingHTTPServer(
-        (bind, port), CharacterSheetHandler)
+    server = CharacterSheetServer((bind, port), CharacterSheetHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
