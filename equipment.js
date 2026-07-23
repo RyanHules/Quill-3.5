@@ -298,6 +298,11 @@ const Equipment = (function () {
     div.querySelector(".mi-info-btn")?.addEventListener("click", () => toggleMagicItemRules(div));
     nameInput.addEventListener("input", () => collapseMagicItemRules(div));
 
+    // Read always-on bonuses out of the item's name ("Cloak of Resistance +2"
+    // -> +2 resistance on all three saves). Fires on `change` rather than
+    // `input` so we act on a finished name, not every keystroke of it.
+    nameInput.addEventListener("change", () => autoFillItemBonuses(div));
+
     // Live weight recalculation when the user edits a magic item's
     // weight. Without this, editing .mi-weight needs a separate
     // recalc trigger (tab switch, save/load, etc.) to update the
@@ -325,6 +330,138 @@ const Equipment = (function () {
 
     // Initial slot sync
     if (data.slot) syncSlot(div);
+  }
+
+  // ============================================================
+  // Auto-fill a magic item's always-on bonuses from its name
+  // ============================================================
+  //
+  // "Cloak of Resistance +2" fills the three save boxes; "Headband of
+  // Intellect +4" fills INT; "Pale Green Ioun Stone" fills the competence
+  // bonuses off the DMG's structured table. ItemBonuses owns the reading
+  // (and deliberately declines anything situational); this owns the filling.
+  //
+  // Rules of engagement, so this can never cost the player data:
+  //   - only ever writes EMPTY fields; a value already there wins
+  //   - marks what it wrote with data-from-item, and drops the mark the
+  //     moment the player edits that field, so their override sticks
+  //   - re-running on a renamed item clears only its own leftovers
+  function autoFillItemBonuses(itemDiv) {
+    if (typeof ItemBonuses === "undefined") return;
+    const nameInput = itemDiv.querySelector(".mi-name");
+    const spec = ItemBonuses.forItem(nameInput?.value || "");
+    // Clear anything a PREVIOUS name auto-filled — but never the player's
+    // own entries, which have had their marker removed.
+    itemDiv.querySelectorAll('[data-from-item]').forEach((el) => {
+      if (el.classList.contains("mi-ac-bonus-row")) el.remove();
+      else el.value = "";
+    });
+    const hint = ensureAutoHint(itemDiv);
+    if (!spec) { hint.style.display = "none"; hint.textContent = ""; return; }
+
+    const claim = (el) => {
+      if (!el) return null;
+      el.dataset.fromItem = "1";
+      if (!el.dataset.fromItemWired) {
+        el.dataset.fromItemWired = "1";
+        el.addEventListener("input", () => { delete el.dataset.fromItem; });
+      }
+      return el;
+    };
+    const fillIfEmpty = (el, value) => {
+      if (!el || String(el.value).trim() !== "") return false;
+      el.value = value;
+      claim(el);
+      return true;
+    };
+
+    // Track what actually landed in a box vs what this row has nowhere to
+    // put. Reporting the latter as "auto-filled" would be the sheet claiming
+    // a bonus it never applied.
+    const filled = [], notTracked = [];
+    let wrote = false;
+    // --- Saves ---
+    if (spec.saves) {
+      const t = itemDiv.querySelector(".mi-save-toggle");
+      if (!t.checked) { t.checked = true; t.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (const s of ["fort", "ref", "will"]) {
+        wrote = fillIfEmpty(itemDiv.querySelector(`.mi-save-${s}`), spec.saves[s]) || wrote;
+      }
+      const typeSel = itemDiv.querySelector(".mi-save-type");
+      if (typeSel && [...typeSel.options].some(o => o.value === spec.saves.type)) {
+        typeSel.value = spec.saves.type;
+      }
+      filled.push(`+${spec.saves.fort} ${spec.saves.type} on all saves`);
+    }
+    // --- Abilities ---
+    if (spec.abilities) {
+      const t = itemDiv.querySelector(".mi-ability-toggle");
+      if (!t.checked) { t.checked = true; t.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (const [ab, v] of Object.entries(spec.abilities)) {
+        wrote = fillIfEmpty(itemDiv.querySelector(`.mi-ab-${ab.toLowerCase()}`), v) || wrote;
+        filled.push(`+${v} ${ab}`);
+      }
+    }
+    // --- AC ---
+    if (spec.ac && spec.ac.length) {
+      const t = itemDiv.querySelector(".mi-protective-toggle");
+      if (!t.checked) { t.checked = true; t.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (const b of spec.ac) {
+        // Reuse a blank AC row if one is sitting there, else add one.
+        let row = [...itemDiv.querySelectorAll(".mi-ac-bonus-row")]
+          .find(r => !parseInt(r.querySelector(".mi-ac-val")?.value, 10));
+        if (!row) { addACBonus(itemDiv, b); row = itemDiv.querySelector(".mi-ac-bonus-row:last-child"); }
+        else {
+          row.querySelector(".mi-ac-val").value = b.ac;
+          row.querySelector(".mi-ac-type").value = b.type;
+          row.querySelector(".mi-ac-touch").checked = !!b.touch;
+          row.querySelector(".mi-ac-ff").checked = b.flatfooted !== false;
+        }
+        if (row) { row.dataset.fromItem = "1"; wrote = true; }
+        filled.push(`+${b.ac} ${b.type} AC`);
+      }
+    }
+    // --- Skills ---
+    if (spec.skills && spec.skills.length) {
+      const t = itemDiv.querySelector(".mi-skill-toggle");
+      if (!t.checked) { t.checked = true; t.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (const sb of spec.skills) {
+        addSkillBonus(itemDiv, { skill: sb.skill, bonus: sb.amount, type: sb.type });
+        const row = itemDiv.querySelector(".mi-skill-bonus-row:last-child");
+        if (row) { row.dataset.fromItem = "1"; wrote = true; }
+        filled.push(`+${sb.amount} ${sb.type} to ${sb.skill}`);
+      }
+    }
+
+    // Bonuses a magic-item row has no box for. Named, not silently dropped,
+    // and explicitly NOT claimed as applied — the player applies them.
+    if (spec.attack) notTracked.push(`+${spec.attack} on attack rolls`);
+    if (spec.notes) notTracked.push(spec.notes);
+
+    const parts = [];
+    if (filled.length) {
+      parts.push(wrote
+        ? `Auto-filled from the item name: ${filled.join(', ')}.`
+        : `Recognised ${spec.label} (${filled.join(', ')}) — your existing values kept.`);
+    }
+    if (notTracked.length) {
+      parts.push(`Not applied automatically (no box on this row): ` +
+                 `${notTracked.join('; ')} — add these yourself.`);
+    }
+    if (wrote) parts.push('Edit any box to override.');
+    hint.textContent = parts.join(' ');
+    hint.style.display = "";
+    if (wrote && typeof window.recalcAll === "function") window.recalcAll();
+  }
+
+  function ensureAutoHint(itemDiv) {
+    let hint = itemDiv.querySelector(".mi-auto-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "mi-auto-hint";
+      itemDiv.appendChild(hint);
+    }
+    return hint;
   }
 
   function addACBonus(itemDiv, data = {}) {

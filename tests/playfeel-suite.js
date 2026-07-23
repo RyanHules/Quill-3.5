@@ -2579,6 +2579,66 @@
     expect(fortTotal(), base + 1, 'SS19: Fort total identical after a collect/load round-trip');
   });
 
+  regression('SS22: item-name auto-fill applies, respects overrides, round-trips', async () => {
+    await newCharacter();
+    document.querySelector('.tab[data-tab="tab-equipment"]').click();
+    const named = async (name) => {
+      Equipment.addMagicItem({});
+      const it = [...document.querySelectorAll('.magic-item-entry')].pop();
+      const nm = it.querySelector('.mi-name');
+      nm.value = name;
+      nm.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(120);
+      return it;
+    };
+    const fortTotal = () => parseInt(document.querySelector('#fort-total').textContent, 10) || 0;
+    const base = fortTotal();
+
+    const cloak = await named('Cloak of Resistance +2');
+    expect(cloak.querySelector('.mi-save-toggle').checked, true,
+      'SS22: save section auto-enabled');
+    expect(cloak.querySelector('.mi-save-fort').value, '2', 'SS22: fort filled from the name');
+    expect(cloak.querySelector('.mi-save-type').value, 'resistance', 'SS22: typed resistance');
+    expect(fortTotal(), base + 2, 'SS22: the bonus reaches the Fort total');
+
+    // Renaming to another family clears what the OLD name filled...
+    const nm = cloak.querySelector('.mi-name');
+    nm.value = 'Headband of Intellect +4';
+    nm.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(120);
+    expect(cloak.querySelector('.mi-save-fort').value, '',
+      'SS22: the previous name\'s auto-fill is cleared on rename');
+    expect(cloak.querySelector('.mi-ab-int').value, '4', 'SS22: INT filled from the new name');
+
+    // ...but a value the PLAYER typed is never clobbered.
+    const intBox = cloak.querySelector('.mi-ab-int');
+    intBox.value = '6';
+    intBox.dispatchEvent(new Event('input', { bubbles: true }));
+    nm.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(120);
+    expect(intBox.value, '6', 'SS22: a hand-edited value survives a re-run');
+
+    // An unreadable name must fill nothing at all.
+    const junk = await named('Some Homebrew Doodad');
+    expect(junk.querySelector('.mi-auto-hint').style.display, 'none',
+      'SS22: an unrecognised item shows no hint');
+    expect(junk.querySelector('.mi-save-toggle').checked, false,
+      'SS22: and enables nothing');
+
+    // Auto-filled values are ordinary field values, so they must round-trip.
+    const blob = App.collectData();
+    const saved = (blob.magicItems || []).find(m => m.name === 'Headband of Intellect +4');
+    if (!saved) fail('SS22: the auto-filled item was not captured by collectData');
+    expect(String(saved.abilityBonuses.INT), '6', 'SS22: the override persists, not the auto value');
+    App.loadData(blob);
+    window.recalcAll(); await wait(60);
+    const reloaded = [...document.querySelectorAll('.magic-item-entry')]
+      .find(e => e.querySelector('.mi-name').value === 'Headband of Intellect +4');
+    if (!reloaded) fail('SS22: the item did not survive the load');
+    expect(reloaded.querySelector('.mi-ab-int').value, '6',
+      'SS22: value identical after a collect/load round-trip');
+  });
+
   regression('SS21: item-borne armour bonuses reach the Defense Onion armor box', async () => {
     await newCharacter();
     const box = (id) => document.getElementById(id).textContent;

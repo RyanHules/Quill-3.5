@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260723g';
+    window.CACHE_VERSION = '20260723k';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -938,7 +938,9 @@
     const v = '?v=' + window.CACHE_VERSION;
     const modules = [
       // -- Core UI modules: per-tab + coordinator.
-      'data.js', 'skills.js', 'character.js', 'equipment.js',
+      // item-bonuses.js before equipment.js — equipment's magic-item name
+      // handler reads always-on bonuses through it.
+      'data.js', 'skills.js', 'character.js', 'item-bonuses.js', 'equipment.js',
       'shadowcaster.js', 'sla.js', 'spells.js', 'metamagic-preparer.js',
       // item-familiar.js must load BEFORE companion.js — companion's
       // buildCompanionHTML / wireCompanion / collectData branch on

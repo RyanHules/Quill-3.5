@@ -3805,6 +3805,126 @@ test('FeatPrereqs: parse extracts canonical atom kinds', () => {
 // ("no levels in Constitution"). The reported symptom was only the first
 // family. These lock the whole set.
 
+// ---- tests: ItemBonuses — always-on bonuses read off an item name --------
+//
+// The feature's value is entirely in what it DECLINES to fill. A DB-wide
+// survey found 680 of 4475 items carrying a "+N <type> bonus" phrase, but
+// most are situational ("+6 circumstance bonus on Escape Artist checks made
+// when the wearer is bound"). Filling those silently inflates the sheet, so
+// most of these tests assert null.
+function loadItemBonuses(db) {
+  const src = readSource('item-bonuses.js');
+  const stubDB = db ? {
+    isLoaded: () => true,
+    queryOne: (sql, params) => {
+      const rows = execAll(db, sql, params);
+      return rows.length ? rows[0] : null;
+    },
+  } : undefined;
+  const factory = new Function('window', 'DB',
+    src + '\nreturn ItemBonuses;');
+  return factory({}, stubDB);
+}
+
+test('ItemBonuses: name-scaled families fill the right boxes', () => {
+  const IB = loadItemBonuses();
+  const cloak = IB.forItem('Cloak of Resistance +2');
+  assert(cloak && cloak.saves, 'Cloak of Resistance +2 should yield save bonuses');
+  assertEq(cloak.saves.fort, 2, 'fort +2');
+  assertEq(cloak.saves.will, 2, 'will +2');
+  assertEq(cloak.saves.type, 'resistance', 'typed as resistance');
+
+  const ring = IB.forItem('Ring of Protection +1');
+  assertEq(ring.ac[0].type, 'Deflection', 'ring of protection is deflection');
+  assertEq(ring.ac[0].ac, 1, '+1');
+  assert(ring.ac[0].touch === true, 'deflection applies against touch attacks');
+
+  // Natural armor must beat the bare "armor" test.
+  const amulet = IB.forItem('Amulet of Natural Armor +3');
+  assertEq(amulet.ac[0].type, 'Natural Armor', 'amulet is natural armor');
+  assert(amulet.ac[0].touch === false, 'natural armor does NOT apply to touch AC');
+
+  const bracers = IB.forItem('Bracers of Armor +4');
+  assertEq(bracers.ac[0].type, 'Armor', 'bracers grant an armor bonus');
+
+  // Abilities, including the flavour synonyms books/homebrew actually use.
+  assertEq(IB.forItem('Headband of Intellect +4').abilities.INT, 4, 'INT +4');
+  assertEq(IB.forItem('Circlet of Intelligence +2').abilities.INT, 2,
+    'the synonym spelling should work too');
+  assertEq(IB.forItem('Belt of Giant Strength +6').abilities.STR, 6, 'STR +6');
+  assertEq(IB.forItem('Periapt of Wisdom +2').abilities.WIS, 2, 'WIS +2');
+  assertEq(IB.forItem('Cloak of Charisma +4').abilities.CHA, 4, 'CHA +4');
+  assertEq(IB.forItem('Amulet of Health +2').abilities.CON, 2, 'CON +2');
+  assertEq(IB.forItem('Gloves of Dexterity +2').abilities.DEX, 2, 'DEX +2');
+  // Fixed-magnitude item: the name carries no +N.
+  assertEq(IB.forItem('Gauntlets of Ogre Power').abilities.STR, 2,
+    'gauntlets of ogre power are a flat +2 STR');
+});
+
+test('ItemBonuses: declines anything it cannot read as always-on', () => {
+  const IB = loadItemBonuses();
+  const shouldBeNull = [
+    '',                              // empty
+    'Rope, silk (50 ft.)',           // mundane gear
+    'Sharkskin Armor',               // real item, but its bonus is situational
+    'Boots of Elvenkind',            // skill bonus, but conditional in text
+    'Cloak of Resistance',           // family match with NO magnitude given
+    'Ring of Protection',            // ditto
+    'Sword of Wounding +2',          // weapon enhancement, not a worn bonus
+    'Bag of Holding',
+    'Ioun Stone (Dark Blue)',        // grants a FEAT, not a numeric bonus
+  ];
+  for (const n of shouldBeNull) {
+    assertEq(IB.forItem(n), null, `"${n}" should not auto-fill`);
+  }
+});
+
+test('ItemBonuses: splitPlus handles the ways players write a magnitude', () => {
+  const IB = loadItemBonuses();
+  assertEq(IB.splitPlus('Cloak of Resistance +2').plus, 2, 'trailing +2');
+  assertEq(IB.splitPlus('Cloak of Resistance +2').base, 'Cloak of Resistance', 'base name');
+  assertEq(IB.splitPlus('+1 Ring of Protection').plus, 1, 'leading +1');
+  assertEq(IB.splitPlus('Cloak of Resistance, +5').plus, 5, 'comma before the +N');
+  assertEq(IB.splitPlus('Bag of Holding').plus, null, 'no magnitude -> null');
+});
+
+test('ItemBonuses: parses the DMG Ioun Stone table (Pale Green)', (db) => {
+  const IB = loadItemBonuses(db);
+  // "+1 competence bonus on attack rolls, saves, skill checks, and ability
+  // checks" — read from the structured table, not restated in the module.
+  const pg = IB.forItem('Pale Green Ioun Stone');
+  assert(pg, 'Pale Green Ioun Stone should resolve');
+  assertEq(pg.attack, 1, '+1 to attack rolls');
+  assert(pg.saves && pg.saves.fort === 1, '+1 on saves');
+  assertEq(pg.saves.type, 'competence', 'competence-typed');
+  assert(pg.skills.length === 1 && pg.skills[0].amount === 1, '+1 on skill checks');
+  assert(/ability check/i.test(pg.notes), 'ability checks surface as a note');
+  // NEGATIVE assertions — the first pass wrote a phantom "+1 Competence AC"
+  // because "attack rolls" contains the letters "ac" and the target test was
+  // a bare substring match. Asserting only what SHOULD be filled misses that
+  // entirely, so pin what must NOT be.
+  assertEq(pg.ac.length, 0, 'the pale green stone grants NO AC bonus');
+  assertEq(pg.abilities, null, 'and no ability bonus');
+  assert(!/\band\b/.test(pg.notes),
+    `the note should not carry a leading conjunction, got "${pg.notes}"`);
+  // Colour matching must prefer the LONGEST colour, so "pale green" never
+  // resolves as a bare "green"-ish row, and the ability stones still work.
+  assertEq(IB.forItem('Ioun Stone (Deep Red)').abilities.DEX, 2, 'deep red = +2 DEX');
+  assertEq(IB.forItem('Dusty Rose Ioun Stone').ac[0].type, 'Insight',
+    'dusty rose = +1 insight AC');
+});
+
+test('ItemBonuses: parseEffectPhrase reads the DMG phrasing', () => {
+  const IB = loadItemBonuses();
+  const e = IB.parseEffectPhrase(
+    '+1 competence bonus on attack rolls, saves, skill checks, and ability checks');
+  assertEq(e.amount, 1, 'amount');
+  assertEq(e.type, 'competence', 'type');
+  assert(e.targets.length === 4, `4 targets, got ${e.targets.length}`);
+  assertEq(IB.parseEffectPhrase('Alertness (as the feat)'), null,
+    'a non-numeric effect yields null');
+});
+
 // ---- tests: class-feature replacement matching (2026-07-23) --------------
 //
 // Two reports, two opposite failures in the same pair of functions:

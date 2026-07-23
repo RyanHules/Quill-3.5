@@ -4269,3 +4269,16 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   border-radius: 4px; padding: 0.15rem; }
 .review-flags-modal .rf-edit-btn { opacity: 0.7; }
 .review-flags-modal .rf-edit-btn:hover { opacity: 1; }
+
+/* Auto-filled magic-item bonuses (read from the item name — see
+   item-bonuses.js). Quiet by default; it's a confirmation, not a warning. */
+.mi-auto-hint {
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.78em;
+  line-height: 1.35;
+  color: #cbb;
+  background: rgba(200, 161, 74, 0.10);
+  border-left: 2px solid rgba(200, 161, 74, 0.55);
+  border-radius: 0 3px 3px 0;
+}
