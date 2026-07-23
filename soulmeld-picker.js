@@ -331,17 +331,87 @@
       }
     });
 
+    // ---- Class filter: default to the character's own meldshaper class ----
+    //
+    // Opening the browser on "All" means scrolling past Totemist melds when
+    // you're playing an Incarnate. Pick the character's class when it's
+    // unambiguous, and remember an explicit choice thereafter — an explicit
+    // pick always outranks the guess, including a deliberate "All".
+    const LS_KEY = 'dnd35-soulmeld-class-filter';
+
+    function characterMeldshaperClass() {
+      if (!(window.ClassPicker && typeof ClassPicker.getState === 'function')) return '';
+      const picked = ClassPicker.getState()
+        .concat(typeof ClassPicker.getStateB === 'function' ? ClassPicker.getStateB() : []);
+      const hits = [];
+      for (const c of picked) {
+        const match = SOULMELD_CLASSES.find(
+          sc => sc.toLowerCase() === String(c.className || '').toLowerCase());
+        if (match && !hits.includes(match)) hits.push(match);
+      }
+      // Only auto-pick when there's exactly one — a Totemist/Incarnate
+      // multiclass has no single right answer, so leave it on All.
+      return hits.length === 1 ? hits[0] : '';
+    }
+
+    function applyDefaultClassFilter() {
+      let stored = null;
+      try { stored = localStorage.getItem(LS_KEY); } catch (e) { /* private mode */ }
+      if (stored !== null) {
+        // '' is a legitimate stored value meaning "the user chose All".
+        if (stored === '' || SOULMELD_CLASSES.includes(stored)) {
+          classSel.value = stored;
+          return;
+        }
+      }
+      classSel.value = characterMeldshaperClass();
+    }
+
     chakraSel.addEventListener('change', refresh);
-    classSel.addEventListener('change', refresh);
+    classSel.addEventListener('change', () => {
+      try { localStorage.setItem(LS_KEY, classSel.value); } catch (e) { /* ignore */ }
+      refresh();
+    });
     nameInput.addEventListener('input', refresh);
     clearBtn.addEventListener('click', () => {
       chakraSel.value = '';
-      classSel.value = '';
       nameInput.value = '';
+      // Clear returns the class filter to the character-derived default
+      // rather than to All, and forgets the remembered pick — otherwise
+      // "Clear" would leave the most restrictive filter still applied.
+      try { localStorage.removeItem(LS_KEY); } catch (e) { /* ignore */ }
+      classSel.value = characterMeldshaperClass();
       refresh();
       infoPanel.style.display = 'none';
     });
 
+    // Re-derive whenever the browser is OPENED. The panel is injected once at
+    // page load, long before a saved character's classes exist, and loading a
+    // character doesn't reliably dispatch classes-changed — so deriving only
+    // at wire-up left an existing character on "All". Deriving at open time
+    // has no dependence on event timing at all: whenever you look at it, it
+    // reflects the character as it is right then.
+    const details = wrap.querySelector('details');
+    if (details) {
+      details.addEventListener('toggle', () => {
+        if (!details.open) return;
+        let stored = null;
+        try { stored = localStorage.getItem(LS_KEY); } catch (e) { /* ignore */ }
+        if (stored !== null) return;          // an explicit pick always wins
+        const derived = characterMeldshaperClass();
+        if (derived !== classSel.value) { classSel.value = derived; refresh(); }
+      });
+    }
+    // Belt and braces: still react to a class change while the panel is open.
+    document.addEventListener('classes-changed', () => {
+      let stored = null;
+      try { stored = localStorage.getItem(LS_KEY); } catch (e) { /* ignore */ }
+      if (stored !== null) return;
+      const derived = characterMeldshaperClass();
+      if (derived !== classSel.value) { classSel.value = derived; refresh(); }
+    });
+
+    applyDefaultClassFilter();
     refresh();
   }
 
