@@ -25,7 +25,7 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260723k';
+    window.CACHE_VERSION = '20260724a';
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );
@@ -862,6 +862,10 @@
           </div>
           <div id="turn-synergy-note" class="synergy-notes" style="display:none;margin-top:0.3rem;"></div>
           <div id="turn-feat-chips" class="turn-feat-chips"></div>
+          <!-- Turning-rules chip. Its own host because skills.js rewrites
+               #turn-feat-chips wholesale on every synergy refresh, which
+               would wipe anything sharing that container. -->
+          <div id="turn-rules-host"></div>
         </section>
 
         <!-- Rage -->

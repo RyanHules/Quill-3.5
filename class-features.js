@@ -318,11 +318,147 @@ const ClassFeatures = (function () {
   }
 
   // ============================================================
+  // Turn / Rebuke Undead — collapsible rules chip
+  // ============================================================
+  //
+  // Turning is one of the fiddliest procedures in 3.5 (turning check ->
+  // Table 8-15 -> HD total -> damage roll), and the section's three boxes
+  // only hold the character's numbers, not how to use them. Renders a chip
+  // that expands the rule text straight from the DB, so the procedure sits
+  // next to the numbers instead of in the book.
+  //
+  // Lazy: nothing is queried until the chip is first opened.
+  const TURN_RULE_NAMES = [
+    // Preferred first; the PHB entry is the full procedure. Resolved BY NAME
+    // (never by row id — ids renumber on every DB rebuild).
+    'Turn or Rebuke Undead',
+    'Turning Undead',
+  ];
+  let turnRulesLoaded = false;
+
+  function initTurnRulesChip() {
+    const host = document.getElementById('turn-rules-host');
+    if (!host || host.dataset.wired) return;
+    host.dataset.wired = '1';
+    host.innerHTML =
+      '<button type="button" class="turn-rules-chip" aria-expanded="false">' +
+      '<span class="turn-rules-chip-icon">ⓘ</span> Turning rules</button>' +
+      '<div class="turn-rules-panel" style="display:none"></div>';
+    const btn = host.querySelector('.turn-rules-chip');
+    const panel = host.querySelector('.turn-rules-panel');
+    btn.addEventListener('click', () => {
+      const open = panel.style.display !== 'none';
+      if (open) {
+        panel.style.display = 'none';
+        btn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      if (!turnRulesLoaded) renderTurnRules(panel);
+      panel.style.display = '';
+      btn.setAttribute('aria-expanded', 'true');
+    });
+  }
+
+  function renderTurnRules(panel) {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) {
+      // Don't latch the loaded flag — a later open retries once the DB is up.
+      panel.innerHTML = '<em>Rules load with the database; try again in a moment.</em>';
+      return;
+    }
+    let row = null;
+    for (const name of TURN_RULE_NAMES) {
+      row = DB.queryOne(
+        "SELECT name, source, data FROM entry WHERE type='rule' " +
+        "AND name = ? COLLATE NOCASE LIMIT 1", [name]);
+      if (row) break;
+    }
+    if (!row) {
+      panel.innerHTML = '<em>No turning rules entry found in the database.</em>';
+      turnRulesLoaded = true;
+      return;
+    }
+    let d = {};
+    try { d = JSON.parse(row.data || '{}'); } catch (e) { /* fall through */ }
+    const text = d.description || d.text || '';
+    if (!text) {
+      panel.innerHTML = '<em>The turning rules entry has no description text.</em>';
+      turnRulesLoaded = true;
+      return;
+    }
+    // The entry separates its paragraphs with SINGLE newlines, so splitting
+    // on blank lines yielded one 7k-character block — the wall of text.
+    const paras = String(text).split(/\r?\n/)
+      .map(p => p.trim()).filter(Boolean);
+    // Run-in labels ("Times per Day: You may attempt…") carry the structure
+    // of the procedure; bolding them turns the block back into steps.
+    const body = paras.map(p => {
+      const m = p.match(/^([A-Z][A-Za-z0-9 /'’-]{2,40}):\s*(.*)$/);
+      return m
+        ? `<p><b>${escapeHtmlCF(m[1])}:</b> ${escapeHtmlCF(m[2])}</p>`
+        : `<p>${escapeHtmlCF(p)}</p>`;
+    }).join('');
+    // The turning-check table is the part you actually consult mid-combat,
+    // and as inline prose it was unreadable. Render it as a real table.
+    const tables = Array.isArray(d.tables) ? d.tables : [];
+    panel.innerHTML =
+      `<div class="turn-rules-src">${escapeHtmlCF(row.name)} — ` +
+      `${escapeHtmlCF(row.source || '?')}</div>` +
+      tables.map(renderRuleTable).join('') + body;
+    if (typeof ErrataBadge !== 'undefined' && ErrataBadge.attach && row.id) {
+      ErrataBadge.attach(panel, row.id);
+    }
+    turnRulesLoaded = true;
+  }
+
+  // Render one structured table from a rule entry's `tables` field.
+  // Tolerates the shapes the DB actually uses: the header list is `headers`
+  // on some entries and `columns` on others, rows are usually arrays but can
+  // be dicts, and the caption is `name` or `caption`. An unreadable table is
+  // skipped rather than rendered as "[object Object]".
+  function renderRuleTable(t) {
+    if (!t || typeof t !== 'object') return '';
+    const headers = t.headers || t.columns || [];
+    const rawRows = Array.isArray(t.rows) ? t.rows : [];
+    const cells = (r) => Array.isArray(r) ? r
+      : (r && typeof r === 'object') ? Object.values(r) : [r];
+    const rows = rawRows.map(cells).filter(c => c.length);
+    if (!rows.length) return '';
+    const caption = t.name || t.caption || '';
+    return '<div class="turn-rules-table-wrap">' +
+      (caption ? `<div class="turn-rules-table-cap">${escapeHtmlCF(caption)}</div>` : '') +
+      '<table class="turn-rules-table">' +
+      (headers.length
+        ? '<thead><tr>' + headers.map(h => `<th>${escapeHtmlCF(h)}</th>`).join('') +
+          '</tr></thead>'
+        : '') +
+      '<tbody>' + rows.map(r =>
+        '<tr>' + r.map(c => `<td>${escapeHtmlCF(c)}</td>`).join('') + '</tr>'
+      ).join('') + '</tbody></table>' +
+      (t.notes ? `<div class="turn-rules-table-note">${escapeHtmlCF(t.notes)}</div>` : '') +
+      '</div>';
+  }
+
+  function escapeHtmlCF(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initTurnRulesChip);
+    } else {
+      initTurnRulesChip();
+    }
+  }
+
+  // ============================================================
   // Public API
   // ============================================================
   return {
     getActiveBonuses, collectData, loadData,
     getCustomizations, addCustomization, removeCustomization,
     removeCustomizationsForClass,
+    initTurnRulesChip,
   };
 })();
