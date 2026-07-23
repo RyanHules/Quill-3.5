@@ -46,6 +46,16 @@ const Audit = (function () {
   function snapshot() {
     const s = {};
     s.charLevel    = int(document.getElementById('char-level')?.value) || 1;
+    // The character's OWN max-rank cap, as the Skills tab computes and
+    // displays it. That figure already folds in anything that raises the
+    // ceiling beyond the textbook charLevel + 3 — today UA bloodline
+    // levels (K1), and whatever lands there next. Auditing against the
+    // generic formula instead flagged legal ranks as illegal on every
+    // bloodline character. Falls back to the formula when the field
+    // hasn't rendered yet.
+    s.maxClassRanks =
+      int(document.getElementById('max-class-ranks')?.textContent) ||
+      (s.charLevel + 3);
     s.hpMax        = int(document.getElementById('hp-total')?.value);
     s.hpCurrent    = int(document.getElementById('hp-current')?.value);
     s.loadCategory = document.getElementById('load-category')?.textContent?.toLowerCase() || '';
@@ -164,17 +174,21 @@ const Audit = (function () {
       });
     }
 
-    // ---- Skill ranks over absolute cap (char level + 3) ----
+    // ---- Skill ranks over absolute cap ----
     // Anything above that is illegal regardless of class-skill status.
+    // Uses the character's own cap (see snapshot) rather than the generic
+    // formula, so bloodline levels and kin don't produce false errors.
     // (Half-cap cross-class check waits for history.)
-    const absCap = s.charLevel + 3;
+    const absCap = s.maxClassRanks;
+    const capNote = absCap === s.charLevel + 3
+      ? `character level + 3 = ${absCap}`
+      : `this character's max ranks = ${absCap}`;
     for (const sk of s.skills) {
       if (sk.ranks > absCap) {
         issues.push({
           id: `skill:over-cap:${sk.name}`,
           severity: 'error',
-          message: `${sk.name}: ${sk.ranks} ranks exceeds the cap ` +
-                   `(character level + 3 = ${absCap}).`,
+          message: `${sk.name}: ${sk.ranks} ranks exceeds the cap (${capNote}).`,
         });
       }
     }
