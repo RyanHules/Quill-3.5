@@ -1394,7 +1394,10 @@
         }
         if (typeof Spells !== 'undefined' &&
             typeof Spells.addKnownSpell === 'function') {
-          Spells.addKnownSpell(target, baseLvl, name);
+          // `locked` — the name is a real DB entry, so the row renders
+          // read-only with a ✎ to hand editing back. Stops a stray
+          // keystroke silently detaching the row from its rules lookup.
+          Spells.addKnownSpell(target, baseLvl, name, { locked: true });
         } else {
           const row = document.createElement('div');
           row.className = 'sc-known-row';

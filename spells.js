@@ -751,10 +751,30 @@ const Spells = (function () {
     const titleAttr = opts.source
       ? ` title="Granted by: ${escapeAttr(opts.source)}"`
       : '';
+    // DERIVED rows — added from the spell picker (`locked`) or granted by a
+    // class / feat feature (`freebie`) — carry a name that came from the DB,
+    // not from the player's keyboard. Render the name as a static chip, with
+    // the canonical value kept in a hidden input so collectData / the rules
+    // lookup / the dedupe scan all keep reading `.sc-known-name` unchanged.
+    //
+    // An editable-looking box you can't actually type into is worse than
+    // either extreme: it invites a click, shows a caret, then swallows the
+    // keystrokes. Free-text rows (the "+ Add" button) remain fully editable
+    // — that's what they're for.
+    if (opts.locked) {
+      row.classList.add("sc-known-locked");
+      row.dataset.locked = "1";
+    }
+    const asChip = !!(opts.locked || opts.freebie);
+    if (asChip) row.classList.add("sc-known-chip-row");
     row.innerHTML =
-      `<input type="text" class="sc-known-name" list="spell-options" ` +
-      `autocomplete="off"${titleAttr} ` +
-      `value="${escapeAttr(spellName)}" placeholder="Spell name">` +
+      (asChip
+        ? `<input type="hidden" class="sc-known-name" ` +
+          `value="${escapeAttr(spellName)}">` +
+          `<span class="sc-known-chip"${titleAttr}>${escapeAttr(spellName)}</span>`
+        : `<input type="text" class="sc-known-name" list="spell-options" ` +
+          `autocomplete="off"${titleAttr} ` +
+          `value="${escapeAttr(spellName)}" placeholder="Spell name">`) +
       (opts.freebie
         ? `<span class="sc-known-freebie-badge" title="${escapeAttr(
             opts.source ? 'Granted by: ' + opts.source : 'Class-granted'
@@ -2381,9 +2401,16 @@ const Spells = (function () {
           caster[`knownList-${i}`] = Array.from(knownRows).map(r => {
             const name = r.querySelector(".sc-known-name")?.value || "";
             if (!name) return null;
+            const locked = r.dataset.locked === '1';
             if (r.dataset.freebie === '1') {
-              return { name, freebie: true, source: r.dataset.source || '' };
+              return { name, freebie: true, source: r.dataset.source || '',
+                       ...(locked ? { locked: true } : {}) };
             }
+            // Picker-added rows persist their read-only state; without this
+            // they'd come back editable after a reload and the ✎ affordance
+            // would be inconsistent between sessions. Plain typed rows stay
+            // bare strings so old saves and hand-entered spells are untouched.
+            if (locked) return { name, locked: true };
             return name;
           }).filter(Boolean);
           // v2 Phase C structural-restructure (2026-05-19): Prepared
@@ -2563,8 +2590,11 @@ const Spells = (function () {
                 if (typeof e === 'string') {
                   createKnownRow(listEl, i, e);
                 } else if (e && typeof e === 'object' && e.name) {
+                  // `locked` defaults to false so saves written before the
+                  // picker marked its rows load exactly as they did before.
                   createKnownRow(listEl, i, e.name,
-                    { freebie: !!e.freebie, source: e.source || '' });
+                    { freebie: !!e.freebie, source: e.source || '',
+                      locked: !!e.locked });
                 }
               }
             }
