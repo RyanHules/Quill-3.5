@@ -89,7 +89,11 @@ const ClassSpellAdditions = (function () {
             'Summon Desert Ally VI',
           ],
           7: [
-            'Mass Flesh to Salt',
+            // The DB (and 3.5 convention) inverts mass-spell names: the
+            // entry is "Flesh to Salt, Mass", not "Mass Flesh to Salt".
+            // The old spelling matched no spell, so this freebie row
+            // resolved to nothing in the picker or the ⓘ rules lookup.
+            'Flesh to Salt, Mass',
             'Summon Desert Ally VII',
           ],
           8: [
@@ -99,6 +103,38 @@ const ClassSpellAdditions = (function () {
           9: [
             'Summon Desert Ally IX',
           ],
+        },
+      },
+    ],
+  };
+
+  // ------------------------------------------------------------------
+  // FEAT-granted spell access
+  // ------------------------------------------------------------------
+  // Same shape as CATALOG, keyed by feat name instead of class name. A
+  // feat has no level track, so there's no `acquiredAtLevel` — taking the
+  // feat IS the threshold. The per-panel max-castable cap still applies,
+  // so a 3rd-level caster with Mother Cyst gets the 1st/2nd-level cyst
+  // spells and picks up the rest as they level.
+  const FEAT_CATALOG = {
+    'Mother Cyst': [
+      {
+        // Libris Mortis p.26. "The mother cyst grants you access to a
+        // selection of cyst-related spells listed below… You cast these
+        // spells like any other spell you can cast." Names verified
+        // against the DB's own spell entries so the picker datalist and
+        // the ⓘ rules lookup both resolve.
+        featureName: 'Necrotic Cyst Spells',
+        spellsByLevel: {
+          1: ['Necrotic Awareness'],
+          2: ['Necrotic Cyst', 'Necrotic Scrying'],
+          3: ['Necrotic Bloat'],
+          4: ['Necrotic Domination'],
+          5: ['Necrotic Burst'],
+          6: ['Necrotic Eruption'],
+          7: ['Necrotic Tumor'],
+          8: ['Necrotic Empowerment'],
+          9: ['Necrotic Termination'],
         },
       },
     ],
@@ -114,5 +150,15 @@ const ClassSpellAdditions = (function () {
       .filter(f => (f.acquiredAtLevel || 1) <= classLevel);
   }
 
-  return { getFeatures, applicableFeatures };
+  function getFeatFeatures(featName) {
+    return FEAT_CATALOG[featName] || [];
+  }
+
+  // Every feat in the catalog — lets a consumer check what the character
+  // has without probing name by name.
+  function featNames() {
+    return Object.keys(FEAT_CATALOG);
+  }
+
+  return { getFeatures, applicableFeatures, getFeatFeatures, featNames };
 })();

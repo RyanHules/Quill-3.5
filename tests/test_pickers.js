@@ -3805,6 +3805,60 @@ test('FeatPrereqs: parse extracts canonical atom kinds', () => {
 // ("no levels in Constitution"). The reported symptom was only the first
 // family. These lock the whole set.
 
+// ---- tests: spell-addition catalogs resolve to REAL spells ---------------
+//
+// The catalog is hand-typed from book text, and its own header says the
+// names must match exactly or the picker datalist and the ⓘ rules lookup
+// both silently miss. A typo produces a Known row that looks right and
+// resolves to nothing, so check every name against the DB.
+function loadSpellAdditions() {
+  const src = readSource('class-spell-additions.js');
+  return new Function(src + '\nreturn ClassSpellAdditions;')();
+}
+
+test('ClassSpellAdditions: Mother Cyst grants the necrotic cyst spells 1-9', () => {
+  const CSA = loadSpellAdditions();
+  const feats = CSA.getFeatFeatures('Mother Cyst');
+  assert(feats.length === 1, `expected 1 feature, got ${feats.length}`);
+  const byLevel = feats[0].spellsByLevel;
+  // Libris Mortis p.26: one spell per level except 2nd, which has two.
+  for (let l = 1; l <= 9; l++) {
+    assert(Array.isArray(byLevel[l]) && byLevel[l].length,
+      `Mother Cyst should grant a spell at level ${l}`);
+  }
+  assertEq(byLevel[2].length, 2, '2nd level grants two spells (cyst + scrying)');
+  assertEq(byLevel[1][0], 'Necrotic Awareness', '1st is Necrotic Awareness');
+  assertEq(byLevel[9][0], 'Necrotic Termination', '9th is Necrotic Termination');
+  assert(CSA.featNames().includes('Mother Cyst'), 'featNames lists Mother Cyst');
+});
+
+test('ClassSpellAdditions: every catalogued spell name exists in the DB', (db) => {
+  const CSA = loadSpellAdditions();
+  const known = new Set(
+    execAll(db, "SELECT DISTINCT LOWER(name) AS n FROM entry WHERE type='spell'")
+      .map(r => r.n));
+  const missing = [];
+  const checkFeature = (owner, f) => {
+    for (const [lvl, spells] of Object.entries(f.spellsByLevel || {})) {
+      for (const s of spells) {
+        if (!known.has(String(s).toLowerCase())) {
+          missing.push(`${owner} L${lvl}: "${s}"`);
+        }
+      }
+    }
+  };
+  // Feat catalog (new) AND the pre-existing class catalog — same failure
+  // mode, so cover both rather than only the code I just added.
+  for (const fn of CSA.featNames()) {
+    for (const f of CSA.getFeatFeatures(fn)) checkFeature(fn, f);
+  }
+  for (const cls of ['Sand Shaper']) {
+    for (const f of CSA.getFeatures(cls)) checkFeature(cls, f);
+  }
+  assert(missing.length === 0,
+    `catalogued spells with no DB entry (typo?):\n  ${missing.join('\n  ')}`);
+});
+
 // ---- tests: ItemBonuses — always-on bonuses read off an item name --------
 //
 // The feature's value is entirely in what it DECLINES to fill. A DB-wide
