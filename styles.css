@@ -1611,7 +1611,13 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   font-size: 0.85em;
   cursor: pointer;
   line-height: 1;
-  min-width: 1.8em;
+  /* FIXED width, not min-width. The badge glyph changes with status and
+     every glyph measures differently (· 24.5px, ✓ 25.0, ✗ 25.9, — 28.4),
+     so a min-width pins only the narrowest. The badge sits between the
+     flex:1 name box and the row edge, so those few pixels propagate
+     backwards and every row ends up a different width — the "feat list
+     boxes aren't aligned" report. 2.2em clears the widest glyph. */
+  width: 2.2em;
   text-align: center;
 }
 .btn-feat-prereq:hover { background: rgba(255, 255, 255, 0.08); }

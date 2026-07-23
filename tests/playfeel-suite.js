@@ -2579,6 +2579,48 @@
     expect(fortTotal(), base + 1, 'SS19: Fort total identical after a collect/load round-trip');
   });
 
+  regression('SS20: feat rows stay aligned regardless of the prereq badge glyph', async () => {
+    await newCharacter();
+    document.querySelector('.tab[data-tab="tab-feats"]').click();
+    // The prereq badge sits between the flex:1 name box and the row edge, and
+    // its glyph changes with status. Every glyph measures differently (· 24.5px,
+    // ✓ 25.0, ✗ 25.9, — 28.4), so an intrinsically-sized badge propagates those
+    // pixels backwards and each row ends up a different width. Pin the badge and
+    // the name boxes agree.
+    const container = document.getElementById('feats-container');
+    container.innerHTML = '';
+    // Cover every row shape: DB-matched (structured namebox), free text
+    // (textarea), a choice feat (spec input), and a derived source-tagged grant.
+    ['Power Attack', 'Toughness', 'Some Homebrew Thing', 'Weapon Focus']
+      .forEach(f => Feats.addFeat(f));
+    Feats.addFeat('Extra Rage', { sourceLabel: 'Barbarian 1' });
+    const rows = [...container.querySelectorAll('.feat-row')];
+    if (rows.length < 5) fail('SS20: expected 5 feat rows, got ' + rows.length);
+    const glyphs = ['·', '✓', '✗', '?', '—'];
+    rows.forEach((r, i) => {
+      r.querySelector('.btn-feat-prereq').textContent = glyphs[i];
+    });
+    await wait(20);
+    const widths = rows.map(r => {
+      const main = r.querySelector('.feat-namebox') || r.querySelector('.feat-entry');
+      const b = main.getBoundingClientRect();
+      return { w: Math.round(b.width), right: Math.round(b.right) };
+    });
+    // Guard the guard: a hidden tab measures everything as 0, which would
+    // read as "all equal" and pass vacuously.
+    if (!widths.every(x => x.w > 100)) {
+      fail('SS20: name boxes measured ' + JSON.stringify(widths) +
+           ' — tab not laid out, measurement is vacuous');
+    }
+    const distinctW = new Set(widths.map(x => x.w));
+    const distinctR = new Set(widths.map(x => x.right));
+    if (distinctW.size !== 1 || distinctR.size !== 1) {
+      fail('SS20: feat rows misaligned across badge glyphs — widths ' +
+           [...distinctW].join('/') + ', right edges ' + [...distinctR].join('/'));
+    }
+    container.innerHTML = '';
+  });
+
   regression('SA-INFO: Special Abilities ⓘ resolves racial traits + skill tricks + class features', async () => {
     await newCharacter();
     if (!dbReady()) fail(
