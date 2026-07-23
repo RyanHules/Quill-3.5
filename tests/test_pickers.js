@@ -3805,6 +3805,115 @@ test('FeatPrereqs: parse extracts canonical atom kinds', () => {
 // ("no levels in Constitution"). The reported symptom was only the first
 // family. These lock the whole set.
 
+// ---- tests: class-feature replacement matching (2026-07-23) --------------
+//
+// Two reports, two opposite failures in the same pair of functions:
+//   * Scout's Dungeon Specialist replaces "fast movement", which dedups to
+//     its L11 tier, sorts past the 8-item display cap, and was never checked.
+//   * Kobold Rogue replaces "improved uncanny dodge" and struck the base
+//     "uncanny dodge" too, because the old matcher accepted a token that
+//     merely CONTAINED the label anywhere.
+//
+// class-picker.js is a 5k-line module that wires DOM listeners at load, so
+// rather than sandbox the whole thing we lift the matcher out of the real
+// source text and exercise that. It's the shipped code, not a copy.
+function loadFindReplacement() {
+  const src = readSource('class-picker.js');
+  const grab = (re, what) => {
+    const m = src.match(re);
+    if (!m) throw new Error(`could not lift ${what} out of class-picker.js`);
+    return m[0];
+  };
+  const parts = [
+    grab(/function alignsAsPrefix\s*\([\s\S]*?\n  \}/, 'alignsAsPrefix'),
+    grab(/const TIER_QUALIFIER\s*=[\s\S]*?;/, 'TIER_QUALIFIER'),
+    grab(/function isTierUpgradeOf\s*\([\s\S]*?\n  \}/, 'isTierUpgradeOf'),
+    grab(/function findReplacement\s*\([\s\S]*?\n  \}/, 'findReplacement'),
+  ];
+  return new Function(parts.join('\n') + '\nreturn findReplacement;')();
+}
+
+test('class-picker: a replaced feature matches its scaling tier label', () => {
+  const findReplacement = loadFindReplacement();
+  const map = new Map([['fast movement', { kind: 'ACF', name: 'Dungeon Specialist' }]]);
+  // The cumulative list renders the DEDUPED highest tier, so the label
+  // carries a numeric suffix the ACF's `replaces` text never mentions.
+  for (const label of ['fast movement', 'fast movement +10 ft.', 'fast movement +20 ft.']) {
+    const hit = findReplacement(label, map);
+    assert(hit && hit.name === 'Dungeon Specialist',
+      `"${label}" should match the "fast movement" token, got ${JSON.stringify(hit)}`);
+  }
+  // "Bonus feat ×2" is the other shape the dedup produces.
+  const bf = new Map([['bonus feat', { kind: 'ACF', name: 'X' }]]);
+  assert(findReplacement('Bonus feat ×2'.toLowerCase(), bf), 'bonus feat ×2 should match');
+});
+
+test('class-picker: an "improved X" token does NOT strike the base "X"', () => {
+  const findReplacement = loadFindReplacement();
+  // Kobold Rogue replaces Improved Uncanny Dodge only. The rogue KEEPS
+  // plain Uncanny Dodge — striking both was the reported bug.
+  const map = new Map([['improved uncanny dodge', { kind: 'Sub Level', name: 'Kobold Rogue' }]]);
+  assert(findReplacement('improved uncanny dodge', map),
+    'the replaced feature itself must still match');
+  assert(!findReplacement('uncanny dodge', map),
+    'base "uncanny dodge" must NOT be struck by an "improved uncanny dodge" token');
+  assert(!findReplacement('dodge', map),
+    'bare "dodge" must NOT be struck either');
+});
+
+test('class-picker: replacing a base feature DOES strike its tier upgrades', () => {
+  const findReplacement = loadFindReplacement();
+  // Lose Rage and you lose Greater/Mighty/Tireless Rage; lose Favored Enemy
+  // and you lose the 2nd/3rd picks. A closed qualifier list, because the
+  // leading word is usually what makes a feature distinct.
+  const rage = new Map([['rage', { kind: 'ACF', name: 'Berserker Strength' }]]);
+  for (const l of ['rage', 'greater rage', 'mighty rage', 'tireless rage']) {
+    assert(findReplacement(l, rage), `"${l}" should be struck when rage is replaced`);
+  }
+  const fe = new Map([['favored enemy', { kind: 'ACF', name: 'Urban Ranger' }]]);
+  for (const l of ['1st favored enemy', '2nd favored enemy', '5th favored enemy']) {
+    assert(findReplacement(l, fe), `"${l}" should be struck when favored enemy is replaced`);
+  }
+});
+
+test('class-picker: accidental substrings never count as a replacement', () => {
+  const findReplacement = loadFindReplacement();
+  // Every one of these was a real DB-wide false positive under the old
+  // bidirectional-substring matcher.
+  const cases = [
+    ['rage',         'fly 50 ft. (average)'],   // "ave-RAGE-"
+    ['rage',         'inspire courage +1'],     // "cou-RAGE"
+    ['turn',         'returning attacks'],      // "re-TURN-ing"
+    ['armor',        '+3 natural armor'],       // natural armor ≠ armor prof.
+    ['weapon',       'breath weapon (4d6)'],
+    ['familiar',     'weapon familiarity'],
+    ['sneak attack', 'psionic sneak attack +1d6'],
+    ['wild shape',   'undead wild shape 1/day'],
+    ['trap sense',   'teamwork trap sense +1'],
+    ['suggestion',   'mass suggestion'],
+    ['uncanny dodge','armored uncanny dodge'],
+  ];
+  for (const [token, label] of cases) {
+    const map = new Map([[token, { kind: 'ACF', name: 'T' }]]);
+    assert(!findReplacement(label, map),
+      `token "${token}" must NOT strike "${label}"`);
+  }
+});
+
+test('class-picker: the longest matching token wins', () => {
+  const findReplacement = loadFindReplacement();
+  // Both tokens are live; "improved uncanny dodge" must claim its own label
+  // rather than losing it to the shorter, also-present "uncanny dodge".
+  const map = new Map([
+    ['uncanny dodge',          { kind: 'ACF', name: 'Short' }],
+    ['improved uncanny dodge', { kind: 'ACF', name: 'Long' }],
+  ]);
+  assertEq(findReplacement('improved uncanny dodge', map).name, 'Long',
+    'the more specific token should win');
+  assertEq(findReplacement('uncanny dodge', map).name, 'Short',
+    'the base label still resolves to the base token');
+});
+
 test('FeatPrereqs: "Character level 6th" is a characterLevel atom, not a class', () => {
   const FP = loadFeatPrereqs();
   for (const text of ['Character level 6th', 'character level 3rd']) {

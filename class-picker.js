@@ -3348,28 +3348,62 @@
     return map;
   }
 
-  // Match a class-feature label against the replaced-map's tokens. We
-  // use substring matching in BOTH directions because the strings
-  // diverge in irritating ways: the cumulative-feature label might be
-  // "Scribe Scroll" while the ACF `replaces` says "Scribe Scroll" —
-  // exact match. But also "Bonus Feat (8th level)" in the cumulative
-  // list versus "Bonus feat (8th level)" — case-insensitive substring
-  // catches that. Returns the matching customization meta or null.
+  // Does `shorter` align to the START of `longer`, ending on a word
+  // boundary? This is the load-bearing distinction between a scaling
+  // suffix and a genuinely different feature:
+  //   "fast movement"  ⊑ "fast movement +20 ft."     → same feature
+  //   "bonus feat"     ⊑ "bonus feat ×2"             → same feature
+  //   "uncanny dodge"  ⋢ "improved uncanny dodge"    → DIFFERENT feature
+  // A plain substring test can't tell those apart, because the third
+  // case is a suffix rather than a prefix. 3.5 is full of "improved X" /
+  // "greater X" pairs that coexist, so suffix matching silently strikes
+  // the base feature alongside the upgraded one.
+  function alignsAsPrefix(longer, shorter) {
+    if (!longer.startsWith(shorter)) return false;
+    if (longer.length === shorter.length) return true;
+    return /[^a-z0-9]/.test(longer[shorter.length]);
+  }
+
+  // A CLOSED list of words that mark a label as the same feature at a higher
+  // tier, so replacing the base also replaces the upgrade: lose Rage and you
+  // lose Greater/Mighty/Tireless Rage; lose Evasion and you lose Improved
+  // Evasion; lose Favored Enemy and you lose the 2nd/3rd/… picks.
+  // Deliberately closed rather than "any leading word", because the leading
+  // word is usually what makes a feature DISTINCT — undead wild shape,
+  // psionic sneak attack, teamwork trap sense, armored uncanny dodge and
+  // mass suggestion all coexist with their base feature and must not be
+  // struck along with it.
+  const TIER_QUALIFIER =
+    /^(?:greater|lesser|improved|superior|supreme|advanced|mighty|tireless|\d+(?:st|nd|rd|th))\s+/;
+  function isTierUpgradeOf(label, token) {
+    const m = TIER_QUALIFIER.exec(label);
+    if (!m) return false;
+    return alignsAsPrefix(label.slice(m[0].length), token);
+  }
+
+  // Match a class-feature label against the replaced-map's tokens. The
+  // strings diverge in irritating ways — the cumulative list renders
+  // "Fast movement +20 ft." / "Bonus feat ×2" while the ACF `replaces`
+  // says "fast movement" / "bonus feat" — so we match a token against a
+  // label in either direction, but only PREFIX-aligned (see above), and
+  // we prefer the LONGEST matching token so an "improved uncanny dodge"
+  // token isn't beaten to the punch by a bare "uncanny dodge" one.
+  // Returns the matching customization meta or null.
   function findReplacement(featureLabel, replacedMap) {
     if (!replacedMap || replacedMap.size === 0) return null;
     const label = String(featureLabel || '').toLowerCase().trim();
     if (!label) return null;
     // Exact match first (fastest, most accurate).
     if (replacedMap.has(label)) return replacedMap.get(label);
-    // Substring match either way — handle slightly-different phrasing
-    // between the cumulative-features list and the ACF `replaces`
-    // free text.
+    let best = null, bestLen = 0;
     for (const [token, meta] of replacedMap) {
-      if (label === token) return meta;
-      if (label.includes(token) && token.length >= 4) return meta;
-      if (token.includes(label) && label.length >= 4) return meta;
+      if (token.length < 4) continue;
+      if (!alignsAsPrefix(label, token) &&
+          !alignsAsPrefix(token, label) &&
+          !isTierUpgradeOf(label, token)) continue;
+      if (token.length > bestLen) { best = meta; bestLen = token.length; }
     }
-    return null;
+    return best;
   }
 
   function updatePreview(panel, typedName, levelStr) {
@@ -3436,8 +3470,21 @@
     const cumulative = dedupSpecials(levelsUpTo(cls.class_id, level));
     const replacedMap = buildReplacedMap(cls.class);
     if (cumulative.length) {
-      const head = cumulative.slice(0, 8).map(c => {
-        const replacedBy = findReplacement(c.label, replacedMap);
+      // Resolve replacements across the WHOLE list before truncating.
+      // Scaling features dedup to their highest tier, which sorts them to
+      // the end (Scout's "Fast movement +20 ft." lands at L11), so a naive
+      // slice-then-check left exactly the replaced features unchecked and
+      // invisible — the Dungeon Specialist report.
+      const marked = cumulative.map(c => ({
+        c, replacedBy: findReplacement(c.label, replacedMap),
+      }));
+      // Show the first 8, then pull in any replaced feature that would
+      // otherwise be hidden — showing what a customization took away is the
+      // entire point of the strikethrough, so it outranks the display cap.
+      const shown = marked.slice(0, 8);
+      const rescued = marked.slice(8).filter(m => m.replacedBy);
+      const visible = shown.concat(rescued);
+      const head = visible.map(({ c, replacedBy }) => {
         if (replacedBy) {
           return `<span class="cf-replaced" title="Replaced by ` +
             `${escapeHtml(replacedBy.kind)}: ${escapeHtml(replacedBy.name)} ` +
@@ -3447,8 +3494,9 @@
         return `<span title="Gained at level ${c.firstLevel}">` +
                escapeHtml(c.label) + '</span>';
       }).join(', ');
-      const tail = cumulative.length > 8
-        ? ` <span style="opacity:.7">+${cumulative.length - 8} more</span>`
+      const hidden = marked.length - visible.length;
+      const tail = hidden > 0
+        ? ` <span style="opacity:.7">+${hidden} more</span>`
         : '';
       bits.push(`<b>Class Features (cumulative):</b> ${head}${tail}`);
     }
@@ -5278,6 +5326,9 @@
     // double-dip canary). Pure functions over level/prog entry arrays.
     aggregateTotals,
     gestaltTotals,
+    // Class-feature replacement matching (ACF / sub-level strikethrough).
+    // Pure over (label, Map<token, meta>) — exposed for the test suite.
+    findReplacement,
     // Creature-as-race racial Hit Dice (see creature-race-picker.js).
     addRacialHD,
     removeRacialHD,
