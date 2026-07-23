@@ -3901,6 +3901,49 @@
     }
   }
 
+  // Feat-granted spell access — the same idea as the class catalog, but
+  // keyed on a feat the character has taken (Mother Cyst's necrotic cyst
+  // spells). A feat has no level track, so holding it IS the threshold;
+  // the per-panel max-castable cap still applies, so the higher-level
+  // spells appear as the caster grows into them.
+  //
+  // Reconciles BOTH directions on every call: adds what the character's
+  // feats grant, and strips rows sourced from a feat they no longer have
+  // (retrained, renamed, removed). Idempotent, so it's safe on recalc.
+  function syncFeatSpellAdditions() {
+    if (typeof ClassSpellAdditions === 'undefined' ||
+        typeof ClassSpellAdditions.featNames !== 'function') return;
+    if (typeof Spells === 'undefined' ||
+        typeof Spells.addKnownSpell !== 'function') return;
+    const hasFeat = (typeof Feats !== 'undefined' && Feats.hasFeat)
+      ? Feats.hasFeat : null;
+    if (!hasFeat) return;
+
+    const held = ClassSpellAdditions.featNames().filter(n => hasFeat(n));
+    // Strip rows granted by a catalog feat the character no longer holds.
+    const heldPrefixes = held.map(n => (n + ' — ').toLowerCase());
+    let removed = 0;
+    for (const row of document.querySelectorAll(
+           '#spells-content .sc-known-row[data-freebie="1"]')) {
+      const src = (row.dataset.source || '').toLowerCase();
+      const fromCatalogFeat = ClassSpellAdditions.featNames()
+        .some(n => src.startsWith((n + ' — ').toLowerCase()));
+      if (!fromCatalogFeat) continue;                       // class-granted — leave alone
+      if (heldPrefixes.some(p => src.startsWith(p))) continue;
+      row.remove(); removed++;
+    }
+    const panels = document.querySelectorAll(
+      '#spells-content [data-caster-type="spellcasting"]');
+    for (const featName of held) {
+      const features = ClassSpellAdditions.getFeatFeatures(featName);
+      if (!features.length) continue;
+      for (const panel of panels) applyFeaturesToPanel(panel, features, featName);
+    }
+    if (removed > 0 && typeof Spells.recalc === 'function') {
+      try { Spells.recalc(); } catch (e) { /* non-fatal */ }
+    }
+  }
+
   // Compute the panel's max castable level (highest level with at
   // least one of base/domain/specialist slots > 0), then push every
   // applicable feature's spells into the panel's Known list, capped
@@ -5341,5 +5384,9 @@
     // Called by race-picker after spawning a racial maneuvers panel so a
     // Valkyrie applied on top of existing swordsage levels stacks immediately.
     refreshManeuverTabs: refreshAllManeuverTabs,
+    // Reconcile feat-granted spell access (Mother Cyst). Called from
+    // recalcAll — feats have no dedicated change event, and this is
+    // idempotent, so riding the recalc keeps it current.
+    syncFeatSpellAdditions,
   };
 })();

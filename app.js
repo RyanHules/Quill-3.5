@@ -279,6 +279,13 @@
 
     Character.recalc(getModWithBonuses, bonuses);
     Skills.recalc(getModWithBonuses);
+    // Feat-granted spell access (Mother Cyst's necrotic cyst spells, …).
+    // Runs BEFORE Spells.recalc so any rows it adds or strips are counted
+    // by the same pass. Idempotent and cheap when the character has none
+    // of the catalogued feats, which is the overwhelmingly common case.
+    if (typeof ClassPicker !== "undefined" && ClassPicker.syncFeatSpellAdditions) {
+      ClassPicker.syncFeatSpellAdditions();
+    }
     Spells.recalc(getModWithBonuses, bonuses);
     Equipment.updatePaperDoll();
 
