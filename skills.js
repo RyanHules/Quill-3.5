@@ -470,6 +470,18 @@ const Skills = (function () {
       // UA trait/flaw skill bonuses — full name + subtype-base match, untyped.
       const traitBonus = (traitSkill.direct[blKey] || 0)
         + (blBaseKey ? (traitSkill.direct[blBaseKey] || 0) : 0) + (traitSkill.global || 0);
+      // Split for LABELLING only — the total above already counts both. A
+      // trait's +1 and a flaw's -4 are different sources and must not be
+      // chipped as one "-3 trait". Falls back to a single combined chip if
+      // the picker predates the byKind split.
+      const traitKindBonus = (kind) => {
+        const b = traitSkill.byKind && traitSkill.byKind[kind];
+        if (!b) return null;
+        return (b.direct[blKey] || 0)
+          + (blBaseKey ? (b.direct[blBaseKey] || 0) : 0) + (b.global || 0);
+      };
+      const traitOnly = traitKindBonus("trait");
+      const flawOnly  = traitKindBonus("flaw");
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
         + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus
@@ -488,43 +500,50 @@ const Skills = (function () {
         totalEl.textContent = (trainedOnly && ranks === 0) ? "NR" : fmt(total);
       }
 
-      // Show synergy info badges (unconditional only). Append an
-      // item-familiar badge when an applicable bonus is in play.
+      // Source chips for every bonus folded into the total that ISN'T one of
+      // the three boxes the player can see and edit (ranks / ability mod /
+      // misc). Anything else arriving silently means the displayed total
+      // can't be reconciled by hand — which is the whole complaint. Every
+      // addend in `total` above needs a chip here; if you add a source to
+      // that sum, add it to this list too.
       const synInfoEl = row.querySelector(".synergy-info");
       if (synInfoEl) {
         const badges = [];
+        // Signed so a PENALTY is as visible as a bonus (traits and flaws,
+        // racial -2s, and Large-creature Hide all go negative).
+        const chip = (amount, label, rgb, title) => {
+          if (!amount) return;
+          badges.push(
+            `<span class="synergy-badge" style="background:rgba(${rgb},0.16);` +
+            `border-color:rgba(${rgb},0.5)" title="${escapeAttrSk(title)}">` +
+            `${amount > 0 ? "+" : ""}${amount} ${label}</span>`);
+        };
         for (const s of unconditional) {
           badges.push(`<span class="synergy-badge" title="${s.from}: +${s.bonus}">+${s.bonus} ${s.from}</span>`);
         }
-        if (ifamBonus > 0) {
-          badges.push(
-            `<span class="synergy-badge" style="background:rgba(180,140,230,0.15);border-color:rgba(180,140,230,0.5)" ` +
-            `title="Item familiar bonus (UA): bypass max-ranks cap">` +
-            `+${ifamBonus} item familiar</span>`);
-        }
-        if (bloodlineBonus > 0) {
-          badges.push(
-            `<span class="synergy-badge" style="background:rgba(200,140,60,0.16);border-color:rgba(200,140,60,0.5)" ` +
-            `title="Bloodline skill bonus (UA Bloodlines)">` +
-            `+${bloodlineBonus} bloodline</span>`);
-        }
-        if (sizeBonus !== 0) {
-          badges.push(
-            `<span class="synergy-badge" style="background:rgba(120,170,210,0.16);border-color:rgba(120,170,210,0.5)" ` +
-            `title="Size modifier to Hide (${charSize})">` +
-            `${sizeBonus > 0 ? "+" : ""}${sizeBonus} size</span>`);
-        }
-        if (raceBonus !== 0) {
-          badges.push(
-            `<span class="synergy-badge" style="background:rgba(110,180,120,0.16);border-color:rgba(110,180,120,0.5)" ` +
-            `title="Racial skill bonus">` +
-            `${raceBonus > 0 ? "+" : ""}${raceBonus} race</span>`);
-        }
-        if (tmplBonus !== 0) {
-          badges.push(
-            `<span class="synergy-badge" style="background:rgba(180,150,210,0.16);border-color:rgba(180,150,210,0.5)" ` +
-            `title="Template skill bonus">` +
-            `${tmplBonus > 0 ? "+" : ""}${tmplBonus} template</span>`);
+        chip(ifamBonus, "item familiar", "180,140,230",
+             "Item familiar bonus (UA): bypasses the max-ranks cap");
+        chip(bloodlineBonus, "bloodline", "200,140,60",
+             "Bloodline skill bonus (UA Bloodlines)");
+        chip(sizeBonus, "size", "120,170,210",
+             `Size modifier to Hide (${charSize})`);
+        chip(raceBonus, "race", "110,180,120", "Racial skill bonus");
+        chip(tmplBonus, "template", "180,150,210", "Template skill bonus");
+        // These four were reaching the total with no chip at all.
+        chip(equipBonus, "equipment", "150,170,190",
+             "Skill bonus from a worn magic item");
+        chip(featBonus, "feat", "200,161,74",
+             "Skill bonus granted by a feat");
+        chip(classBonus, "class", "160,190,120",
+             "Skill bonus from a class feature");
+        if (traitOnly === null) {
+          chip(traitBonus, "trait", "190,130,160",
+               "Skill bonus from a UA trait or flaw");
+        } else {
+          chip(traitOnly, "trait", "110,180,120",
+               "Skill modifier from a UA trait");
+          chip(flawOnly, "flaw", "190,120,150",
+               "Skill modifier from a UA flaw");
         }
         synInfoEl.innerHTML = badges.join("");
       }
@@ -603,6 +622,15 @@ const Skills = (function () {
 
     // Class feature synergies (not skills, so handled separately)
     updateClassFeatureSynergies(rankMap);
+  }
+
+  // Attribute-safe escape for chip tooltips. The strings are ours today,
+  // but charSize comes off a form control, and a title="" is exactly the
+  // place an unescaped quote silently breaks the surrounding markup.
+  function escapeAttrSk(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   // Turning feats that earn a recognition chip in the Turn/Rebuke section.

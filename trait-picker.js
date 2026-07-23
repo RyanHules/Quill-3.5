@@ -186,7 +186,10 @@ const TraitPicker = (function () {
       const txt = document.createElement('span');
       txt.textContent = a.name.replace(/\s*\((Trait|Flaw)\)\s*$/i, '')
         + (isFlaw ? ' ⚑' : '');
-      txt.title = a.kind;
+      // Hovering a chip should say what the trait DOES. The chip is the only
+      // place an applied trait is visible on the Character tab, and a title
+      // of just "trait" told the player nothing they didn't already know.
+      txt.title = chipTooltip(a);
       const x = document.createElement('button');
       x.type = 'button';
       x.textContent = '×';
@@ -198,6 +201,26 @@ const TraitPicker = (function () {
       chip.appendChild(x);
       list.appendChild(chip);
     }
+  }
+
+  // Tooltip for an applied trait/flaw chip: its actual mechanical effect,
+  // pulled from the same DB row the info panel uses. UA traits state a
+  // benefit AND a drawback (that's the trade), so both are shown; flaws
+  // carry only a drawback. Falls back to the bare kind when the DB isn't
+  // loaded yet or the entry can't be resolved (homebrew, renamed).
+  function chipTooltip(a) {
+    const d = resolveData(a);
+    if (!d) return a.kind === 'flaw' ? 'Flaw' : 'Trait';
+    const parts = [];
+    if (d.benefit)  parts.push(`Benefit: ${d.benefit}`);
+    if (d.drawback) parts.push(`Drawback: ${d.drawback}`);
+    if (d.effect)   parts.push(`Effect: ${d.effect}`);
+    if (!parts.length && d.description) parts.push(d.description);
+    if (!parts.length) return a.kind === 'flaw' ? 'Flaw' : 'Trait';
+    // Native tooltips don't scroll, so cap the length rather than render a
+    // wall of text the player can't dismiss.
+    const text = parts.join('\n');
+    return text.length > 600 ? text.slice(0, 597) + '…' : text;
   }
 
   function showInfo(c) {
@@ -235,18 +258,31 @@ const TraitPicker = (function () {
   }
 
   // ---- aggregator feeds (mirror template-picker) ---------------------
+  // `byKind` splits the same numbers into trait- vs flaw-sourced buckets.
+  // The merged `direct`/`global` stay authoritative for the skill TOTAL (a
+  // trait's +1 and a flaw's -4 do both apply); the split exists so the
+  // Skills tab can label them separately. Reporting a +1 trait and a -4
+  // flaw as a single "-3 trait" chip is actively wrong about where the
+  // number came from — a flaw's penalty is not a trait's doing.
   function getActiveSkillBonuses() {
-    const merged = { direct: {}, global: 0, situational: [] };
+    const merged = {
+      direct: {}, global: 0, situational: [],
+      byKind: { trait: { direct: {}, global: 0 },
+                flaw:  { direct: {}, global: 0 } },
+    };
     if (typeof DND35 === 'undefined' || !DND35.categorizeSkillBonuses) return merged;
     for (const a of applied) {
       const d = resolveData(a);
       if (!d || !Array.isArray(d.bonuses)) continue;
       const cat = DND35.categorizeSkillBonuses(d.bonuses);
+      const bucket = merged.byKind[a.kind === 'flaw' ? 'flaw' : 'trait'];
       for (const [k, v] of Object.entries(cat.direct)) {
         merged.direct[k] = (merged.direct[k] || 0) + v;   // untyped → stack
+        bucket.direct[k] = (bucket.direct[k] || 0) + v;
       }
       merged.global += cat.global;
-      cat.situational.forEach(s => { s.source = a.name; });
+      bucket.global += cat.global;
+      cat.situational.forEach(s => { s.source = a.name; s.kind = a.kind; });
       merged.situational.push(...cat.situational);
     }
     return merged;
