@@ -2579,6 +2579,42 @@
     expect(fortTotal(), base + 1, 'SS19: Fort total identical after a collect/load round-trip');
   });
 
+  regression('SS21: item-borne armour bonuses reach the Defense Onion armor box', async () => {
+    await newCharacter();
+    const box = (id) => document.getElementById(id).textContent;
+    const setF = (id, v) => {
+      const e = document.getElementById(id);
+      if (e.type === 'checkbox') e.checked = v; else e.value = v;
+      e.dispatchEvent(new Event('input', { bubbles: true }));
+      e.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    // Bracers of Armor +4, worn, with NO worn armour. The AC total was always
+    // right, but #ac-armor was written from the Equipment tab's armour field
+    // alone and reported 0 — the bonus was invisible in its own box.
+    Equipment.addMagicItem({
+      name: 'Bracers of Armor +4', slot: 'arms', worn: true, isProtective: true,
+      acBonuses: [{ ac: 4, type: 'Armor', touch: false, flatfooted: true }],
+    });
+    await wait(40); window.recalcAll(); await wait(80);
+    expect(box('ac-armor'), '4', 'SS21: item armour bonus shows in the armor box');
+    const withItemOnly = parseInt(box('ac-total'), 10);
+    // Same-type bonuses do NOT stack in 3.5 — the higher applies, and the box
+    // must show whichever won, not the sum.
+    setF('armor-ac-bonus', '6'); setF('armor-worn', true);
+    await wait(40); window.recalcAll(); await wait(80);
+    expect(box('ac-armor'), '6', 'SS21: worn armour +6 outranks the item +4');
+    expect(parseInt(box('ac-total'), 10), withItemOnly + 2,
+      'SS21: AC total rises by the DIFFERENCE (6-4), i.e. no stacking');
+    setF('armor-ac-bonus', '2');
+    await wait(40); window.recalcAll(); await wait(80);
+    expect(box('ac-armor'), '4', 'SS21: the better item wins when worn armour is weaker');
+    // Shield stays its own bucket.
+    setF('shield-ac-bonus', '3'); setF('shield-worn', true);
+    await wait(40); window.recalcAll(); await wait(80);
+    expect(box('ac-shield'), '3', 'SS21: shield box unaffected by armour resolution');
+    expect(box('ac-armor'), '4', 'SS21: armour box unaffected by the shield');
+  });
+
   regression('SS20: feat rows stay aligned regardless of the prereq badge glyph', async () => {
     await newCharacter();
     document.querySelector('.tab[data-tab="tab-feats"]').click();

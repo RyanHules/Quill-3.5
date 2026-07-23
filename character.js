@@ -161,9 +161,11 @@ const Character = (function () {
     const shieldSpellFail = shieldWorn ? int($("#shield-spell-fail").value) : 0;
     const totalSpellFailure = armorSpellFail + shieldSpellFail;
 
-    // Auto-set AC armor/shield fields on character tab (now read-only spans)
-    $("#ac-armor").textContent = armorACBonus;
-    $("#ac-shield").textContent = shieldACBonus;
+    // NOTE: #ac-armor / #ac-shield are written further down, AFTER worn magic
+    // items are resolved into bestByType. Writing them here (from the worn
+    // armor/shield fields alone) made the Defense Onion under-report whenever
+    // an item carried the bonus instead — Bracers of Armor +4 with no worn
+    // armor showed "Armor 0" even though the AC total was right.
 
     // ---- Carrying load penalties (Table 9-2, PHB p.162) ----
     // Carrying capacity uses the EFFECTIVE Strength score captured above
@@ -387,7 +389,13 @@ const Character = (function () {
       }
     });
 
-    // Auto-set deflection display from resolved equipment bonuses
+    // Auto-set the Defense Onion displays from the RESOLVED bonuses, so a
+    // bonus carried by a worn magic item shows in its own box rather than
+    // only inside the AC total. Same-type bonuses don't stack in 3.5, so the
+    // resolved figure is max(worn armor/shield field, best item of that type)
+    // — which is exactly what bestByType holds by this point.
+    $("#ac-armor").textContent = (bestByType["Armor"] || {}).ac || 0;
+    $("#ac-shield").textContent = (bestByType["Shield"] || {}).ac || 0;
     const deflectionBest = bestByType["Deflection"];
     $("#ac-deflection").textContent = deflectionBest ? deflectionBest.ac : 0;
 
