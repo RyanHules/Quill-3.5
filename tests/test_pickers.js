@@ -3797,6 +3797,163 @@ test('FeatPrereqs: parse extracts canonical atom kinds', () => {
   assert(kinds.includes('feat'),        `missing feat atom: ${kinds.join(',')}`);
 });
 
+// ---- tests: FeatPrereqs parser-overreach family (2026-07-23) -------------
+//
+// A DB-wide audit of all 1912 feats with prereqs found the generic
+// "<Name> level N" pattern swallowing 86 fragments that were never class
+// levels, across 6 distinct families. Each rendered a confident, WRONG ✗
+// ("no levels in Constitution"). The reported symptom was only the first
+// family. These lock the whole set.
+
+test('FeatPrereqs: "Character level 6th" is a characterLevel atom, not a class', () => {
+  const FP = loadFeatPrereqs();
+  for (const text of ['Character level 6th', 'character level 3rd']) {
+    const atoms = FP.parse(text);
+    assert(atoms.length === 1 && atoms[0].kind === 'characterLevel',
+      `"${text}" should parse as characterLevel, got ` +
+      atoms.map(a => a.kind).join(','));
+  }
+  assert(FP.parse('Character level 6th')[0].level === 6, 'level should be 6');
+  // ...and it must still evaluate against the character level, not a class.
+  const st = { characterLevel: 7, classes: [], abilities: {}, featNames: new Set(),
+               skillRanks: new Map(), bab: 0, alignment: '',
+               casterLevels: { arcane: 0, divine: 0, psionic: 0, any: 0 } };
+  assert(FP.check(FP.parse('Character level 6th'), st).atoms[0].status === 'satisfied',
+    'character level 7 should satisfy "Character level 6th"');
+});
+
+test('FeatPrereqs: spelled-out ability names normalize to the 3-letter key', () => {
+  const FP = loadFeatPrereqs();
+  const want = { Strength: 'STR', Dexterity: 'DEX', Constitution: 'CON',
+                 Intelligence: 'INT', Wisdom: 'WIS', Charisma: 'CHA' };
+  for (const [long, short] of Object.entries(want)) {
+    const atoms = FP.parse(`${long} 13`);
+    assert(atoms.length === 1 && atoms[0].kind === 'ability',
+      `"${long} 13" should be an ability atom, got ${atoms.map(a => a.kind)}`);
+    assert(atoms[0].ability === short,
+      `"${long}" should normalize to ${short}, got ${atoms[0].ability}`);
+  }
+  // The abbreviation must keep working (alternation is left-biased, so the
+  // long forms are listed first — "Str" must not strand "ength 13").
+  assert(FP.parse('Str 13')[0].ability === 'STR', 'Str 13 still parses');
+});
+
+test('FeatPrereqs: "spellcaster level N" routes to casterLevel', () => {
+  const FP = loadFeatPrereqs();
+  const cases = [
+    ['Caster level 5th',            'any'],
+    ['Spellcaster level 11th+',     'any'],
+    ['arcane spellcaster level 7th','arcane'],
+    ['divine spellcaster level 3+', 'divine'],
+    ['manifester level 3rd',        'any'],
+  ];
+  for (const [text, flavor] of cases) {
+    const atoms = FP.parse(text);
+    assert(atoms.length === 1 && atoms[0].kind === 'casterLevel',
+      `"${text}" should be casterLevel, got ${atoms.map(a => a.kind)}`);
+    assert(atoms[0].flavor === flavor,
+      `"${text}" flavor should be ${flavor}, got ${atoms[0].flavor}`);
+  }
+});
+
+test('FeatPrereqs: cast/manifest-spells phrasing variants all parse', () => {
+  const FP = loadFeatPrereqs();
+  const cases = [
+    ['ability to cast 3rd-level arcane spells',              3, 'arcane'],
+    ['ability to spontaneously cast 2nd-level arcane spells',2, 'arcane'],
+    ['able to cast 9th-level divine spells',                 9, 'divine'],
+    ['Able to cast 1st-level spells',                        1, 'any'],
+    ['ability to cast 9th-level arcane or divine spells',    9, 'arcane'],
+    ['ability to cast 2nd-level or higher arcane spells',    2, 'arcane'],
+    ['ability to manifest 9th-level powers',                 9, 'psionic'],
+    ['ability to manifest at least one 9th-level power',     9, 'psionic'],
+    ['ability to manifest 2nd-level psionic powers',         2, 'psionic'],
+  ];
+  for (const [text, level, flavor] of cases) {
+    const atoms = FP.parse(text);
+    assert(atoms.length === 1 && atoms[0].kind === 'castSpells',
+      `"${text}" should be castSpells, got ${atoms.map(a => a.kind)}`);
+    assert(atoms[0].level === level && atoms[0].flavor === flavor,
+      `"${text}" → L${atoms[0].level} ${atoms[0].flavor}, want L${level} ${flavor}`);
+  }
+});
+
+test('FeatPrereqs: "A or B" alternation becomes an anyOf atom', () => {
+  const FP = loadFeatPrereqs();
+  const atoms = FP.parse('Spell Focus (evocation) or evoker level 1st');
+  assert(atoms.length === 1 && atoms[0].kind === 'anyOf',
+    `should be one anyOf atom, got ${atoms.map(a => a.kind)}`);
+  assert(atoms[0].options.map(o => o.kind).join('|') === 'feat|classLevel',
+    `branches should be feat|classLevel, got ` +
+    atoms[0].options.map(o => o.kind).join('|'));
+  // Satisfied if EITHER branch is.
+  const st = { characterLevel: 1, classes: [{ name: 'Evoker', level: 1 }],
+               abilities: {}, featNames: new Set(), skillRanks: new Map(),
+               bab: 0, alignment: '',
+               casterLevels: { arcane: 0, divine: 0, psionic: 0, any: 0 } };
+  assert(FP.check(atoms, st).atoms[0].status === 'satisfied',
+    'evoker 1 should satisfy the alternation via the classLevel branch');
+});
+
+test('FeatPrereqs: alternation never splits inside a parenthetical', () => {
+  const FP = loadFeatPrereqs();
+  // "Weapon Focus (warhammer or light hammer)" is ONE feat with a choice
+  // inside it. A naive split yields the mangled pair
+  // ["Weapon Focus (warhammer", "light hammer)"] — data destruction.
+  const atoms = FP.parse('Weapon Focus (warhammer or light hammer)');
+  assert(atoms.length === 1, `should stay one atom, got ${atoms.length}`);
+  assert(atoms[0].kind === 'feat', `should be a feat atom, got ${atoms[0].kind}`);
+  assert(atoms[0].raw === 'Weapon Focus (warhammer or light hammer)',
+    `raw text must survive intact, got "${atoms[0].raw}"`);
+});
+
+test('FeatPrereqs: alternation is declined when a branch does not parse', () => {
+  const FP = loadFeatPrereqs();
+  // These "or"s are inside one requirement, not between two. Splitting
+  // just doubles the "?" chips (or invents a feat name).
+  for (const text of ['sneak attack +2d6 or sudden strike +2d6',
+                      'size Large or larger',
+                      'lay on hands or wholeness of body class feature']) {
+    const atoms = FP.parse(text);
+    assert(atoms.length === 1 && atoms[0].kind !== 'anyOf',
+      `"${text}" should NOT split, got ${atoms.map(a => a.kind).join(',')}`);
+  }
+});
+
+test('FeatPrereqs: a leading "or " is stripped from a comma-split fragment', () => {
+  const FP = loadFeatPrereqs();
+  // "Crusader, Swordsage, or Warblade level 1+" splits on commas, leaving
+  // a third fragment that parsed as a class literally named "or Warblade".
+  const atoms = FP.parse('Crusader, Swordsage, or Warblade level 1+');
+  const cl = atoms.find(a => a.kind === 'classLevel');
+  assert(cl, `expected a classLevel atom, got ${atoms.map(a => a.kind).join(',')}`);
+  assert(cl.className === 'Warblade',
+    `className should be "Warblade", got "${cl.className}"`);
+});
+
+test('FeatPrereqs: an unknown class name degrades to "?" not a wrong "✗"', () => {
+  // The generic "<Name> level N" pattern also swallows "Fly speed 90",
+  // "Leadership score 25", "essentia pool 2", "Meldshaper level 9th".
+  // Reporting ✗ "no levels in Fly speed" is confidently wrong.
+  const fakeDB = {
+    isLoaded: () => true,
+    query: () => [{ n: 'fighter' }, { n: 'wizard' }],
+    queryOne: () => null,
+  };
+  const FP = loadFeatPrereqs({ DB: fakeDB });
+  const st = { characterLevel: 5, classes: [], abilities: {},
+               featNames: new Set(), skillRanks: new Map(), bab: 0,
+               alignment: '',
+               casterLevels: { arcane: 0, divine: 0, psionic: 0, any: 0 } };
+  const bogus = FP.check(FP.parse('Fly speed 90'), st).atoms[0];
+  assert(bogus.status === 'unknown',
+    `unknown "class" should be unknown, got ${bogus.status}`);
+  // A REAL class the character lacks must still report unmet.
+  const real = FP.check(FP.parse('Fighter level 6th'), st).atoms[0];
+  assert(real.status === 'unmet',
+    `a real class with no levels should stay unmet, got ${real.status}`);
+});
+
 test('FeatPrereqs: snapshotAtLevel falls back to live snapshot when history is empty', () => {
   // Phase B contract: if no history is supplied (or it's empty),
   // snapshotAtLevel returns the present-tense snapshot — so existing

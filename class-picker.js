@@ -5270,6 +5270,10 @@
     findEntry: findClassEntry,
     removeClass,
     clearAll: clearAllClasses,
+    // Total character level: sums class levels incl. the synthetic racial-HD
+    // entry, and takes max(side A, side B) under gestalt rather than summing.
+    // Consumed by feat-prereqs.js for "Character level 6th" requirements.
+    totalCharacterLevel,
     // Math, exposed for the play-feel suite's synthesis invariants (the
     // double-dip canary). Pure functions over level/prog entry arrays.
     aggregateTotals,

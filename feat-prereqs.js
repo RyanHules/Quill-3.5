@@ -29,20 +29,55 @@ const FeatPrereqs = (function () {
   // atom carrying the raw text so the UI can show a "?" marker.
 
   const ABILITIES = ['STR','DEX','CON','INT','WIS','CHA'];
-  const ABILITY_RX_PARTS = ABILITIES.map(a => a).join('|');
+  // Books spell the ability out about as often as they abbreviate it
+  // ("Constitution 13" on Disease Immunity, "Intelligence 13+" on
+  // Inscribe Rune). Without these the fragment fell through to the
+  // generic class-level pattern and rendered "✗ no levels in
+  // Constitution" — a confident, wrong ✗ on very common feats.
+  const ABILITY_FULL = {
+    STRENGTH: 'STR', DEXTERITY: 'DEX', CONSTITUTION: 'CON',
+    INTELLIGENCE: 'INT', WISDOM: 'WIS', CHARISMA: 'CHA',
+  };
+  // Long forms first: alternation is left-biased, and "Str" would
+  // otherwise win the first position and strand "ength 13".
+  const ABILITY_RX_PARTS =
+    [...Object.keys(ABILITY_FULL), ...ABILITIES].join('|');
+
+  // "Ability to cast 3rd-level arcane spells" and its many phrasings.
+  // Kept as a named constant because parse() also needs it to decide
+  // whether an " or " inside a fragment is an alternation to split
+  // ("Spell Focus (evocation) or evoker level 1st") or part of the
+  // spell clause itself ("9th-level arcane or divine spells",
+  // "2nd-level or higher arcane spells") — those must NOT be split.
+  // Covers: ability/able to · an optional adverb ("spontaneously") ·
+  // cast/manifest · "at least one" · "or higher" · a two-flavor tail ·
+  // spell(s)/power(s).
+  const CAST_SPELLS_RX =
+    /\b(?:ability|able)\s+to\s+(?:\w+ly\s+)?(cast|manifest)\s+(?:at\s+least\s+one\s+)?(\d+)(?:st|nd|rd|th)?[\s-]+level\s+(?:or\s+higher\s+)?(arcane|divine|psionic)?(?:\s+or\s+(?:arcane|divine|psionic))?\s*(?:spells?|powers?)/i;
 
   // Each pattern: regex + builder function (match → atom).
   const PATTERNS = [
     // "Caster level 5th" / "manifester level 3rd" / "arcane caster
     // level 6th" / "Divine caster level 5th". Matched FIRST so it
     // doesn't get caught by the more generic "Class level N" pattern.
+    // The optional "spell" prefix picks up the "Spellcaster level 11th+"
+    // / "arcane spellcaster level 7th" spellings — `\b` sits before the
+    // whole word, so a bare `(?:caster)` never matched those.
     {
-      rx: /\b(arcane|divine|psionic)?\s*(?:caster|manifester)\s+level\s+(\d+)(?:st|nd|rd|th)?\+?/i,
+      rx: /\b(arcane|divine|psionic)?\s*(?:spell)?(?:caster|manifester)\s+level\s+(\d+)(?:st|nd|rd|th)?\+?/i,
       build: (m) => ({
         kind: 'casterLevel',
         flavor: m[1] ? m[1].toLowerCase() : 'any',
         level: parseInt(m[2], 10),
       }),
+    },
+    // "Character level 6th" / "character level 3rd". MUST precede the
+    // generic class-level pattern, which would otherwise capture
+    // "Character" as a class name and report "no levels in Character"
+    // on all 33 feats that use this phrasing.
+    {
+      rx: /\bcharacter\s+level\s+(\d+)(?:st|nd|rd|th)?\+?/i,
+      build: (m) => ({ kind: 'characterLevel', level: parseInt(m[1], 10) }),
     },
     // "base attack bonus +6" — also matches "BAB +N".
     {
@@ -51,11 +86,14 @@ const FeatPrereqs = (function () {
     },
     // "Ability to cast 3rd-level [arcane|divine] spells" / similar.
     {
-      rx: /\bability\s+to\s+cast\s+(\d+)(?:st|nd|rd|th)?[\s-]+level\s+(arcane|divine|psionic)?\s*spells?/i,
+      rx: CAST_SPELLS_RX,
       build: (m) => ({
         kind: 'castSpells',
-        level: parseInt(m[1], 10),
-        flavor: m[2] ? m[2].toLowerCase() : 'any',
+        level: parseInt(m[2], 10),
+        // "manifest" is always psionic even when the text doesn't say so
+        // ("ability to manifest 9th-level powers").
+        flavor: m[3] ? m[3].toLowerCase()
+                     : (/^manifest$/i.test(m[1]) ? 'psionic' : 'any'),
       }),
     },
     // Skill ranks — "Skill 9 ranks" / "Skill (subtype) 5 ranks".
@@ -110,11 +148,14 @@ const FeatPrereqs = (function () {
     // as "Caster level Cha 15" garbage.
     {
       rx: new RegExp(`\\b(${ABILITY_RX_PARTS})\\s+(\\d+)`, 'i'),
-      build: (m) => ({
-        kind: 'ability',
-        ability: m[1].toUpperCase(),
-        value: parseInt(m[2], 10),
-      }),
+      build: (m) => {
+        const k = m[1].toUpperCase();
+        return {
+          kind: 'ability',
+          ability: ABILITY_FULL[k] || k,   // "CONSTITUTION" → "CON"
+          value: parseInt(m[2], 10),
+        };
+      },
     },
     // Alignment — "Evil alignment" / "Chaotic alignment" / "Any chaotic"
     {
@@ -166,39 +207,79 @@ const FeatPrereqs = (function () {
     // can carry their raw form for display.
     const fragments = text
       .split(/\s*[,;]\s*/)
-      .map(f => f.replace(/\.\s*$/, '').trim())  // strip trailing periods
+      // Strip trailing periods, and a leading "or " left behind when a
+      // book writes an alternation across commas ("Crusader, Swordsage,
+      // or Warblade level 1+") — without this the third fragment parsed
+      // as a class literally named "or Warblade".
+      .map(f => f.replace(/^or\s+/i, '').replace(/\.\s*$/, '').trim())
       .filter(Boolean);
     const atoms = [];
     for (const frag of fragments) {
-      let matched = null;
-      for (const { rx, build } of PATTERNS) {
-        const m = frag.match(rx);
-        // Only count as a hit if the regex consumed most of the fragment
-        // (within 4 chars of the full length). This rejects e.g. matching
-        // "Str 13" inside "Demonstrated Strength 13" — wait, that's a
-        // contrived example; in practice the looseness is fine because
-        // fragments are short.
-        if (m) {
-          matched = { ...build(m), raw: frag };
-          break;
+      // "A or B" alternation — satisfied if EITHER side is. Skipped when
+      // the "or" belongs to a cast-spells clause ("9th-level arcane or
+      // divine spells"), which is one requirement, not two.
+      if (!CAST_SPELLS_RX.test(frag)) {
+        const alts = splitAlternatives(frag);
+        // Only keep the split when EVERY branch parses to something
+        // real. An unparsed branch means the "or" wasn't a requirement
+        // boundary at all — "sneak attack +2d6 or sudden strike +2d6",
+        // "size Large or larger", "lay on hands or wholeness of body
+        // class feature" — and splitting there just doubles the "?"
+        // chips, or worse invents a feat named "Ability to cast arcane
+        // spells as a bard". Falling back re-parses the fragment whole,
+        // which is exactly the pre-alternation behavior.
+        if (alts.length > 1) {
+          const options = alts.map(parseFragment);
+          if (options.every(o => o.kind !== 'unparsed')) {
+            atoms.push({ kind: 'anyOf', options, raw: frag });
+            continue;
+          }
         }
       }
-      if (matched) {
-        atoms.push(matched);
-        continue;
-      }
-      // Fall through to a feat-name check OR unparsed.
-      // For now we emit 'feat' for any short capitalized phrase that
-      // doesn't contain digits — the checker will look it up against
-      // the character's actual feat list. If the lookup fails, the
-      // checker downgrades to 'unparsed'.
-      if (/^[A-Z][\w'’,\s\-()]+$/.test(frag) && !/\d/.test(frag)) {
-        atoms.push({ kind: 'feat', name: frag.trim(), raw: frag });
-      } else {
-        atoms.push({ kind: 'unparsed', raw: frag });
-      }
+      atoms.push(parseFragment(frag));
     }
     return atoms;
+  }
+
+  // Split a fragment on " or " — but only at parenthesis depth 0. A book
+  // that writes "Weapon Focus (warhammer or light hammer)" means ONE feat
+  // with a choice inside it, not two requirements; a naive split yields
+  // the mangled pair ["Weapon Focus (warhammer", "light hammer)"].
+  // Returns [frag] when there's nothing to split.
+  function splitAlternatives(frag) {
+    const parts = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < frag.length; i++) {
+      const ch = frag[i];
+      if (ch === '(') { depth++; continue; }
+      if (ch === ')') { depth = Math.max(0, depth - 1); continue; }
+      if (depth !== 0) continue;
+      const m = /^\s+or\s+/i.exec(frag.slice(i));
+      if (m) {
+        parts.push(frag.slice(start, i));
+        i += m[0].length - 1;
+        start = i + 1;
+      }
+    }
+    parts.push(frag.slice(start));
+    return parts.map(s => s.trim()).filter(Boolean);
+  }
+
+  // Parse a single (already split + cleaned) fragment into one atom.
+  function parseFragment(frag) {
+    for (const { rx, build } of PATTERNS) {
+      const m = frag.match(rx);
+      if (m) return { ...build(m), raw: frag };
+    }
+    // Fall through to a feat-name check OR unparsed.
+    // For now we emit 'feat' for any short capitalized phrase that
+    // doesn't contain digits — the checker will look it up against
+    // the character's actual feat list. If the lookup fails, the
+    // checker downgrades to 'unparsed'.
+    if (/^[A-Z][\w'’,\s\-()]+$/.test(frag) && !/\d/.test(frag)) {
+      return { kind: 'feat', name: frag.trim(), raw: frag };
+    }
+    return { kind: 'unparsed', raw: frag };
   }
 
   // ---- Character-state snapshot --------------------------------------
@@ -281,6 +362,18 @@ const FeatPrereqs = (function () {
     }
     // Alignment.
     s.alignment = (document.getElementById('char-alignment')?.value || '').toLowerCase();
+    // Character level — what "Character level 6th" prereqs mean. Prefer
+    // ClassPicker's own total (it counts racial HD and takes the MAX of
+    // the two sides under gestalt rather than summing them); fall back to
+    // the #char-level box, then to summing whatever classes we found.
+    if (window.ClassPicker && typeof ClassPicker.totalCharacterLevel === 'function') {
+      s.characterLevel = ClassPicker.totalCharacterLevel();
+    }
+    if (!s.characterLevel) {
+      s.characterLevel =
+        parseInt(document.getElementById('char-level')?.value, 10) ||
+        s.classes.reduce((n, c) => n + (c.level || 0), 0);
+    }
     return s;
   }
 
@@ -289,6 +382,22 @@ const FeatPrereqs = (function () {
   // Given parsed atoms + a snapshot, returns
   //   { atoms: [{ ...atom, status: 'satisfied'|'unmet'|'unknown', detail }] }
   // The UI maps statuses to ✓/✗/? markers.
+
+  // Is `name` a real class or PrC in the DB? Backs the classLevel
+  // safety net above. Built once, lazily; returns true when the DB
+  // isn't available so a DB-less sheet keeps its old behavior instead
+  // of turning every class prereq into a "?".
+  let _classNameSet = null;
+  function isKnownClassName(name) {
+    if (!(window.DB && DB.isLoaded())) return true;
+    if (!_classNameSet) {
+      _classNameSet = new Set(
+        (DB.query("SELECT DISTINCT LOWER(name) AS n FROM entry " +
+                  "WHERE type IN ('class','prc')") || [])
+          .map(r => r.n));
+    }
+    return _classNameSet.has(String(name).toLowerCase());
+  }
 
   function check(atoms, state) {
     state = state || snapshot();
@@ -334,13 +443,52 @@ const FeatPrereqs = (function () {
           detail: cl > 0 ? `have CL ${cl}` : 'no caster level',
         };
       }
+      case 'characterLevel': {
+        const have = state.characterLevel || 0;
+        return {
+          status: have >= a.level ? 'satisfied' : 'unmet',
+          detail: `have character level ${have}`,
+        };
+      }
       case 'classLevel': {
         const want = a.className.toLowerCase();
         const hit = state.classes.find(c => c.name.toLowerCase() === want);
         const have = hit ? hit.level : 0;
+        if (have >= a.level) return { status: 'satisfied', detail: `have L${have}` };
+        // Safety net for parser overreach. The generic "<Name> level N"
+        // pattern is greedy enough to swallow fragments that were never
+        // class levels at all — "Fly speed 90", "Leadership score 25",
+        // "essentia pool 2", "Meldshaper level 9th". Reporting those as
+        // ✗ "no levels in Fly speed" is confidently wrong; if the DB has
+        // never heard of the name as a class, degrade to "?" instead.
+        // (DB-less mode keeps the old behavior — nothing to check against.)
+        if (have === 0 && !isKnownClassName(a.className)) {
+          return {
+            status: 'unknown',
+            detail: `"${a.className}" isn't a tracked class — check manually`,
+          };
+        }
         return {
-          status: have >= a.level ? 'satisfied' : 'unmet',
+          status: 'unmet',
           detail: have ? `have L${have}` : `no levels in ${a.className}`,
+        };
+      }
+      case 'anyOf': {
+        // "Spell Focus (evocation) or evoker level 1st" — one requirement
+        // met by either branch. Satisfied if any option is; unmet only if
+        // every option is definitively unmet.
+        const results = a.options.map(o => checkOne(o, state));
+        const hit = results.find(r => r.status === 'satisfied');
+        if (hit) return { status: 'satisfied', detail: hit.detail };
+        if (results.every(r => r.status === 'unmet')) {
+          return {
+            status: 'unmet',
+            detail: results.map(r => r.detail).join(' / '),
+          };
+        }
+        return {
+          status: 'unknown',
+          detail: results.map(r => r.detail).join(' / '),
         };
       }
       case 'skill': {
@@ -637,6 +785,9 @@ const FeatPrereqs = (function () {
       alignment: (opts.currentAlignment ||
         (document.getElementById('char-alignment')?.value || '').toLowerCase()),
       casterLevels,
+      // At level N the character level IS N — that's what this snapshot
+      // is pinned to, so no reconstruction from the history is needed.
+      characterLevel: level,
     };
   }
 
