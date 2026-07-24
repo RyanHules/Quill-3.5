@@ -4256,6 +4256,49 @@ test('FeatPrereqs: "Character level 6th" is a characterLevel atom, not a class',
     'character level 7 should satisfy "Character level 6th"');
 });
 
+test('FeatPrereqs: a parenthesised prereq checks the SPECIALIZATION', () => {
+  const FP = loadFeatPrereqs();
+  // 51 DB feats name a parenthesised Focus as a prerequisite. Every one
+  // reported "?" before, because "Spell Focus (conjuration)" is not a feat
+  // name in the DB — the feat is "Spell Focus" with a specialization.
+  const state = (...feats) => {
+    const s = { abilities: {}, classes: [], featNames: new Set(),
+                featSpecs: new Map(), skillRanks: new Map(), bab: 0,
+                alignment: '', characterLevel: 5,
+                casterLevels: { arcane: 0, divine: 0, psionic: 0, any: 0 } };
+    for (const f of feats) FP.recordFeat(s, f);
+    return s;
+  };
+  const check = (prereq, st) => FP.check(FP.parse(prereq), st).atoms[0];
+
+  const right = check('Spell Focus (conjuration)', state('Spell Focus (Conjuration)'));
+  assertEq(right.status, 'satisfied', 'the matching specialization satisfies it');
+
+  // The crux: having the feat in a DIFFERENT school must NOT satisfy it.
+  const wrong = check('Spell Focus (conjuration)', state('Spell Focus (Evocation)'));
+  assertEq(wrong.status, 'unmet', 'a different school does not satisfy it');
+  assert(/evocation/i.test(wrong.detail),
+    `detail should say what they actually have, got "${wrong.detail}"`);
+
+  // Not taken at all — reported against the real feat name, not "unknown".
+  const none = check('Spell Focus (conjuration)', state('Power Attack'));
+  assertEq(none.status, 'unmet', 'not taken at all is unmet');
+  assert(/Spell Focus/i.test(none.detail), 'names the base feat');
+
+  // A choice list is satisfied by ANY of its options.
+  const choice = check('Weapon Focus (warhammer or light hammer)',
+                       state('Weapon Focus (light hammer)'));
+  assertEq(choice.status, 'satisfied', 'either option counts');
+
+  // An unspecialized entry doesn't silently satisfy a specialized prereq.
+  const bare = check('Spell Focus (conjuration)', state('Spell Focus'));
+  assertEq(bare.status, 'unmet', 'no specialization chosen is not satisfied');
+
+  // Plain (non-parenthesised) prereqs still behave as before.
+  assertEq(check('Power Attack', state('Power Attack')).status, 'satisfied',
+    'unspecialized prereqs unaffected');
+});
+
 test('FeatPrereqs: spelled-out ability names normalize to the 3-letter key', () => {
   const FP = loadFeatPrereqs();
   const want = { Strength: 'STR', Dexterity: 'DEX', Constitution: 'CON',

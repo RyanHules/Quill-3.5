@@ -288,8 +288,33 @@ const FeatPrereqs = (function () {
   // checker consumes. Called on each evaluation; cheap enough that we
   // don't bother memoizing.
 
+  // Record a feat the character has, keeping BOTH the bare name and its
+  // specialization. Storing only the stripped name means a prereq of
+  // "Spell Focus (conjuration)" can never be checked — 51 feats in the DB
+  // name a parenthesised Focus as a prerequisite, and every one of them
+  // reported "?" because "Spell Focus (conjuration)" isn't a DB feat name.
+  function recordFeat(s, text) {
+    const line = String(text || '').trim();
+    if (!line) return;
+    const m = line.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+    const base = (m ? m[1] : line).trim();
+    if (!base) return;
+    s.featNames.add(base.toLowerCase());
+    if (!s.featSpecs) s.featSpecs = new Map();
+    const key = base.toLowerCase();
+    if (!s.featSpecs.has(key)) s.featSpecs.set(key, new Set());
+    if (m && m[2].trim()) {
+      // "Weapon Focus (longsword)" — and a few rows carry a choice list.
+      for (const spec of m[2].split(/\s*,\s*|\s+or\s+/i)) {
+        const v = spec.trim().toLowerCase();
+        if (v) s.featSpecs.get(key).add(v);
+      }
+    }
+  }
+
   function snapshot() {
     const s = { abilities: {}, classes: [], featNames: new Set(),
+                featSpecs: new Map(),
                 skillRanks: new Map(), bab: 0, alignment: '',
                 casterLevels: { arcane: 0, divine: 0, psionic: 0, any: 0 } };
     // Abilities: use the displayed totals (`#str-total` etc.) since
@@ -349,8 +374,7 @@ const FeatPrereqs = (function () {
       const raw = (el.value || '').trim();
       if (!raw) continue;
       const firstLine = raw.split(/\r?\n/)[0].trim();
-      const stripped = firstLine.replace(/\s*\([^)]*\)\s*$/, '').trim();
-      if (stripped) s.featNames.add(stripped.toLowerCase());
+      recordFeat(s, firstLine);
     }
     // Skill ranks: every .skill-row's name + ranks input.
     for (const inp of document.querySelectorAll('.skill-ranks')) {
@@ -500,6 +524,32 @@ const FeatPrereqs = (function () {
         };
       }
       case 'feat': {
+        // A parenthesised prereq names a SPECIALIZATION, and having the feat
+        // in another specialization doesn't satisfy it — Spell Focus
+        // (evocation) is not Spell Focus (conjuration). The books also write
+        // choice lists ("Weapon Focus (warhammer or light hammer)"), where
+        // any one of them counts.
+        const paren = a.name.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+        if (paren && state.featSpecs) {
+          const base = paren[1].trim().toLowerCase();
+          const wanted = paren[2].split(/\s*,\s*|\s+or\s+/i)
+            .map(x => x.trim().toLowerCase()).filter(Boolean);
+          const held = state.featSpecs.get(base);
+          if (held) {
+            if (wanted.some(w => held.has(w))) {
+              return { status: 'satisfied', detail: 'taken' };
+            }
+            if (held.size) {
+              return { status: 'unmet',
+                       detail: `have ${paren[1].trim()} (${[...held].join(', ')})` };
+            }
+            return { status: 'unmet',
+                     detail: `have ${paren[1].trim()}, no specialization chosen` };
+          }
+          // Doesn't have the base feat at all — say so against the base name,
+          // which IS a real DB feat, rather than "not a known feat name".
+          return { status: 'unmet', detail: `${paren[1].trim()} not taken` };
+        }
         const want = a.name.toLowerCase();
         const have = state.featNames.has(want);
         // If the "feat" name isn't in the character's list AND isn't
@@ -723,15 +773,15 @@ const FeatPrereqs = (function () {
 
     // Feats: through level - 1 (the feat we're checking is AT this
     // level; the audit handles same-level prereqs separately).
-    const featNames = new Set();
+    // Same shape as the live snapshot, so the spec-aware feat check works
+    // when replaying history too (recordFeat fills featNames + featSpecs).
+    const histFeats = { featNames: new Set(), featSpecs: new Map() };
     for (const e of hist) {
       if (e.level >= level) continue;
-      for (const fn of (e.feats_taken || [])) {
-        const s = String(fn || '').trim()
-          .replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
-        if (s) featNames.add(s);
-      }
+      for (const fn of (e.feats_taken || [])) recordFeat(histFeats, fn);
     }
+    const featNames = histFeats.featNames;
+    const featSpecs = histFeats.featSpecs;
 
     // Skill ranks: through level - 1.
     const skillRanks = new Map();
@@ -781,7 +831,7 @@ const FeatPrereqs = (function () {
     const bab = clB.size ? Math.max(babA, babForSide(clB)) : babA;
 
     return {
-      abilities, classes, featNames, skillRanks, bab,
+      abilities, classes, featNames, featSpecs, skillRanks, bab,
       alignment: (opts.currentAlignment ||
         (document.getElementById('char-alignment')?.value || '').toLowerCase()),
       casterLevels,
@@ -814,6 +864,8 @@ const FeatPrereqs = (function () {
 
   return {
     parse, check, snapshot, renderAtoms, summary, evaluate,
+    // Exposed so the test suite can build a state the same way the sheet does.
+    recordFeat,
     // Phase B (history-aware):
     snapshotAtLevel, evaluateAtLevel,
   };
