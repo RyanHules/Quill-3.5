@@ -2997,6 +2997,14 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // the NEGATIVE ("you do not, however, gain any other benefit...") —
     // it grants no familiar. Explicit non-grant (None in _companion_metadata).
     'Child of Night/Mysteries/Spellcasting',
+    // 2026-07-25 Book of Exalted Deeds v3 walk: three caster-PrC spell-
+    // advancement features whose standard boilerplate ("does not, however,
+    // gain any other benefit... improved familiar/special mount, and so on")
+    // names the keyword only in the NEGATIVE. Explicit non-grants (None in
+    // _companion_metadata). Same shape as Child of Night above.
+    'Exalted Arcanist/Spells per Day/Spells Known',
+    'Fist of Raziel/Spells per Day',
+    'Troubadour of Stars/Spells per Day/Spells Known',
     // 2026-05-22 Dscape Dungeon Lord re-extraction (corpus-first
     // audit fix): "Dungeon Dependency" describes the PrC's
     // requirement to remain in a specific dungeon — "you can be
