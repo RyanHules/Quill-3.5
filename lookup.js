@@ -2068,6 +2068,9 @@
     if (d.organization)   lines.push(`<b>Organization:</b> ${escapeHtml(formatValue(d.organization))}`);
     if (d.treasure)       lines.push(`<b>Treasure:</b> ${escapeHtml(d.treasure)}`);
     if (d.advancement)    lines.push(`<b>Advancement:</b> ${escapeHtml(formatValue(d.advancement))}`);
+    // How this creature is made (e.g. "created by create undead at 15th level").
+    // Curated creature render has no catch-all, so name it explicitly.
+    if (d.construction)   lines.push(`<b>Construction:</b> ${escapeHtml(formatValue(d.construction))}`);
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
@@ -2118,18 +2121,28 @@
       }
       return escapeHtml(String(v));
     };
-    const row = (label, keys) => {
+    const row = (label, keys, fmt) => {
       const list = Array.isArray(keys) ? keys : [keys];
       list.forEach(k => shown.add(k));
-      const rendered = fmtVal(pickField(d, list));
+      const rendered = (fmt || fmtVal)(pickField(d, list));
       if (rendered) lines.push(`<b>${escapeHtml(label)}:</b> ${rendered}`);
+    };
+    // Ability changes keep "—" (canonical stat-block notation for "no
+    // ability score" — undead have no Con, mindless no Int). The generic
+    // fmtVal drops "—" as empty, which would hide exactly that fact.
+    const fmtAbilities = (v) => {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return fmtVal(v);
+      return Object.entries(v)
+        .filter(([, vv]) => vv != null && vv !== '')
+        .map(([k, vv]) => `${escapeHtml(k)} ${escapeHtml(String(vv))}`)
+        .join(', ');
     };
 
     // Curated, roughly stat-block order; pickField folds variant key names.
     row('Subtypes',                  ['subtypes']);
     row('Size change',               ['size_change']);
     row('Alignment change',          ['alignment_change', 'alignment_note']);
-    row('Ability changes',           ['ability_changes', 'ability_changes_full', 'abilities_change']);
+    row('Ability changes',           ['ability_changes', 'ability_changes_full', 'abilities_change'], fmtAbilities);
     row('Hit Dice',                  ['hit_dice_change', 'hit_dice_note']);
     row('Natural armor',             ['natural_armor_change', 'natural_armor_set']);
     row('Armor Class',               ['armor_class', 'armor_class_change']);
@@ -2139,9 +2152,11 @@
     row('Full attack',               ['full_attack']);
     row('Base atk/grapple',          ['base_attack_grapple', 'base_attack_grapple_change', 'base_attack_change']);
     row('Damage',                    ['damage', 'damage_change']);
-    row('Special attacks (added)',   ['special_attacks_added', 'special_attacks_change']);
+    row('Special attacks',           ['special_attacks_change']);
+    row('Special attacks (added)',   ['special_attacks_added']);
     row('Special attacks (removed)', ['special_attacks_removed']);
-    row('Special qualities (added)', ['special_qualities_added', 'special_qualities_change']);
+    row('Special qualities',         ['special_qualities_change']);
+    row('Special qualities (added)', ['special_qualities_added']);
     row('Damage reduction',          ['damage_reduction']);
     row('Spell resistance',          ['spell_resistance']);
     row('Fast healing',              ['fast_healing']);
