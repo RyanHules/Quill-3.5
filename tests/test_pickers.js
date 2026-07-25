@@ -7176,9 +7176,14 @@ test('richtext: DB-wide — every structured table renders as a real <table>', (
     for (const t of tb) {
       tables++;
       const html = RT.renderTable(t);
+      // null-safe shape descriptor: a null/scalar table element (which is
+      // itself the defect) must not make Object.keys() throw and mask WHICH
+      // entry failed — report its value instead of its keys.
+      const shape = (t && typeof t === 'object')
+        ? `keys=${Object.keys(t).join(',')}`
+        : `value=${JSON.stringify(t)}`;
       assert(html.includes('<table'),
-        `${r.type}:${r.name} — table did not render as <table>: ` +
-        `keys=${Object.keys(t).join(',')}`);
+        `${r.type}:${r.name} — table did not render as <table>: ${shape}`);
       assert(!html.includes('rt-table-freeform'),
         `${r.type}:${r.name} — table hit the freeform JSON fallback`);
     }
