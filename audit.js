@@ -22,8 +22,7 @@
 //             indicates a build choice worth flagging; total can
 //             legitimately exceed 18 via racial mods, so we check
 //             base specifically per the player's note).
-//   info    — advisory: spells prepared == max (no flex room),
-//             known spells == cap (consider Spell Mastery / etc.).
+//   info    — advisory: spells prepared == max (no flex room).
 //
 // Dismissed issues persist via `Audit.collectData/loadData`
 // (`{ auditDismissed: [id, …] }`).
@@ -293,15 +292,14 @@ const Audit = (function () {
             message: `${caster.name} L${level}: ${knownCount} spell(s) ` +
                      `known but cap is ${cap}.`,
           });
-        } else if (cap > 0 && knownCount === cap && knownCount > 0) {
-          issues.push({
-            id: `caster:known-full:${caster.name}:${level}`,
-            severity: 'info',
-            message: `${caster.name} L${level}: known list at cap ` +
-                     `(${cap}). Consider Spell Mastery / Spell Knowledge ` +
-                     `to expand.`,
-          });
         }
+        // NO "known list is full" advisory. A spontaneous caster knowing
+        // exactly `spells known` spells per level isn't an oddity — it's
+        // what the rules say the character HAS, so every correctly-built
+        // sorcerer/bard/favored soul tripped it at every level. Removed
+        // 2026-07-31 per report rms3yqqo2-bxri. (The prepared-list-full
+        // advisory above is kept: a full prep list is a real tactical
+        // note about flex room, and it's a choice rather than a given.)
       }
     }
 
