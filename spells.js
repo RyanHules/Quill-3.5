@@ -2114,7 +2114,16 @@ const Spells = (function () {
             bonusEl.dataset.autoBonus = displayVal;
           }
         }
-        const perDay = int(panel.querySelector(`.sc-per-day[data-lvl="${i}"]`)?.value);
+        // A printed "0" and a printed "—" are DIFFERENT: 0 means the table
+        // grants none but the level is reachable (Paladin 4 / Bard 2 → "you
+        // can cast one only if your ability score gives you a bonus spell of
+        // that level"), "—" means the level is closed entirely. The class
+        // picker preserves the distinction — 0 lands as "0", "—" leaves the
+        // box empty — so read the RAW value, not just int().
+        const perDayRaw =
+          (panel.querySelector(`.sc-per-day[data-lvl="${i}"]`)?.value ?? "").trim();
+        const perDay = int(perDayRaw);
+        const perDayIsPrintedZero = perDayRaw !== "" && perDay === 0;
         const bonus = int(panel.querySelector(`.sc-bonus[data-lvl="${i}"]`)?.value);
         const domain = int(panel.querySelector(`.sc-domain-slots[data-lvl="${i}"]`)?.value);
         const specialist = int(panel.querySelector(`.sc-specialist-slots[data-lvl="${i}"]`)?.value);
@@ -2133,8 +2142,15 @@ const Spells = (function () {
         // caster can't cast at level N — so the ability-mod bonus
         // contributes 0. Without this gate, a Wizard 5 with INT 18
         // would show a phantom L4 slot (base 0, bonus +1) even though
-        // Wizard L4 access starts at class level 7.
-        const baseCastable = (perDay + domain + specialist) > 0;
+        // Wizard L4 access starts at class level 7. (Wizard's unreachable
+        // levels are printed "—", so that guard still holds.)
+        //
+        // …EXCEPT a printed 0, which is exactly the "you can cast one only
+        // if you have a bonus spell of that level" case the class tables
+        // footnote — Paladin 4, Bard 2, Ranger 4, Assassin 1. Those levels
+        // ARE castable, purely on the bonus slot (report rms3rtyu9-ax0a).
+        const baseCastable =
+          (perDay + domain + specialist) > 0 || perDayIsPrintedZero;
         const effectiveBonus = baseCastable ? bonus : 0;
         // Item Familiar bonus slots (UA p.171). Stack with the regular
         // pool — the user can use them like any other slot.
