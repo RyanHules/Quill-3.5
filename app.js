@@ -894,6 +894,30 @@
   // ============================================================
   // Initialize
   // ============================================================
+  // Keep the sticky tab bar parked directly under the sticky header.
+  // `.tabs { top: var(--header-h) }` used to be a hardcoded 52px, which only
+  // held while the header was exactly one row: when it wraps (narrow window,
+  // or just more buttons than fit) the bar parked BEHIND the header and the
+  // only way to change tabs was to scroll back to the very top. Measured
+  // live so it survives any header height, at any width.
+  (function trackHeaderHeight() {
+    const header = $("header");
+    if (!header) return;
+    const apply = () => {
+      // Unrounded: the header can land on a half pixel (153.5px at 520 wide),
+      // and rounding up leaves a hairline gap between it and the tab bar that
+      // scrolling content shows through.
+      const h = header.getBoundingClientRect().height;
+      if (h) document.documentElement.style.setProperty("--header-h", h + "px");
+    };
+    apply();
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(apply).observe(header);
+    } else {
+      window.addEventListener("resize", apply);   // pre-RO fallback
+    }
+  })();
+
   Skills.build(getAbilityMod);
   Equipment.buildMagicItemSlots();
   if (typeof Conditions !== "undefined") Conditions.build();

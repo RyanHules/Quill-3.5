@@ -49,7 +49,13 @@ header h1 { font-size: 1.3rem; color: var(--accent); letter-spacing: 1px; white-
   border-bottom: 2px solid var(--border);
   overflow-x: auto;
   position: sticky;
-  top: 52px;
+  /* Sits directly under the sticky header. `--header-h` is measured live by
+     a ResizeObserver in app.js — this used to be a hardcoded 52px, which
+     silently broke the moment the header was any other height: at <=900px
+     the header wraps taller, so the tab bar parked BEHIND it and you had to
+     scroll to the very top to change tabs. The fallback matches the
+     single-row header height for the pre-JS paint. */
+  top: var(--header-h, 52px);
   z-index: 99;
 }
 
@@ -442,6 +448,10 @@ textarea {
 
 .ac-secondary {
   display: flex;
+  /* Touch / Flat-Footed / SR / DR / Miss Chance in one nowrap row pushed the
+     Defense Onion past the right edge of the viewport whenever the column got
+     narrow — 29px of document overflow at 1280 wide. */
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 0.75rem;
   align-items: flex-end;
@@ -817,6 +827,11 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 /* === Inner Tabs (within a tab) === */
 .inner-tabs {
   display: flex;
+  /* WRAP. Without this the sub-tab bar is a nowrap row that neither scrolls
+     nor wraps, so on a narrow window the "+ Spell-Like Abilities" button
+     hangs past the viewport edge (23px of horizontal document overflow) and
+     the chips squeeze until their labels wrap to three lines each. */
+  flex-wrap: wrap;
   gap: 0.25rem;
   margin-bottom: 1rem;
   border-bottom: 2px solid var(--border);
@@ -2265,7 +2280,17 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 /* === Responsive === */
 @media (max-width: 900px) {
   .two-column, .skills-two-col { grid-template-columns: 1fr; }
-  header { flex-direction: column; align-items: flex-start; }
+  /* NB: the header deliberately stays a WRAPPING ROW here. It used to get
+     `flex-direction: column`, which put all seven children — the title, the
+     button group, and each of the five small trigger buttons — on a row of
+     their own, making the header 258px tall on an 865px window and shoving
+     the sheet that far down the page. Row+wrap keeps the triggers together
+     and costs at most one extra line. Tighter padding + gap here buys back
+     ~38px of line width, which is enough to keep the button group and all
+     five trigger buttons on ONE wrapped row instead of spilling a lone
+     button onto a third. */
+  header { padding: 0.6rem 0.75rem; gap: 0.35rem; }
+  header h1 { font-size: 1.15rem; }
   .tabs { flex-wrap: wrap; }
   .tab { padding: 0.5rem 0.8rem; font-size: 0.75rem; }
   .tab-content { padding: 0.75rem; }
