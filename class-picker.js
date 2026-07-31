@@ -3033,15 +3033,52 @@
     return null;
   }
 
+  // Spellcasting-advancement types that stack for an invocation user under
+  // the general rule below. 'any' is the generic "+1 level of existing
+  // SPELLCASTING class" (Loremaster, Arcane Trickster, …); 'arcane' is the
+  // explicit arcane form. Divine and psionic advancement do NOT stack —
+  // the rule names arcane and generic only.
+  const INVOCATION_STACKING_SPELL_TYPES = new Set(['arcane', 'any']);
+
+  // Effective level of an invocation-using class, for EVERY table-1-1 lookup
+  // the panel makes: invocations known, highest grade, caster level, and the
+  // eldritch blast damage row.
+  //
+  // Two sources stack into it:
+  //
+  //  1. PrCs that explicitly advance the invocation pillar (Eldritch Theurge,
+  //     Eldritch Disciple, Demonbinder — "+1 level of existing invocation-
+  //     using class").
+  //
+  //  2. CArc p.18, "Warlocks and Prestige Classes": a PrC granting "+1 level
+  //     of existing arcane spellcasting class" — or the generic "+1 level of
+  //     existing spellcasting class" — gives a warlock NONE of its casting,
+  //     but its levels "effectively stack with the warlock's level to
+  //     determine his eldritch blast damage (treat his combined caster level
+  //     as his warlock class level when looking at Table 1-1)", his invocation
+  //     caster level, and his invocations known ("as though he had gained a
+  //     level in the warlock class"). Dragon Magic states the identical rule
+  //     for the Dragonfire Adept, so it's applied to both invocation classes.
+  //     This is why a Warlock 10 / Loremaster 10 blasts as a Warlock 20 even
+  //     though Loremaster advances no casting he has.
+  //
+  // A PrC is counted ONCE. Eldritch Theurge advances arcane spellcasting AND
+  // invocations on the same levels — they're one set of levels, not two, and
+  // double-counting would have made ET 5 worth +10.
   function effectiveInvocationLevel(target) {
     let bonus = 0;
     for (const e of classPool()) {   // union — both sides
       if (e === target) continue;
-      if (!e.invocationAdvancesLevels) continue;
       const tgt = e.invocationAdvancesTarget;
-      if (!tgt) continue;
-      if (tgt.toLowerCase() === target.className.toLowerCase()) {
+      if (e.invocationAdvancesLevels && tgt &&
+          tgt.toLowerCase() === target.className.toLowerCase()) {
         bonus += e.invocationAdvancesLevels;
+        continue;   // counted — don't also count its spell advancement
+      }
+      if (!e.advancesLevels) continue;
+      const types = e.advancesTypes || [];
+      if (types.some(t => INVOCATION_STACKING_SPELL_TYPES.has(String(t).toLowerCase()))) {
+        bonus += e.advancesLevels;
       }
     }
     return Math.min(20, target.level + bonus);
@@ -5636,37 +5673,57 @@
   // modelled — the player edits the row for those.
   const ELDRITCH_BLAST_RE = /eldritch blast\s+(\+?)(\d+)(d\d+)/i;
 
+  // Blast dice + the effective level they were read at. The base class's row
+  // is looked up at its EFFECTIVE level (effectiveInvocationLevel), which is
+  // what makes CArc p.18 work: a Warlock 10 / Loremaster 10 reads Table 1-1's
+  // 20th-level row and blasts 9d6. Enlightened Spirit's "+Nd6" is a separate
+  // class feature rather than a level-stack, so it's added on top.
   function eldritchBlastDamage() {
-    let base = null, die = 'd6', bonus = 0;
+    let base = null, die = 'd6', bonus = 0, atLevel = 0;
     for (const e of classPool()) {   // union — both gestalt sides
       if (!e.classId) continue;
       const table = fetchClassTable(e.classId);
       if (!table) continue;
+      const isInvoClass = INVOCATION_USING_CLASSES.has(e.className);
+      const lvl = isInvoClass ? effectiveInvocationLevel(e) : Number(e.level);
       for (const row of table) {
-        if (Number(row.level) > Number(e.level)) continue;
+        if (Number(row.level) > lvl) continue;
         const m = ELDRITCH_BLAST_RE.exec(String(row.special || ''));
         if (!m) continue;
         const n = parseInt(m[2], 10);
         if (m[1] === '+') bonus = Math.max(bonus, n);
-        else { base = Math.max(base == null ? 0 : base, n); die = m[3]; }
+        else {
+          if (base == null || n > base) { base = n; die = m[3]; }
+          atLevel = Math.max(atLevel, lvl);
+        }
       }
     }
     // A +Nd6 advancer with no base class grants nothing on its own.
-    return base == null ? null : `${base + bonus}${die}`;
+    if (base == null) return null;
+    return { damage: `${base + bonus}${die}`, effectiveLevel: atLevel };
   }
 
   function syncClassGrantedAttacks() {
     if (typeof Character === 'undefined' ||
         typeof Character.upsertClassAttack !== 'function') return;
-    const dmg = eldritchBlastDamage();
-    Character.upsertClassAttack('Warlock:Eldritch Blast', dmg ? {
+    const blast = eldritchBlastDamage();
+    // Equivalent SPELL level — "one-half the warlock's class level (round
+    // down), with a minimum spell level of 1st and a maximum of 9th"
+    // (CArc p.8). Worth surfacing: it drives spell resistance, dispel checks
+    // and the Concentration DC to cast defensively, none of which the damage
+    // figure tells you. Uses the same effective level as the damage row.
+    const eqLvl = blast
+      ? Math.max(1, Math.min(9, Math.floor(blast.effectiveLevel / 2))) : 0;
+    Character.upsertClassAttack('Warlock:Eldritch Blast', blast ? {
       name: 'Eldritch Blast',
-      damage: dmg,
+      damage: blast.damage,
       crit: '×2',
       range: '60 ft.',
       type: 'Magic',
-      notes: 'Ranged touch attack, at will. Spell-like ability — provokes '
-           + 'attacks of opportunity. Invocation essences/shapes not applied.',
+      notes: 'Ranged touch attack, at will, no save. Spell-like ability — '
+           + 'provokes attacks of opportunity; subject to spell resistance. '
+           + `Equivalent spell level ${eqLvl}. Half damage to objects. `
+           + 'Invocation essences/shapes not applied.',
       calcAbility: 'DEX',
     } : null);
   }
