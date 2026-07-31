@@ -25,7 +25,20 @@
        AFTER parse — for late-loaded scripts.)
        ==================================================================== -->
   <script>
-    window.CACHE_VERSION = '20260725a';
+    // ONE definition site for the cache-buster (guarded by
+    // tests/test_pickers.js 'cache buster: single CACHE_VERSION …').
+    // The pinned date-string is what ships; `?freshjs=1` swaps in a
+    // per-load timestamp so every module + the stylesheet re-fetch.
+    // Editing a module otherwise requires bumping the pinned version to
+    // see the change — fine for shipping, painful when iterating, and
+    // the source of several "my fix didn't take" wild-goose chases.
+    window.CACHE_VERSION = (function () {
+      const pinned = '20260731a';
+      try {
+        return new URLSearchParams(location.search).get('freshjs') === '1'
+          ? 'dev' + Date.now() : pinned;
+      } catch (e) { return pinned; }
+    })();
     document.write(
       '<link rel="stylesheet" href="styles.css?v=' + CACHE_VERSION + '">'
     );

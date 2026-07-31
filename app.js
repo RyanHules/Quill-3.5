@@ -176,6 +176,15 @@
       }
     }
 
+    // Class features granting an ability bonus to TOUCH AC only (Wilder's
+    // Elude Touch). Kept as specs rather than a number because the ability
+    // modifier has to be read AFTER all ability bonuses resolve, and because
+    // the RAW cap ("touch AC can never exceed normal AC") can only be applied
+    // once Character.recalc knows the full AC total.
+    bonuses.touchACFeatures =
+      (typeof ClassPicker !== "undefined" && ClassPicker.getTouchACFeatures)
+        ? ClassPicker.getTouchACFeatures() : [];
+
     // Race + template SAVE bonuses (structured `bonuses`, bonus_type=save).
     // Unconditional ones are kept as a TYPED list per save (saveTyped) so the
     // saves recalc can stack them across sources (cross-source stacking for
@@ -426,16 +435,23 @@
     set currentQualifiedName(v) { currentQualifiedName = v; },
   };
 
+  // Folder a brand-new character lands in. `active/` is the working
+  // set — it's what the dropdown surfaces and where in-play sheets
+  // live — so defaulting a first Save to the root scattered new
+  // characters outside the folder structure and made every one of
+  // them a manual move (report rms26388y-kg4c).
+  const DEFAULT_SAVE_FOLDER = 'active';
+
   // Decide which qualified name a Save click should write to.
   //   - If a character was loaded from a specific path, overwrite
   //     that path (preserves folder organization).
-  //   - Else default to the bare char-name at the root of saves/.
+  //   - Else default to active/<char-name>.
   // Returns null if there's no usable name (e.g. fresh sheet with
   // an empty char-name field) — caller should handle that case.
   function resolveSaveTarget(data) {
     if (currentQualifiedName) return currentQualifiedName;
     const bare = (data["char-name"] || "").trim();
-    return bare || null;
+    return bare ? `${DEFAULT_SAVE_FOLDER}/${bare}` : null;
   }
 
   // The dropdown is for QUICK ACCESS to the working set, not the
