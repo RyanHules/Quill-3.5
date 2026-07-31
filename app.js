@@ -670,13 +670,20 @@
       else el.value = el.type === "number" && el.defaultValue ? el.defaultValue : "";
     });
 
+    // NB: no Character.addAttack() here — Character.loadData({}) below
+    // clears #attacks-container and adds nothing back, so the seed row this
+    // used to add has never survived. (Pre-existing; the New button has
+    // always produced zero attack rows, unlike a fresh page load which
+    // seeds one. Left as-is: the report named Feats / Special Abilities /
+    // Equipment, not attacks.)
     Character.resetAttacks();
-    Character.addAttack();
     Skills.resetCustomSkills();
     Skills.build(getAbilityMod);
-    Feats.loadData({ feats: [""], specialAbilities: [""] });
+    // Feats / Special Abilities / Gear start EMPTY — each has its own
+    // "+ Add" button, and pre-seeded blank rows are rows the player has to
+    // notice are blank, delete, or scroll past (report rms8uiy6j-hvqk).
+    Feats.loadData({});
     $("#gear-body").innerHTML = "";
-    for (let i = 0; i < 5; i++) Equipment.addGearRow();
     $("#magic-items-container").innerHTML = "";
     // Character.loadData triggers class-picker's persistence hook,
     // which clears `pickedClasses` and re-renders the chip list.
@@ -893,10 +900,10 @@
   if (typeof Audit !== "undefined") Audit.build();
   if (typeof BuildTimeline !== "undefined") BuildTimeline.init();
 
+  // One attack row is seeded (it's the sheet's primary action, and the
+  // report named Feats / Special Abilities / Equipment specifically);
+  // those three start empty behind their own "+ Add" buttons.
   Character.addAttack();
-  for (let i = 0; i < 5; i++) Equipment.addGearRow();
-  Feats.addFeat();
-  Feats.addSpecialAbility();
   Companion.loadData({});
 
   // Conditions-changed event → re-aggregate bonuses + recalc.

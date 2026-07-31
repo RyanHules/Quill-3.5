@@ -954,8 +954,9 @@ const Feats = (function () {
       (f) => f != null && String(f).trim() !== ""
     );
     realFeats.forEach((f) => addFeat(f));
-    // Always show at least one empty row so the user has a place to type.
-    if (!realFeats.length) addFeat();
+    // NO placeholder row. An empty list is empty — "+ Add Feat" is right
+    // there, and a blank row is a row you have to notice is blank, delete,
+    // or scroll past (report rms8uiy6j-hvqk).
     $("#special-abilities-container").innerHTML = "";
     // Entries are either a bare string (user-typed / legacy) or a
     // { text, fromClass } object (class-derived, carrying its origin marker).
@@ -967,7 +968,7 @@ const Feats = (function () {
       if (typeof a === "string") addSpecialAbility(a);
       else addSpecialAbility(a.text || "", a.fromClass || null);
     });
-    if (!realSpec.length) addSpecialAbility();
+    // (No placeholder row here either — see the feats note above.)
     // Signal "feats changed" so spells.js can re-sync ✨ button
     // visibility on Known rows and the metamagic-reference panel.
     // Without this, the load-order bug — Spells.loadData runs BEFORE
@@ -978,9 +979,13 @@ const Feats = (function () {
     // A synthetic 'input' event bubbling from a feat row triggers
     // the listener in spells.js, which calls
     // refreshAllKnownRowMetamagicVis() + refreshMetamagicReference().
-    const firstFeatEntry = $("#feats-container .feat-entry");
-    if (firstFeatEntry) {
-      firstFeatEntry.dispatchEvent(new Event("input", { bubbles: true }));
+    // Dispatch from the CONTAINER, not the first row: the list can now
+    // legitimately be empty, and firing off a row meant a feat-less
+    // character never sent the signal at all. spells.js's listener only
+    // cares that the event came from inside #tab-feats.
+    const featsHost = $("#feats-container");
+    if (featsHost) {
+      featsHost.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
 
