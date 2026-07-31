@@ -75,10 +75,28 @@ const Spells = (function () {
   function togglesRowFor(panel, before) {
     const rows = panel.querySelectorAll(".spell-header");
     for (const r of rows) if (r.querySelector(".mi-toggle")) return r;
+    // No toggles row of its own (invocations / maneuvers / binding /
+    // shadowcaster). Create one WHERE SPELLCASTING AND PSIONICS KEEP THEIRS:
+    // at the end of the panel's first <section>, under its heading and field
+    // rows. Inserting at panel top level instead floated it above the section
+    // heading, so those tabs' toggles sat in a different place from the two
+    // that already had them.
     const fresh = document.createElement("div");
     fresh.className = "spell-header";
     fresh.style.marginTop = "0.5rem";
-    before.parentNode.insertBefore(fresh, before);
+    const section = panel.querySelector(".section");
+    if (section) {
+      // After the section's FIELD rows, not at its very end — Shadowcasting
+      // closes with a "Reset All Uses" action button, and appending blindly
+      // put the toggles below it instead of with the fields.
+      const fieldRows = [...section.children].filter(
+        (c) => c.classList.contains("info-grid") || c.classList.contains("spell-header"));
+      const anchor = fieldRows[fieldRows.length - 1];
+      if (anchor) anchor.insertAdjacentElement("afterend", fresh);
+      else section.appendChild(fresh);
+    } else {
+      before.parentNode.insertBefore(fresh, before);
+    }
     return fresh;
   }
 
