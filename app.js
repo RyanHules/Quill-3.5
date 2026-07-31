@@ -903,16 +903,25 @@
   (function trackHeaderHeight() {
     const header = $("header");
     if (!header) return;
+    const tabs = $(".tabs");
     const apply = () => {
       // Unrounded: the header can land on a half pixel (153.5px at 520 wide),
       // and rounding up leaves a hairline gap between it and the tab bar that
       // scrolling content shows through.
       const h = header.getBoundingClientRect().height;
       if (h) document.documentElement.style.setProperty("--header-h", h + "px");
+      // Everything pinned above the content: header + tab bar. The skills
+      // table's sticky column headers park below BOTH, and had their own
+      // hardcoded 96px with the same failure mode as the tab bar's 52px —
+      // wrong the moment either one wraps.
+      const t = tabs ? tabs.getBoundingClientRect().height : 0;
+      if (h) document.documentElement.style.setProperty("--chrome-h", (h + t) + "px");
     };
     apply();
     if (typeof ResizeObserver === "function") {
-      new ResizeObserver(apply).observe(header);
+      const ro = new ResizeObserver(apply);
+      ro.observe(header);
+      if (tabs) ro.observe(tabs);
     } else {
       window.addEventListener("resize", apply);   // pre-RO fallback
     }

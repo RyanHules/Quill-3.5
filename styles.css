@@ -562,6 +562,9 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 /* === Skills Table === */
 .skills-header-info {
   display: flex;
+  /* Wraps — the max-ranks / points-spent readouts ran 60px past the tab on a
+     phone-width window. */
+  flex-wrap: wrap;
   gap: 1rem;
   margin-bottom: 0.75rem;
   align-items: flex-end;
@@ -582,7 +585,11 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   text-align: center;
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 96px;
+  /* Below the sticky header AND the sticky tab bar. Was a hardcoded 96px,
+     which was only right while both were single-row — the same failure the
+     tab bar's own `top: 52px` had. `--chrome-h` is header + tabs, measured
+     live in app.js. */
+  top: var(--chrome-h, 96px);
   background: var(--bg-section);
   z-index: 10;
 }
@@ -2308,6 +2315,32 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   .tab-content { padding: 0.75rem; }
   .ac-grid { flex-direction: column; }
   .magic-items-grid { grid-template-columns: 1fr; }
+}
+
+/* Wide data tables scroll sideways rather than squash below legibility once
+   the window gets phone-narrow. Applied to a WRAPPER, never to an ancestor
+   that holds `position: sticky` children — an overflow container becomes the
+   containing block for its sticky descendants, so putting this on
+   `.skills-col` would have re-parented the skills table's sticky header to a
+   55px-wide scrollport and killed it. (That's why the skills table isn't in
+   this list; see the deferral note in SESSION-CONTEXT.) */
+.table-scroll { max-width: 100%; }
+@media (max-width: 700px) {
+  .table-scroll,
+  .spellcasting-slot-col { overflow-x: auto; }
+
+  /* The skills table is `table-layout: fixed` with six fixed columns totalling
+     336px; the NAME column is the one that has no width and absorbs whatever
+     is left. On a phone that left nothing, so the skill names disappeared
+     entirely and the table became a grid of anonymous numbers. Give it a floor
+     and let the column scroll.
+     The sticky header row has to go here: an overflow container becomes the
+     containing block for its sticky descendants, so a scrolling .skills-col
+     and a page-sticky <th> cannot coexist. Readable names beat a pinned
+     header on a 390px screen. */
+  .skills-col { overflow-x: auto; }
+  .skills-table { min-width: 480px; }
+  .skills-table th { position: static; }
 }
 
 /* === Scrollbar === */
