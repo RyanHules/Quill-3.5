@@ -7,12 +7,17 @@
   <meta http-equiv="Pragma" content="no-cache">
   <title>D&D 3.5 Character Sheet</title>
   <!-- ====================================================================
-       Cache buster — single source of truth.
+       Cache buster — single source of truth. NOTHING TO BUMP BY HAND.
 
-       Bump this one string when any source file (.css / .js) changes,
-       and every script + stylesheet below picks it up automatically.
-       Both blocks (this <head> stylesheet emit + the <body>-end script
-       loader) read `window.CACHE_VERSION`.
+       save_server.py derives the version from the newest .js/.css mtime
+       and substitutes it below on every request for this page, so it
+       changes exactly when a source file changes. Both blocks (this
+       <head> stylesheet emit + the <body>-end script loader) read
+       `window.CACHE_VERSION`.
+
+       Served by plain `python -m http.server` instead? No substitution
+       happens, and the pinned literal takes over — the old behaviour,
+       where you DO have to bump it to see a change.
 
        The DB blob has its own DB_VERSION in database.js — that one is
        intentionally decoupled, because the DB rebuilds independently
@@ -27,13 +32,22 @@
   <script>
     // ONE definition site for the cache-buster (guarded by
     // tests/test_pickers.js 'cache buster: single CACHE_VERSION …').
-    // The pinned date-string is what ships; `?freshjs=1` swaps in a
-    // per-load timestamp so every module + the stylesheet re-fetch.
-    // Editing a module otherwise requires bumping the pinned version to
-    // see the change — fine for shipping, painful when iterating, and
-    // the source of several "my fix didn't take" wild-goose chases.
+    //
+    // NO LONGER HAND-BUMPED. save_server.py substitutes the token below with
+    // a stamp derived from the newest .js/.css mtime (plus the file count, so
+    // deletions register), so the version changes exactly when a source file
+    // changes and never when it doesn't. That keeps normal browser caching —
+    // which a per-load timestamp would throw away, re-fetching 2.2 MB across
+    // 63 files on every reload — while removing the step everyone forgets.
+    //
+    // Fallbacks, in order:
+    //   1. server-substituted stamp (the normal case)
+    //   2. `?freshjs=1` → per-load timestamp, for forcing a hard refresh
+    //   3. the pinned literal, when served by plain `python -m http.server`
+    //      (no substitution happens there, so the token stays unreplaced)
     window.CACHE_VERSION = (function () {
-      const pinned = '20260731b';
+      const stamped = '__ASSET_VERSION__';
+      const pinned = /^[0-9a-f]{8,}$/.test(stamped) ? stamped : '20260731b';
       try {
         return new URLSearchParams(location.search).get('freshjs') === '1'
           ? 'dev' + Date.now() : pinned;

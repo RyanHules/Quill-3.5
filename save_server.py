@@ -51,6 +51,7 @@ Run with:
 
 Default port: 3000.
 """
+import hashlib
 import http.server
 import json
 import os
@@ -410,6 +411,54 @@ def list_saves() -> list:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Asset version — replaces the hand-bumped CACHE_VERSION
+#
+# index.html pins a `?v=<version>` on every module + the stylesheet so the
+# browser can cache them, and that version used to be a date string a human
+# had to remember to increment. Forgetting it means you're staring at stale
+# JS wondering why your fix "didn't take" — which has cost real debugging
+# time more than once.
+#
+# So: derive it from the assets themselves. The stamp is the newest mtime
+# across every .js/.css the page loads, hashed short. It changes exactly when
+# a source file changes — no manual step — while still letting the browser
+# cache normally between edits, which a per-load timestamp would not (2.2 MB
+# across 63 files re-fetched on every reload, parse cache thrown away).
+#
+# The server substitutes it into index.html on the way out. Under plain
+# `python -m http.server` no substitution happens and the page falls back to
+# its pinned literal, so the sheet still works exactly as before.
+_ASSET_GLOBS = ("*.js", "*.css", "homebrew/*.js", "tests/*.js")
+
+# The literal index.html carries this token; the server swaps in the real
+# stamp. Kept deliberately un-versionlike so the "no hand-edited ?v= literals"
+# guard in tests/test_pickers.js can't mistake it for one.
+_ASSET_VERSION_TOKEN = "__ASSET_VERSION__"
+
+
+def asset_version(root: Path) -> str:
+    """Short stamp over the newest .js/.css mtime + the file count.
+
+    The count is in the hash so that DELETING a file also moves the stamp —
+    mtime alone wouldn't notice, and a removed module that stayed cached is
+    exactly the kind of ghost that wastes an afternoon.
+    """
+    newest = 0.0
+    count = 0
+    for pattern in _ASSET_GLOBS:
+        for p in root.glob(pattern):
+            try:
+                newest = max(newest, p.stat().st_mtime)
+                count += 1
+            except OSError:
+                continue
+    if not count:
+        return ""
+    raw = f"{newest:.6f}:{count}".encode()
+    return hashlib.sha1(raw).hexdigest()[:10]
+
+
 class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
     """Static-file handler with /api/saves overlay."""
 
@@ -459,8 +508,42 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_get_save()
         if self.path.startswith("/api/flags/"):
             return self._api_get_flags()
+        if self._is_index_request():
+            return self._serve_index()
         # Everything else is a static file.
         return super().do_GET()
+
+    def _is_index_request(self) -> bool:
+        path = urllib.parse.urlparse(self.path).path
+        return path in ("/", "/index.html")
+
+    def _serve_index(self):
+        """Serve index.html with the asset-version placeholder filled in.
+
+        Never fails the page: any problem reading or stamping falls through to
+        the normal static handler, which serves the file untouched (its pinned
+        fallback still works).
+        """
+        try:
+            html = (Path.cwd() / "index.html").read_text(encoding="utf-8")
+        except OSError:
+            return super().do_GET()
+        stamp = asset_version(Path.cwd())
+        if stamp:
+            html = html.replace(_ASSET_VERSION_TOKEN, stamp, 1)
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        # The DOCUMENT must never be cached — it carries the stamp that
+        # invalidates everything else, so a stale index.html would pin every
+        # module to an old version. (Editing markup and seeing nothing change
+        # because the browser cached index.html is a genuine trap; it cost a
+        # false "the fix isn't working" reading on 2026-07-31.)
+        self.send_header("Cache-Control", "no-store, must-revalidate")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def do_PUT(self):
         if self.path.startswith("/api/saves/"):
