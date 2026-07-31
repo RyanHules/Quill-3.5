@@ -4310,7 +4310,7 @@
     'Apostle of Peace', 'Blackguard',
   ]);
 
-  function upsertSpellcastingPanel(className, classLevel, sc, offset) {
+  function upsertSpellcastingPanel(className, classLevel, sc, offset, targetPanel) {
     const notesText = KNOWS_WHOLE_LIST_NOTES[className] || className;
     const style = getCasterStyle(className);
     // Spontaneous casters don't prepare — hide Prepared column by default.
@@ -4375,7 +4375,11 @@
       }));
     }
 
-    const existing = findExistingCasterPanel('spellcasting', className);
+    // `targetPanel` overrides the find-by-name lookup — used by the manual
+    // "follow a class" control, which points a panel the PLAYER created at a
+    // class progression. Without it the fill would hunt for a panel named
+    // after the class and create a second one.
+    const existing = targetPanel || findExistingCasterPanel('spellcasting', className);
     if (existing) {
       updateSpellcastingPanel(existing, data, classLevel, sc.spd.length, offset);
       _stampNoSaveDc(existing, className);
@@ -5667,6 +5671,138 @@
     } : null);
   }
 
+  // ============================================================
+  // "Follow a class" for MANUALLY-added Spells sub-tabs
+  // ============================================================
+  //
+  // A sub-tab added with the "+ Spellcasting" / "+ Psionics" / … buttons
+  // opens blank — every slot, count and level typed by hand. The picker
+  // already knows how to fill each panel type from a class_table; this
+  // exposes that machinery so a hand-made panel can point at a class and
+  // level and be populated the same way (report rms3ljwel-97us). Useful
+  // for the cases the class picker can't infer: a creature's innate
+  // casting, an NPC block, a homebrew progression borrowed from a class.
+  //
+  // Panel types with no per-class progression machinery (epic, SLA) are
+  // deliberately absent — there's nothing to follow.
+
+  const FOLLOWABLE_PANEL_TYPES = new Set([
+    'spellcasting', 'psionics', 'maneuvers', 'invocations',
+    'binding', 'shadowcaster',
+  ]);
+
+  // Class names offerable for a given panel type, sorted. Cached — the
+  // control is rebuilt on every addCaster and the spellcasting list needs a
+  // table scan.
+  const _followableCache = new Map();
+
+  function getFollowableClasses(panelType) {
+    if (!FOLLOWABLE_PANEL_TYPES.has(panelType)) return [];
+    if (_followableCache.has(panelType)) return _followableCache.get(panelType);
+    const fromSet = (s) => [...s].sort();
+    let list;
+    if (panelType === 'psionics')          list = fromSet(PSIONIC_CLASSES);
+    else if (panelType === 'maneuvers')    list = fromSet(MARTIAL_ADEPT_CLASSES);
+    else if (panelType === 'invocations')  list = fromSet(INVOCATION_USING_CLASSES);
+    else if (panelType === 'binding')      list = fromSet(VESTIGE_USING_CLASSES);
+    else if (panelType === 'shadowcaster') list = fromSet(MYSTERY_USING_CLASSES);
+    else {
+      // Spellcasting: any class whose table carries a real spells_per_day
+      // ARRAY. Note the TWO-ARGUMENT json_type(value, path) — the one-arg
+      // json_type(json_extract(...)) form throws "malformed JSON" on the
+      // advancer PrCs, whose spells_per_day is the plain string "+1 level
+      // of existing arcane spellcasting class" and so isn't re-parseable as
+      // JSON. Those PrCs have no native progression anyway, so excluding
+      // them is correct as well as necessary.
+      const out = new Set();
+      try {
+        const rows = DB.query(
+          "SELECT DISTINCT e.name AS name FROM entry e, "
+          + "json_each(json_extract(e.data, '$.class_table')) t "
+          + "WHERE e.type IN ('class','prc') "
+          + "AND json_type(t.value, '$.spells_per_day') = 'array' "
+          + "ORDER BY e.name COLLATE NOCASE") || [];
+        for (const r of rows) {
+          if (classIndex.has((r.name || '').toLowerCase())) out.add(r.name);
+        }
+      } catch (e) {
+        // Don't swallow: an empty dropdown with no explanation is exactly
+        // the failure that hid this query's first version being broken.
+        console.warn('[class-picker] followable-class query failed:', e);
+      }
+      list = [...out].sort();
+    }
+    _followableCache.set(panelType, list);
+    return list;
+  }
+
+  // Force the panel's class-managed fields to accept a rewrite. The count
+  // populators respect user edits (they only write a blank or still-marked
+  // field), which is right for automatic sync but wrong here — the player
+  // explicitly asked for this class's numbers.
+  function _claimPanelFields(panel, className, selectors) {
+    for (const sel of selectors) {
+      const el = panel.querySelector(sel);
+      if (el) el.dataset.fromClass = className;
+    }
+  }
+
+  // Populate `panel` from `className` at `level`. Returns a short status
+  // string on success, or null when the class has nothing for this panel.
+  function fillPanelFromClass(panel, className, level) {
+    if (!panel || !className) return null;
+    const lvl = Math.max(1, Math.min(20, parseInt(level, 10) || 0));
+    if (!lvl) return null;
+    const cls = lookupClass(className);
+    if (!cls) return null;
+    const classId = cls.class_id;
+    const type = panel.dataset.casterType;
+
+    if (type === 'spellcasting') {
+      const sc = getSpellcastingDataAtLevel(classId, lvl);
+      if (!sc) return null;
+      const offset = getSpellLevelOffset(cls.class, sc.spd.length);
+      upsertSpellcastingPanel(cls.class, lvl, sc, offset, panel);
+      return `${cls.class} ${lvl} progression applied`;
+    }
+    if (type === 'psionics') {
+      _claimPanelFields(panel, cls.class,
+        ['.psi-pp-base', '.psi-powers-known', '.psi-max-level', '.psi-ability']);
+      const ml = panel.querySelector('.psi-manifester-level');
+      if (ml) { ml.value = String(lvl); ml.dispatchEvent(new Event('input', { bubbles: true })); }
+      populatePsionicPanelCounts(panel, cls.class, lvl, classId);
+      return `${cls.class} ${lvl} progression applied`;
+    }
+    if (type === 'maneuvers') {
+      _claimPanelFields(panel, cls.class,
+        ['.tom-init-level', '.tom-known', '.tom-readied', '.tom-stances']);
+      const il = panel.querySelector('.tom-init-level');
+      if (il) { il.value = String(lvl); il.dispatchEvent(new Event('input', { bubbles: true })); }
+      populateManeuverPanelCounts(panel, cls.class, lvl);
+      return `${cls.class} ${lvl} progression applied`;
+    }
+    if (type === 'invocations') {
+      _claimPanelFields(panel, cls.class,
+        ['.invo-caster-level', '.invo-known-count', '.invo-highest-grade']);
+      makeClassFieldSetter(panel, cls.class)('.invo-caster-level', String(lvl));
+      populateInvocationPanelCounts(panel, cls.class, lvl, classId);
+      panel.dataset.invoClass = cls.class;
+      return `${cls.class} ${lvl} progression applied`;
+    }
+    if (type === 'binding') {
+      _claimPanelFields(panel, cls.class, ['.bind-level', '.bind-max-vestige']);
+      makeClassFieldSetter(panel, cls.class)('.bind-level', String(lvl));
+      populateBinderPanelCounts(panel, cls.class, lvl, classId);
+      return `${cls.class} ${lvl} progression applied`;
+    }
+    if (type === 'shadowcaster') {
+      _claimPanelFields(panel, cls.class, ['.sh-caster-level']);
+      makeClassFieldSetter(panel, cls.class)('.sh-caster-level', String(lvl));
+      return `${cls.class} ${lvl} caster level applied`;
+    }
+    return null;
+  }
+
   // Class features that add an ability bonus to TOUCH AC only. These can't
   // ride the normal AC channels: those add to the full AC total, and this one
   // is touch-exclusive AND capped, so character.js applies it after the AC
@@ -5700,6 +5836,7 @@
     getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
     getActiveInitiativeBonuses, getActiveSoulmeldCapacityBonus,
     getTouchACFeatures,
+    getFollowableClasses, fillPanelFromClass,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,

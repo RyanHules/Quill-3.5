@@ -16,6 +16,95 @@ const Spells = (function () {
   function spellListLabel(i) { return i < SPELL_LIST_LABELS.length ? SPELL_LIST_LABELS[i] : i + "th Level"; }
   function spellShort(i) { return i < SPELL_SHORT.length ? SPELL_SHORT[i] : i + "th"; }
   // --- Add a caster sub-tab (spellcasting or psionics) ---
+  // ---- "Follow a class" control (report rms3ljwel-97us) ----------------
+  //
+  // A sub-tab added by hand with the "+ Spellcasting" / "+ Psionics" / …
+  // buttons opens completely blank — every slot and count typed manually.
+  // This row lets the player point it at a class + level and have the
+  // picker fill the progression, using the same machinery the class picker
+  // uses when it creates a panel itself.
+  //
+  // Rendered on every panel of a followable type, not just hand-made ones:
+  // on a class-created panel it shows what the panel already follows and
+  // lets the level be corrected, which is useful rather than redundant.
+  // Panel types with no per-class progression (epic, spell-like abilities)
+  // don't get it — there's nothing to follow.
+  const FOLLOWABLE_TYPES = new Set([
+    "spellcasting", "psionics", "maneuvers", "invocations",
+    "binding", "shadowcaster",
+  ]);
+
+  function buildFollowClassHTML(type, data) {
+    if (!FOLLOWABLE_TYPES.has(type)) return "";
+    if (typeof ClassPicker === "undefined" ||
+        typeof ClassPicker.getFollowableClasses !== "function") return "";
+    const names = ClassPicker.getFollowableClasses(type) || [];
+    if (!names.length) return "";
+    const cur = data.followClass || "";
+    const lvl = data.followLevel || "";
+    const opts = ['<option value="">— none —</option>'].concat(
+      names.map(n => `<option value="${escAttr(n)}"${n === cur ? " selected" : ""}>${escHtml(n)}</option>`)
+    ).join("");
+    // Deliberately NOT wrapped in `.field` — that class is a full-width
+    // column flex, which stretched the button across the panel.
+    return `
+      <div class="caster-follow-row" style="display:flex;align-items:center;
+           gap:0.4rem;flex-wrap:wrap;margin:0.35rem 0 0.15rem">
+        <label style="opacity:0.75;font-size:0.85em;white-space:nowrap"
+               title="Fill this tab's progression from a class's table. Use when the tab isn't tied to an applied class — a creature's innate casting, an NPC block, a borrowed progression.">Follow class</label>
+        <select class="caster-follow-class" style="max-width:14rem">${opts}</select>
+        <label style="opacity:0.75;font-size:0.85em">Level</label>
+        <input type="number" class="caster-follow-level" min="1" max="20"
+               value="${escAttr(lvl)}" style="width:4rem">
+        <button type="button" class="btn-add caster-follow-apply"
+                style="width:auto;flex:0 0 auto;padding:0.15rem 0.6rem">Fill from class</button>
+        <span class="caster-follow-note" style="opacity:0.8;font-size:0.85em"></span>
+      </div>`;
+  }
+
+  function escHtml(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function escAttr(s) { return escHtml(s).replace(/"/g, "&quot;"); }
+
+  // Delegated so it covers every panel, including ones built later.
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest?.(".caster-follow-apply");
+    if (!btn) return;
+    const panel = btn.closest(".inner-tab-content");
+    if (!panel) return;
+    const cls = panel.querySelector(".caster-follow-class")?.value || "";
+    const lvl = panel.querySelector(".caster-follow-level")?.value || "";
+    const note = panel.querySelector(".caster-follow-note");
+    const say = (msg, ok) => {
+      if (!note) return;
+      note.textContent = msg;
+      note.style.color = ok ? "#7a9" : "#c88";
+      setTimeout(() => { note.textContent = ""; }, 6000);
+    };
+    if (!cls) return say("Pick a class first.", false);
+    if (!lvl) return say("Enter a class level.", false);
+    const res = (typeof ClassPicker !== "undefined" && ClassPicker.fillPanelFromClass)
+      ? ClassPicker.fillPanelFromClass(panel, cls, lvl) : null;
+    // The spellcasting path rebuilds the panel's innards, so re-read the
+    // controls from the (possibly replaced) DOM before reporting.
+    if (res) {
+      const sel = panel.querySelector(".caster-follow-class");
+      const lv = panel.querySelector(".caster-follow-level");
+      if (sel) sel.value = cls;
+      if (lv) lv.value = lvl;
+      const n2 = panel.querySelector(".caster-follow-note");
+      if (n2) {
+        n2.textContent = res; n2.style.color = "#7a9";
+        setTimeout(() => { n2.textContent = ""; }, 6000);
+      }
+      try { Spells.recalc(); } catch (e) { /* non-fatal */ }
+    } else {
+      say(`${cls} has no progression for this tab at level ${lvl}.`, false);
+    }
+  });
+
   function addCaster(type, data = {}) {
     const idx = casterIndex++;
     const DEFAULT_NAMES = { spellcasting: "Spellcasting", psionics: "Psionics", maneuvers: "Maneuvers", epic: "Epic Spellcasting", binding: "Binding", shadowcaster: "Shadowcasting", invocations: "Invocations", sla: "Spell-Like Abilities" };
@@ -42,7 +131,8 @@ const Spells = (function () {
     // Sub-tab notes field (for differentiating multiple tabs of same type).
     // Multi-line textarea — auto-expands to fit content via app.js's
     // autoExpandAll() rebind on load.
-    const notesHTML = `<div class="field caster-notes-field"><label>Notes</label><textarea class="caster-notes auto-expand" rows="1" placeholder="e.g. Cleric spells, Arcane Trickster, etc.">${data.notes || ""}</textarea></div>`;
+    const notesHTML = `<div class="field caster-notes-field"><label>Notes</label><textarea class="caster-notes auto-expand" rows="1" placeholder="e.g. Cleric spells, Arcane Trickster, etc.">${data.notes || ""}</textarea></div>`
+      + buildFollowClassHTML(type, data);
 
     if (type === "spellcasting") {
       panel.innerHTML = notesHTML + buildSpellcastingHTML(idx, data);
@@ -2363,6 +2453,11 @@ const Spells = (function () {
       const name = btn.textContent.replace("×", "").trim();
       const caster = { type, name };
       caster.notes = panel.querySelector(".caster-notes")?.value || "";
+      // Remember which class a hand-made tab follows, so the control comes
+      // back pointed where the player left it (the numbers themselves are
+      // already saved field-by-field — this is just the control's state).
+      caster.followClass = panel.querySelector(".caster-follow-class")?.value || "";
+      caster.followLevel = panel.querySelector(".caster-follow-level")?.value || "";
       // Persist race-owned racial-initiation markers so the panel round-trips
       // with its stacking identity (the class-picker's racial pass + the
       // race-picker's teardown both key off data-from-race + this metadata).
