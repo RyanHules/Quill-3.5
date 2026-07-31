@@ -21,6 +21,7 @@ const TraitPicker = (function () {
   // applied = [{ name, source, kind }]  (kind: 'trait' | 'flaw')
   let applied = [];
   let catalog = [];          // [{name, source, kind}] in scope
+  let resultWalls = [];      // [{kind, wall}] — PickerResults chip walls
   const SOFT_LIMIT = 2;
   const TRAIT_PICKER_OPEN_KEY = 'dnd35-trait-picker-open';  // collapse-state persistence
 
@@ -49,6 +50,19 @@ const TraitPicker = (function () {
       catalog.push({ name: r.name, source: r.source, kind: r.type });
     }
     populateDatalist();
+    renderBrowse();
+  }
+
+  // Repaint the browsing chip walls from the current catalog, narrowed by
+  // whatever is typed in the name box. Called on catalog rebuild (book
+  // filter change / DB load) and on every keystroke.
+  function renderBrowse() {
+    if (!resultWalls.length) return;
+    const typed = (document.getElementById('trait-flaw-name')?.value || '').trim();
+    for (const { kind, wall } of resultWalls) {
+      wall.render(catalog.filter(c => c.kind === kind).map(c => c.name),
+                  { typedFilter: typed });
+    }
   }
 
   function populateDatalist() {
@@ -138,6 +152,7 @@ const TraitPicker = (function () {
       + '</div>'
       + '<div id="trait-flaw-applied-list" style="display:flex;gap:0.35rem;'
       + 'flex-wrap:wrap;align-items:center;margin-bottom:0.3rem"></div>'
+      + '<div id="trait-flaw-browse"></div>'
       + '<div id="trait-flaw-info" class="picker-info" style="display:none"></div>'
       + '</details>';
 
@@ -154,7 +169,32 @@ const TraitPicker = (function () {
       const c = findCatalog(input.value);
       if (c) showInfo(c);
     });
+    // Browsing chip walls — the whole in-scope catalog laid out below the
+    // search box, the way feat-picker does it. Traits and flaws get
+    // separate walls because you budget them separately (2 of each at
+    // creation), and several flaws don't carry a "(Flaw)" name suffix to
+    // tell them apart in a merged list. 48 entries total, so no cap is hit.
+    const browse = document.getElementById('trait-flaw-browse');
+    if (browse && typeof PickerResults !== 'undefined') {
+      const pick = (name) => {
+        // Preview on click, don't auto-add — the user still presses
+        // + Add. Mirrors feat-picker's chip behavior, and means a
+        // mis-click can't silently blow the 2-per-kind budget.
+        input.value = name;
+        const c = findCatalog(name);
+        if (c) showInfo(c);
+        input.focus();
+      };
+      resultWalls = ['trait', 'flaw'].map(kind => ({
+        kind,
+        wall: PickerResults.attach(browse, { itemNoun: kind, onPick: pick }),
+      }));
+    }
+    // Re-render the walls as the user types so the chips narrow with the
+    // datalist. `change` alone would only fire on blur / autocomplete pick.
+    input.addEventListener('input', renderBrowse);
     populateDatalist();
+    renderBrowse();
 
     // Remember the collapse state across page reloads. This section used to
     // force `open` on every load (unlike the other picker-sections, which
