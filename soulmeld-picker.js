@@ -79,6 +79,14 @@
         baseEffect: parsed.base,
         essentiaScaling: parsed.essentia,
         bindEffects: parsed.binds,   // [{chakra, text}, ...]
+        // Pre-flattened haystack for the browse panel's text search. The
+        // filter used to match NAMES only, which made the panel useless for
+        // the actual question you ask of soulmelds — "which ones interact
+        // with disease?" — since the mechanic lives in the effect prose, not
+        // the name (Lammasu Mantle, Rageclaws, …). Report rms3qb8hx-7cjh.
+        searchBlob: [r.name, r.descriptors, r.classes_csv, r.chakra,
+                     r.saving_throw, r.description]
+          .filter(Boolean).join(' ').toLowerCase(),
       });
     }
     console.log(`[soulmeld-picker] indexed ${soulmeldIndex.size} soulmelds`);
@@ -176,7 +184,9 @@
                 `<option value="${c}">${c}</option>`).join('')}
             </select>
           </label>
-          <input type="text" id="sm-browse-name" placeholder="Name…"
+          <input type="text" id="sm-browse-name"
+                 placeholder="Search name or effect text…"
+                 title="Searches the whole entry — name, chakra, classes, descriptors and the full effect text. Multiple words all have to match (e.g. &quot;disease&quot;, or &quot;bind fear&quot;)."
                  style="flex:1 1 8rem; min-width:6rem; padding:0.2rem;
                         background:#15171f;color:#eee;border:1px solid #444;
                         border-radius:3px;">
@@ -218,8 +228,14 @@
           const cs = String(sm.classes_csv || '').toLowerCase();
           if (!cs.includes(classFilter)) continue;
         }
-        if (nameFilter && !sm.name.toLowerCase().includes(nameFilter)) {
-          continue;
+        // Whitespace-separated terms, ALL of which must appear somewhere in
+        // the soulmeld's text (name / chakra / classes / descriptors / save /
+        // full description). AND-of-substrings, so "disease bind" narrows
+        // rather than widens.
+        if (nameFilter) {
+          const hay = sm.searchBlob || sm.name.toLowerCase();
+          if (!nameFilter.split(/\s+/).filter(Boolean)
+                .every(t => hay.includes(t))) continue;
         }
         matches.push(sm);
       }
@@ -657,7 +673,20 @@
   function fillFromSoulmeld(input, sm, isSecond) {
     const slot = input.closest('.magic-item-slot');
     let baseEl, bindEl, slotId;
-    if (slot) {
+    // TOTEM FIRST. The totem block is itself `.magic-item-slot slot-totem`,
+    // so the generic branch below used to swallow it — and its effect fields
+    // are addressed by ID (#totem-sm-base), not by the `.slot-sm-base` class
+    // the body slots use, so the lookup returned null and nothing ever
+    // filled. The ⓘ panel then rendered "No effect details yet" forever,
+    // which is what got reported (rms3t1tz7-7818): the totem branch was
+    // unreachable dead code. It also has no data-slot-id, so slotId came out
+    // null and pickBindForSlot couldn't find the Totem-chakra bind either.
+    if (input.id === 'totem-sm-name' || input.id === 'totem-sm2-name') {
+      const p = isSecond ? 'totem-sm2' : 'totem-sm';
+      baseEl = document.getElementById(`${p}-base`);
+      bindEl = document.getElementById(`${p}-bind-effect`);
+      slotId = 'totem';
+    } else if (slot) {
       slotId = slot.dataset.slotId || null;
       if (isSecond) {
         baseEl = slot.querySelector('.slot-sm2-base');
@@ -666,14 +695,6 @@
         baseEl = slot.querySelector('.slot-sm-base');
         bindEl = slot.querySelector('.slot-sm-bind-effect');
       }
-    } else if (input.id === 'totem-sm-name') {
-      baseEl = document.getElementById('totem-sm-base');
-      bindEl = document.getElementById('totem-sm-bind-effect');
-      slotId = 'totem';
-    } else if (input.id === 'totem-sm2-name') {
-      baseEl = document.getElementById('totem-sm2-base');
-      bindEl = document.getElementById('totem-sm2-bind-effect');
-      slotId = 'totem';
     }
 
     // Base effect text: combine Base + Essentia so both show up.
