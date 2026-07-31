@@ -567,12 +567,14 @@
     if (lvls) bits.push(`<b>Classes:</b> ${escapeHtml(lvls)}`);
     if (rec.saving_throw) bits.push(`<b>Save:</b> ${escapeHtml(rec.saving_throw)}`);
     if (rec.power_resistance) bits.push(`<b>PR:</b> ${escapeHtml(rec.power_resistance)}`);
+    // Base effect FIRST, augmentation after — Augment describes what
+    // spending extra power points CHANGES about the effect below it, so
+    // printing it first read as the whole power. And no truncation: the
+    // description IS the power's mechanics (every one of them matters at
+    // the table), so a 350-char cut silently hid the back half of most
+    // powers. Report rms3qhc3r-gedx.
+    if (rec.description) bits.push(escapeHtml(rec.description));
     if (rec.augment) bits.push(`<b>Augment:</b> ${escapeHtml(rec.augment)}`);
-    if (rec.description) {
-      const d = rec.description.length > 350
-        ? rec.description.slice(0, 350) + '…' : rec.description;
-      bits.push(escapeHtml(d));
-    }
     // Structured data tables (Object Reading study times, Remote
     // Viewing save modifiers).
     if (rec.tables_json && window.RichText) {
