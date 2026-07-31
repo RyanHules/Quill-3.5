@@ -261,7 +261,11 @@ textarea {
 
 .subtype-header-row td { padding-bottom: 0 !important;}
 
-.subtype-skill-name { display: flex;align-items: center;gap: 0.25rem;}
+/* Wraps, and the subtype input is allowed to shrink. The base name is
+   `white-space: nowrap` and the input carries a default min-content width, so
+   a long subtype row ("Knowledge (…)") pushed 125px past the skills column. */
+.subtype-skill-name { display: flex; flex-wrap: wrap; align-items: center;gap: 0.25rem;}
+.subtype-skill-name input[type="text"] { min-width: 0; }
 
 .subtype-skill-name .skill-base-name { font-weight: 500;white-space: nowrap;}
 
@@ -881,7 +885,9 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .inner-tab-content.active { display: block; }
 
 /* === Spell List Tabs === */
-.spell-list-tabs { display: flex;gap: 0.25rem;margin-bottom: 0.5rem;}
+/* Wraps — the 0th..9th level strip is ten chips, and nowrap ran it 65px past
+   its panel on a narrow window. */
+.spell-list-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem;margin-bottom: 0.5rem;}
 
 .spell-level-tab {
   background: var(--btn-bg);
@@ -1025,7 +1031,11 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .companion-abilities { display: flex;flex-wrap: wrap;gap: 0.4rem;}
 .companion-abilities .field { min-width: 80px; }
 .companion-abilities .comp-mod { font-size: 0.85rem; font-weight: 600; color: var(--accent); min-width: 2rem; display: inline-block; }
-.comp-attack-entry { display: flex;gap: 0.3rem;margin-bottom: 0.3rem; align-items: center; }
+/* Wraps: the companion's attack row (name / bonus / damage / crit / remove) is
+   the widest fixed row on the tab, and inside the two-column grid it ran 85px
+   past its column on a narrow window — dragging #companion-content and every
+   ancestor into overflow with it. */
+.comp-attack-entry { display: flex; flex-wrap: wrap; gap: 0.3rem;margin-bottom: 0.3rem; align-items: center; }
 .comp-attack-entry input { font-size: 0.8rem; padding: 0.3rem; } .comp-header { margin-bottom: 0.75rem; }
 .comp-saves { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.3rem; }
 .save-row { display: flex; align-items: center; gap: 0.4rem; }
@@ -1375,7 +1385,9 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 }
 .mv-row { display: flex; align-items: center; gap: 0.4rem; }
 .mv-row > label {
-  width: 48px; flex: 0 0 48px; color: var(--text-muted);
+  /* 48px clipped the longest mode name ("BURROW" needs 54px at this size and
+     letter-spacing) by 6px. Sized to the real content instead. */
+  width: 56px; flex: 0 0 56px; color: var(--text-muted);
   font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em;
 }
 .mv-row .mv-base { width: 56px; padding: 0.15rem 0.35rem; }
