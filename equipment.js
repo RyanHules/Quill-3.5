@@ -736,7 +736,13 @@ const Equipment = (function () {
     // A class change can add/remove the Incarnate capacity bonus (S3) — re-derive
     // every soulmeld's capacity + refresh the note. This slot builder runs once,
     // so the listener registers once.
-    document.addEventListener("classes-changed", () => { rebuildAllPips(); recalcSoulmelds(); });
+    document.addEventListener("classes-changed", () => {
+      syncBaseCapacityFromLevel(); rebuildAllPips(); recalcSoulmelds();
+    });
+    // Base capacity keys off CHARACTER level, which the player can also
+    // type directly — so watch the field itself, not just class changes.
+    $("#char-level")?.addEventListener("input", syncBaseCapacityFromLevel);
+    syncBaseCapacityFromLevel();
     updateCapacityBonusNote();
 
     // Soulmeld effect ⓘ panels (S4): the Base/Bind effect fields live inside a
@@ -803,6 +809,44 @@ const Equipment = (function () {
     return (typeof ClassPicker !== "undefined" &&
             typeof ClassPicker.getActiveSoulmeldCapacityBonus === "function")
       ? ClassPicker.getActiveSoulmeldCapacityBonus() : 0;
+  }
+
+  // Base essentia capacity is a pure function of CHARACTER LEVEL — MoI
+  // Table 2-1 (1st-5th: 1, 6th-11th: 2, 12th-17th: 3, 18th-20th: 4) plus
+  // the Epic Essentia Capacity table (21st-30th: 4, then +1 per 10 levels).
+  // It is NOT a meldshaper-class thing: anyone with an incarnum feat has
+  // it, which is why it lives off char level rather than the class table.
+  function baseCapacityForLevel(level) {
+    if (!Number.isFinite(level) || level < 1) return null;
+    if (level <= 5) return 1;
+    if (level <= 11) return 2;
+    if (level <= 17) return 3;
+    if (level <= 30) return 4;          // 18-20 (MoI) runs straight into 21-30 (epic)
+    return 4 + Math.floor((level - 21) / 10);
+  }
+
+  // Fill #sm-base-capacity from character level. Same auto-fill contract as
+  // the class-picker's counters: write while the field is untouched (blank,
+  // "0", or still carrying our marker) so it tracks level-ups, and stand
+  // down permanently once the player types their own value.
+  function syncBaseCapacityFromLevel() {
+    const el = $("#sm-base-capacity");
+    if (!el) return;
+    const cap = baseCapacityForLevel(parseInt($("#char-level")?.value, 10));
+    if (cap == null) return;
+    const cur = (el.value || "").trim();
+    const stillAuto = el.dataset.fromLevel === "1";
+    if (cur !== "" && cur !== "0" && !stillAuto) return;
+    if (cur === String(cap) && stillAuto) return;   // no-op: avoid event churn
+    el.value = String(cap);
+    el.dataset.fromLevel = "1";
+    if (!el.dataset.fromLevelWired) {
+      el.dataset.fromLevelWired = "1";
+      el.addEventListener("input", (ev) => {
+        if (ev.isTrusted) delete el.dataset.fromLevel;
+      });
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   // Per-soulmeld base capacity = the manual Base Capacity field + any recognized
@@ -1422,6 +1466,10 @@ const Equipment = (function () {
   // Paper Doll
   // ============================================================
   function updatePaperDoll() {
+    // Runs on every recalcAll — the cheapest hook for keeping the
+    // level-derived base essentia capacity in step with a level change
+    // arriving from anywhere (class picker, history rebuild, load).
+    syncBaseCapacityFromLevel();
     const doll = $("#paper-doll");
     if (!doll) return;
 
