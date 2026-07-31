@@ -87,6 +87,12 @@ const Feats = (function () {
   // the granting source as a read-only tag instead of an editable spec
   // control (the annotation is a source label, not a specialization), and
   // it stays structured even when the feat isn't a DB match.
+  // opts.replaceRow: an existing `.feat-row` to swap out in place instead
+  // of appending. The feat-picker uses this when it fills a blank row —
+  // writing the name straight into that row's textarea left it as a plain
+  // editable box, so a picker-added feat looked and behaved differently
+  // depending on whether a blank row happened to exist (report
+  // rms23xqqq-c0yf). Rebuilding the row keeps its POSITION in the list.
   function addFeat(text = "", opts = {}) {
     const container = $("#feats-container");
     const div = document.createElement("div");
@@ -188,8 +194,11 @@ const Feats = (function () {
     div.appendChild(info);
     div.appendChild(prereq);
     div.appendChild(btn);
-    container.appendChild(div);
+    const target = opts.replaceRow;
+    if (target && target.parentNode) target.replaceWith(div);
+    else container.appendChild(div);
     refreshFeatPrereqBadge(div);
+    return div;
   }
 
   // Look up the row's feat name in the DB, parse + check prereqs,

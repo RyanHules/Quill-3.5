@@ -499,16 +499,21 @@
         return;
       }
       // Reuse the first empty row if there is one (so an initial blank
-      // row added by app.js doesn't get left behind).
+      // row added by app.js doesn't get left behind). Rebuild it through
+      // addFeat rather than typing into its textarea — otherwise the row
+      // stays a plain editable box while an appended one renders as the
+      // structured read-only name + ⓘ + prereq badge, so the same pick
+      // looked different depending on whether a blank row existed.
       const blanks = Array.from(
         document.querySelectorAll('#feats-container .feat-entry')
       ).filter(t => !(t.value || '').trim());
-      if (blanks.length) {
-        blanks[0].value = text;
-        blanks[0].dispatchEvent(new Event('input', { bubbles: true }));
-      } else {
-        Feats.addFeat(text);
-      }
+      const row = Feats.addFeat(text, blanks.length
+        ? { replaceRow: blanks[0].closest('.feat-row') }
+        : {});
+      // Keep the recalc/audit chain firing the way the old in-place write
+      // did — downstream listeners are delegated off `input`.
+      row?.querySelector('.feat-entry')
+        ?.dispatchEvent(new Event('input', { bubbles: true }));
       flash(`Added "${text}" to Feats.`, '#7a9');
     });
   }
