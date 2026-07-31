@@ -119,9 +119,14 @@ const ClassVariants = (function () {
       const lvl = row.level;
       const sp = row.special;
       if (sp && sp !== '—') for (const piece of String(sp).split(',')) add(piece, lvl);
-      const sb = row.unarmored_speed_bonus;
+      // Per-level count columns live under `row.columns` (the DB coerces
+      // every one of them there — see canonical_fields.CLASS_TABLE_COLUMN_
+      // COERCE). The `row.<key>` fallback covers a DB built before that
+      // coercion landed, so an older deployed blob still resolves.
+      const cols = row.columns || {};
+      const sb = cols.unarmored_speed_bonus ?? row.unarmored_speed_bonus;
       if (sb && sb !== '+0 ft.' && sb !== '+0' && sb !== '—') { add('fast movement', lvl); add('unarmored speed', lvl); }
-      const ac = row.ac_bonus;
+      const ac = cols.ac_bonus ?? row.ac_bonus;
       if (ac && ac !== '+0' && ac !== '—') { add('armor class', lvl); add('ac bonus', lvl); }
       const spd = row.spells_per_day;
       if (Array.isArray(spd) && spd.some(x => typeof x === 'number' && x > 0)) { add('spells', lvl); add('spellcasting', lvl); }

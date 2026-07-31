@@ -48,6 +48,20 @@
     'Duskblade': 'INT', 'Sohei': 'WIS',
     'Apostle of Peace': 'WIS', 'Assassin': 'INT',
     'Blackguard': 'WIS',
+    // Psionic MANIFESTING abilities. Same field on the panel (the .psi-ability
+    // dropdown), so they live in the same map. Each corpus-verified off the
+    // class's own power-save-DC line rather than assumed — Lurk is INT, not
+    // the CHA a "sneaky psionic rogue" reads like:
+    //   XPH  "…+ the psion's Intelligence modifier"          (Psion)
+    //        "…+ the psychic warrior's Wisdom modifier"      (Psychic Warrior)
+    //        "…+ the wilder's Charisma modifier"             (Wilder)
+    //   CPsi "…+ the ardent's Wis modifier"                  (Ardent)
+    //        "…+ the lurk's Int modifier"                    (Lurk)
+    //        "…+ the divine mind's Wis"                      (Divine Mind)
+    //        "…+ the erudite's Int"                          (Erudite)
+    // Soulknife is deliberately absent — it manifests no powers.
+    'Psion': 'INT', 'Psychic Warrior': 'WIS', 'Wilder': 'CHA',
+    'Ardent': 'WIS', 'Lurk': 'INT', 'Divine Mind': 'WIS', 'Erudite': 'INT',
   };
 
   // (SPELL_CLASS_VARIANTS removed 2026-07-13 — it existed only to derive the
@@ -2348,10 +2362,23 @@
         spd === undefined || spd === null ? null : JSON.stringify(spd),
       spells_known_json:
         sk === undefined || sk === null ? null : JSON.stringify(sk),
-      power_points_per_day: row.power_points_per_day ?? null,
-      powers_known: row.powers_known ?? null,
-      max_power_level: row.max_power_level ?? null,
+      // Per-level psionic counts are canonically `row.columns.*` (the DB
+      // coerces every count column there — canonical_fields.CLASS_TABLE_
+      // COLUMN_COERCE). `power_points_per_day` is a THIRD legacy spelling
+      // that predates the canon; the bare `row.*` reads are the fallback for
+      // a DB blob built before the coercion shipped.
+      power_points_per_day: cols(row).power_points_day
+        ?? row.power_points_per_day ?? row.power_points_day ?? null,
+      powers_known: cols(row).powers_known ?? row.powers_known ?? null,
+      max_power_level: cols(row).max_power_level
+        ?? row.max_power_level ?? row.max_power_level_known ?? null,
     };
+  }
+
+  // A class_table row's canonical per-level column block (never null).
+  function cols(row) {
+    return (row && row.columns && typeof row.columns === 'object')
+      ? row.columns : {};
   }
 
   function levelData(classId, level) {
@@ -2932,6 +2959,9 @@
     }
     // Refresh each applied ToB base class's maneuver panel IL.
     refreshAllManeuverTabs();
+    // Same for the invocation + mystery pillars.
+    refreshAllInvocationTabs();
+    refreshAllMysteryTabs();
 
     // Re-fire class-spell-additions (Sand Shaper's Desert Insight, etc.)
     // for every applied class that has a CATALOG entry. Needed for the
@@ -2971,9 +3001,9 @@
   // side) so that future UI / lookup-modal / chip-display consumers
   // can surface both.
   //
-  // No effective-level panel-update is wired today — the sheet
-  // doesn't yet have a per-Warlock invocations panel showing caster
-  // level / invocations-known counts. The chip-list display surfaces
+  // refreshAllInvocationTabs pushes effectiveInvocationLevel into the
+  // panel's Caster Level and re-derives Invocations Known + Highest
+  // Grade at that level. The chip-list display also surfaces
   // "(advances invocations)" via the same advNote builder that
   // handles the spell pillar.
   // ============================================================
@@ -3141,6 +3171,43 @@
         ilField.dispatchEvent(new Event('input', { bubbles: true }));
       }
     });
+  }
+
+  // Push the EFFECTIVE invocation level (base class level + every
+  // invocation-advancing PrC level targeting it) into each invocation
+  // panel, then re-derive that panel's per-level counts at the effective
+  // level. Mirrors refreshAllManeuverTabs for the invocation pillar.
+  //
+  // Until 2026-07-31 effectiveInvocationLevel was computed and thrown
+  // away — nothing called it — so Eldritch Theurge / Eldritch Disciple /
+  // Demonbinder advanced nothing the player could see: a Warlock 5 /
+  // Eldritch Theurge 5 still showed caster level 5 and 3 invocations
+  // known instead of 10 / 6.
+  function refreshAllInvocationTabs() {
+    for (const target of classPool()) {   // union — both gestalt sides
+      if (!INVOCATION_USING_CLASSES.has(target.className)) continue;
+      const panel = findExistingCasterPanel('invocations', target.className);
+      if (!panel) continue;
+      const lvl = effectiveInvocationLevel(target);
+      makeClassFieldSetter(panel, target.className)(
+        '.invo-caster-level', String(lvl));
+      populateInvocationPanelCounts(
+        panel, target.className, lvl, target.classId);
+    }
+  }
+
+  // Mystery pillar (Shadowcaster). Same dead-code fix as above: Master of
+  // Shadow / Noctumancer levels never reached the panel's Caster Level.
+  // Mysteries-known isn't a class_table column (it's a per-level rule in
+  // the class text), so the level is all we can push.
+  function refreshAllMysteryTabs() {
+    for (const target of classPool()) {   // union — both gestalt sides
+      if (!MYSTERY_USING_CLASSES.has(target.className)) continue;
+      const panel = findExistingCasterPanel('shadowcaster', target.className);
+      if (!panel) continue;
+      makeClassFieldSetter(panel, target.className)(
+        '.sh-caster-level', String(effectiveMysteryLevel(target)));
+    }
   }
 
   // Strip parser-leaked sample character names (e.g. "Krusk", "Alhandra")
@@ -4131,10 +4198,12 @@
       return upsertSpellcastingPanel(className, classLevel, sc, offset);
     }
     if (PSIONIC_CLASSES.has(className)) {
-      return ensureSimpleCasterTab('psionics', className, classLevel, {
+      const panel = ensureSimpleCasterTab('psionics', className, classLevel, {
         createData: { manifesterLevel: classLevel },
         levelSelectors: ['.psi-manifester-level'],
       });
+      if (panel) populatePsionicPanelCounts(panel, className, classLevel, classId);
+      return panel;
     }
     if (MARTIAL_ADEPT_CLASSES.has(className)) {
       const panel = ensureSimpleCasterTab('maneuvers', className, classLevel, {
@@ -4157,9 +4226,13 @@
     // class_table count columns are prefilled (M2-style) where present.
     if (INVOCATION_USING_CLASSES.has(className)) {
       const panel = ensureSimpleCasterTab('invocations', className, classLevel, {
-        createData: { invokerLevel: classLevel, casterLevel: classLevel,
-                      invoClass: className },
-        levelSelectors: ['.invo-level', '.invo-caster-level'],
+        // Caster Level is deliberately NOT seeded here: refreshAllInvocation
+        // Tabs (fired from refreshAllSpellTabs at the end of applyClass)
+        // owns the field so it can write the EFFECTIVE level and tag it
+        // data-from-class. A createData seed would land untagged, and the
+        // setter's respect-user-edits guard would then refuse to advance it.
+        createData: { invoClass: className },
+        levelSelectors: ['.invo-caster-level'],
       });
       if (panel) populateInvocationPanelCounts(panel, className, classLevel, classId);
       return panel;
@@ -4173,11 +4246,12 @@
       return panel;
     }
     if (MYSTERY_USING_CLASSES.has(className)) {
-      // Shadowcaster's mystery counts aren't in the class_table columns
-      // (mysteries-known derives from a per-level formula in the class
-      // text), so we seed the caster level only.
       return ensureSimpleCasterTab('shadowcaster', className, classLevel, {
-        createData: { casterLevel: classLevel },
+        // Mystery counts aren't class_table columns (mysteries-known is a
+        // per-level formula in the class text), so Caster Level is all we
+        // push — and it's NOT seeded via createData for the same reason as
+        // the invocations branch: refreshAllMysteryTabs owns it so Master
+        // of Shadow / Noctumancer levels actually raise it.
         levelSelectors: ['.sh-caster-level'],
       });
     }
@@ -4389,8 +4463,8 @@
   // opts:
   //   createData     — extra data keys merged into the addCaster() blob
   //                    on CREATE, so the panel opens with its level
-  //                    field(s) pre-filled (e.g. { invokerLevel,
-  //                    casterLevel } for Warlock → buildInvocationsHTML).
+  //                    field(s) pre-filled (e.g. { casterLevel } for
+  //                    Warlock → buildInvocationsHTML).
   //   levelSelectors — panel input selectors re-synced to classLevel on
   //                    RE-APPLY (level-up). Must name the SUBSYSTEM's
   //                    real level inputs — psionics is .psi-manifester-
@@ -4695,17 +4769,36 @@
         (level >= 16 ? 1 : 0) +
         (level >= 20 ? 1 : 0);
       setIfEmpty('rage-per-day', String(perDay));
-      const conMod = getMod('CON');
-      setIfEmpty(
-        'rage-duration',
-        conMod !== null ? String(3 + conMod) : '3 + CON mod'
-      );
       // Greater (L11), Mighty (L20) bumps.
       const hasMighty = acquired.some(f => /mighty rage/i.test(f.name || ''));
       const hasGreater = acquired.some(f => /greater rage/i.test(f.name || ''));
-      const ab = hasMighty ? '+8' : hasGreater ? '+6' : '+4';
+      const strConBump = hasMighty ? 8 : hasGreater ? 6 : 4;
       const will = hasMighty ? '+4' : hasGreater ? '+3' : '+2';
-      setIfEmpty('rage-str-con', ab);
+      // Duration is "3 + the character's (NEWLY IMPROVED) Constitution
+      // modifier" (PHB p.25) — the raging score, not the resting one. We
+      // were filling 3 + the resting mod, which is 2-4 rounds short.
+      //
+      // getMod reads the displayed #con-mod, which already includes the
+      // rage bump when the toggle happens to be on; subtract exactly what
+      // the toggle added (class-features.js applies the #rage-str-con
+      // value to CON) so the answer doesn't depend on the toggle state.
+      const conMod = getMod('CON');
+      let ragedConMod = null;
+      if (conMod !== null) {
+        const toggleOn = !!document.getElementById('rage-active')?.checked;
+        const applied = toggleOn
+          ? (parseInt(document.getElementById('rage-str-con')?.value, 10) || 0)
+          : 0;
+        const restingConMod = conMod - Math.floor(applied / 2);
+        ragedConMod = restingConMod + Math.floor(strConBump / 2);
+      }
+      setIfEmpty(
+        'rage-duration',
+        ragedConMod !== null
+          ? String(3 + ragedConMod)
+          : `3 + raging CON mod (CON +${strConBump})`
+      );
+      setIfEmpty('rage-str-con', `+${strConBump}`);
       setIfEmpty('rage-will', will);
       setIfEmpty('rage-ac', '-2');
     }
@@ -4789,12 +4882,66 @@
   // Grade and the per-grade breakdown aren't in the table (grade access
   // is a level formula in the class text), so we prefill the known count
   // only; the player sets Highest Grade. Same setIfEmpty contract.
+  // Psionic per-level counts. XPH / CPsi print Power Points/Day, Powers Known
+  // and Maximum Power Level Known as class_table columns, and the manifesting
+  // ability is fixed per class — but none of it was reaching the panel, so a
+  // Wilder opened with an empty Base PP box and no ability selected and the
+  // whole PP/DC chain computed from zero (report rms2arc8p-9pye).
+  //
+  // Base PP is the table column ONLY: the ability-score bonus PP is derived
+  // separately by Spells.recalc into .psi-pp-bonus, so writing the combined
+  // number here would double-count it.
+  function populatePsionicPanelCounts(panel, className, level, classId) {
+    if (!panel) return;
+    const set = makeClassFieldSetter(panel, className);
+    const c = cols(classTableRowAt(classId, level));
+    if (c.power_points_day != null) set('.psi-pp-base', String(c.power_points_day));
+    if (c.powers_known != null) set('.psi-powers-known', String(c.powers_known));
+    // "1st"/"2nd"/… in the table; the panel field is a number input.
+    const maxLvl = parseOrdinalInt(c.max_power_level);
+    if (maxLvl != null) set('.psi-max-level', String(maxLvl));
+    const ability = getKeyAbility(className);
+    if (ability) set('.psi-ability', ability);
+  }
+
   function populateInvocationPanelCounts(panel, className, level, classId) {
     if (!panel) return;
-    const row = classTableRowAt(classId, level);
-    const known = row?.columns?.invocations_known;
-    if (known == null) return;
-    makeClassFieldSetter(panel, className)('.invo-known-count', String(known));
+    const set = makeClassFieldSetter(panel, className);
+    const known = classTableRowAt(classId, level)?.columns?.invocations_known;
+    if (known != null) set('.invo-known-count', String(known));
+    const grade = highestInvocationGradeAt(classId, level);
+    if (grade) set('.invo-highest-grade', grade);
+  }
+
+  // Highest invocation grade unlocked at `level`. Neither invocation class
+  // gives the grade its own class_table column — both print the unlock in
+  // the `special` prose:
+  //   Warlock (CArc)          L1 "…, invocation (least)"
+  //                           L6 "New invocation (least or lesser)"
+  //                          L11 "…, new invocation (least, lesser, or greater)"
+  //   Dragonfire Adept (DrM)  L1 "…, least invocations"  L6 "…, lesser invocations"
+  // So: scan every row up to `level` that mentions an invocation and keep
+  // the highest grade word seen. Both books unlock at 1/6/11/16.
+  const INVOCATION_GRADES_ASC = ['least', 'lesser', 'greater', 'dark'];
+
+  function highestInvocationGradeAt(classId, level) {
+    const table = fetchClassTable(classId);
+    if (!table || !table.length) return null;
+    let best = -1;
+    for (const row of table) {
+      if (Number(row.level) > Number(level)) continue;
+      const special = String(row.special || '');
+      if (!/invocation/i.test(special)) continue;
+      for (let i = INVOCATION_GRADES_ASC.length - 1; i > best; i--) {
+        if (new RegExp(`\\b${INVOCATION_GRADES_ASC[i]}\\b`, 'i').test(special)) {
+          best = i;
+          break;
+        }
+      }
+    }
+    if (best < 0) return null;
+    const g = INVOCATION_GRADES_ASC[best];
+    return g.charAt(0).toUpperCase() + g.slice(1);
   }
 
   // Binder vestige counts. Two row shapes: the legacy extraction carried
@@ -5012,6 +5159,31 @@
     return timelineLast;
   }
 
+  // The set of classes that count as CURRENT for class-skill purposes.
+  //
+  // Non-gestalt: exactly one — whatever getCurrentClassName resolves to.
+  //
+  // Gestalt (UA p.72-73): the two tracks are PARALLEL, not sequential — a
+  // Fighter//Wizard is BOTH classes at every level — so the current class on
+  // EACH side is current. Reconciling against a single name marked the other
+  // side's skills as "prior class skills" (2 pt/rank), which is wrong on both
+  // counts: they're current, and they were never a previous class at all
+  // (report rms23v9s6-1e1).
+  function getCurrentClassNames() {
+    const out = new Set();
+    const single = getCurrentClassName();
+    if (single) out.add(single);
+    if (gestalt) {
+      // Take the last picked class on BOTH sides. getCurrentClassName only
+      // ever looks at Side A (or a curated timeline, which records one class
+      // per level and so can only name one side).
+      for (const side of [pickedClasses, pickedClassesB]) {
+        if (side.length) out.add(side[side.length - 1].className);
+      }
+    }
+    return out;
+  }
+
   // Render (or clear) the small "prior class skill" marker beside a
   // class-skill checkbox. `priorSources` = the earlier classes that make this
   // a class skill, or null/[] to remove the marker.
@@ -5041,15 +5213,16 @@
   function reconcileCurrentClassSkills() {
     const tab = document.getElementById('tab-skills');
     if (!tab) return;
-    const current = getCurrentClassName();
+    const current = getCurrentClassNames();
     tab.querySelectorAll('.skill-class-check[data-class-skill-sources]')
       .forEach(cb => {
         const sources = (cb.dataset.classSkillSources || '')
           .split(',').filter(Boolean);
         if (!sources.length) return;
         // No resolvable current class → degrade to union (any source ticks).
-        const isCurrent = current ? sources.includes(current) : true;
-        const priorOnly = current ? sources.filter(s => s !== current) : [];
+        const isCurrent = current.size ? sources.some(s => current.has(s)) : true;
+        const priorOnly = current.size
+          ? sources.filter(s => !current.has(s)) : [];
         if (cb.checked !== isCurrent) cb.checked = isCurrent;
         const showPrior = !isCurrent && priorOnly.length > 0;
         if (showPrior) cb.dataset.priorClassSkill = priorOnly.join(',');
@@ -5433,12 +5606,39 @@
     return bonus;
   }
 
+  // Class features that add an ability bonus to TOUCH AC only. These can't
+  // ride the normal AC channels: those add to the full AC total, and this one
+  // is touch-exclusive AND capped, so character.js applies it after the AC
+  // totals resolve.
+  //
+  // Wilder — Elude Touch (Ex), XPH p.28, 2nd level: "She gains a bonus to
+  // Armor Class against all touch attacks equal to her Charisma bonus;
+  // however, her touch AC can never exceed her Armor Class against normal
+  // attacks." Bonus, so a negative modifier contributes nothing.
+  const TOUCH_AC_ABILITY_FEATURES = [
+    { className: 'Wilder', minLevel: 2, ability: 'CHA',
+      label: 'Wilder Elude Touch', capToNormalAC: true },
+  ];
+
+  function getTouchACFeatures() {
+    const out = [];
+    for (const spec of TOUCH_AC_ABILITY_FEATURES) {
+      const lvl = classPool()
+        .filter(e => e.className
+          && e.className.toLowerCase() === spec.className.toLowerCase())
+        .reduce((m, e) => Math.max(m, parseInt(e.level, 10) || 0), 0);
+      if (lvl >= spec.minLevel) out.push(Object.assign({}, spec));
+    }
+    return out;
+  }
+
   // Expose for testing + integration with future Character module wrappers.
   window.ClassPicker = {
     getState: () => pickedClasses.slice(),
     getActiveSpeedBonuses,
     getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
     getActiveInitiativeBonuses, getActiveSoulmeldCapacityBonus,
+    getTouchACFeatures,
     getStateB: () => pickedClassesB.slice(),
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,
@@ -5465,7 +5665,7 @@
     // Re-point class-skill checkboxes at the current (last-in-timeline) class
     // and stamp prior-class markers. Exposed for the timeline + tests.
     reconcileCurrentClassSkills,
-    getCurrentClassName,
+    getCurrentClassName, getCurrentClassNames,
     // Recompute every maneuver panel's IL (incl. the racial-initiation pass).
     // Called by race-picker after spawning a racial maneuvers panel so a
     // Valkyrie applied on top of existing swordsage levels stacks immediately.

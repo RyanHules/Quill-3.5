@@ -426,11 +426,31 @@ const Character = (function () {
     });
 
     const acTotal = 10 + cappedDexMod + acSize + acMisc + resolvedTotal + stackingTotal + acBonus;
-    const touchAC = 10 + cappedDexMod + acSize + acMisc + resolvedTouch + stackingTouch + acBonus;
+    let touchAC = 10 + cappedDexMod + acSize + acMisc + resolvedTouch + stackingTouch + acBonus;
     const flatFootedAC = 10 + acSize + acMisc + resolvedFF + stackingFF + acBonus;
+
+    // Touch-ONLY class-feature bonuses (Wilder's Elude Touch). Applied here,
+    // after the totals, because they never touch the full AC and because the
+    // RAW cap is expressed against the finished normal AC.
+    const touchNotes = [];
+    let capTouchToNormal = false;
+    for (const f of (bonuses.touchACFeatures || [])) {
+      const mod = getAbilityMod(f.ability);
+      if (mod > 0) {
+        touchAC += mod;
+        touchNotes.push(`+${mod} ${f.label} (${f.ability} bonus)`);
+      }
+      if (f.capToNormalAC) capTouchToNormal = true;
+    }
+    if (capTouchToNormal && touchAC > acTotal) {
+      touchAC = acTotal;
+      touchNotes.push(`capped at normal AC ${acTotal}`);
+    }
 
     $("#ac-total").textContent = acTotal;
     $("#ac-touch").textContent = touchAC;
+    const touchEl = $("#ac-touch");
+    if (touchEl) touchEl.title = touchNotes.join("; ");
     $("#ac-flatfooted").textContent = flatFootedAC;
     // Auto-derived situational AC modifiers (race/template), e.g. a dodge
     // bonus vs a specific creature type.

@@ -670,10 +670,12 @@
     await newCharacter();
     await applyClass('Warlock', 5);
     expectExists('[data-caster-type="invocations"]', 'SA1: Invocations sub-tab created');
-    expectValue('[data-caster-type="invocations"] .invo-level', '5', 'SA1: Invoker Level 5');
     expectValue('[data-caster-type="invocations"] .invo-caster-level', '5', 'SA1: Caster Level 5');
     // invocations_known is in the Warlock class_table columns (L5 → 3).
     expectValue('[data-caster-type="invocations"] .invo-known-count', '3', 'SA1: Invocations Known 3');
+    // Highest grade is parsed out of the `special` column (least at L1,
+    // lesser at L6) — at Warlock 5 it's still Least.
+    expectValue('[data-caster-type="invocations"] .invo-highest-grade', 'Least', 'SA1: Highest Grade Least');
   });
 
   regression('SA2: Binder 5 creates a Vestige Binding tab seeded to binder level 5', async () => {
@@ -696,7 +698,31 @@
     await newCharacter();
     await applyClass('Dragonfire Adept', 5);
     expectExists('[data-caster-type="invocations"]', 'SA4: Invocations sub-tab created');
-    expectValue('[data-caster-type="invocations"] .invo-level', '5', 'SA4: Invoker Level 5');
+    expectValue('[data-caster-type="invocations"] .invo-caster-level', '5', 'SA4: Caster Level 5');
+    expectValue('[data-caster-type="invocations"] .invo-highest-grade', 'Least', 'SA4: Highest Grade Least');
+  });
+
+  // SA6 / SA7 guard the 2026-07-31 dead-code fix: effectiveInvocationLevel
+  // and effectiveMysteryLevel were computed and never used, so PrCs that
+  // advance those pillars advanced nothing the player could see.
+  regression('SA6: Eldritch Theurge advances the Warlock invocation pillar', async () => {
+    await newCharacter();
+    await applyClass('Warlock', 5);
+    expectValue('[data-caster-type="invocations"] .invo-caster-level', '5', 'SA6: base CL 5');
+    await applyClass('Eldritch Theurge', 5);
+    // ET advances invocations at every one of its levels → effective 10.
+    expectValue('[data-caster-type="invocations"] .invo-caster-level', '10', 'SA6: CL 10 after ET 5');
+    expectValue('[data-caster-type="invocations"] .invo-known-count', '6', 'SA6: 6 invocations known at effective 10');
+    expectValue('[data-caster-type="invocations"] .invo-highest-grade', 'Lesser', 'SA6: Lesser unlocked at effective 10');
+  });
+
+  regression('SA7: Master of Shadow advances the Shadowcaster mystery pillar', async () => {
+    await newCharacter();
+    await applyClass('Shadowcaster', 4);
+    expectValue('[data-caster-type="shadowcaster"] .sh-caster-level', '4', 'SA7: base CL 4');
+    await applyClass('Master of Shadow', 10);
+    // MoS advances mysteries at L2-L10 (skips L1) → +9 → effective 13.
+    expectValue('[data-caster-type="shadowcaster"] .sh-caster-level', '13', 'SA7: CL 13 after MoS 10');
   });
 
   regression('SA5: removing the class tears down its subsystem sub-tab', async () => {
@@ -1870,7 +1896,6 @@
     // invoList-<grade> arrays) — the per-grade textareas this test
     // originally drove no longer exist. (Test modernized 2026-07-05,
     // first full suite run since the rework.)
-    panel.querySelector('.invo-level').value = '6';
     panel.querySelector('.invo-caster-level').value = '6';
     panel.querySelector('.invo-highest-grade').value = 'Lesser';
     panel.querySelector('.invo-known-count').value = '4';
@@ -1884,7 +1909,7 @@
     const blob = Spells.collectData();
     const invo = blob.casters.find(c => c.type === 'invocations');
     if (!invo) fail('SS3: collectData did not include invocations caster');
-    expect(invo.invokerLevel, '6', 'SS3: invokerLevel round-tripped');
+    expect(invo.casterLevel, '6', 'SS3: casterLevel round-tripped');
     expect(invo.highestGrade, 'Lesser', 'SS3: highestGrade round-tripped');
     expect(JSON.stringify(invo['invoList-lesser']),
       JSON.stringify(['Eldritch Spear', 'Walk Unseen']),
@@ -1897,8 +1922,8 @@
     await wait(300);
     const restored = $('[data-caster-type="invocations"]');
     if (!restored) fail('SS3: panel not rebuilt on loadData');
-    expect(restored.querySelector('.invo-level').value, '6',
-      'SS3: invokerLevel restored to panel');
+    expect(restored.querySelector('.invo-caster-level').value, '6',
+      'SS3: casterLevel restored to panel');
     const names = [...restored.querySelectorAll(
       '.invo-known-list[data-grade="lesser"] .invo-known-row .invo-known-name')]
       .map(i => i.value.trim()).filter(Boolean);

@@ -1836,8 +1836,7 @@ const Spells = (function () {
       <section class="section">
         <h2>Invocations</h2>
         <div class="info-grid">
-          <div class="field field-sm"><label>Invoker Level</label><input type="number" class="invo-level" min="1" value="${data.invokerLevel || ""}"></div>
-          <div class="field field-sm"><label>Caster Level</label><input type="number" class="invo-caster-level" min="1" value="${data.casterLevel || ""}" title="For save DCs, dispels, etc. Usually = invoker level."></div>
+          <div class="field field-sm"><label>Caster Level</label><input type="number" class="invo-caster-level" min="1" value="${data.casterLevel || data.invokerLevel || ""}" title="Equals your invocation-using class level, plus any prestige class that advances invocations. Used for save DCs, dispels, and invocation spell-level equivalents."></div>
           <div class="field field-sm"><label>Highest Grade</label><input type="text" class="invo-highest-grade" value="${data.highestGrade || ""}" placeholder="e.g. Greater"></div>
           <div class="field field-sm"><label>Invocations Known</label><input type="number" class="invo-known-count" min="0" value="${data.knownCount || ""}"></div>
           <div class="field"><label>Conditional Modifiers</label><textarea class="invo-conditional" rows="1">${data.conditional || ""}</textarea></div>
@@ -2527,7 +2526,10 @@ const Spells = (function () {
           sign: entry.querySelector(".vestige-sign")?.value || "",
         }));
       } else if (type === "invocations") {
-        caster.invokerLevel = panel.querySelector(".invo-level")?.value || "";
+        // "Invoker level" was never a real 3.5 term — the invocation
+        // subsystem uses CASTER LEVEL (= class level + any invocation-
+        // advancing PrC). The old duplicate `.invo-level` field is gone;
+        // legacy saves migrate into casterLevel at build time.
         caster.casterLevel = panel.querySelector(".invo-caster-level")?.value || "";
         caster.highestGrade = panel.querySelector(".invo-highest-grade")?.value || "";
         caster.knownCount = panel.querySelector(".invo-known-count")?.value || "";
