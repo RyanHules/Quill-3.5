@@ -816,6 +816,12 @@
       return;
     }
 
+    // Class-granted attack rows (eldritch blast). Driven off the same
+    // `classes-changed` event both applyClass and removeClass dispatch, so
+    // the row appears, re-scales on level-up, and disappears with the class
+    // through one path. Registered once.
+    document.addEventListener('classes-changed', syncClassGrantedAttacks);
+
     // 1. datalist for autocomplete
     let datalist = document.getElementById('class-options');
     if (!datalist) {
@@ -5604,6 +5610,61 @@
       else if (lvl >= 3) bonus = Math.max(bonus, 1);
     }
     return bonus;
+  }
+
+  // ============================================================
+  // Class-granted attacks (Warlock's eldritch blast)
+  // ============================================================
+  //
+  // Eldritch blast is an at-will ranged touch attack that scales with class
+  // level, so it belongs in the attack table like a weapon rather than buried
+  // in the class-features list (report rms3g7dhx-iylf). Damage is read out of
+  // the class_table's `special` column, so a re-walk that renumbers the
+  // progression is picked up with no code change. Two notations:
+  //   Warlock (CArc)              ABSOLUTE — "Eldritch blast 3d6"
+  //   Enlightened Spirit (CMage)  DELTA    — "Eldritch blast +2d6", which is
+  //                               the TOTAL bonus at that level, not a
+  //                               per-row increment, so take the highest
+  //                               rather than summing.
+  // Scope per Ryan (2026-07-31): 60 ft., x2 crit, damage straight off the
+  // class feature. Invocation-modified blasts (essences and blast shapes,
+  // which change damage type, area and save DC) are deliberately NOT
+  // modelled — the player edits the row for those.
+  const ELDRITCH_BLAST_RE = /eldritch blast\s+(\+?)(\d+)(d\d+)/i;
+
+  function eldritchBlastDamage() {
+    let base = null, die = 'd6', bonus = 0;
+    for (const e of classPool()) {   // union — both gestalt sides
+      if (!e.classId) continue;
+      const table = fetchClassTable(e.classId);
+      if (!table) continue;
+      for (const row of table) {
+        if (Number(row.level) > Number(e.level)) continue;
+        const m = ELDRITCH_BLAST_RE.exec(String(row.special || ''));
+        if (!m) continue;
+        const n = parseInt(m[2], 10);
+        if (m[1] === '+') bonus = Math.max(bonus, n);
+        else { base = Math.max(base == null ? 0 : base, n); die = m[3]; }
+      }
+    }
+    // A +Nd6 advancer with no base class grants nothing on its own.
+    return base == null ? null : `${base + bonus}${die}`;
+  }
+
+  function syncClassGrantedAttacks() {
+    if (typeof Character === 'undefined' ||
+        typeof Character.upsertClassAttack !== 'function') return;
+    const dmg = eldritchBlastDamage();
+    Character.upsertClassAttack('Warlock:Eldritch Blast', dmg ? {
+      name: 'Eldritch Blast',
+      damage: dmg,
+      crit: '×2',
+      range: '60 ft.',
+      type: 'Magic',
+      notes: 'Ranged touch attack, at will. Spell-like ability — provokes '
+           + 'attacks of opportunity. Invocation essences/shapes not applied.',
+      calcAbility: 'DEX',
+    } : null);
   }
 
   // Class features that add an ability bonus to TOUCH AC only. These can't

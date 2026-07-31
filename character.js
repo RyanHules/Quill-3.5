@@ -726,7 +726,51 @@ const Character = (function () {
         <label class="atk-calc-auto" title="Auto-fill the Attack Bonus field above from this total"><input type="checkbox" class="atk-calc-auto-cb"${data.calcAuto ? " checked" : ""}> fill bonus</label>
       </div>
     `;
+    if (data.fromClass) {
+      div.dataset.fromClass = data.fromClass;
+      // Any hand-edit to a managed field hands the row over to the player:
+      // the marker goes, and upsertClassAttack stops touching it. Same
+      // contract as every other auto-filled field on the sheet.
+      div.addEventListener("input", (ev) => {
+        if (ev.isTrusted) delete div.dataset.fromClass;
+      });
+    }
     container.appendChild(div);
+    return div;
+  }
+
+  // Create / update / remove an attack row OWNED by a class feature (the
+  // Warlock's eldritch blast). Keyed by `fromClass` so level-up rewrites the
+  // same row instead of stacking duplicates, and removing the class takes the
+  // row with it. `spec` of null means "this class no longer grants it".
+  //
+  // Only rows still carrying the marker are managed — once the player edits
+  // one it's theirs, and a later level-up leaves it alone (it also stops
+  // being removed with the class, which is the right trade: we never delete
+  // something the player typed).
+  function upsertClassAttack(key, spec) {
+    const container = $("#attacks-container");
+    if (!container) return null;
+    const esc = String(key).replace(/"/g, '\\"');
+    const row = container.querySelector(`.attack-entry[data-from-class="${esc}"]`);
+    if (!spec) {
+      if (row) row.remove();
+      return null;
+    }
+    if (!row) return addAttack(Object.assign({ fromClass: key }, spec));
+    // Refresh in place. Preserve the player's calculator settings (Other
+    // modifier, the fill-bonus toggle) — those are theirs even on a managed row.
+    const set = (sel, v) => {
+      const el = row.querySelector(sel);
+      if (el && v != null && el.value !== String(v)) el.value = String(v);
+    };
+    set(".atk-name", spec.name);
+    set(".atk-damage", spec.damage);
+    set(".atk-crit", spec.crit);
+    set(".atk-range", spec.range);
+    set(".atk-type", spec.type);
+    set(".atk-notes", spec.notes);
+    return row;
   }
 
   // ============================================================
@@ -820,6 +864,10 @@ const Character = (function () {
         calcAbility: entry.querySelector(".atk-calc-ability")?.value || "STR",
         calcMisc: entry.querySelector(".atk-calc-misc")?.value || "",
         calcAuto: entry.querySelector(".atk-calc-auto-cb")?.checked || false,
+        // Round-trip the class-grant marker so a reloaded character's
+        // eldritch blast is still recognised as managed — without it, the
+        // sync would add a SECOND row on the next class change.
+        fromClass: entry.dataset.fromClass || "",
       });
     });
 
@@ -929,5 +977,6 @@ const Character = (function () {
   // ============================================================
   // Public API
   // ============================================================
-  return { recalc, addAttack, addAbilityAcRow, collectData, loadData, resetAttacks };
+  return { recalc, addAttack, upsertClassAttack, addAbilityAcRow, collectData,
+           loadData, resetAttacks };
 })();
