@@ -313,6 +313,21 @@ const Skills = (function () {
     const charSize = $("#char-size")?.value || "Medium";
     const hideSizeMod = (DND35.sizes[charSize] && DND35.sizes[charSize].hideMod) || 0;
 
+    // Jump is modified by SPEED (PHB p.77): no modifier at 30 ft., −6 per
+    // full 10 ft. below 30, +4 per full 10 ft. above 30. Read the CURRENT
+    // land speed (armor / encumbrance already applied — a plate-armored
+    // fighter really is at 20 ft. and really does take the −6), published
+    // by Character.recalc, which runs before this pass in recalcAll.
+    // Speeds that aren't a multiple of 10 (a reduced 15 ft.) count only
+    // COMPLETE 10-ft. increments, per "for every 10 feet".
+    const landSpeedNow = parseInt(
+      $("#speed-land-current")?.dataset.current || "", 10);
+    let jumpSpeedMod = 0;
+    if (Number.isFinite(landSpeedNow) && landSpeedNow > 0) {
+      if (landSpeedNow < 30) jumpSpeedMod = -6 * Math.floor((30 - landSpeedNow) / 10);
+      else if (landSpeedNow > 30) jumpSpeedMod = 4 * Math.floor((landSpeedNow - 30) / 10);
+    }
+
     // Racial + template skill bonuses (structured `bonuses` rows, decoded
     // by DND35.categorizeSkillBonuses). `direct` per-skill bonuses fold into
     // the total; `global` applies to every skill (e.g. a Paragon template);
@@ -455,6 +470,8 @@ const Skills = (function () {
         + (blBaseKey ? (bloodlineSkill.direct[blBaseKey] || 0) : 0);
       // Size modifier — Hide only. Can be negative (Large+ creatures).
       const sizeBonus = (skillName === "Hide") ? hideSizeMod : 0;
+      // Speed modifier — Jump only. Negative below 30 ft., positive above.
+      const speedBonus = (skillName === "Jump") ? jumpSpeedMod : 0;
       // Racial / template DIRECT skill bonuses. Match the full skill name
       // (blKey) and — like bloodline — the subtype base (blBaseKey), plus the
       // global all-skills bonus. raceBonus can be negative (e.g. a -2 racial).
@@ -484,8 +501,8 @@ const Skills = (function () {
       const flawOnly  = traitKindBonus("flaw");
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
-        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + raceBonus + tmplBonus
-        + featBonus + classBonus + traitBonus;
+        + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + speedBonus
+        + raceBonus + tmplBonus + featBonus + classBonus + traitBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");
@@ -527,6 +544,9 @@ const Skills = (function () {
              "Bloodline skill bonus (UA Bloodlines)");
         chip(sizeBonus, "size", "120,170,210",
              `Size modifier to Hide (${charSize})`);
+        chip(speedBonus, "speed", "120,170,210",
+             `Jump speed modifier (PHB p.77): ${landSpeedNow} ft. land speed — ` +
+             `-6 per full 10 ft. under 30, +4 per full 10 ft. over 30`);
         chip(raceBonus, "race", "110,180,120", "Racial skill bonus");
         chip(tmplBonus, "template", "180,150,210", "Template skill bonus");
         // These four were reaching the total with no chip at all.

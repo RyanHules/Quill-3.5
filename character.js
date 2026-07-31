@@ -259,6 +259,10 @@ const Character = (function () {
     const landCur = landReduces ? DND35.reducedSpeed(landEff) : landEff;
     const landEl = $("#speed-land-current");
     if (landEl) {
+      // Publish the computed number for other modules (skills.js reads it
+      // for the Jump speed modifier) — the textContent can be "20 (from
+      // 30)" or "--", so consumers shouldn't have to parse the display.
+      landEl.dataset.current = landEff ? String(landCur) : "";
       if (!landEff) { landEl.textContent = "--"; landEl.classList.remove("speed-reduced"); }
       else if (landReduces && landCur < landEff) {
         landEl.textContent = `${landCur} (from ${landEff})`;
