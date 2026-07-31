@@ -68,6 +68,43 @@ const Spells = (function () {
   }
   function escAttr(s) { return escHtml(s).replace(/"/g, "&quot;"); }
 
+  // The panel's TOGGLES row — the `.spell-header` carrying the `.mi-toggle`
+  // checkboxes (Specialist / Domain Access / Mantle Access / …), NOT the
+  // first `.spell-header`, which on a spellcasting panel is the caster-level
+  // field row. Panel types that have no toggles row yet get one.
+  function togglesRowFor(panel, before) {
+    const rows = panel.querySelectorAll(".spell-header");
+    for (const r of rows) if (r.querySelector(".mi-toggle")) return r;
+    const fresh = document.createElement("div");
+    fresh.className = "spell-header";
+    fresh.style.marginTop = "0.5rem";
+    before.parentNode.insertBefore(fresh, before);
+    return fresh;
+  }
+
+  // Hide the follow-class row behind a checkbox in the panel's toggles row,
+  // matching Domain Access / Mantle Access (Ryan, 2026-07-31 — the always-on
+  // row cluttered the top of every panel). The row also MOVES to sit directly
+  // under that toggle, since it's built up with the notes field at the top of
+  // the panel but belongs with the section it's controlled by.
+  function installFollowClassSection(panel, type, data) {
+    if (!FOLLOWABLE_TYPES.has(type)) return;
+    const row = panel.querySelector(".caster-follow-row");
+    if (!row) return;
+    const on = !!data.followOpen;
+    row.style.display = on ? "" : "none";
+    const header = togglesRowFor(panel, row);
+    const label = document.createElement("label");
+    label.className = "mi-toggle";
+    label.innerHTML = '<input type="checkbox" class="caster-follow-toggle"'
+      + (on ? " checked" : "") + "> Follow Class";
+    header.appendChild(label);
+    header.insertAdjacentElement("afterend", row);
+    label.querySelector("input").addEventListener("change", (ev) => {
+      row.style.display = ev.target.checked ? "" : "none";
+    });
+  }
+
   // Delegated so it covers every panel, including ones built later.
   document.addEventListener("click", (ev) => {
     const btn = ev.target.closest?.(".caster-follow-apply");
@@ -183,6 +220,10 @@ const Spells = (function () {
       container.appendChild(panel);
       SLA.wire(panel);
     }
+
+    // Tuck the follow-class row behind a toggle in the panel's own toggles
+    // row, next to Domain Access / Mantle Access / Show Prepared.
+    installFollowClassSection(panel, type, data);
 
     // Restore race-owned racial-initiation markers (saved by collectData) so a
     // loaded racial panel keeps its stacking identity + teardown behavior.
@@ -2458,6 +2499,7 @@ const Spells = (function () {
       // already saved field-by-field — this is just the control's state).
       caster.followClass = panel.querySelector(".caster-follow-class")?.value || "";
       caster.followLevel = panel.querySelector(".caster-follow-level")?.value || "";
+      caster.followOpen = panel.querySelector(".caster-follow-toggle")?.checked || false;
       // Persist race-owned racial-initiation markers so the panel round-trips
       // with its stacking identity (the class-picker's racial pass + the
       // race-picker's teardown both key off data-from-race + this metadata).
