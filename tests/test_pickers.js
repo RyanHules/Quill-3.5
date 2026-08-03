@@ -647,14 +647,47 @@ test('soulmeld-picker: list query (init)', (db) => {
   assert(chakras.size >= 8, `expected 8+ distinct chakras, got ${chakras.size}`);
 });
 
-test('soulmeld-picker: description has Base / Chakra Bind structure', (db) => {
+// The DB canonized the structured soulmeld shape on 2026-08-03: `description`
+// is the base effect ALONE, with `essentia` and `chakra_binds` as their own
+// fields (canonical_fields.SOULMELD_SHAPE_CANON). This test used to assert the
+// opposite — that description still carried "Base:" / "Essentia:" / "Chakra
+// Bind" headers — because the picker reconstructed the structure with a regex.
+// It now asserts the canon, and asserts the retired headers are GONE, so the
+// consumer side fails if the old prose shape ever comes back.
+test('soulmeld-picker: structured base / essentia / chakra_binds', (db) => {
   const r = execOne(db,
-    "SELECT json_extract(data, '$.description') AS d "
+    "SELECT json_extract(data, '$.description')  AS d, "
+    + "json_extract(data, '$.essentia')     AS e, "
+    + "json_extract(data, '$.chakra_binds') AS b "
     + "FROM entry WHERE type = 'soulmeld' AND name = 'Acrobat Boots'");
-  assert(r && r.d);
-  assert(/Base:/i.test(r.d), 'has Base: section');
-  assert(/Essentia:/i.test(r.d), 'has Essentia: section');
-  assert(/Chakra Bind/i.test(r.d), 'has Chakra Bind section');
+  assert(r && r.d, 'has a description');
+  assert(!/Base:|Essentia:|Chakra Bind\s*\(/i.test(r.d),
+    'description must NOT still carry the retired prose headers');
+  assert(r.e && r.e.length > 10, 'has an essentia field');
+  const binds = JSON.parse(r.b || '[]');
+  assert(Array.isArray(binds) && binds.length >= 1, 'has chakra_binds');
+  assert(binds.every(x => x.chakra && x.description),
+    'each bind has chakra + description');
+});
+
+// Every soulmeld, both books — the whole point of the canon is that Dragon
+// Magic's 5 and Magic of Incarnum's 89 now read identically.
+test('soulmeld-picker: canon holds for all soulmelds, both sources', (db) => {
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.description') AS d, "
+    + "json_extract(data, '$.chakra_binds') AS b "
+    + "FROM entry WHERE type = 'soulmeld'");
+  assertGE(rows.length, 90);
+  const prose = rows.filter(r => /Base:|Chakra Bind\s*\(/i.test(r.d || ''));
+  assert(prose.length === 0,
+    `still in prose shape: ${prose.slice(0, 3).map(r => r.name).join(', ')}`);
+  const noBinds = rows.filter(r => {
+    try { return !JSON.parse(r.b || '[]').length; } catch (e) { return true; }
+  });
+  assert(noBinds.length === 0,
+    `missing chakra_binds: ${noBinds.slice(0, 3).map(r => r.name).join(', ')}`);
+  const sources = new Set(rows.map(r => r.source));
+  assertGE(sources.size, 2, 'covers both soulmeld books');
 });
 
 // ---- tests: vestige-picker.js ---------------------------------------------

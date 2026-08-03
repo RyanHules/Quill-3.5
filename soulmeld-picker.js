@@ -14,9 +14,10 @@
 // `.magic-item-slot[data-slot-id]`. This both narrows suggestions to
 // chakra-valid soulmelds AND avoids Firefox rendering option labels
 // (chakra names like "Throat" / "Feet") as if they were suggestions.
-// On exact match, parse the soulmeld's description into Base / Chakra
-// Bind portions and auto-fill `.slot-sm-base` / `.slot-sm-bind-effect`.
-// MutationObserver re-syncs `list=` when new inputs appear.
+// On exact match, read the soulmeld's structured base / essentia /
+// chakra_binds fields and auto-fill `.slot-sm-base` /
+// `.slot-sm-bind-effect`. MutationObserver re-syncs `list=` when new
+// inputs appear.
 
 (function () {
   if (!window.DB) {
@@ -57,7 +58,9 @@
       + "json_extract(data, '$.classes_csv')  AS classes_csv, "
       + "json_extract(data, '$.descriptors')  AS descriptors, "
       + "json_extract(data, '$.saving_throw') AS saving_throw, "
-      + "json_extract(data, '$.description')  AS description "
+      + "json_extract(data, '$.description')  AS description, "
+      + "json_extract(data, '$.essentia')     AS essentia, "
+      + "json_extract(data, '$.chakra_binds') AS chakra_binds "
       + "FROM entry WHERE type = 'soulmeld' "
       + "ORDER BY name COLLATE NOCASE"
     );
@@ -66,7 +69,18 @@
       if (window.BookFilter && !window.BookFilter.allowsEntry({...r, type: 'soulmeld'})) continue;
       const key = (r.name || '').toLowerCase();
       if (soulmeldIndex.has(key)) continue;
-      const parsed = parseDescription(r.description || '');
+      // Structured shape (DB canon 2026-08-03, canonical_fields
+      // SOULMELD_SHAPE_CANON): `description` is the base effect alone,
+      // `essentia` and `chakra_binds` are their own fields. This used to
+      // regex-reconstruct all three out of one concatenated `description`
+      // ("Base: … Essentia: … Chakra Bind (X): …"), which meant the 5 Dragon
+      // Magic soulmelds — already structured, so no "Base:" prefix — rendered
+      // with no description and no binds at all (flag fms24421b-kf4n).
+      let binds = [];
+      try {
+        binds = r.chakra_binds ? JSON.parse(r.chakra_binds) : [];
+      } catch (e) { /* malformed chakra_binds JSON — treat as none */ }
+      if (!Array.isArray(binds)) binds = [];
       soulmeldIndex.set(key, {
         name: r.name,
         source: r.source,
@@ -76,16 +90,20 @@
         descriptors: r.descriptors,
         saving_throw: r.saving_throw,
         description: r.description,
-        baseEffect: parsed.base,
-        essentiaScaling: parsed.essentia,
-        bindEffects: parsed.binds,   // [{chakra, text}, ...]
+        baseEffect: r.description,
+        essentiaScaling: r.essentia,
+        bindEffects: binds,          // [{chakra, description}, ...]
         // Pre-flattened haystack for the browse panel's text search. The
         // filter used to match NAMES only, which made the panel useless for
         // the actual question you ask of soulmelds — "which ones interact
         // with disease?" — since the mechanic lives in the effect prose, not
         // the name (Lammasu Mantle, Rageclaws, …). Report rms3qb8hx-7cjh.
+        // MUST list essentia + bind prose explicitly now: `description` used
+        // to carry all three, so building the blob from it alone would
+        // silently shrink the haystack to base-effect text only.
         searchBlob: [r.name, r.descriptors, r.classes_csv, r.chakra,
-                     r.saving_throw, r.description]
+                     r.saving_throw, r.description, r.essentia,
+                     ...binds.map(b => `${b.chakra || ''} ${b.description || ''}`)]
           .filter(Boolean).join(' ').toLowerCase(),
       });
     }
@@ -293,7 +311,7 @@
       if (Array.isArray(sm.bindEffects) && sm.bindEffects.length) {
         for (const b of sm.bindEffects) {
           bits.push(`<div><b>Chakra Bind (${escapeHtml(b.chakra || '?')}):</b> ` +
-                    `${escapeHtml(b.text)}</div>`);
+                    `${escapeHtml(b.description)}</div>`);
         }
       }
       bits.push(`<div style="opacity:0.65; margin-top:0.3rem">` +
@@ -499,50 +517,14 @@
   }
   function escapeAttr(s) { return escapeHtml(s).replace(/'/g, '&#39;'); }
 
-  // Parse a soulmeld description of the form
-  //   "Base: <text>. Essentia: <text>."
-  //   "Chakra Bind (<chakra>): <text>."
-  //   [optionally more Chakra Bind lines]
-  // by locating each header keyword and slicing between them.
-  function parseDescription(text) {
-    const out = { base: '', essentia: '', binds: [] };
-    if (!text) return out;
-    // Colon required after Base/Essentia (so the bare words don't match
-    // mid-prose, e.g. "invest essentia"); colon OPTIONAL after a
-    // "Chakra Bind (<chakra>)" header — a few source entries (Fellmist Robe,
-    // Necrocarnum Mantle, Spellward Shirt, plus the second bind on Brass Mane
-    // and Sphinx Claws) omit it. Requiring it previously left those binds
-    // unparsed AND spilled their text into the preceding essentia field.
-    const headerRx =
-      /(Base|Essentia)\s*:\s*|Chakra Bind\s*\(([^)]+)\)\s*:?\s*/g;
-    const matches = [];
-    let m;
-    while ((m = headerRx.exec(text)) !== null) {
-      const isBind = m[2] != null;
-      matches.push({
-        kind: isBind ? 'bind' : m[1].toLowerCase(),
-        chakra: isBind ? m[2].trim() : null,
-        headerStart: m.index,
-        bodyStart: m.index + m[0].length,
-      });
-    }
-    for (let i = 0; i < matches.length; i++) {
-      const cur = matches[i];
-      const end = i + 1 < matches.length
-        ? matches[i + 1].headerStart : text.length;
-      const body = text.slice(cur.bodyStart, end)
-        .trim()
-        .replace(/^[.\s]+|[.\s]+$/g, '')
-        .trim();
-      if (cur.kind === 'base') out.base = body;
-      else if (cur.kind === 'essentia') out.essentia = body;
-      else if (cur.kind === 'bind') out.binds.push({
-        chakra: cur.chakra,
-        text: body,
-      });
-    }
-    return out;
-  }
+  // NOTE: `parseDescription` lived here until 2026-08-03. It rebuilt
+  // base/essentia/bind structure out of one concatenated `description`
+  // ("Base: … Essentia: … Chakra Bind (X): …"). The DB now stores that
+  // structure directly (canonical_fields.SOULMELD_SHAPE_CANON) and
+  // rebuildIndex reads the fields, so the parser is gone rather than
+  // left dead — a retired helper with a confident comment is how the
+  // effectiveInvocationLevel bug hid for weeks (2026-07-31).
+
 
   // Decompose a soulmeld's `chakra` string into a list of normalized
   // chakra tokens. Handles all the shapes the data uses:
@@ -711,7 +693,7 @@
     const chosen = pickBindForSlot(sm.bindEffects, slotId);
     if (bindEl && !bindEl.value.trim() && chosen) {
       const prefix = chosen.chakra ? `(${chosen.chakra}) ` : '';
-      bindEl.value = `${prefix}${chosen.text}`;
+      bindEl.value = `${prefix}${chosen.description}`;
       bindEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
