@@ -2965,9 +2965,10 @@
     }
     // Refresh each applied ToB base class's maneuver panel IL.
     refreshAllManeuverTabs();
-    // Same for the invocation + mystery pillars.
+    // Same for the invocation + mystery + psionic pillars.
     refreshAllInvocationTabs();
     refreshAllMysteryTabs();
+    refreshAllPsionicTabs();
 
     // Re-fire class-spell-additions (Sand Shaper's Desert Insight, etc.)
     // for every applied class that has a CATALOG entry. Needed for the
@@ -3236,6 +3237,37 @@
         '.invo-caster-level', String(lvl));
       populateInvocationPanelCounts(
         panel, target.className, lvl, target.classId);
+    }
+  }
+
+  // Psionic pillar. Reported for Anarchic Initiate (rmsctcbfu-hzqj); the
+  // fault was not that PrC — it was that this pillar did not exist, so ALL
+  // 15 psionic-advancing PrCs silently advanced nothing. Psion 10 / Anarchic
+  // Initiate 5 showed manifester level 10, PP 88, powers known 21: identical
+  // to Psion 10 alone.
+  //
+  // No parallel summation is needed. Psionic PrCs already flow through
+  // detectSpellAdvancement -> refreshAdvanceTargets (their DB `advancement`
+  // is `{types: ["psionic"], ...}`), so their resolved targets and level
+  // counts already live in the SAME advancesTargets machinery the spell
+  // pillar reads — effectiveSpellLevel is therefore already correct for a
+  // manifester, including per-level-choice PrCs and dual advancers like
+  // Cerebremancer. Only the WRITE side was missing: nothing ever pushed the
+  // effective level into the psionics panel.
+  //
+  // populatePsionicPanelCounts then re-derives PP/day, powers known and max
+  // power level from the BASE class's own class_table at the effective
+  // level, which is exactly the 3.5 rule for "+1 level of existing
+  // manifesting class".
+  function refreshAllPsionicTabs() {
+    for (const target of classPool()) {   // union — both gestalt sides
+      if (!PSIONIC_CLASSES.has(target.className)) continue;
+      const panel = findExistingCasterPanel('psionics', target.className);
+      if (!panel) continue;
+      const lvl = effectiveSpellLevel(target);
+      makeClassFieldSetter(panel, target.className)(
+        '.psi-manifester-level', String(lvl));
+      populatePsionicPanelCounts(panel, target.className, lvl, target.classId);
     }
   }
 
@@ -4242,7 +4274,14 @@
     }
     if (PSIONIC_CLASSES.has(className)) {
       const panel = ensureSimpleCasterTab('psionics', className, classLevel, {
-        createData: { manifesterLevel: classLevel },
+        // Manifester Level is deliberately NOT seeded here, for the same
+        // reason as the invocation path below: refreshAllPsionicTabs (fired
+        // from refreshAllSpellTabs at the end of applyClass) owns the field
+        // so it can write the EFFECTIVE level and tag it data-from-class.
+        // A createData seed lands UNTAGGED, and the setter's
+        // respect-user-edits guard would then refuse to advance it — which
+        // is the second reason psionic advancement never showed up, on top
+        // of the pillar not existing at all.
         levelSelectors: ['.psi-manifester-level'],
       });
       if (panel) populatePsionicPanelCounts(panel, className, classLevel, classId);
