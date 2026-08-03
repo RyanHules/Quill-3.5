@@ -198,6 +198,15 @@
       + "json_extract(data, '$.damage_small')          AS damage_small, "
       + "json_extract(data, '$.critical')              AS critical, "
       + "json_extract(data, '$.range_increment')       AS range_increment, "
+      // `type` above is the entry.item_type COLUMN — the item CATEGORY
+      // ("Weapon", "Wondrous Item"), which is what the affix routing and the
+      // info panel's Type line want. A weapon's DAMAGE type
+      // (Piercing/Slashing/Bludgeoning) is a different thing and lives in the
+      // JSON blob. Aliasing them both to `type` is why the attack row's Type
+      // field read "Weapon" instead of "Piercing" (report fms3gefge-2qzn).
+      + "json_extract(data, '$.type')                  AS damage_type, "
+      // Weapon special qualities ("Reach, Trip, Disarm, Finesse", "Double").
+      + "json_extract(data, '$.special')               AS special, "
       + "json_extract(data, '$.tables')                AS tables_json "
       + "FROM entry WHERE id = ?", [itemId]);
   }
@@ -846,8 +855,20 @@
         damage: damage,
         crit: full.critical || '',
         range: full.range_increment || '',
-        type: full.type || '',
-        notes: full.category || '',
+        // DAMAGE type, not the item category — see fullItemRow. This read
+        // `full.type` (= entry.item_type) and so filled every attack row's
+        // Type with the literal word "Weapon".
+        type: full.damage_type || '',
+        // The weapon's SPECIAL qualities ("Reach, Trip, Disarm, Finesse",
+        // "Double", "Nonlethal") — the part that actually matters on an
+        // attack row. This used to be `full.category`, which was informative
+        // back when it held the raw proficiency group ("Simple Ranged"), but
+        // the 2026-06-23 item-category canonization collapsed it to a
+        // controlled vocabulary, so every weapon started auto-filling Notes
+        // with the literal word "Weapon" (report fms3gefge-2qzn). `special`
+        // is the string "None" for most weapons — that is not a note either.
+        notes: (full.special && !/^none$/i.test(String(full.special).trim()))
+          ? String(full.special).trim() : '',
       });
       // Also drop the weapon into the Possessions list so the weight
       // and inventory line are tracked. Player can remove if they're

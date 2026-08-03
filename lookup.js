@@ -484,7 +484,43 @@
   // "Show more" toggle. For entries without tables/mechanics (the
   // vast majority of legacy rules), description stays fully expanded
   // as before.
+  // A rule's `raw_text` is verbatim book prose; `description` is our
+  // restructured/editorialized version (ALL-CAPS section headers, reordered
+  // for scanning). Report fms3l7sjd-u7t: the verbatim text should be the
+  // DEFAULT prose, not tucked behind a "Verbatim source text" toggle.
+  //
+  // But raw_text is not always the rule's prose. Two of the 23 rules that
+  // carry it are named after a TABLE (Size Modifiers (Table 8-1), Carrying
+  // Capacity) and their raw_text is the table dump — preferring it there
+  // would cut Size Modifiers from 1334 chars of explanation to 155 chars of
+  // numbers. The tell is structural, not length: a table extract opens with
+  // a "Table N-N:" line. (Length would be the wrong axis anyway — Flanking's
+  // verbatim is SHORTER than its summary and is still the right default.)
+  function verbatimRuleProse(d, type) {
+    if (type !== 'rule') return '';
+    const raw = String(d.raw_text || '').trim();
+    if (!raw) return '';
+    if (/^\s*Table\s+\d+[-–—]\d+\s*:/i.test(raw)) return '';
+    // Drop a leading header line that just repeats the entry name — the
+    // panel header already shows it.
+    const lines = raw.split('\n');
+    const name = String(d.name || '').replace(/\s*\(.*\)\s*$/, '').trim().toLowerCase();
+    const first = (lines[0] || '').trim().toLowerCase();
+    if (first && name && first.replace(/[^a-z]/g, '') === name.replace(/[^a-z]/g, '')) {
+      lines.shift();
+    }
+    return lines.join('\n').trim();
+  }
+
   function renderDescription(d, type) {
+    // Verbatim-first for rules that have real book prose. The editorialized
+    // `description` is NOT dropped — it moves into a collapsed block below
+    // (renderRuleExtra), so the scannable version stays one click away.
+    const verbatim = verbatimRuleProse(d, type);
+    if (verbatim) {
+      return `<div class="lookup-detail-desc lookup-detail-verbatim">` +
+        `${escapeHtml(verbatim)}</div>`;
+    }
     const desc = String(d.description || '');
     const hasStructured = type === 'rule' && (
       (Array.isArray(d.tables) && d.tables.length) ||
@@ -2346,16 +2382,30 @@
       );
     }
 
-    // RAW TEXT — collapsible. Only Core re-extracted rules carry
-    // this today; rest of the corpus comes from data extractions
-    // that aren't backed by verbatim text. Suppressed in nested view
-    // — verbatim corpus is for audit / deep-read, not for the
-    // glance-and-go clarification use case.
-    if (!nested && d.raw_text && String(d.raw_text).trim()) {
-      parts.push(
-        `<details class="lookup-rule-raw-text"><summary>Verbatim source text</summary>` +
-        `<pre>${escapeHtml(String(d.raw_text))}</pre></details>`
-      );
+    // RAW TEXT — collapsible. Only Core re-extracted rules carry this today;
+    // the rest of the corpus comes from data extractions that aren't backed
+    // by verbatim text. Suppressed in nested view — verbatim corpus is for
+    // audit / deep-read, not the glance-and-go clarification use case.
+    //
+    // 2026-08-03 (fms3l7sjd-u7t): when the verbatim prose is now the MAIN
+    // body (see verbatimRuleProse), the roles swap — showing raw_text again
+    // here would just duplicate it, so this block carries the editorialized
+    // `description` instead. Nothing is lost either way; the difference is
+    // only which one you have to click for.
+    if (!nested) {
+      const usingVerbatim = !!verbatimRuleProse(d, 'rule');
+      if (usingVerbatim && String(d.description || '').trim()) {
+        parts.push(
+          `<details class="lookup-rule-raw-text">` +
+          `<summary>Summarized / restructured</summary>` +
+          `<pre>${escapeHtml(String(d.description))}</pre></details>`
+        );
+      } else if (!usingVerbatim && d.raw_text && String(d.raw_text).trim()) {
+        parts.push(
+          `<details class="lookup-rule-raw-text"><summary>Verbatim source text</summary>` +
+          `<pre>${escapeHtml(String(d.raw_text))}</pre></details>`
+        );
+      }
     }
 
     if (!parts.length) return '';
