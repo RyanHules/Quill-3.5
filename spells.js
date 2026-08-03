@@ -1529,7 +1529,10 @@ const Spells = (function () {
               <thead><tr><th>Lvl</th><th>PP</th><th>DC</th></tr></thead>
               <tbody>${dcRows.join("")}</tbody>
             </table>
-            <button class="btn-add psi-add-level" style="margin-top:0.5rem">+ Add Power Level</button>
+            <div style="display:flex;flex-direction:column;gap:0.3rem;margin-top:0.5rem">
+              <button class="btn-add psi-add-level">+ Add Power Level</button>
+              <button class="btn-add psi-reset-pp">Reset PP</button>
+            </div>
           </div>
         </div>
       </section>
@@ -1543,6 +1546,16 @@ const Spells = (function () {
     }
     panel.querySelector(".psi-add-level").addEventListener("click", () => {
       addPsionicsLevel(panel);
+    });
+    // Report rmsc9xe3o-a8yw: the psionics sub-tab needs the counterpart to the
+    // spellcasting panel's "Reset Expended Slots". Power points are a single
+    // pool rather than per-level slots, so the daily expenditure is just
+    // `psi-pp-spent` — clearing it restores PP Remaining via recalc().
+    const resetPP = panel.querySelector(".psi-reset-pp");
+    if (resetPP) resetPP.addEventListener("click", () => {
+      const spent = panel.querySelector(".psi-pp-spent");
+      if (spent) spent.value = 0;
+      recalc();
     });
     // Refresh the Powers Known counter when the cap input changes
     // (so the over-cap red flash + "/N" suffix update live).
@@ -2417,6 +2430,29 @@ const Spells = (function () {
   function resetSlots() {
     $$(".sc-used").forEach((el) => { el.value = 0; });
   }
+  // Clear EVERY daily expenditure across every sub-tab — what a night's rest
+  // actually restores. Report rmsca08wf-1mwl (the Rest button); character.js
+  // owns the healing half, this owns the spell/spell-adjacent half.
+  //
+  // Deliberately excludes CAPACITY fields: `.sh-uses` (Shadowcaster Uses/Day)
+  // and `.sc-per-day` are how many you GET, not how many you have spent, so
+  // resetting them would silently rewrite the character.
+  function restAll() {
+    $$(".sc-used").forEach((el) => { el.value = 0; });
+    $$(".epic-slots-used").forEach((el) => { el.value = 0; });
+    $$(".psi-pp-spent").forEach((el) => { el.value = 0; });
+    // ToB maneuvers: expended -> readied.
+    $$(".tom-expended:checked").forEach((cb) => { cb.checked = false; });
+    // Prepared-spell used marks track the same expenditure the slot counts
+    // do, so they clear together (mirrors the per-panel reset button).
+    $$(".sc-prep-used:checked").forEach((cb) => {
+      cb.checked = false;
+      const list = cb.closest(".sc-prepared-list");
+      const panel = cb.closest("[data-caster-type]");
+      if (list && panel) updatePreparedCount(panel, int(list.dataset.lvl), null);
+    });
+    recalc();
+  }
   function recalcEpicAndBinding() {
     // Epic spellcasting: slots/day = floor(ranks / 10) per ELH p.72
     $$("[data-caster-type='epic']").forEach((panel) => {
@@ -3028,6 +3064,7 @@ const Spells = (function () {
     buildSpellLists: buildSpellListsLegacy,
     recalc,
     resetSlots,
+    restAll,
     collectData,
     loadData,
     addKnownSpell,

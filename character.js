@@ -975,8 +975,77 @@ const Character = (function () {
   }
 
   // ============================================================
+  // Rest (report rmsca08wf-1mwl)
+  // ============================================================
+  //
+  // A night's rest does two things: restores every daily spell / power /
+  // maneuver expenditure (Spells.restAll owns that half), and heals hit
+  // points. PHB p.146 "Natural Healing": after 8 hours of rest you recover
+  // 1 hp per character level. Long-term care (a DC 15 Heal check from an
+  // attendant, PHB p.75) doubles it.
+  //
+  // Nonlethal damage heals at 1 point per character level per HOUR, so a
+  // full 8-hour rest clears any nonlethal total a PC realistically carries —
+  // zeroed here rather than modelled hour-by-hour.
+  //
+  // Deliberately does NOT touch Temp HP: temporary hit points come from a
+  // spell/effect with its own duration, not from being rested.
+  function restEightHours() {
+    const level = (window.ClassPicker && ClassPicker.totalCharacterLevel)
+      ? ClassPicker.totalCharacterLevel() : 0;
+    const longTerm = !!$("#rest-long-term-care")?.checked;
+    const perLevel = longTerm ? 2 : 1;
+    const heal = Math.max(0, level) * perLevel;
+
+    const curEl = $("#hp-current");
+    const totalEl = $("#hp-total");
+    let healed = 0;
+    if (curEl) {
+      const total = int(totalEl?.value);
+      const before = int(curEl.value);
+      // Cap at Total HP when a total is set; otherwise just add.
+      const after = total > 0 ? Math.min(total, before + heal) : before + heal;
+      healed = after - before;
+      curEl.value = after;
+      curEl.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const nl = $("#hp-nonlethal");
+    const nlCleared = int(nl?.value);
+    if (nl && nlCleared) {
+      nl.value = 0;
+      nl.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    // NB: `Spells` is a top-level `const`, NOT a window property — guarding
+    // it off the window object silently short-circuits to false and the
+    // caster half of the rest never runs (I shipped exactly that bug, and the
+    // "no window.X guards on top-level const modules" audit exists for it).
+    // ClassPicker above IS explicitly assigned to window, hence the different
+    // check there.
+    if (typeof Spells !== "undefined" && typeof Spells.restAll === "function") {
+      Spells.restAll();
+    }
+    // No bare recalc() here: Character.recalc takes (getAbilityMod, bonuses)
+    // and throws without them. The `input` events dispatched above already
+    // bubble to app.js's listener, which runs the full recalcAll pass.
+
+    const out = $("#rest-result");
+    if (out) {
+      const bits = [];
+      bits.push(level > 0
+        ? `+${healed} hp (${perLevel}/level × ${level}${longTerm ? ", long-term care" : ""})`
+        : "no class levels — set a class to heal");
+      if (nlCleared) bits.push(`${nlCleared} nonlethal cleared`);
+      bits.push("slots/PP/maneuvers restored");
+      out.textContent = bits.join(" · ");
+      clearTimeout(out._t);
+      out._t = setTimeout(() => { out.textContent = ""; }, 8000);
+    }
+  }
+
+  // ============================================================
   // Public API
   // ============================================================
   return { recalc, addAttack, upsertClassAttack, addAbilityAcRow, collectData,
-           loadData, resetAttacks };
+           loadData, resetAttacks, restEightHours };
 })();

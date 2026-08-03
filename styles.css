@@ -265,7 +265,13 @@ textarea {
    `white-space: nowrap` and the input carries a default min-content width, so
    a long subtype row ("Knowledge (…)") pushed 125px past the skills column. */
 .subtype-skill-name { display: flex; flex-wrap: wrap; align-items: center;gap: 0.25rem;}
-.subtype-skill-name input[type="text"] { min-width: 0; }
+/* Report rmsct716s-12jw: the subtype box was taking a whole line. `min-width:0`
+   let it SHRINK but nothing made it want to — with `flex: 0 1 auto` the input
+   still asked for its intrinsic size=20 width (~180px), which does not fit
+   beside "Craft (" in a 232px cell, so it wrapped and then stretched to the
+   full width, making the cell three lines tall. A small flex-basis with
+   grow lets it take whatever space is left on the SAME line instead. */
+.subtype-skill-name input[type="text"] { min-width: 0; flex: 1 1 4rem; }
 
 .subtype-skill-name .skill-base-name { font-weight: 500;white-space: nowrap;}
 
@@ -420,6 +426,22 @@ textarea {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
+}
+
+/* Rest control (report rmsca08wf-1mwl). Wraps on narrow widths so the
+   result text drops to its own line rather than squeezing the button. */
+.hp-rest-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+.rest-result {
+  font-size: 0.85em;
+  opacity: 0.75;
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .bab-boxes { display: inline-flex;align-items: center;gap: 0;}

@@ -328,6 +328,24 @@ const Skills = (function () {
       else if (landSpeedNow > 30) jumpSpeedMod = 4 * Math.floor((landSpeedNow - 30) / 10);
     }
 
+    // Report rmsccknoi-hyvy: a creature WITH a swim or climb speed gets a
+    // +8 RACIAL bonus on that skill.
+    //   Swim  (PHB p.84): "A creature with a swim speed … gains a +8 racial
+    //     bonus on any Swim check to perform a special action or avoid a
+    //     hazard." (It also never needs a check just to move — not a bonus.)
+    //   Climb (PHB p.69): "A creature with a climb speed has a +8 racial
+    //     bonus on all Climb checks."
+    // Read the BASE speed input, not the encumbrance-adjusted current value:
+    // the bonus is for HAVING the movement mode at all, and a load-reduced
+    // swim speed is still a swim speed. Same derived-from-speed shape as
+    // jumpSpeedMod above.
+    const hasSpeed = (id) => {
+      const v = parseInt($(`#${id}`)?.value, 10);
+      return Number.isFinite(v) && v > 0;
+    };
+    const swimSpeedBonus = hasSpeed("speed-swim") ? 8 : 0;
+    const climbSpeedBonus = hasSpeed("speed-climb") ? 8 : 0;
+
     // Racial + template skill bonuses (structured `bonuses` rows, decoded
     // by DND35.categorizeSkillBonuses). `direct` per-skill bonuses fold into
     // the total; `global` applies to every skill (e.g. a Paragon template);
@@ -472,6 +490,9 @@ const Skills = (function () {
       const sizeBonus = (skillName === "Hide") ? hideSizeMod : 0;
       // Speed modifier — Jump only. Negative below 30 ft., positive above.
       const speedBonus = (skillName === "Jump") ? jumpSpeedMod : 0;
+      // +8 racial for having the matching movement mode (report rmsccknoi-hyvy).
+      const moveSkillBonus = (skillName === "Swim") ? swimSpeedBonus
+        : (skillName === "Climb") ? climbSpeedBonus : 0;
       // Racial / template DIRECT skill bonuses. Match the full skill name
       // (blKey) and — like bloodline — the subtype base (blBaseKey), plus the
       // global all-skills bonus. raceBonus can be negative (e.g. a -2 racial).
@@ -502,6 +523,7 @@ const Skills = (function () {
 
       const total = abilityMod + ranks + misc + penalty + synergyBonus
         + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + speedBonus
+        + moveSkillBonus
         + raceBonus + tmplBonus + featBonus + classBonus + traitBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
@@ -547,6 +569,12 @@ const Skills = (function () {
         chip(speedBonus, "speed", "120,170,210",
              `Jump speed modifier (PHB p.77): ${landSpeedNow} ft. land speed — ` +
              `-6 per full 10 ft. under 30, +4 per full 10 ft. over 30`);
+        chip(moveSkillBonus, "racial", "110,180,120",
+             skillName === "Swim"
+               ? "+8 racial bonus for having a swim speed (PHB p.84) — applies "
+                 + "to Swim checks to perform a special action or avoid a hazard"
+               : "+8 racial bonus for having a climb speed (PHB p.69) — applies "
+                 + "to all Climb checks");
         chip(raceBonus, "race", "110,180,120", "Racial skill bonus");
         chip(tmplBonus, "template", "180,150,210", "Template skill bonus");
         // These four were reaching the total with no chip at all.
