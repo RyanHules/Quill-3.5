@@ -1,14 +1,14 @@
 {
   "char-name": "Kass",
   "char-player": "Ryan",
-  "char-class": "Dragon Shaman 2 / Red Dragon Bloodline 1",
+  "char-class": "Dragon Shaman 3 / Red Dragon Bloodline 1",
   "char-race": "Desert Kobold",
-  "char-type": "Humanoid",
+  "char-type": "Dragon",
   "char-alignment": "",
   "char-deity": "",
-  "char-level": "2",
+  "char-level": "3",
   "char-size": "Small",
-  "char-age": "",
+  "char-age": "150",
   "char-gender": "Female",
   "char-height": "",
   "char-weight": "",
@@ -16,7 +16,7 @@
   "char-hair": "",
   "char-skin": "",
   "char-campaign": "Cloud Peaks TNG",
-  "char-xp": "1000",
+  "char-xp": "3431",
   "char-speed": "40 ft.",
   "damage-reduction": "",
   "str-score": "13",
@@ -31,19 +31,19 @@
   "con-race": "",
   "con-template": "",
   "con-temp-adj": "",
-  "int-score": "13",
+  "int-score": "16",
   "int-race": "",
   "int-template": "",
   "int-temp-adj": "",
-  "wis-score": "14",
+  "wis-score": "17",
   "wis-race": "-2",
   "wis-template": "",
   "wis-temp-adj": "",
-  "cha-score": "13",
+  "cha-score": "16",
   "cha-race": "",
   "cha-template": "",
   "cha-temp-adj": "",
-  "hp-total": "22",
+  "hp-total": "30",
   "hp-current": "",
   "hp-temp": "",
   "hp-nonlethal": "",
@@ -51,20 +51,13 @@
   "ac-misc": "",
   "ac-miss-chance": "",
   "ac-defense-notes": "Immune: magic sleep, paralysis",
-  "con-to-ac": false,
-  "con-to-ac-type": "Untyped",
-  "int-to-ac": false,
-  "int-to-ac-type": "Untyped",
-  "wis-to-ac": false,
-  "wis-to-ac-type": "Untyped",
-  "cha-to-ac": false,
-  "cha-to-ac-type": "Untyped",
+  "ability-ac-bonuses": [],
   "ignore-encumbrance": false,
   "fort-base": "3",
   "fort-magic": "0",
   "fort-misc": "",
   "fort-temp": "0",
-  "ref-base": "0",
+  "ref-base": "1",
   "ref-magic": "0",
   "ref-misc": "",
   "ref-temp": "0",
@@ -74,13 +67,13 @@
   "will-temp": "0",
   "save-conditional": "",
   "init-misc": "",
-  "bab-1": "1",
+  "bab-1": "2",
   "grapple-misc": "",
   "spell-resistance": "",
   "attacks": [
     {
       "name": "Claw x2",
-      "bonus": "BAB+S",
+      "bonus": "BAB+S+1",
       "damage": "d3+S",
       "crit": "x2",
       "range": "",
@@ -89,7 +82,7 @@
     },
     {
       "name": "Tail",
-      "bonus": "BAB+S-5",
+      "bonus": "BAB+S-5+1",
       "damage": "d4+.5*S",
       "crit": "x2",
       "range": "",
@@ -100,8 +93,8 @@
   "_multiclass": [
     {
       "className": "Dragon Shaman",
-      "level": 2,
-      "classId": 12581,
+      "level": 3,
+      "classId": 12736,
       "version": "3.5",
       "source": "Player's Handbook II"
     }
@@ -112,7 +105,7 @@
   "armor-max-dex": "3",
   "armor-check-pen": "-4",
   "armor-spell-fail": "25",
-  "armor-speed": "3/4",
+  "armor-speed": "30",
   "armor-weight": "15",
   "armor-special": "",
   "shield-name": "Shield, Heavy Steel",
@@ -125,11 +118,34 @@
   "shield-worn": true,
   "armor-touch-ac": false,
   "shield-touch-ac": false,
-  "magicItems": [],
+  "magicItems": [
+    {
+      "name": "Amulet of Teamwork",
+      "weight": "",
+      "special": "Aid Another bonuses you grant improve to +3; flanking allies gain +2 damage. Once/day grant adjacent ally and self +5 competence AC for 1 round.",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    },
+    {
+      "name": "Healing Belt",
+      "weight": "1",
+      "special": "This broad leather belt is studded with three moonstones. While wearing a healing belt, you gain a +2 competence bonus on Heal checks. This is a continuous effect and requires no activation. In additi…",
+      "slot": "waist",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    }
+  ],
   "slotSoulmelds": {},
   "slot-head": "",
   "slot-eyes": "",
-  "slot-neck": "",
+  "slot-neck": "Amulet of Teamwork",
   "slot-shoulders": "",
   "slot-ring1": "",
   "slot-ring2": "",
@@ -137,7 +153,7 @@
   "slot-arms": "",
   "slot-body": "",
   "slot-torso": "",
-  "slot-waist": "",
+  "slot-waist": "Healing Belt",
   "slot-feet": "",
   "sm-max-soulmelds": "0",
   "sm-max-essentia": "0",
@@ -163,14 +179,16 @@
   "possessions-notes": "",
   "money-cp": "0",
   "money-sp": "0",
-  "money-gp": "130",
+  "money-gp": "80",
   "money-pp": "0",
   "casters": [],
   "feats": [
     "Dragonwrought (Red)",
     "Skill Focus (Jump)",
-    "Draconic Wings",
-    "Dragon Tail"
+    "Dragon Tail",
+    "Apprentice (Martial Artist)",
+    "Combat Reflexes",
+    "Dragon Wings"
   ],
   "specialAbilities": [
     "Standard kobold racial traits with the following modifications.",
@@ -178,85 +196,41 @@
     "No light sensitivity.",
     "+2 racial bonus on Survival.",
     "No racial bonus on Profession (mining).",
-    "[Dragon Shaman 1] Draconic aura +1",
-    "[Dragon Shaman 1] totem dragon",
-    "[Dragon Shaman 2] Skill Focus",
     "Toughness Aura\nDR/magic equal to Draconic Aura bonus",
     "Vigor Aura\nFast healing equal to Draconic Aura bonus. Only applies to allies under half hp",
     "Senses Aura\nBonus on Spot, Listen, and Initiative equal to Draconic Aura bonus",
     "Darkvision (70 ft)",
-    "Low-light Vision"
+    "Low-light Vision",
+    "[Dragon Shaman 1] Draconic aura +1",
+    "[Dragon Shaman 1] totem dragon",
+    "[Dragon Shaman 2] Skill Focus",
+    "[Dragon Shaman 3] Draconic adaptation",
+    "Treasure Hunter\n(Ex): +5 competence bonus on Appraise and Search checks (always active)",
+    "Resistance Aura\nResistance to Fire equal to Draconic Aura bonus x 5"
   ],
   "languages": "Draconic, Undercommon",
   "companions": [
     {
-      "name": "Companion",
+      "compType": "item_familiar",
       "compName": "",
-      "compType": "animal",
-      "compSize": "Medium",
-      "isFamiliar": false,
-      "compMode": "manual",
-      "compBaseCreature": "",
-      "compTemplate": "",
-      "comp-str-score": "",
-      "comp-str-boost": "",
-      "comp-dex-score": "",
-      "comp-dex-boost": "",
-      "comp-con-score": "",
-      "comp-con-boost": "",
-      "comp-int-score": "",
-      "comp-int-boost": "",
-      "comp-wis-score": "",
-      "comp-wis-boost": "",
-      "comp-cha-score": "",
-      "comp-cha-boost": "",
-      "compHpMax": "",
-      "compHpCur": "",
-      "compSpeed": "",
-      "compInitMisc": "",
-      "compAcArmor": "",
-      "compAcShield": "",
-      "compAcNatural": "",
-      "compAcSize": "",
-      "compAcMisc": "",
-      "compSaveFortBase": "",
-      "compSaveFortMisc": "",
-      "compSaveRefBase": "",
-      "compSaveRefMisc": "",
-      "compSaveWillBase": "",
-      "compSaveWillMisc": "",
-      "compBab": "",
-      "compGrappleSize": "",
-      "compGrappleMisc": "",
-      "compPersonality": "",
-      "compNotes": "",
-      "compSpecials": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ],
-      "compAttacks": [
-        {
-          "weapon": "",
-          "bonus": "",
-          "damage": "",
-          "crit": ""
-        }
-      ],
-      "compSkills": [],
-      "compFeats": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ],
-      "compTricks": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ]
+      "ifamItemName": "Amulet of Teamwork",
+      "ifamItemPrice": 2000,
+      "ifamItemWeight": 0,
+      "ifamItemNotes": "",
+      "ifamAlignment": "",
+      "ifamCarried": true,
+      "ifamLost": false,
+      "lifeEnergyInvested": true,
+      "skillRanksInItem": [],
+      "skillBonusesApplied": [],
+      "spellSlotsInvested": [],
+      "sapienceUnlocked": false,
+      "sapienceInt": 10,
+      "sapienceWis": 10,
+      "sapienceCha": 12,
+      "sapienceNotes": "",
+      "specialAbilities": [],
+      "name": "Companion"
     }
   ],
   "turn-per-day": "",
@@ -272,17 +246,19 @@
   "rage-active": false,
   "notes": "Flaws:\nMurky-Eyed (Disadvantage on concealment)\nShaky (-2 on ranged attack rolls)\n\nTraits:\nNightsighted (+10 ft to darkvision, -1 to spot in bright light)\nQuick (+10 ft land speed, -1 hp/level)",
   "customizations": [],
-  "_bloodline": {
-    "name": "Red Dragon",
-    "source": "Unearthed Arcana",
-    "strength": "major",
-    "slotsPaid": [
-      true,
-      false,
-      false
-    ],
-    "notes": ""
-  },
+  "_bloodlines": [
+    {
+      "name": "Red Dragon",
+      "source": "Unearthed Arcana",
+      "strength": "major",
+      "slotsPaid": [
+        true,
+        false,
+        false
+      ],
+      "notes": ""
+    }
+  ],
   "activeConditions": [],
   "auditDismissed": [],
   "history": [
@@ -311,6 +287,20 @@
       "spells_unlearned": [],
       "choices": {},
       "notes": ""
+    },
+    {
+      "level": 3,
+      "class_taken": "Dragon Shaman",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Combat Reflexes"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
     }
   ],
   "history_reconstructed": false,
@@ -320,8 +310,8 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
-      "misc": "2",
+      "ranks": "6",
+      "misc": "7",
       "index": 0
     },
     {
@@ -347,9 +337,9 @@
     },
     {
       "type": "skill",
-      "classSkill": false,
-      "ranks": "0",
-      "misc": "0",
+      "classSkill": true,
+      "ranks": "2",
+      "misc": "2",
       "index": 4
     },
     {
@@ -438,20 +428,20 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "6",
       "misc": "0",
       "index": 16
     },
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "17",
       "index": 17
     },
     {
       "type": "skill",
-      "classSkill": false,
+      "classSkill": true,
       "ranks": "0",
       "misc": "0",
       "index": 18
@@ -576,8 +566,8 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
-      "misc": "0",
+      "ranks": "1",
+      "misc": "5",
       "index": 34
     },
     {
@@ -632,9 +622,9 @@
     },
     {
       "type": "skill",
-      "classSkill": false,
-      "ranks": "0",
-      "misc": "0",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "2",
       "index": 42
     },
     {

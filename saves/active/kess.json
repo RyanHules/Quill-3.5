@@ -1,14 +1,14 @@
 {
   "char-name": "Kess",
   "char-player": "Ryan",
-  "char-class": "Dragonfire Adept 2 / Red Dragon Bloodline 1",
+  "char-class": "Dragonfire Adept 3 / Red Dragon Bloodline 1",
   "char-race": "Desert Kobold",
   "char-type": "Dragon",
   "char-alignment": "",
   "char-deity": "",
-  "char-level": "2",
+  "char-level": "3",
   "char-size": "Small",
-  "char-age": "",
+  "char-age": "150",
   "char-gender": "Male",
   "char-height": "",
   "char-weight": "",
@@ -16,7 +16,7 @@
   "char-hair": "",
   "char-skin": "",
   "char-campaign": "Cloud Peaks TNG",
-  "char-xp": "1000",
+  "char-xp": "3431",
   "char-speed": "40 ft.",
   "damage-reduction": "",
   "str-score": "13",
@@ -31,40 +31,33 @@
   "con-race": "",
   "con-template": "",
   "con-temp-adj": "",
-  "int-score": "15",
+  "int-score": "18",
   "int-race": "",
   "int-template": "",
   "int-temp-adj": "",
-  "wis-score": "12",
+  "wis-score": "15",
   "wis-race": "-2",
   "wis-template": "",
   "wis-temp-adj": "",
-  "cha-score": "15",
+  "cha-score": "18",
   "cha-race": "",
   "cha-template": "",
   "cha-temp-adj": "",
-  "hp-total": "17",
-  "hp-current": "",
+  "hp-total": "24",
+  "hp-current": "21",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "2",
   "ac-misc": "",
   "ac-miss-chance": "",
   "ac-defense-notes": "Immune: magic sleep, paralysis",
-  "con-to-ac": false,
-  "con-to-ac-type": "Untyped",
-  "int-to-ac": false,
-  "int-to-ac-type": "Untyped",
-  "wis-to-ac": false,
-  "wis-to-ac-type": "Untyped",
-  "cha-to-ac": false,
-  "cha-to-ac-type": "Untyped",
+  "ability-ac-bonuses": [],
   "ignore-encumbrance": false,
   "fort-base": "3",
   "fort-magic": "0",
   "fort-misc": "",
   "fort-temp": "0",
-  "ref-base": "0",
+  "ref-base": "1",
   "ref-magic": "0",
   "ref-misc": "",
   "ref-temp": "0",
@@ -91,14 +84,10 @@
   "_multiclass": [
     {
       "className": "Dragonfire Adept",
-      "level": 2,
-      "classId": 4782,
+      "level": 3,
+      "classId": 4944,
       "version": "3.5",
       "source": "Dragon Magic",
-      "advancesTypes": [
-        "arcane"
-      ],
-      "advancesLevels": 2,
       "advancesTargets": [
         null
       ]
@@ -113,21 +102,44 @@
   "armor-speed": "",
   "armor-weight": "",
   "armor-special": "",
-  "shield-name": "",
-  "shield-ac-bonus": "0",
-  "shield-weight": "",
-  "shield-check-pen": "0",
-  "shield-spell-fail": "",
+  "shield-name": "Shield, Heavy Steel",
+  "shield-ac-bonus": "2",
+  "shield-weight": "7.5",
+  "shield-check-pen": "-1",
+  "shield-spell-fail": "15",
   "shield-special": "",
   "armor-worn": true,
   "shield-worn": true,
   "armor-touch-ac": false,
   "shield-touch-ac": false,
-  "magicItems": [],
+  "magicItems": [
+    {
+      "name": "Dragon Spirit Cincture",
+      "weight": "",
+      "special": "This wide, embroidered belt sash is emblazoned with images of fire-breathing dragons. While you wear a dragon spirit cincture, your breath weapon damage is increased by one die (or by 1 point if your …",
+      "slot": "waist",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    },
+    {
+      "name": "Chronocharm of the Horizon Walker",
+      "weight": "",
+      "special": "This charm shows a rising sun half-obscured by the horizon. Like other chronocharms, this item slows your perception of time for a specific, singular purpose. When you activate a chronocharm of the ho…",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false
+    }
+  ],
   "slotSoulmelds": {},
   "slot-head": "",
   "slot-eyes": "",
-  "slot-neck": "",
+  "slot-neck": "Chronocharm of the Horizon Walker",
   "slot-shoulders": "",
   "slot-ring1": "",
   "slot-ring2": "",
@@ -135,7 +147,7 @@
   "slot-arms": "",
   "slot-body": "",
   "slot-torso": "",
-  "slot-waist": "",
+  "slot-waist": "Dragon Spirit Cincture",
   "slot-feet": "",
   "sm-max-soulmelds": "0",
   "sm-max-essentia": "0",
@@ -176,22 +188,23 @@
   "possessions-notes": "",
   "money-cp": "0",
   "money-sp": "0",
-  "money-gp": "231",
+  "money-gp": "261",
   "money-pp": "0",
   "casters": [
     {
       "type": "invocations",
       "name": "Dragonfire Adept",
       "notes": "Dragonfire Adept",
-      "invokerLevel": "2",
-      "casterLevel": "2",
+      "invokerLevel": "3",
+      "casterLevel": "3",
       "highestGrade": "Least",
       "knownCount": "1",
       "conditional": "",
       "invoClass": "",
       "invoList-least": [
         "Sickening Breath",
-        "Beguiling Influence"
+        "Beguiling Influence",
+        "Magic Insight"
       ],
       "invoList-lesser": [],
       "invoList-greater": [],
@@ -202,7 +215,9 @@
     "Dragonwrought (Red)",
     "Dragontouched",
     "Enlarge Breath",
-    "Draconic Wings"
+    "Apprentice (Martial Artist)",
+    "Ability Focus (Breath Weapon)",
+    "Dragon Wings"
   ],
   "specialAbilities": [
     "Standard kobold racial traits with the following modifications.",
@@ -210,84 +225,37 @@
     "No light sensitivity.",
     "+2 racial bonus on Survival.",
     "No racial bonus on Profession (mining).",
-    "[Dragonfire Adept 1] Breath weapon 2d6",
+    "Darkvision (70 ft)",
+    "Low-light Vision",
     "[Dragonfire Adept 1] Dragontouched",
     "[Dragonfire Adept 1] least invocations",
     "[Dragonfire Adept 2] Breath effect",
     "[Dragonfire Adept 2] scales +2",
-    "Darkvision (70 ft)",
-    "Low-light Vision"
+    "[Dragonfire Adept 3] Breath weapon 3d6"
   ],
   "languages": "Draconic, Common, Undercommon",
   "companions": [
     {
-      "name": "Companion",
+      "compType": "item_familiar",
       "compName": "",
-      "compType": "animal",
-      "compSize": "Medium",
-      "isFamiliar": false,
-      "compMode": "manual",
-      "compBaseCreature": "",
-      "compTemplate": "",
-      "comp-str-score": "",
-      "comp-str-boost": "",
-      "comp-dex-score": "",
-      "comp-dex-boost": "",
-      "comp-con-score": "",
-      "comp-con-boost": "",
-      "comp-int-score": "",
-      "comp-int-boost": "",
-      "comp-wis-score": "",
-      "comp-wis-boost": "",
-      "comp-cha-score": "",
-      "comp-cha-boost": "",
-      "compHpMax": "",
-      "compHpCur": "",
-      "compSpeed": "",
-      "compInitMisc": "",
-      "compAcArmor": "",
-      "compAcShield": "",
-      "compAcNatural": "",
-      "compAcSize": "",
-      "compAcMisc": "",
-      "compSaveFortBase": "",
-      "compSaveFortMisc": "",
-      "compSaveRefBase": "",
-      "compSaveRefMisc": "",
-      "compSaveWillBase": "",
-      "compSaveWillMisc": "",
-      "compBab": "",
-      "compGrappleSize": "",
-      "compGrappleMisc": "",
-      "compPersonality": "",
-      "compNotes": "",
-      "compSpecials": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ],
-      "compAttacks": [
-        {
-          "weapon": "",
-          "bonus": "",
-          "damage": "",
-          "crit": ""
-        }
-      ],
-      "compSkills": [],
-      "compFeats": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ],
-      "compTricks": [
-        {
-          "name": "",
-          "notes": ""
-        }
-      ]
+      "ifamItemName": "Dragon Spirit Cincture",
+      "ifamItemPrice": 2000,
+      "ifamItemWeight": 0,
+      "ifamItemNotes": "",
+      "ifamAlignment": "",
+      "ifamCarried": true,
+      "ifamLost": false,
+      "lifeEnergyInvested": true,
+      "skillRanksInItem": [],
+      "skillBonusesApplied": [],
+      "spellSlotsInvested": [],
+      "sapienceUnlocked": false,
+      "sapienceInt": 10,
+      "sapienceWis": 10,
+      "sapienceCha": 12,
+      "sapienceNotes": "",
+      "specialAbilities": [],
+      "name": "Companion"
     }
   ],
   "turn-per-day": "",
@@ -301,19 +269,21 @@
   "rage-used": "",
   "rage-rounds": "",
   "rage-active": false,
-  "notes": "Flaws:\nMurky-Eyed (Disadvantage on concealment)\nShaky (-2 on ranged attack rolls)\n\nTraits:\nNightsighted (+10 ft to darkvision, -1 to spot in bright light)\nQuick (+10 ft land speed, -1 hp/level)",
+  "notes": "Flaws:\nMurky-Eyed (Disadvantage on concealment)\nShaky (-2 on ranged attack rolls)\n\nTraits:\nNightsighted (+10 ft to darkvision, -1 to spot in bright light)\nQuick (+10 ft land speed, -1 hp/level)\n\nBorrowed 39 gold from Chan Wei",
   "customizations": [],
-  "_bloodline": {
-    "name": "Red Dragon",
-    "source": "Unearthed Arcana",
-    "strength": "major",
-    "slotsPaid": [
-      true,
-      false,
-      false
-    ],
-    "notes": ""
-  },
+  "_bloodlines": [
+    {
+      "name": "Red Dragon",
+      "source": "Unearthed Arcana",
+      "strength": "major",
+      "slotsPaid": [
+        true,
+        false,
+        false
+      ],
+      "notes": ""
+    }
+  ],
   "activeConditions": [],
   "auditDismissed": [],
   "history": [
@@ -342,10 +312,25 @@
       "spells_unlearned": [],
       "choices": {},
       "notes": ""
+    },
+    {
+      "level": 3,
+      "class_taken": "Dragonfire Adept",
+      "hp_rolled": null,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Ability Focus (Breath Weapon)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
     }
   ],
   "history_reconstructed": false,
   "_book_filter": null,
+  "_hide_30_mode": "counterpart",
   "_homebrew": null,
   "skills": [
     {
@@ -365,7 +350,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "6",
       "index": 2
     },
@@ -379,8 +364,8 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
-      "misc": "0",
+      "ranks": "2",
+      "misc": "2",
       "index": 4
     },
     {
@@ -399,14 +384,14 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "1",
       "misc": "0",
       "index": 6
     },
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "7",
       "index": 7
     },
@@ -469,14 +454,14 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "6",
       "index": 16
     },
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "0",
+      "ranks": "6",
       "misc": "14",
       "index": 17
     },
@@ -553,7 +538,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "3",
       "index": 28
     },
@@ -642,7 +627,7 @@
     {
       "type": "skill",
       "classSkill": true,
-      "ranks": "5",
+      "ranks": "6",
       "misc": "3",
       "index": 39,
       "notes": "-1 in bright light"
@@ -663,9 +648,9 @@
     },
     {
       "type": "skill",
-      "classSkill": false,
-      "ranks": "0",
-      "misc": "0",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "2",
       "index": 42
     },
     {

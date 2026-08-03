@@ -47,10 +47,10 @@
   "hp-current": "59",
   "hp-temp": "",
   "hp-nonlethal": "",
-  "ac-natural": "0",
+  "ac-natural": "1",
   "ac-misc": "0",
   "ac-miss-chance": "",
-  "ac-defense-notes": "Resist 2: Cold, Fire, Elect; Resist 4: Acid; DR 2/- vs Air/Fire/Water subtype; DR 4/- vs Earth subtype",
+  "ac-defense-notes": "Resist 2: Cold, Elect\nResist 4: Acid\nResist 5: Fire\nDR 2/- vs Air/Fire/Water subtype\nDR 4/- vs Earth subtype",
   "con-to-ac": false,
   "con-to-ac-type": "Untyped",
   "int-to-ac": false,
@@ -72,8 +72,8 @@
   "will-magic": "0",
   "will-misc": "1",
   "will-temp": "0",
-  "save-conditional": "+2 vs Cold/Fire/Elect; +4 vs Acid",
-  "init-misc": "0",
+  "save-conditional": "+2 vs Cold/Fire/Elect\n+4 vs Acid",
+  "init-misc": "4",
   "bab-1": "4",
   "grapple-misc": "0",
   "spell-resistance": "",
@@ -108,7 +108,7 @@
     {
       "className": "Sand Shaper",
       "level": 2,
-      "classId": 15060,
+      "classId": 15051,
       "version": "3.5",
       "source": "Sandstorm",
       "advancesTypes": [
@@ -1239,7 +1239,17 @@
   "rage-active": false,
   "notes": "--- Planned Progression ---\nPlanned Progression: Sha'ir 3 -> LA Buyback -> Durthan 2 -> Sand Shaper 10 -> Durthan 7\n\nNeed: Know (Nature) 4, Survival 4, Touchstone (City of the Dead) (Needs Know(Local - City of the Dead) 8, or possession of a touchstone key (a portable object native to the area worth at least 250 gp). must also forge a link by spending a day in meditation and spending 10 xp and 250 gp in material components; alternatively, the key object can be destroyed as part of the ritual, in place of the material component)\n\nFlaws: Hot-Blooded (Automatically fail Fort saves made to overcome the effects of low temperatures. Cold-based effects deal an additional 2 points of damage to you), Material Devotion (You may only use spell-trigger items (wands and staffs) that cast spells on your domain spell lists. Other spell-trigger items fail in your hands)\n\nTraits: Honest (+1 Diplo, -1 Bluff, Sense Motive), Polite (+1 Diplo, -2 Intimidate)\n\nSpell Retrieval:\nModifiers to Diplomacy Check (Base DC 20):\n+1 per sha'ir level\n+2 for known arcane spell\n-2 per level of spell\n-6 for unknown divine spell\n-1 per +1 lvl from metamagic\n-2 per attempt after a failed check (resets the next day)\n\nDelay:\n-Known Arcane Spell: d4+ spell level rounds\n-Unknown Arcane Spell: d6+ spell level minutes\n-Divine Spell: d6 + spell level hours",
   "customizations": [],
-  "_bloodline": null,
+  "_bloodline": {
+    "name": "Efreeti",
+    "source": "Unearthed Arcana",
+    "strength": "major",
+    "slotsPaid": [
+      false,
+      false,
+      false
+    ],
+    "notes": ""
+  },
   "activeConditions": [],
   "auditDismissed": [
     "history:prereq-unmet:1:Touchstone:skill:Knowledge (local) 8 ranks",
