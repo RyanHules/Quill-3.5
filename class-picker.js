@@ -1786,6 +1786,9 @@
     // applyMonsterClassExtensions on the original apply; no-op for
     // non-monster classes. Keyed to the removed ENTRY, so always runs.
     removeMonsterClassExtensions(removed);
+    // …and the starting racial package (racial ability adjustments, plus the
+    // descriptive fields we set — only those still marked as ours).
+    removeMonsterClassRacialTraits(removed);
     reconcileCurrentClassSkills();
     applyAggregatesToSheet();
     refreshAllSpellTabs();
@@ -1959,6 +1962,7 @@
       mysteryAdvancesTarget:  e.mysteryAdvancesTarget,
       mysteryAdvancingLevels: e.mysteryAdvancingLevels,
       monsterExt: e.monsterExt,
+      monsterRacial: e.monsterRacial,
       racialHD:     e.racialHD || undefined,
       creatureRace: e.creatureRace || undefined,
       creatureType: e.creatureType || undefined,
@@ -2013,6 +2017,7 @@
         mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
         mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
         monsterExt: stub.monsterExt || undefined,
+        monsterRacial: stub.monsterRacial || undefined,
       };
     }
     return {
@@ -2043,6 +2048,7 @@
       mysteryAdvancesTarget:  stub.mysteryAdvancesTarget  || undefined,
       mysteryAdvancingLevels: stub.mysteryAdvancingLevels || undefined,
       monsterExt: stub.monsterExt || undefined,
+      monsterRacial: stub.monsterRacial || undefined,
     };
   }
 
@@ -2522,6 +2528,126 @@
         }
       }
     }
+  }
+
+  // ============================================================
+  // Savage Species STARTING racial package (report rms28htsv-bypk)
+  // ============================================================
+  //
+  // applyMonsterClassExtensions above walks class_table ROWS — the per-level
+  // progression (size, natural armor, racial HD, ability_changes). That is the
+  // ramp. What it never applied is the creature's STARTING racial package,
+  // which the DB carries in the class's `racial_traits` block: the level-1
+  // ability adjustments, movement modes, creature type, and languages. So a
+  // player who took Ogre 1 got the +3 natural armor and Medium size, but not
+  // Giant type, 40 ft. speed, Giant language, or the starting Str +2/Int -4/
+  // Cha -4. All 54 SS monster classes carry the block.
+  //
+  // Two things make this DIFFERENT from the per-level extensions:
+  //
+  //   1. It is LEVEL-INDEPENDENT — a starting package, applied once when the
+  //      class is first taken, not re-diffed on every level-up. So it is
+  //      tracked on its own key (`entry.monsterRacial`) and skipped when that
+  //      key already exists.
+  //   2. The ability adjustments go to the `-race` column, not `-template`.
+  //      They ARE racial; the per-level ability_changes are the class ramp.
+  //      Keeping them in separate columns is what lets removal subtract
+  //      exactly the right amount from the right place.
+  //
+  // #char-race is set to the FULL class name ("Ogre (Monster Class)") rather
+  // than the bare creature name on purpose: race-picker auto-fills only on an
+  // EXACT match against its race index, so the bare "Ogre" would fire it and
+  // stack the full MM Ogre racial package (Str +10, Con +4) on top of the
+  // monster class's STARTING adjustments (Str +2). The qualified name misses
+  // the index, race-picker no-ops, and the player can see what they are.
+  function fetchRacialTraits(classId) {
+    const row = DB.queryOne(
+      "SELECT json_extract(data, '$.racial_traits') AS rt "
+      + "FROM entry WHERE id = ?", [classId]);
+    if (!row || !row.rt) return null;
+    try {
+      const rt = JSON.parse(row.rt);
+      return (rt && typeof rt === 'object' && !Array.isArray(rt)) ? rt : null;
+    } catch (e) { return null; }
+  }
+
+  function applyMonsterClassRacialTraits(entry, alreadyApplied) {
+    if (alreadyApplied) {                 // starting package — apply once
+      entry.monsterRacial = alreadyApplied;
+      return;
+    }
+    if (!getMonsterClassExtensions(entry.classId, entry.level)) return;
+    const rt = fetchRacialTraits(entry.classId);
+    if (!rt) return;
+
+    const applied = { abilityMods: {} };
+    // Racial ability adjustments -> the `-race` column.
+    const adj = rt.starting_ability_adjustments || {};
+    for (const [rawAb, rawVal] of Object.entries(adj)) {
+      const ab = String(rawAb).toUpperCase().slice(0, 3);
+      const val = Number(rawVal) || 0;
+      if (!ab || !val) continue;
+      const el = document.getElementById(`${ab.toLowerCase()}-race`);
+      if (!el) continue;
+      el.value = String((parseInt(el.value, 10) || 0) + val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      applied.abilityMods[ab] = val;
+    }
+    // Fill-if-empty for the descriptive fields, matching race-picker's
+    // contract so a manual entry is never clobbered.
+    const setIfEmpty = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el || val == null || val === '') return false;
+      if (String(el.value || '').trim()) return false;
+      el.value = String(val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dataset.fromClass = entry.className;
+      return true;
+    };
+    applied.setRace = setIfEmpty('char-race', entry.className);
+    applied.setType = setIfEmpty('char-type', rt.creature_type);
+    // Skip FALSY speeds, matching race-picker's `if (race.base_speed_ft)`
+    // convention: a Large Air Elemental has base_speed_ft 0 (it cannot walk),
+    // and writing a literal "0" into Land reads as data entry rather than
+    // "no land movement" — every other creature just leaves the box blank.
+    applied.setSpeeds = [
+      ['speed-land', rt.base_speed_ft],
+      ['speed-fly', rt.fly_speed_ft],
+      ['speed-fly-maneuver', rt.fly_maneuverability],
+      ['speed-swim', rt.swim_speed_ft],
+      ['speed-climb', rt.climb_speed_ft],
+    ].filter(([id, v]) => v && setIfEmpty(id, v)).map(([id]) => id);
+    const langs = Array.isArray(rt.automatic_languages) ? rt.automatic_languages : [];
+    applied.setLangs = langs.length ? setIfEmpty('languages', langs.join(', ')) : false;
+
+    entry.monsterRacial = applied;
+  }
+
+  // Inverse — subtract the racial ability adjustments and clear only the
+  // descriptive fields we actually set (tracked per field, so a value the
+  // player typed themselves is left alone).
+  function removeMonsterClassRacialTraits(removedEntry) {
+    const applied = removedEntry && removedEntry.monsterRacial;
+    if (!applied) return;
+    for (const [ab, val] of Object.entries(applied.abilityMods || {})) {
+      const el = document.getElementById(`${ab.toLowerCase()}-race`);
+      if (!el) continue;
+      el.value = String((parseInt(el.value, 10) || 0) - val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const clearIfOurs = (id) => {
+      const el = document.getElementById(id);
+      if (el && el.dataset.fromClass === removedEntry.className) {
+        el.value = '';
+        delete el.dataset.fromClass;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+    if (applied.setRace) clearIfOurs('char-race');
+    if (applied.setType) clearIfOurs('char-type');
+    (applied.setSpeeds || []).forEach(clearIfOurs);
+    if (applied.setLangs) clearIfOurs('languages');
+    delete removedEntry.monsterRacial;
   }
 
   // Inverse of applyMonsterClassExtensions — runs from removeClass.
@@ -3892,6 +4018,11 @@
     // L3 changes, not the full L1..L3 stack again).
     const prevMonsterExt = (existingIdx >= 0)
       ? arr[existingIdx].monsterExt : null;
+    // The starting racial package is applied ONCE, not per level — carrying
+    // the previous record forward is what stops a re-apply (Ogre 2 → Ogre 3)
+    // from adding the racial ability adjustments a second time.
+    const prevMonsterRacial = (existingIdx >= 0)
+      ? arr[existingIdx].monsterRacial : null;
     if (existingIdx >= 0) {
       // Preserve user-pinned target overrides on re-apply (advancesTargets
       // / advancementSlots may have been manually selected by the user
@@ -3932,6 +4063,10 @@
     // previous extensions so re-apply at a higher level only adds
     // the new levels. No-op for non-monster classes.
     applyMonsterClassExtensions(entry, prevMonsterExt);
+    // And the STARTING racial package (creature type, racial ability
+    // adjustments, movement modes, languages) — level-independent, so it
+    // carries the previously-applied record forward instead of re-diffing.
+    applyMonsterClassRacialTraits(entry, prevMonsterRacial);
     const totals = applyAggregatesToSheet();
     renderClassList();
 
