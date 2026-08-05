@@ -2,6 +2,25 @@
 
 Smoke tests for the character sheet's database integration.
 
+## Lookup usability harness
+
+`test_lookup_recall.js` — does a query a player would actually type surface
+the RIGHT entry, near the top? Runs the real `lookup.js` ranker headless
+against `data/dnd35.db` (via the same sql.js sandbox as `test_pickers.js`)
+over a curated set of `query -> expected-entry` cases.
+
+```bash
+node tests/test_lookup_recall.js
+```
+
+Reports an MRR health number and hard-gates a per-case top-N threshold
+(exit 1 on any miss). Exists because the "selected weapon -> Weapon Focus"
+search bug (2026-08-05) shipped with nothing testing retrieval quality. Add
+a case for every future search gap — same discipline as the save-stability
+regressions. The metric is ISEE's (Tian et al., 2026) Usability dimension —
+the one that maps to a game DB. See the header comment for the discovery-mode
+roadmap (mechanic search -> all interacting entries).
+
 ## Layer 2: picker query smoke test
 
 `test_pickers.js` — Node.js script that runs the EXACT SQL each

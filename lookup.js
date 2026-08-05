@@ -3094,6 +3094,31 @@
     });
   }
 
+  // Pure ranking core, shared by render() and the headless usability harness
+  // (tests/test_lookup_recall.js). rankParsed scores + sorts the built index
+  // against an already-parsed query and returns the FULL ordered entry list
+  // (no MAX_RESULTS slice, no DOM). rankResults is the public entry point: it
+  // ensures the index is built and parses the raw query. Separating ranking
+  // from render() lets the eval harness measure retrieval quality — does query
+  // X surface entry Y, and at what rank — deterministically, without a browser.
+  function rankParsed(parsed) {
+    const scored = [];
+    for (const e of entries) {
+      if (window.BookFilter && !window.BookFilter.allowsEntry(e)) continue;
+      const s = score(e, parsed);
+      if (s > 0) scored.push({ entry: e, score: s });
+    }
+    scored.sort((a, b) =>
+      b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+    return scored.map(x => x.entry);
+  }
+
+  function rankResults(query) {
+    if (typeof DB === 'undefined' || !DB.isLoaded()) return [];
+    if (!entries.length) buildIndex();
+    return rankParsed(parseQuery(query));
+  }
+
   function render(query) {
     if (!resultsEl) return;
     if (!DB.isLoaded()) {
@@ -3117,23 +3142,10 @@
       return;
     }
 
-    // Score + sort. Skip entries whose source is filtered out by the
-    // global BookFilter (errata indicators are still surfaced inline
-    // on rows that pass; see ErrataBadge wiring below).
-    const scored = [];
-    for (const e of entries) {
-      // `e` carries .type / .name / .version / .source from the index
-      // build query — allowsEntry uses all four to support both the
-      // 'all' and 'counterpart' hide-3.0 modes.
-      if (window.BookFilter && !window.BookFilter.allowsEntry(e)) continue;
-      const s = score(e, parsed);
-      if (s > 0) scored.push({ entry: e, score: s });
-    }
-    scored.sort((a, b) =>
-      b.score - a.score ||
-      a.entry.name.localeCompare(b.entry.name)
-    );
-    lastResults = scored.slice(0, MAX_RESULTS).map(x => x.entry);
+    // Score + sort via the shared ranking core (also used headless by the
+    // lookup usability harness). Book-filter + skip-zero-score live in there.
+    const ranked = rankParsed(parsed);
+    lastResults = ranked.slice(0, MAX_RESULTS);
 
     resultsEl.innerHTML = '';
     if (!lastResults.length) {
@@ -3195,7 +3207,7 @@
       });
       resultsEl.appendChild(row);
     }
-    const total = scored.length;
+    const total = ranked.length;
     setCount(
       total > MAX_RESULTS
         ? `showing ${MAX_RESULTS} of ${total}`
@@ -3391,6 +3403,9 @@
   // existing nested-expansion logic.
   window.Lookup = {
     open, close, toggle, search,
+    // Headless ranking seam for the usability harness (returns the full
+    // score-sorted entry list for a raw query; no DOM). See rankResults.
+    rankResults,
     renderSeeAlsoPill,
     renderSeeAlsoRow,
     renderSiblingsRow,
