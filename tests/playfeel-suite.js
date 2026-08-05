@@ -1109,6 +1109,31 @@
       'SS-INVO: invocations known advances to 4 on level-up after load');
   });
 
+  // The actual repro (aku) was a GESTALT character with the Warlock on track B,
+  // so the count fields must resume level-tracking there too (classPool unions
+  // both sides). Guards the specific shape that broke, not just the plain case.
+  regression('SS-INVO-GESTALT: track-B warlock invocation counts resume level-tracking after save/load', async () => {
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A');
+    await applyClass('Fighter', 5);
+    ClassPicker.setActiveSide('B');
+    await applyClass('Warlock', 5);
+    const gradeSel = "[data-caster-type='invocations'] .invo-highest-grade";
+    if (!$(gradeSel)) fail('SS-INVO-GESTALT: no invocations panel for track-B Warlock');
+    expectValue(gradeSel, 'Least', 'SS-INVO-GESTALT: track-B Warlock 5 grade = Least');
+    const blob = appCollect();
+    if (!blob._multiclassB) fail('SS-INVO-GESTALT: save omitted _multiclassB');
+    appLoad(blob);
+    await wait(250);
+    expectValue(gradeSel, 'Least', 'SS-INVO-GESTALT: grade restored after gestalt load');
+    ClassPicker.setActiveSide('B');
+    await applyClass('Warlock', 6);
+    expectValue(gradeSel, 'Lesser',
+      'SS-INVO-GESTALT: track-B grade advances to Lesser on level-up after load');
+    ClassPicker.setGestalt(false);   // don't leak gestalt into later specs
+  });
+
   regression('SS-AC: ability-to-AC stacks/overlaps NA, round-trips + migrates legacy', async () => {
     await newCharacter();
     document.querySelector('[data-tab="tab-character"]').click();
