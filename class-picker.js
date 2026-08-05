@@ -352,7 +352,13 @@
     'Alienist':         { types: ['arcane'],           advancesAllLevels: true },
     'Anima Mage':       { types: ['arcane'],           advancesAllLevels: true },
     'Argent Savant':    { types: ['arcane'],           advancesAllLevels: true },
-    'Blighter':         { types: ['divine'],           advancesAllLevels: true },
+    // NOT here: Blighter and Ur-Priest (Complete Divine). Both cast from their
+    // OWN spells_per_day table (indexed by class level), so they don't advance
+    // a prior class — a class either has its own table or advances another's.
+    // The DB metadata dropped their (wrong) advancement spec; detectSpellAdvance
+    // ment's own-table guard is the belt-and-suspenders. Ur-Priest's +½-other-
+    // caster-levels CL boost is a special rule (applyUrPriestCasterLevel), not
+    // standard advancement.
     'Contemplative':    { types: ['divine'],           advancesAllLevels: true },
     'Dragon Disciple':  { types: ['arcane'],           advancesAllLevels: true },
     'Dweomerkeeper':    { types: ['divine'],           advancesAllLevels: true },
@@ -364,7 +370,6 @@
     'Shadowcraft Mage': { types: ['arcane'],           advancesAllLevels: true },
     'Thaumaturgist':    { types: ['divine'],           advancesAllLevels: true },
     'True Necromancer': { types: ['arcane', 'divine'], advancesAllLevels: true },
-    'Ur-Priest':        { types: ['divine'],           advancesAllLevels: true },
     // Unapproachable East: durthan advances arcane casting at every
     // level via "Spells per Day/Spells Known" feature (no canonical
     // marker in the parsed class_table).
