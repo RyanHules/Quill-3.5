@@ -5083,9 +5083,9 @@ test('item-picker: base armors classify as equip-able under the canonical catego
   // button (H3 playfeel red, found 2026-07-05). Pin both layers.
   const r = execOne(db,
     "SELECT json_extract(data,'$.category') AS cat, "
-    + "json_extract(data,'$.entry_kind') AS kind "
+    + "type AS kind "
     + "FROM entry WHERE name='Chainmail' AND type='armor'");
-  assertEq(r.kind, 'armor', 'Chainmail carries entry_kind=armor');
+  assertEq(r.kind, 'armor', 'Chainmail routes off the type column (entry_kind retired 2026-08-05)');
   assertEq(r.cat, 'Armor', 'canonical category is plain "Armor"');
   const ip = readSource('item-picker.js');
   assert(/cat === 'armor'\s*\|\|\s*\/light armor\|medium armor\|heavy armor\//.test(ip),

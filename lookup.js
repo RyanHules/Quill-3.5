@@ -605,6 +605,15 @@
       if (type === 'spell' && (label === 'Subschool' || label === 'Descriptor')) {
         continue; // folded into the School line above
       }
+      if (label === 'HD') {
+        // hit_die is stored as an INT (the DB coerces "d8"->8); show the die
+        // form "d8" for display. Tolerant of a stray legacy "d8" string.
+        const hd = pickField(d, key);
+        if (hd == null || hd === '' || hd === '—') continue;
+        const disp = /^\d+$/.test(String(hd)) ? `d${hd}` : String(hd);
+        items.push(`<span class="lookup-meta-item"><b>HD:</b> ${escapeHtml(disp)}</span>`);
+        continue;
+      }
       const v = pickField(d, key);
       if (v == null || v === '' || v === '—') continue;
       items.push(

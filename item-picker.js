@@ -189,7 +189,7 @@
       + "json_extract(data, '$.cost')                  AS cost, "
       + "json_extract(data, '$.description')           AS description, "
       + "json_extract(data, '$.category')              AS category, "
-      + "json_extract(data, '$.entry_kind')            AS entry_kind, "
+      + "type                                          AS entry_kind, "
       + "json_extract(data, '$.armor_bonus')           AS armor_bonus, "
       + "json_extract(data, '$.armor_check_penalty')   AS armor_check_penalty, "
       + "json_extract(data, '$.arcane_spell_failure')  AS arcane_spell_failure, "
