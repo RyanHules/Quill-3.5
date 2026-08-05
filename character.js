@@ -988,8 +988,10 @@ const Character = (function () {
   // full 8-hour rest clears any nonlethal total a PC realistically carries —
   // zeroed here rather than modelled hour-by-hour.
   //
-  // Deliberately does NOT touch Temp HP: temporary hit points come from a
-  // spell/effect with its own duration, not from being rested.
+  // Temp HP is cleared too (report rmsee2qqz): temporary hit points come from
+  // a spell/effect with its own duration, and an 8-hour rest outlasts
+  // virtually every temp-HP source (Aid is minutes, false life is hours), so
+  // by morning they're gone. Zeroed here rather than modelled per-source.
   function restEightHours() {
     const level = (window.ClassPicker && ClassPicker.totalCharacterLevel)
       ? ClassPicker.totalCharacterLevel() : 0;
@@ -1015,6 +1017,12 @@ const Character = (function () {
       nl.value = 0;
       nl.dispatchEvent(new Event("input", { bubbles: true }));
     }
+    const tmp = $("#hp-temp");
+    const tmpCleared = int(tmp?.value);
+    if (tmp && tmpCleared) {
+      tmp.value = 0;
+      tmp.dispatchEvent(new Event("input", { bubbles: true }));
+    }
 
     // NB: `Spells` is a top-level `const`, NOT a window property — guarding
     // it off the window object silently short-circuits to false and the
@@ -1036,6 +1044,7 @@ const Character = (function () {
         ? `+${healed} hp (${perLevel}/level × ${level}${longTerm ? ", long-term care" : ""})`
         : "no class levels — set a class to heal");
       if (nlCleared) bits.push(`${nlCleared} nonlethal cleared`);
+      if (tmpCleared) bits.push(`${tmpCleared} temp HP cleared`);
       bits.push("slots/PP/maneuvers restored");
       out.textContent = bits.join(" · ");
       clearTimeout(out._t);
