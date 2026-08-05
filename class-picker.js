@@ -2424,6 +2424,40 @@
   // sums ability_changes across L1..applied-level, and takes the
   // most-recent non-null value of the cumulative fields.
 
+  // Savage Species SR grant. The value rule lives in the "Spell Resistance"
+  // class feature prose; the level it starts is the first class_table row whose
+  // `special` names SR. Two shapes across the 18 SR-granting SS classes:
+  //   "SR equal to 10 + class level" / "class level + 10" / "10 + HD from class"
+  //        → SR = N + class level, from firstLevel on (Mind Flayer L6→16 … L15→25)
+  //   "SR 13." (Azer, Nixie)  → flat SR = 13, from firstLevel on.
+  // Returns the SR value at `atLevel`, or null (class grants none / not reached).
+  function getSpellResistanceValue(classId, table, atLevel) {
+    const row = DB.queryOne(
+      "SELECT json_extract(data,'$.class_features') AS cf FROM entry WHERE id = ?",
+      [classId]);
+    let feats = [];
+    try { feats = row && row.cf ? JSON.parse(row.cf) : []; } catch (e) { return null; }
+    const srFeat = Array.isArray(feats)
+      && feats.find(f => /spell resistance/i.test((f && f.name) || ''));
+    if (!srFeat) return null;
+    const text = String(srFeat.description || srFeat.text || '');
+    let base, scales;
+    const m = text.match(/SR\s+equal\s+to\s+(\d+)\s*\+\s*(?:class level|HD from class)/i)
+           || text.match(/SR\s+equal\s+to\s+(?:class level|HD from class)\s*\+\s*(\d+)/i);
+    if (m) { base = parseInt(m[1], 10); scales = true; }
+    else {
+      const flat = text.match(/\bSR\s+(\d+)\b/i);   // flat "SR 13."
+      if (!flat) return null;
+      base = parseInt(flat[1], 10); scales = false;
+    }
+    // Level SR first applies: first table row whose `special` names SR —
+    // "spell resistance" (formula classes) or "SR 13"/"SR 16" (flat classes).
+    const firstRow = (table || []).find(r =>
+      /spell resistance|\bSR\b/i.test(r.special || ''));
+    if (!firstRow || Number(atLevel) < Number(firstRow.level)) return null;
+    return scales ? base + Number(atLevel) : base;
+  }
+
   function getMonsterClassExtensions(classId, atLevel) {
     const table = fetchClassTable(classId);
     if (!table.length) return null;
@@ -2451,7 +2485,8 @@
       if (r.size) size = r.size;
       if (r.racial_hd != null) racialHD = Number(r.racial_hd) || 0;
     }
-    return { abilityMods, naturalArmor, size, racialHD,
+    const spellResistance = getSpellResistanceValue(classId, table, atLevel);
+    return { abilityMods, naturalArmor, size, racialHD, spellResistance,
              naStacking: fetchNaStacking(classId) };
   }
 
@@ -2526,6 +2561,23 @@
           }
           sizeSel.dataset.fromClass = entry.className;
         }
+      }
+    }
+    // Spell resistance → #spell-resistance (SS monster classes; report
+    // rmsfg9i54). SR is an ABSOLUTE value (it doesn't stack), so unlike the
+    // additive ability / NA channels this uses the owned-or-empty setter:
+    // fresh fill, re-sync on level-up, but never clobber a user-typed SR.
+    // If a re-apply drops below the class's SR level, ext.spellResistance is
+    // null → clear the value if it's still ours.
+    if (ext.spellResistance != null) {
+      makeClassFieldSetter(document, entry.className)(
+        '#spell-resistance', String(ext.spellResistance));
+    } else {
+      const srEl = document.getElementById('spell-resistance');
+      if (srEl && srEl.dataset.fromClass === entry.className) {
+        srEl.value = '';
+        delete srEl.dataset.fromClass;
+        srEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
   }
@@ -2686,6 +2738,13 @@
         sizeSel.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
+    // Spell resistance — clear #spell-resistance if this class set it.
+    const srEl = document.getElementById('spell-resistance');
+    if (srEl && srEl.dataset.fromClass === removedEntry.className) {
+      srEl.value = '';
+      delete srEl.dataset.fromClass;
+      srEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }
 
   // Detect spell-advancing PrC. Returns { types: [...], levels: N } or null.
@@ -2694,7 +2753,21 @@
   //   spellcasting class" marker. Each match contributes +1 advancement.
   // Source B: hardcoded HARDCODED_ADVANCERS for parser-missed PrCs;
   //   advancesLevels == picked level when advancesAllLevels is true.
+  // A class with its own spells_per_day progression casts from THAT table
+  // (indexed by its own level) — so it is not a spell-ADVANCER, even if the DB
+  // carries a stray `advancement` spec. Ur-Priest and Blighter (Complete
+  // Divine) are both mis-flagged this way; a class either has its own table or
+  // advances another's, never both. (The DB metadata is also wrong for those
+  // two — worth fixing there — but this guard makes the sheet correct
+  // regardless of data quality.) Report rmsecrtmc.
+  function classHasOwnSpellsPerDay(classId) {
+    const table = fetchClassTable(classId);
+    return table.some((r) => Array.isArray(r.spells_per_day)
+      && r.spells_per_day.some((x) => x !== '-' && x != null));
+  }
+
   function detectSpellAdvancement(className, classId, level) {
+    if (classHasOwnSpellsPerDay(classId)) return null;
     const rows = levelsUpTo(classId, level);
     const types = new Set();
     let hits = 0;
@@ -3115,6 +3188,43 @@
         if (!e.className) continue;
         if (!ClassSpellAdditions.getFeatures(e.className).length) continue;
         applyClassSpellAdditions(e);
+      }
+    }
+    applyUrPriestCasterLevel();
+  }
+
+  // Ur-Priest caster level (report rmseczjok). Complete Divine: "add the
+  // character's ur-priest levels to one-half of his levels in other
+  // spellcasting classes" (ex-cleric levels don't count). Its spells_per_day
+  // come from its own class level (handled by the panel loop above), but its
+  // CASTER LEVEL is boosted by other casters — so it's overridden here, after
+  // the normal per-class CL was written. The prereq forbids any other divine
+  // casting, so in practice only arcane classes ever contribute; per RAW,
+  // cleric levels are excluded but other divine (which can't legally coexist)
+  // would count. The sum ur-level + floor(other/2) is inherently <= character
+  // level, so no explicit cap is needed.
+  function urPriestCasterLevel(urPriestLevel) {
+    let other = 0;
+    for (const e of classPool()) {
+      if (!e.classId || !e.className) continue;
+      if (/ur-?priest/i.test(e.className)) continue;     // not itself
+      if (/^cleric$/i.test(e.className)) continue;       // ex-cleric levels don't count
+      if (!getSpellcastingDataAtLevel(e.classId, e.level)) continue;  // spellcasting classes only
+      other += Number(e.level) || 0;
+    }
+    return urPriestLevel + Math.floor(other / 2);
+  }
+
+  function applyUrPriestCasterLevel() {
+    for (const e of classPool()) {
+      if (!e.classId || !e.className || !/ur-?priest/i.test(e.className)) continue;
+      const panel = findExistingCasterPanel('spellcasting', e.className);
+      const clEl = panel && panel.querySelector('.sc-caster-level');
+      if (!clEl) continue;
+      const cl = String(urPriestCasterLevel(Number(e.level) || 0));
+      if (clEl.value !== cl) {
+        clEl.value = cl;
+        clEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
   }

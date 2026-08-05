@@ -66,6 +66,34 @@
   // used to mint unique datalist IDs per panel
   let datalistCounter = 0;
 
+  // Some classes cast from ANOTHER class's spell list — Ur-Priest and Favored
+  // Soul cast the Cleric list, Spirit Shaman the Druid list — so their panels
+  // should default the picker's Class filter to that list, not their own name
+  // (which files no spells). Resolve via the DB `spellcasting.list`, but ONLY
+  // when it names a single clean spell-list class: the field is otherwise
+  // free-text ("existing divine spellcasting class", "varies", "Cleric (with
+  // limited access…)") and must never be parsed heuristically. Report rmsecwpj6.
+  const _listAliasCache = new Map();
+  function resolveSpellListAlias(className) {
+    const key = String(className || '').trim().toLowerCase();
+    if (!key) return null;
+    if (_listAliasCache.has(key)) return _listAliasCache.get(key);
+    let result = null;
+    try {
+      if (window.DB && DB.isLoaded()) {
+        const row = DB.queryOne(
+          "SELECT json_extract(data,'$.spellcasting.list') AS list FROM entry "
+          + "WHERE type IN ('class','prc') AND lower(name) = ? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [key]);
+        const raw = row && row.list ? String(row.list).trim() : '';
+        const match = classNamesSorted.find((c) => c.toLowerCase() === raw.toLowerCase());
+        if (match && match.toLowerCase() !== key) result = match;
+      }
+    } catch (e) { /* leave null */ }
+    _listAliasCache.set(key, result);
+    return result;
+  }
+
   // Collapse runs of single letters separated by spaces ("C l e r i c" →
   // "cleric"), then trim/lowercase.
   function squashKey(s) {
@@ -1046,6 +1074,10 @@
           if (!bestMatch || name.length > bestMatch.length) bestMatch = name;
         }
       }
+      // No direct match: the panel's class may cast another class's list
+      // (Ur-Priest / Favored Soul → Cleric, Spirit Shaman → Druid). The notes
+      // are the bare class name on class-picker apply, so resolve the alias.
+      if (!bestMatch) bestMatch = resolveSpellListAlias(raw);
       if (bestMatch) {
         classInput.value = bestMatch;
         classInput.dispatchEvent(new Event('input', { bubbles: true }));
