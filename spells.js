@@ -155,6 +155,12 @@ const Spells = (function () {
         setTimeout(() => { n2.textContent = ""; }, 6000);
       }
       try { Spells.recalc(); } catch (e) { /* non-fatal */ }
+      // Let in-panel pickers react (power-picker auto-filters its class
+      // list to the followed class — report rmsfgv0x8).
+      panel.dispatchEvent(new CustomEvent("caster-follow-applied", {
+        bubbles: true,
+        detail: { type: panel.dataset.casterType, className: cls, level: lvl },
+      }));
     } else {
       say(`${cls} has no progression for this tab at level ${lvl}.`, false);
     }

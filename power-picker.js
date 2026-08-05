@@ -109,6 +109,8 @@
       + "json_extract(data, '$.manifesting_time')   AS manifesting_time, "
       + "json_extract(data, '$.range')              AS range, "
       + "json_extract(data, '$.target')             AS target, "
+      + "json_extract(data, '$.area')               AS area, "
+      + "json_extract(data, '$.effect')             AS effect, "
       + "json_extract(data, '$.duration')           AS duration, "
       + "json_extract(data, '$.saving_throw')       AS saving_throw, "
       + "json_extract(data, '$.power_resistance')   AS power_resistance, "
@@ -140,6 +142,8 @@
         manifesting_time: r.manifesting_time,
         range: r.range,
         target: r.target,
+        area: r.area,
+        effect: r.effect,
         duration: r.duration,
         saving_throw: r.saving_throw,
         power_resistance: r.power_resistance,
@@ -161,6 +165,20 @@
       `across ${classNames.length} class lists`);
   }
 
+  // Map a "Follow Class" class name to this picker's own class-filter option.
+  // Exact match first; otherwise the picker option is a composite key
+  // ("Psion/Wilder") that lists the followed class as one slash-part — Follow
+  // Class offers Psion and Wilder separately but powers file both under the
+  // composite. Returns null when nothing matches (e.g. Soulknife, which
+  // manifests no powers), leaving the filter untouched.
+  function matchPickerClass(classSel, followName) {
+    if (!classSel || !followName) return null;
+    const opts = [...classSel.options].map((o) => o.value).filter(Boolean);
+    if (opts.includes(followName)) return followName;
+    return opts.find((o) =>
+      o.split('/').map((s) => s.trim()).includes(followName)) || null;
+  }
+
   function init() {
     rebuildIndex();
     buildGlobalPowerDatalist();
@@ -173,6 +191,22 @@
     document.addEventListener('book-filter-changed', () => {
       rebuildIndex();
       buildGlobalPowerDatalist();
+    });
+    // Report rmsfgv0x8: when a psionics panel adopts a class via "Follow
+    // Class", default this panel's picker to that class's power list so the
+    // user isn't scrolling all ~430 powers. Psionics fillPanelFromClass does
+    // NOT rebuild the panel DOM, so the picker bar is already present here.
+    document.addEventListener('caster-follow-applied', (ev) => {
+      const d = ev.detail || {};
+      if (d.type !== 'psionics') return;
+      const panel = ev.target && ev.target.closest
+        ? ev.target.closest('[data-caster-type="psionics"]') : null;
+      const classSel = panel && panel.querySelector('.power-picker .pp-class');
+      if (!classSel) return;
+      const match = matchPickerClass(classSel, d.className);
+      if (!match) return;
+      classSel.value = match;
+      classSel.dispatchEvent(new Event('change', { bubbles: true }));
     });
   }
 
@@ -558,6 +592,12 @@
       `PP: ${rec.power_points ?? '?'}`,
       rec.manifesting_time,
       rec.range,
+      // Target / Area / Effect are the "what it affects" line of a power's
+      // stat block — mutually exclusive in practice, so usually one shows
+      // (report rmsechaou: target was queried + stored but never rendered).
+      rec.target && `Target: ${rec.target}`,
+      rec.area && `Area: ${rec.area}`,
+      rec.effect && `Effect: ${rec.effect}`,
       rec.duration,
     ].filter(Boolean).map(escapeHtml).join(' · ');
     if (meta) bits.push(meta);
