@@ -2599,14 +2599,19 @@
     // array-of-objects into a text blob.
     const rows = DB.query(
       "SELECT id, name, type, source, " +
-      "  COALESCE(" +
-      "    json_extract(data, '$.description'), " +
-      "    json_extract(data, '$.benefit'), " +
-      "    json_extract(data, '$.effect'), " +
-      "    json_extract(data, '$.granted_power'), " +
-      "    json_extract(data, '$.text'), " +
-      "    ''" +
-      "  ) AS body, " +
+      // CONCATENATE the narrative/mechanics fields, don't COALESCE them: a
+      // COALESCE picks only the FIRST non-null field, so a feat whose flavor
+      // `description` is present but whose mechanics live in `benefit`/`normal`/
+      // `special` had those never indexed — "selected weapon" found Greater
+      // Weapon Focus (phrase happens to be in its description) but NOT plain
+      // Weapon Focus (phrase only in its benefit). Report rmsf7qe99.
+      "  (COALESCE(json_extract(data, '$.description'),   '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.benefit'),       '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.normal'),        '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.special'),       '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.effect'),        '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.granted_power'), '') || ' ' || " +
+      "   COALESCE(json_extract(data, '$.text'),          '')) AS body, " +
       "  CASE WHEN type IN ('class','prc') " +
       "       THEN json_extract(data, '$.class_features') ELSE NULL END " +
       "    AS class_features_json " +
