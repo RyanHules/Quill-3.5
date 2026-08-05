@@ -771,6 +771,19 @@ const Equipment = (function () {
         if (!startEditing) renderSmInfoView(panel);   // closing edit → refresh view
       }
     });
+
+    // Auto-fill (or live manual edit) of a soulmeld's Base/Bind fields
+    // refreshes an already-open ⓘ view. Without this, picking a soulmeld
+    // while its info panel is open leaves the panel showing "No effect
+    // details yet" until you close + reopen it — reported on the totem
+    // (rmse7an9s), but the same shared panel backs every body slot, so the
+    // fix is delegated across the whole grid rather than totem-specific.
+    grid.addEventListener("input", (ev) => {
+      const editFields = ev.target.closest(".slot-sm-edit-fields");
+      if (!editFields) return;
+      const panel = editFields.closest(".slot-sm-info");
+      if (panel && !panel.hidden) renderSmInfoView(panel);
+    });
   }
 
   // Find the .slot-sm-info panel owned by a given ⓘ button. Second-soulmeld
@@ -816,8 +829,47 @@ const Equipment = (function () {
   // the Epic Essentia Capacity table (21st-30th: 4, then +1 per 10 levels).
   // It is NOT a meldshaper-class thing: anyone with an incarnum feat has
   // it, which is why it lives off char level rather than the class table.
+  //
+  // Table 2-1 is read from the DB (report rmsffyuw5) so the sheet tracks the
+  // canonical table rather than a hardcoded copy — it lives on the "Chapter 2
+  // …Essentia Pool" rule entry as a structured `tables` block. The epic ramp
+  // (21+) isn't in that entry, so it stays a formula, and the whole RAW table
+  // is kept inline as a fallback for when the DB blob hasn't loaded.
+  let _essentiaBands = null;    // null = not yet attempted; [] = tried, use fallback
+  function essentiaCapacityBands() {
+    if (_essentiaBands) return _essentiaBands;
+    if (typeof DB === "undefined" || !DB.isLoaded || !DB.isLoaded()) return null;
+    _essentiaBands = [];
+    try {
+      const row = DB.queryOne(
+        "SELECT json_extract(data,'$.tables') AS t FROM entry "
+        + "WHERE type='rule' AND source='Magic of Incarnum' "
+        + "AND json_extract(data,'$.tables') LIKE '%Essentia Capacity%' LIMIT 1");
+      const tables = row && row.t ? JSON.parse(row.t) : [];
+      const tbl = (tables || []).find((t) => /essentia capacity/i.test(t.caption || ""));
+      for (const r of (tbl && tbl.rows) || []) {
+        const nums = String(r[0]).match(/\d+/g);     // "1st–5th" -> ["1","5"]
+        const cap = parseInt(r[1], 10);
+        if (!nums || !Number.isFinite(cap)) continue;
+        const min = parseInt(nums[0], 10);
+        const max = nums[1] != null ? parseInt(nums[1], 10) : min;
+        _essentiaBands.push({ min, max, cap });
+      }
+    } catch (e) { /* leave [] → fall through to the RAW inline table */ }
+    return _essentiaBands;
+  }
+
   function baseCapacityForLevel(level) {
     if (!Number.isFinite(level) || level < 1) return null;
+    const bands = essentiaCapacityBands();
+    if (bands && bands.length) {
+      for (const b of bands) if (level >= b.min && level <= b.max) return b.cap;
+      // Above the table's top band (20th) → epic ramp, anchored on the epic
+      // rules' 21st-level start and the table's own top capacity.
+      const top = bands[bands.length - 1];
+      if (level > top.max) return top.cap + Math.floor((level - 21) / 10);
+    }
+    // DB blob not loaded → RAW MoI Table 2-1 + epic, inline.
     if (level <= 5) return 1;
     if (level <= 11) return 2;
     if (level <= 17) return 3;
