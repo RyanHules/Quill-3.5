@@ -877,6 +877,22 @@ const Equipment = (function () {
     return 4 + Math.floor((level - 21) / 10);
   }
 
+  // Stamp #sm-base-capacity as auto-filled-from-level + wire the clear-on-user-
+  // edit listener. Shared by the level sync and by loadData, which re-stamps
+  // the marker after a save/load — it isn't part of _fromClassMarkers (that's
+  // id + data-from-class only; this field uses data-from-level), so without a
+  // re-stamp a saved non-zero capacity froze on the next level-up.
+  function markBaseCapFromLevel(el) {
+    if (!el) return;
+    el.dataset.fromLevel = "1";
+    if (!el.dataset.fromLevelWired) {
+      el.dataset.fromLevelWired = "1";
+      el.addEventListener("input", (ev) => {
+        if (ev.isTrusted) delete el.dataset.fromLevel;
+      });
+    }
+  }
+
   // Fill #sm-base-capacity from character level. Same auto-fill contract as
   // the class-picker's counters: write while the field is untouched (blank,
   // "0", or still carrying our marker) so it tracks level-ups, and stand
@@ -891,13 +907,7 @@ const Equipment = (function () {
     if (cur !== "" && cur !== "0" && !stillAuto) return;
     if (cur === String(cap) && stillAuto) return;   // no-op: avoid event churn
     el.value = String(cap);
-    el.dataset.fromLevel = "1";
-    if (!el.dataset.fromLevelWired) {
-      el.dataset.fromLevelWired = "1";
-      el.addEventListener("input", (ev) => {
-        if (ev.isTrusted) delete el.dataset.fromLevel;
-      });
-    }
+    markBaseCapFromLevel(el);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -1337,6 +1347,25 @@ const Equipment = (function () {
       const el = $(`#${id}`);
       if (el && data[id] !== undefined) el.value = data[id];
     });
+    // The data-from-level marker on Base Capacity isn't persisted (it's not a
+    // _fromClassMarkers field), so a loaded character stopped auto-tracking
+    // level-ups (reports rmsffyuw5 / gorrash). Re-derive the marker: if the
+    // saved value already equals the level-derived capacity it was auto-filled
+    // (a manual override differs), so re-stamp it. char-level is restored by
+    // Character.loadData, which runs before this. Works for old saves too — no
+    // persisted flag needed.
+    const capEl = $("#sm-base-capacity");
+    const capLvl = parseInt($("#char-level")?.value, 10);
+    if (capEl) {
+      // Set the marker to match the loaded value's auto-status, overwriting any
+      // stale marker an intervening sync left (Character.loadData sets char-level
+      // first, which can stamp the marker before we restore the real value).
+      if (capEl.value !== "" && capEl.value === String(baseCapacityForLevel(capLvl))) {
+        markBaseCapFromLevel(capEl);          // matches level → auto-track level-ups
+      } else {
+        delete capEl.dataset.fromLevel;        // manual override → leave it alone
+      }
+    }
 
     // Magic item slots + soulmelds
     DND35.itemSlots.forEach((slot) => {

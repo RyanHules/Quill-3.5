@@ -3521,6 +3521,23 @@
     }
   }
 
+  // Post-load reconcile for the class-derived COUNT panels (invocations,
+  // maneuvers, mysteries, psionics). On load the class hook re-applies classes
+  // BEFORE Spells.loadData creates their panels, so the per-level counts were
+  // never (re)stamped against the now-existing panels — leaving them without
+  // the data-from-class marker (which isn't persisted for these no-id fields),
+  // so they froze on the next level-up. Re-running the pillar refreshes here,
+  // after the panels exist, lets makeClassFieldSetter's self-heal re-stamp the
+  // markers where the loaded value already matches the derived value. It
+  // deliberately does NOT touch the spellcasting slot panels — those hold
+  // user-editable per-day counts that a full refresh would clobber.
+  function reconcileClassPillars() {
+    refreshAllManeuverTabs();
+    refreshAllInvocationTabs();
+    refreshAllMysteryTabs();
+    refreshAllPsionicTabs();
+  }
+
   // Strip parser-leaked sample character names (e.g. "Krusk", "Alhandra")
   // that bleed in at the end of the L20 row. Heuristic: a single trailing
   // Capitalized-Word that follows a complete scaling notation.
@@ -5154,16 +5171,32 @@
       // Vestige Level 3→5 — while a value the player typed is preserved.
       // (Programmatic re-fills dispatch a non-trusted input event, so
       // they never trip the marker-clearing listener.)
-      const stillAuto = el.dataset.fromClass === className;
-      if (el.value.trim() && !stillAuto) return;
-      el.value = val;
-      el.dataset.fromClass = className;
-      if (!el.dataset.fromClassWired) {
+      const wireClear = () => {
+        if (el.dataset.fromClassWired) return;
         el.dataset.fromClassWired = '1';
         el.addEventListener('input', (ev) => {
           if (ev.isTrusted) delete el.dataset.fromClass;
         });
+      };
+      const stillAuto = el.dataset.fromClass === className;
+      if (el.value.trim() && !stillAuto) {
+        // Self-heal a marker lost across save/load. These fields live in
+        // dynamic panels with class-based selectors (no id), so the
+        // _fromClassMarkers persistence — which is id + data-from-class only —
+        // skips them; a loaded character's counts then froze on level-up
+        // (Warlock highest grade, etc.). If the current value already equals
+        // what we'd write, it WAS our auto-fill, so re-stamp the marker and
+        // resume tracking. A genuine manual override differs from the derived
+        // value, so it's still left untouched.
+        if (el.value.trim() === String(val)) {
+          el.dataset.fromClass = className;
+          wireClear();
+        }
+        return;
       }
+      el.value = val;
+      el.dataset.fromClass = className;
+      wireClear();
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
   }
@@ -6213,5 +6246,8 @@
     // recalcAll — feats have no dedicated change event, and this is
     // idempotent, so riding the recalc keeps it current.
     syncFeatSpellAdditions,
+    // Post-load: re-derive invocation/maneuver/mystery/psionic counts once
+    // their panels exist, self-healing the auto-fill markers lost on save.
+    reconcileClassPillars,
   };
 })();

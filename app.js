@@ -372,6 +372,13 @@
       CharacterHistory.loadData(data, opts);
     }
     if (typeof BuildTimeline !== "undefined") BuildTimeline.render();
+    // Now that every caster panel exists (Spells.loadData ran above), re-derive
+    // the class-driven count fields so their auto-fill markers get re-stamped
+    // (the class hook ran before the panels existed). Without this, a loaded
+    // character's invocation grade / maneuver counts / etc. froze on level-up.
+    if (typeof ClassPicker !== "undefined" && ClassPicker.reconcileClassPillars) {
+      ClassPicker.reconcileClassPillars();
+    }
     recalcAll();
     setTimeout(autoExpandAll, 20);
   }

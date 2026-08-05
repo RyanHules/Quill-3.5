@@ -1061,6 +1061,54 @@
       'SS1: old "Familiar" display-text compType migrates to "familiar" key on load');
   });
 
+  // The auto-fill marker on #sm-base-capacity (data-from-level) isn't part of
+  // _fromClassMarkers, so a loaded character stopped auto-tracking level-ups
+  // (reported on gorrash: level 5 -> 6 didn't bump capacity 1 -> 2). Equipment
+  // .loadData re-derives the marker when the loaded value matches the level.
+  regression('SS-ESSENTIA: base essentia capacity resumes level-tracking after save/load', async () => {
+    await newCharacter();
+    // Character level 5 -> auto base capacity 1 (MoI Table 2-1).
+    set('char-level', '5');
+    await wait(120);
+    expectValue('#sm-base-capacity', '1', 'SS-ESSENTIA: L5 auto-fills capacity 1');
+    // Round-trip through App save/load (the marker isn't persisted; must re-derive).
+    const blob = appCollect();
+    appLoad(blob);
+    await wait(150);
+    expectValue('#sm-base-capacity', '1', 'SS-ESSENTIA: capacity restored to 1 after load');
+    // Level up 5 -> 6 : capacity must auto-increment 1 -> 2 (froze pre-fix).
+    set('char-level', '6');
+    await wait(120);
+    expectValue('#sm-base-capacity', '2',
+      'SS-ESSENTIA: capacity auto-increments to 2 on level-up after load (was frozen at 1)');
+  });
+
+  // The invocation highest-grade / known-count fields live in a dynamic panel
+  // with class-based (no-id) selectors, so their data-from-class markers aren't
+  // persisted — a loaded Warlock stopped advancing them on level-up (reported
+  // on aku: warlock 5 -> 6 didn't update highest grade). makeClassFieldSetter's
+  // self-heal + the post-load reconcileClassPillars pass re-stamp the markers.
+  regression('SS-INVO: warlock invocation grade/known resume level-tracking after save/load', async () => {
+    await newCharacter();
+    await applyClass('Warlock', 5);
+    const gradeSel = "[data-caster-type='invocations'] .invo-highest-grade";
+    const knownSel = "[data-caster-type='invocations'] .invo-known-count";
+    if (!$(gradeSel)) fail('SS-INVO: no invocations panel after applying Warlock 5');
+    expectValue(gradeSel, 'Least', 'SS-INVO: Warlock 5 highest grade = Least');
+    expectValue(knownSel, '3', 'SS-INVO: Warlock 5 invocations known = 3');
+    // Round-trip: the grade/known markers have no id, so they aren't persisted.
+    const blob = appCollect();
+    appLoad(blob);
+    await wait(250);
+    expectValue(gradeSel, 'Least', 'SS-INVO: highest grade restored after load');
+    // Level up 5 -> 6 : grade Least -> Lesser, known 3 -> 4 (froze pre-fix).
+    await applyClass('Warlock', 6);
+    expectValue(gradeSel, 'Lesser',
+      'SS-INVO: highest grade advances to Lesser on level-up after load (was frozen at Least)');
+    expectValue(knownSel, '4',
+      'SS-INVO: invocations known advances to 4 on level-up after load');
+  });
+
   regression('SS-AC: ability-to-AC stacks/overlaps NA, round-trips + migrates legacy', async () => {
     await newCharacter();
     document.querySelector('[data-tab="tab-character"]').click();
