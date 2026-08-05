@@ -2893,6 +2893,14 @@
     if (entry.searchKey.includes(q)) return 20;
     // Body-text fallback — least specific. Skip for very short queries
     // (<3 chars) to avoid swamping results with noise.
+    //
+    // NB: term-density weighting was tried here (2026-08-05) and reverted — it
+    // rewards entries that REPEAT the term, which helps the verbose ones but
+    // demotes canonically-relevant-but-text-sparse entries (Constrict is a
+    // grapple ability whose text says "crush", so density sank it 141->290).
+    // Body TEXT can't tell "about this mechanic" from "mentions it once"; that's
+    // domain knowledge, and it belongs in a TAG (tier 50, above this), applied
+    // by hand. See the mechanic-tagging pass tracked for the DB project.
     if (q.length >= 3 && entry.bodyKey && entry.bodyKey.includes(q)) return 10;
     return 0;
   }
@@ -3110,7 +3118,22 @@
     }
     scored.sort((a, b) =>
       b.score - a.score || a.entry.name.localeCompare(b.entry.name));
-    return scored.map(x => x.entry);
+    // Dedupe same-edition reprints: a feat/spell printed in several books
+    // (Clever Wrestling in PHB + Complete Warrior, …) should show ONCE — keep
+    // the best-ranked. Key on (type, version, name) so 3.0-vs-3.5 counterparts
+    // stay distinct (the version-badge intent) and a "Rage" spell vs a "Rage"
+    // creature aren't collapsed. Cleans the browse list AND lifts genuinely
+    // different entries up the ranking that dup rows had been burying.
+    const seen = new Set();
+    const out = [];
+    for (const { entry } of scored) {
+      const key = entry.type + ' ' + (entry.version || '') +
+        ' ' + (entry.name || '').toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(entry);
+    }
+    return out;
   }
 
   function rankResults(query) {

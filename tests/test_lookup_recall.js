@@ -60,20 +60,30 @@ const CASES = [
     note: 'name match wins — a player wanting the Rogue class types "rogue"' },
 ];
 
-// NEXT: DISCOVERY-MODE cases (not gated yet — need a recall metric + ranker work).
-// Confirmed direction (Ryan, 2026-08-05): searching a feature/mechanic SHOULD
-// surface the class it lives in AND everything that interacts with it — the
-// character-building use case ("I want a grappler -> search 'grappl' -> show me
-// every class/PrC/feat/skill/spell that touches grappling").  The body-index
-// fix (2026-08-05) already delivers the COVERAGE: "grappl" returns 461 results
-// across 26 types.  The gap is RANKING — name-matched gear (grappling hooks) +
-// duplicate-name entries crowd the top, and mechanically-relevant classes/PrCs
-// rank low.  These queries want a RECALL@N metric ("does the top-N include the
-// must-have set?"), not rank-of-one, so they belong in a discovery block once
-// that metric + the ranking refinements (dedupe-by-name, class/PrC boost on a
-// class_features match) exist.  Candidate anchors:
-//   "grappl" -> must include {Grapple[rule], Improved Grapple[feat], Improved Grab, ...}
-//   "wild shape" / "eldritch blast" / "sneak attack" -> should surface Druid / Warlock / Rogue.
+// ---- discovery cases ------------------------------------------------------
+// The character-building use case (Ryan, 2026-08-05): a MECHANIC query should
+// surface everything that interacts with it, so you can research a build.  The
+// body-index fix (2026-08-05) already delivers the coverage ("grappl" -> 461
+// results across 26 types); the open work is RANKING, so these use a RECALL@N
+// metric — "is the must-have canonical set inside the top N?" — not rank-of-one.
+// { query, topN, minRecall, mustInclude:[{name,type?}], pending?, note? }
+// `pending` cases are MEASURED + reported but NOT gated — they're targets
+// waiting on the DB-side mechanic-tagging pass (a tag scores tier 50, above
+// body, so a completed `grapple` tag surfaces the whole set; body text alone
+// can't — Constrict's text says "crush", not "grapple").  Flip pending off once
+// the tags land and the recall clears the gate.
+const DISCOVERY_CASES = [
+  { query: 'grappl', topN: 20, minRecall: 0.83, pending: true,
+    note: 'canonical grapple content — gated once the grapple tag is completed',
+    mustInclude: [
+      { name: 'Grapple',          type: 'rule' },
+      { name: 'Improved Grapple', type: 'feat' },
+      { name: 'Improved Grab',    type: 'rule' },
+      { name: 'Constrict',        type: 'rule' },
+      { name: 'Clever Wrestling', type: 'feat' },
+      { name: 'Legendary Wrestler', type: 'feat' },
+    ] },
+];
 
 // ---- sql.js plumbing (mirrors tests/test_pickers.js) ----------------------
 function execAll(db, sql, params) {
@@ -125,6 +135,18 @@ function rankOf(ranked, expect) {
   return Infinity;           // not found anywhere
 }
 
+// For a discovery case: which must-includes land within the top-N, and the
+// overall recall.  Returns { found:[{label,rank}], missed:[{label,rank}], recall }.
+function recallAt(ranked, mustInclude, topN) {
+  const found = [], missed = [];
+  for (const m of mustInclude) {
+    const rank = rankOf(ranked, m);
+    const label = m.name + (m.type ? ` [${m.type}]` : '');
+    (rank <= topN ? found : missed).push({ label, rank });
+  }
+  return { found, missed, recall: found.length / mustInclude.length };
+}
+
 // ---- run ------------------------------------------------------------------
 (async () => {
   const initSqlJs = require(SQL_JS_PATH);
@@ -165,7 +187,28 @@ function rankOf(ranked, expect) {
   }
   console.log('─'.repeat(72));
   const mrr = (rrSum / CASES.length).toFixed(3);
-  console.log(`MRR ${mrr} over ${CASES.length} cases | ${CASES.length - failures} pass, ${failures} fail (top-N gate)`);
+  console.log(`MRR ${mrr} over ${CASES.length} lookup cases | ${CASES.length - failures} pass, ${failures} fail (top-N gate)`);
+
+  // ---- discovery cases (recall@N of the canonical must-have set) ----
+  if (DISCOVERY_CASES.length) {
+    console.log('');
+    console.log('Discovery (recall@N — mechanic search surfaces the whole set)');
+    console.log('─'.repeat(72));
+    for (const d of DISCOVERY_CASES) {
+      const ranked = Lookup.rankResults(d.query);
+      const { found, missed, recall } = recallAt(ranked, d.mustInclude, d.topN);
+      const pass = recall >= d.minRecall;
+      if (!pass && !d.pending) failures++;   // pending = measured, not gated
+      const mark = d.pending ? '·· ' : (pass ? 'ok ' : 'XX ');
+      const fmt = x => `${x.label}@${x.rank === Infinity ? 'MISS' : x.rank}`;
+      console.log(`${mark}"${d.query}"  recall@${d.topN} = ` +
+        `${found.length}/${d.mustInclude.length} (${recall.toFixed(2)}, gate ${d.minRecall}` +
+        `${d.pending ? ', PENDING tag pass' : ''})`);
+      if (found.length)  console.log('     in:  ' + found.map(fmt).join(', '));
+      if (missed.length) console.log('     out: ' + missed.map(fmt).join(', '));
+    }
+    console.log('─'.repeat(72));
+  }
 
   process.exit(failures > 0 ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
