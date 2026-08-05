@@ -2573,7 +2573,13 @@
 
   function renderTags(d) {
     if (!Array.isArray(d.tags) || !d.tags.length) return '';
-    const tags = d.tags.map(t =>
+    // `<mechanic>-core` tags are a ranking-internal signal (they float the
+    // build-defining maneuver content up the results — see score()); don't
+    // surface them as browse chips, where they'd read as jargon beside the
+    // real descriptor tags. Still fully searchable via `tag:grapple-core`.
+    const shown = d.tags.filter(t => !t.endsWith('-core'));
+    if (!shown.length) return '';
+    const tags = shown.map(t =>
       `<span class="lookup-tag">${escapeHtml(t)}</span>`).join('');
     return `<div class="lookup-detail-tags">${tags}</div>`;
   }
@@ -2878,6 +2884,27 @@
     //    10 — bodyKey contains (description/benefit/effect full-text)
     if (entry.nameKey === q) return 100;
     if (entry.nameKey.startsWith(q)) return 80;
+    // 70 — curated "core" mechanic membership. An entry hand-marked as
+    // canonical for a combat maneuver carries `<mechanic>-core` (e.g.
+    // `grapple-core`); when the query names that mechanic, the build-
+    // DEFINING set outranks both the broad exact-tag pile (65, which for a
+    // full-word query like "grapple" would otherwise flatten all 72
+    // grapple-tagged entries) and the dozens that merely mention the word.
+    // So "grapple" / "grappl" surfaces the Grapple rule, Improved Grab,
+    // Constrict, Legendary Wrestler ahead of Weapon Focus (which CAN be
+    // taken *for* grapple but stays in the broad tier — breadth preserved).
+    // Still below a literal name prefix (80). Curated by hand in the DB
+    // project's tag_inference.py — the domain knowledge the body-text
+    // ranker can't infer. Hyphen/space-insensitive so "bull rush" reaches
+    // the `bull-rush-core` tag.
+    if (q.length >= 3) {
+      const qc = q.replace(/[-\s]/g, '');
+      for (const tag of entry.tags) {
+        if (!tag.endsWith('-core')) continue;
+        const base = tag.slice(0, -5).replace(/[-\s]/g, '');   // "bull-rush-core" -> "bullrush"
+        if (base.startsWith(qc) || qc.startsWith(base)) return 70;
+      }
+    }
     for (const tag of entry.tags) {
       if (tag === q) return 65;
     }

@@ -63,25 +63,77 @@ const CASES = [
 // ---- discovery cases ------------------------------------------------------
 // The character-building use case (Ryan, 2026-08-05): a MECHANIC query should
 // surface everything that interacts with it, so you can research a build.  The
-// body-index fix (2026-08-05) already delivers the coverage ("grappl" -> 461
-// results across 26 types); the open work is RANKING, so these use a RECALL@N
-// metric — "is the must-have canonical set inside the top N?" — not rank-of-one.
+// body-index fix delivered the coverage ("grappl" -> 461 results); RANKING was
+// the open work, now closed by the DB-side mechanic-tagging pass (2026-08-05):
+// each combat maneuver has a curated `<mechanic>-core` tag that the ranker
+// scores at tier 70 (above the broad exact-tag pile at 65), so the build-
+// DEFINING set surfaces first.  Body text alone can't do this — Constrict is a
+// grapple ability whose text says "crush", not "grapple".  These use a RECALL@N
+// metric ("is the must-have canonical set inside the top N?") and are the
+// regression teeth for that pass.
 // { query, topN, minRecall, mustInclude:[{name,type?}], pending?, note? }
-// `pending` cases are MEASURED + reported but NOT gated — they're targets
-// waiting on the DB-side mechanic-tagging pass (a tag scores tier 50, above
-// body, so a completed `grapple` tag surfaces the whole set; body text alone
-// can't — Constrict's text says "crush", not "grapple").  Flip pending off once
-// the tags land and the recall clears the gate.
+// A `pending: true` case is MEASURED + reported but NOT gated — use it for a
+// target still waiting on data.  All seven maneuvers below are LIVE gates.
 const DISCOVERY_CASES = [
-  { query: 'grappl', topN: 20, minRecall: 0.83, pending: true,
-    note: 'canonical grapple content — gated once the grapple tag is completed',
+  { query: 'grappl', topN: 20, minRecall: 0.83,
+    note: 'grapple-core tag; Constrict/Improved Grab reachable only via the tag',
     mustInclude: [
-      { name: 'Grapple',          type: 'rule' },
-      { name: 'Improved Grapple', type: 'feat' },
-      { name: 'Improved Grab',    type: 'rule' },
-      { name: 'Constrict',        type: 'rule' },
-      { name: 'Clever Wrestling', type: 'feat' },
+      { name: 'Grapple',            type: 'rule' },
+      { name: 'Improved Grapple',   type: 'feat' },
+      { name: 'Improved Grab',      type: 'rule' },
+      { name: 'Constrict',          type: 'rule' },
+      { name: 'Clever Wrestling',   type: 'feat' },
       { name: 'Legendary Wrestler', type: 'feat' },
+    ] },
+  { query: 'trip', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Trip',             type: 'rule' },
+      { name: 'Improved Trip',    type: 'feat' },
+      { name: 'Wolf Berserker',   type: 'feat' },
+      { name: 'Defensive Throw',  type: 'feat' },
+      { name: 'Pebble Underfoot', type: 'feat' },
+    ] },
+  { query: 'disarm', topN: 20, minRecall: 0.75,
+    mustInclude: [
+      { name: 'Disarm',           type: 'rule' },
+      { name: 'Improved Disarm',  type: 'feat' },
+      { name: 'Ranged Disarm',    type: 'feat' },
+      { name: 'Steal and Strike', type: 'feat' },
+    ] },
+  { query: 'sunder', topN: 20, minRecall: 0.75,
+    mustInclude: [
+      { name: 'Sunder',           type: 'rule' },
+      { name: 'Improved Sunder',  type: 'feat' },
+      { name: 'Ranged Sunder',    type: 'feat' },
+      { name: 'Epic Sunder',      type: 'feat' },
+    ] },
+  { query: 'bull rush', topN: 20, minRecall: 0.75,
+    mustInclude: [
+      { name: 'Bull Rush',          type: 'rule' },
+      { name: 'Improved Bull Rush', type: 'feat' },
+      { name: 'Awesome Blow',       type: 'feat' },
+      { name: 'Shock Trooper',      type: 'feat' },
+    ] },
+  { query: 'overrun', topN: 20, minRecall: 0.75,
+    mustInclude: [
+      { name: 'Overrun',          type: 'rule' },
+      { name: 'Improved Overrun', type: 'feat' },
+      { name: 'Centaur Trample',  type: 'feat' },
+      { name: 'Trample',          type: 'feat' },
+    ] },
+  // charge has the largest core AND the query is a HOMONYM: magic-item
+  // "charges"/"charged items" rules and a Triceratops spell are legit
+  // name-prefix hits that occupy ranks 2-5 (unfixable without semantics),
+  // pushing the ~17 canonical charge feats down. topN=25 keeps the whole set —
+  // including the alphabetically-last Spirited Charge — gated rather than
+  // letting it fall out at 4/5.
+  { query: 'charge', topN: 25, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Charge',          type: 'rule' },
+      { name: 'Powerful Charge', type: 'feat' },
+      { name: 'Spirited Charge', type: 'feat' },
+      { name: 'Ride-By Attack',  type: 'feat' },
+      { name: 'Flying Kick',     type: 'feat' },
     ] },
 ];
 
