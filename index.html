@@ -47,7 +47,7 @@
     //      (no substitution happens there, so the token stays unreplaced)
     window.CACHE_VERSION = (function () {
       const stamped = '__ASSET_VERSION__';
-      const pinned = /^[0-9a-f]{8,}$/.test(stamped) ? stamped : '20260731b';
+      const pinned = /^[0-9a-f]{8,}$/.test(stamped) ? stamped : '20260806a';
       try {
         return new URLSearchParams(location.search).get('freshjs') === '1'
           ? 'dev' + Date.now() : pinned;

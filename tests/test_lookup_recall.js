@@ -135,6 +135,102 @@ const DISCOVERY_CASES = [
       { name: 'Ride-By Attack',  type: 'feat' },
       { name: 'Flying Kick',     type: 'feat' },
     ] },
+
+  // --- build ARCHETYPES (item #6, 2026-08-06) — the entry-level generalization
+  // of the combat-maneuver cores above. Same mechanism: a curated
+  // `<archetype>-core` tag (DB-side ARCHETYPE_CORE in tag_inference.py) scored at
+  // ranker tier 70, so a build-research query floats the build-DEFINING set over
+  // the broad pile. Several entries are completeness fixes (the Rogue class, the
+  // Turn/Familiars rules, the summoning feats/PrCs carried no broad tag).
+  // topN=25: ~35 entries NAMED "Metamagic Rod (X)" / "Metamagic Component" /
+  // "Metamagic Item" share the "metamagic" name-prefix. Before the item-demote
+  // ranker fix (2026-08-06, Ryan-approved) they held tier 80 and buried the
+  // build core at ranks ~42-53 — too deep for any topN. Now magic-item name-
+  // prefix scores 68 (below curated -core at 70), so Divine Metamagic / Arcane
+  // Thesis / the PHB feats float into the top ~25 above the rod SKUs.
+  { query: 'metamagic', topN: 25, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Metamagic Feats (Rules)', type: 'rule' },
+      { name: 'Divine Metamagic',        type: 'feat' },
+      { name: 'Arcane Thesis',           type: 'feat' },
+      { name: 'Empower Spell',           type: 'feat' },
+      { name: 'Quicken Spell',           type: 'feat' },
+      { name: 'Persistent Spell',        type: 'feat' },
+      { name: 'Incantatrix',             type: 'prc'  },
+    ] },
+  { query: 'sneak attack', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Sneak Attack — Variants', type: 'rule'  },
+      { name: 'Rogue',                   type: 'class' },
+      { name: 'Staggering Strike',       type: 'feat'  },
+      { name: 'Telling Blow',            type: 'feat'  },
+      { name: 'Assassin',                type: 'prc'   },
+      { name: 'Arcane Trickster',        type: 'prc'   },
+    ] },
+  { query: 'wild shape', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Natural Spell',         type: 'feat'  },
+      { name: 'Druid',                 type: 'class' },
+      { name: 'Master of Many Forms',  type: 'prc'   },
+      { name: 'Warshaper',             type: 'prc'   },
+      { name: 'Aberration Wild Shape', type: 'feat'  },
+      { name: 'Extra Wild Shape',      type: 'feat'  },
+    ] },
+  { query: 'turn undead', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Turn or Rebuke Undead',      type: 'rule'  },
+      { name: 'Cleric',                     type: 'class' },
+      { name: 'Extra Turning',              type: 'feat'  },
+      { name: 'Divine Metamagic',           type: 'feat'  },
+      { name: 'Divine Might',               type: 'feat'  },
+      { name: 'Radiant Servant of Pelor',   type: 'prc'   },
+    ] },
+  { query: 'mounted combat', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Mounted Combat',  type: 'feat' },
+      { name: 'Mounted Archery', type: 'feat' },
+      { name: 'Ride-By Attack',  type: 'feat' },
+      { name: 'Spirited Charge', type: 'feat' },
+      { name: 'Cavalier',        type: 'prc'  },
+    ] },
+  { query: 'two weapon', topN: 20, minRecall: 0.8,
+    note: 'query "two weapon" (not "twf" — the -core base is "twoweaponfighting")',
+    mustInclude: [
+      { name: 'Two-Weapon Fighting',          type: 'feat' },
+      { name: 'Improved Two-Weapon Fighting', type: 'feat' },
+      { name: 'Greater Two-Weapon Fighting',  type: 'feat' },
+      { name: 'Two-Weapon Rend',              type: 'feat' },
+      { name: 'Oversized Two-Weapon Fighting', type: 'feat' },
+      { name: 'Tempest',                      type: 'prc'  },
+    ] },
+  // query "summoning" NOT "summon" — "summon" name-prefixes ~40 Summon* spells
+  // (tier 80) above core. topN=25 absorbs the smaller "Summoning Stone (X)" item
+  // family (~14 name-prefix entries) the way charge's topN=25 absorbs its
+  // homonyms; the build core lands just below at ranks ~15-22.
+  { query: 'summoning', topN: 25, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Augment Summoning', type: 'feat'  },
+      { name: 'Malconvoker',       type: 'prc'   },
+      { name: 'Gate',              type: 'spell' },
+      { name: 'Planar Binding',    type: 'spell' },
+      { name: 'Ashbound',          type: 'feat'  },
+    ] },
+  { query: 'familiar', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Familiars',        type: 'rule' },
+      { name: 'Improved Familiar', type: 'feat' },
+      { name: 'Obtain Familiar',  type: 'feat' },
+      { name: 'Item Familiar',    type: 'feat' },
+      { name: 'Bonded Familiar',  type: 'feat' },
+    ] },
+  { query: 'animal companion', topN: 20, minRecall: 0.8,
+    mustInclude: [
+      { name: 'Natural Bond',      type: 'feat'  },
+      { name: 'Druid',             type: 'class' },
+      { name: 'Ranger',            type: 'class' },
+      { name: 'Beastmaster',       type: 'prc'   },
+      { name: 'Companion Spellbond', type: 'feat' },
+    ] },
 ];
 
 // ---- sql.js plumbing (mirrors tests/test_pickers.js) ----------------------

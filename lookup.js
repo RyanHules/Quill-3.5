@@ -2874,7 +2874,12 @@
     const q = parsed.q;
     // Tiered scoring on the name:
     //   100 — exact match
-    //    80 — prefix match
+    //    80 — name-prefix match (feat/spell/class/rule/prc). For a magic
+    //         ITEM/WEAPON/ARMOR/GEAR a name-prefix drops to 68 — below curated
+    //         -core (70) — so gear that merely starts with a mechanic word does
+    //         not bury the build-defining set. See the item-demote below.
+    //    70 — curated `<mechanic>-core` membership (see the block below)
+    //    68 — item/gear name-prefix (demoted; see the name-prefix block below)
     //    65 — exact tag match (typing "metamagic" surfaces all
     //         entries tagged metamagic, even if the name doesn't
     //         contain the word). Placed between word-boundary
@@ -2892,19 +2897,34 @@
     //    20 — searchKey contains (type/source fallback)
     //    10 — bodyKey contains (description/benefit/effect full-text)
     if (entry.nameKey === q) return 100;
-    if (entry.nameKey.startsWith(q)) return 80;
-    // 70 — curated "core" mechanic membership. An entry hand-marked as
-    // canonical for a combat maneuver carries `<mechanic>-core` (e.g.
-    // `grapple-core`); when the query names that mechanic, the build-
-    // DEFINING set outranks both the broad exact-tag pile (65, which for a
-    // full-word query like "grapple" would otherwise flatten all 72
-    // grapple-tagged entries) and the dozens that merely mention the word.
-    // So "grapple" / "grappl" surfaces the Grapple rule, Improved Grab,
+    if (entry.nameKey.startsWith(q)) {
+      // A name-prefix hit on a magic ITEM/GEAR is a weak signal for a
+      // mechanic/build query: the ~35 "Metamagic Rod (X)" SKUs and the
+      // "Summoning Stone (X)" family would otherwise bury the curated
+      // build-defining `<mechanic>-core` set (tier 70). Demote item/gear
+      // name-prefix to 68 (still above tag 65 / word-boundary 60 / body 10) so
+      // for a mechanic/archetype query the build content floats above incidental
+      // gear; feat/spell/class/rule/prc name-prefix stays authoritative at 80.
+      // (item #6, 2026-08-06 — refines pt-4's "core sits below name-prefix":
+      // it still does, except below CURATED core for gear specifically.)
+      return (entry.type === 'item' || entry.type === 'weapon' ||
+              entry.type === 'armor' || entry.type === 'gear') ? 68 : 80;
+    }
+    // 70 — curated "core" membership for a combat maneuver OR a build archetype.
+    // An entry hand-marked as canonical carries `<key>-core` (e.g.
+    // `grapple-core`, `metamagic-core`); when the query names that mechanic or
+    // archetype, the build-DEFINING set outranks both the broad exact-tag pile
+    // (65, which for a full-word query like "grapple" would otherwise flatten
+    // all 72 grapple-tagged entries) and the dozens that merely mention the
+    // word. So "grapple" / "grappl" surfaces the Grapple rule, Improved Grab,
     // Constrict, Legendary Wrestler ahead of Weapon Focus (which CAN be
     // taken *for* grapple but stays in the broad tier — breadth preserved).
-    // Still below a literal name prefix (80). Curated by hand in the DB
-    // project's tag_inference.py — the domain knowledge the body-text
-    // ranker can't infer. Hyphen/space-insensitive so "bull rush" reaches
+    // Below a literal feat/spell/class/rule name prefix (80) but ABOVE an
+    // item/gear name prefix (68) — so "metamagic" floats Divine Metamagic over
+    // the "Metamagic Rod (X)" SKUs. Curated by hand in the DB project's
+    // tag_inference.py (MECHANIC_CORE + ARCHETYPE_CORE) — the domain knowledge
+    // the body-text ranker can't infer. Hyphen/space-insensitive so "bull rush"
+    // reaches
     // the `bull-rush-core` tag.
     if (q.length >= 3) {
       const qc = q.replace(/[-\s]/g, '');
