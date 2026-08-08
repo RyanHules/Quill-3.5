@@ -2614,6 +2614,12 @@
     // array-of-objects into a text blob.
     const rows = DB.query(
       "SELECT id, name, type, source, types_csv, " +
+      // prereq_raw feeds the prereq-in-degree "foundational-ness" signal used as
+      // a within-tier tiebreak (see the centrality pass after the map). Feats
+      // carry `prerequisites` (string); PrCs carry `requirements` (JSON array) —
+      // squash() flattens either into matchable tokens.
+      "  COALESCE(json_extract(data, '$.prerequisites'), " +
+      "           json_extract(data, '$.requirements'), '') AS prereq_raw, " +
       // CONCATENATE the narrative/mechanics fields, don't COALESCE them: a
       // COALESCE picks only the FIRST non-null field, so a feat whose flavor
       // `description` is present but whose mechanics live in `benefit`/`normal`/
@@ -2714,6 +2720,10 @@
         // source-derived `epic` TAG, which false-positives on ELH REPRINTS of
         // non-epic feats (Greater Two-Weapon Fighting is types=General there).
         epic: (r.types_csv || '').split(',').some(s => s.trim().toLowerCase() === 'epic'),
+        // Prereq text (squashed) + prereq in-degree, filled by the centrality
+        // pass below. centrality = how many entries name THIS one as a prereq.
+        prereqKey: squash(r.prereq_raw),
+        centrality: 0,
         tags,
         nameKey,
         // searchKey lets a fuzzy fallback hit tag names and the type
@@ -2727,6 +2737,36 @@
         featureNames,    // null OR list of preserved-case names
       };
     });
+    // Prereq in-degree ("foundational-ness") — a within-tier tiebreak so the
+    // feats a build chains OFF of (required by many others) float above their
+    // peers instead of sorting alphabetically (Improved Grapple over Clever
+    // Wrestling). Computed at index time; matched by squashed-name n-gram over
+    // each entry's prereq text, so it fires on real entry references, not prose.
+    // Ranked AFTER category weight (see rankParsed) — it only reorders ties.
+    {
+      const nameToEntries = new Map();
+      for (const e of entries) {
+        if (e.nameKey.length < 5) continue;        // skip ultra-short names (noise)
+        let arr = nameToEntries.get(e.nameKey);
+        if (!arr) nameToEntries.set(e.nameKey, (arr = []));
+        arr.push(e);
+      }
+      const MAX_NAME_WORDS = 5;
+      for (const e of entries) {
+        if (!e.prereqKey) continue;
+        const words = e.prereqKey.split(' ');
+        const targets = new Set();                 // dedupe per source entry
+        for (let i = 0; i < words.length; i++) {
+          let gram = '';
+          for (let n = 0; n < MAX_NAME_WORDS && i + n < words.length; n++) {
+            gram = n === 0 ? words[i] : gram + ' ' + words[i + n];
+            const hits = nameToEntries.get(gram);
+            if (hits) for (const t of hits) { if (t !== e) targets.add(t); }
+          }
+        }
+        for (const t of targets) t.centrality++;
+      }
+    }
     console.log(`[lookup] indexed ${entries.length} entries across ` +
       `${typeCounts.size} types`);
     renderChips();
@@ -3202,6 +3242,7 @@
     scored.sort((a, b) =>
       b.score - a.score ||
       rankWeight(b.entry) - rankWeight(a.entry) ||   // category primary, epic floored (2026-08-08)
+      (b.entry.centrality || 0) - (a.entry.centrality || 0) ||  // foundational: prereq in-degree
       a.entry.name.localeCompare(b.entry.name));
     // Dedupe same-edition reprints: a feat/spell printed in several books
     // (Clever Wrestling in PHB + Complete Warrior, …) should show ONCE — keep
