@@ -2613,7 +2613,7 @@
     // because SQLite's json1 doesn't ergonomically flatten an
     // array-of-objects into a text blob.
     const rows = DB.query(
-      "SELECT id, name, type, source, " +
+      "SELECT id, name, type, source, types_csv, " +
       // CONCATENATE the narrative/mechanics fields, don't COALESCE them: a
       // COALESCE picks only the FIRST non-null field, so a feat whose flavor
       // `description` is present but whose mechanics live in `benefit`/`normal`/
@@ -2708,6 +2708,12 @@
         name: r.name,
         type: r.type,
         source: r.source,
+        // Epic feats carry a hidden character-level-21+ prereq, so they almost
+        // never apply to a real build — demote them in ranking (see rankWeight).
+        // Detect from types_csv (the authoritative per-printing marker), NOT the
+        // source-derived `epic` TAG, which false-positives on ELH REPRINTS of
+        // non-epic feats (Greater Two-Weapon Fighting is types=General there).
+        epic: (r.types_csv || '').split(',').some(s => s.trim().toLowerCase() === 'epic'),
         tags,
         nameKey,
         // searchKey lets a fuzzy fallback hit tag names and the type
@@ -2809,6 +2815,27 @@
 
   // Rank a single entry against the parsed query.
   // 0 = no match; higher = better.
+  // Category weight — the primary WITHIN-TIER ordering signal (2026-08-08).
+  // Ranking asked: order a mechanic's results by CATEGORY more than source —
+  // feats/classes/PrCs are the build-defining core; spells are situational;
+  // items/creatures are nice-to-haves usually searched separately at the end.
+  // Epic feats sink to the floor (hidden level-21+ prereq → almost never usable).
+  // Used as a tiebreak WITHIN a score tier (see rankParsed's sort) so it reorders
+  // e.g. the curated `-core` set without disturbing the tier structure in score().
+  const CAT_WEIGHT = {
+    feat: 10, class: 10, prc: 10, rule: 10,
+    acf: 9, subst_level: 9, domain: 9, invocation: 9, maneuver: 9,
+    soulmeld: 9, power: 9, mystery: 9, vestige: 9,
+    condition: 7, skill: 6, skill_trick: 6, skill_use: 6,
+    spell: 5,
+    item: 2, weapon: 2, armor: 2, gear: 2,
+    creature: 1,
+  };
+  function rankWeight(entry) {
+    if (entry.epic) return 1;            // epic: level-21+ hidden prereq → floor
+    return CAT_WEIGHT[entry.type] != null ? CAT_WEIGHT[entry.type] : 4;
+  }
+
   function score(entry, parsed) {
     // Hard filters first.
     // `flag:open` — restrict to entries with an open review flag.
@@ -3173,7 +3200,9 @@
       if (s > 0) scored.push({ entry: e, score: s });
     }
     scored.sort((a, b) =>
-      b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+      b.score - a.score ||
+      rankWeight(b.entry) - rankWeight(a.entry) ||   // category primary, epic floored (2026-08-08)
+      a.entry.name.localeCompare(b.entry.name));
     // Dedupe same-edition reprints: a feat/spell printed in several books
     // (Clever Wrestling in PHB + Complete Warrior, …) should show ONCE — keep
     // the best-ranked. Key on (type, version, name) so 3.0-vs-3.5 counterparts
