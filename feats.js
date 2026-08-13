@@ -97,6 +97,10 @@ const Feats = (function () {
     const container = $("#feats-container");
     const div = document.createElement("div");
     div.className = "feat-row";
+    // Granting level for an auto-added BONUS feat (class/bloodline/…). Lets the
+    // Build Timeline place it at its real level instead of the generic feat
+    // schedule (report rmso7oje3). Absent on player-chosen feats.
+    if (opts.featLevel != null) div.dataset.featLevel = String(opts.featLevel);
     const ta = document.createElement("textarea");
     ta.className = "feat-entry";
     ta.placeholder = "Feat name & details";

@@ -359,7 +359,7 @@ const Bloodline = (function () {
     for (const w of wanted) {
       // sourceLabel: renders a read-only info box (like picker-added feats)
       // with the granting bloodline shown as a tag, not an editable spec.
-      Feats.addFeat(w.feat, { sourceLabel: `${w.bl} bloodline — L${w.level}` });
+      Feats.addFeat(w.feat, { sourceLabel: `${w.bl} bloodline — L${w.level}`, featLevel: w.level });
       const rows = container.querySelectorAll('.feat-row');
       const row = rows[rows.length - 1];
       if (!row) continue;

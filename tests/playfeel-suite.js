@@ -2336,6 +2336,33 @@
       'BTFEATS: remove drops the feat');
   });
 
+  // Auto-granted bonus feats land at their GRANTING level in the Build Timeline,
+  // not the generic PHB feat schedule (rmso7oje3). class-picker/bloodline stamp
+  // data-feat-level; collectFeatsForTimeline + reconstructFromTotals place them.
+  regression('BONUSFEAT: bonus feats land at their granting level in the timeline', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('BONUSFEAT: DB not loaded — re-run once [DB] Loaded appears.');
+    // Real flow: Ranger grants Track (L1) + Endurance (L3) as fixed bonus feats.
+    await applyClass('Ranger', 5);
+    await wait(200);
+    const bonusRows = [...document.querySelectorAll('#feats-container .feat-row[data-feat-level]')]
+      .map(r => (r.querySelector('.feat-entry')?.value || '').split('\n')[0].trim());
+    expect(bonusRows.includes('Track') && bonusRows.includes('Endurance'), true,
+      'BONUSFEAT: Ranger injects Track + Endurance as level-stamped bonus feats');
+    const tl = CharacterHistory.get() || [];
+    const at = (L) => (tl.find(e => e.level === L) || {}).feats_taken || [];
+    expect(at(1).includes('Track'), true, 'BONUSFEAT: Track at its granting level L1');
+    expect(at(3).includes('Endurance'), true, 'BONUSFEAT: Endurance at its granting level L3');
+    expect(at(1).includes('Endurance'), false, 'BONUSFEAT: Endurance not mislevelled to L1');
+    // Non-schedule proof: a bonus feat stamped L4 (not a feat-schedule slot)
+    // must land at L4 purely from its level, not the schedule.
+    const h = CharacterHistory.reconstructFromTotals(
+      [{ className: 'Fighter', level: 5 }], [],
+      { bonusFeats: [{ name: 'Dodge', level: 4 }], hitDieByClass: { Fighter: 10 } });
+    expect(((h.find(e => e.level === 4) || {}).feats_taken || []).includes('Dodge'), true,
+      'BONUSFEAT: a level-4 bonus feat lands at L4 (the schedule has no L4 slot)');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(

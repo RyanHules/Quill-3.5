@@ -365,13 +365,15 @@
                   ClassPicker.isGestalt() &&
                   typeof ClassPicker.getStateB === "function")
         ? ClassPicker.getStateB() : [];
+      const tlFeats = collectFeatsForTimeline();
       const opts = {
         classes: pickedClasses,
-        feats: collectCurrentFeatNames(),
+        feats: tlFeats.regular,
         options: {
           pathfinderFeats: false,
           hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
           classesB: pickedClassesB,
+          bonusFeats: tlFeats.bonus,
         },
       };
       CharacterHistory.loadData(data, opts);
@@ -420,6 +422,30 @@
       if (stripped) out.push(stripped);
     }
     return out;
+  }
+
+  // Split the Feats tab into player-chosen feats (which fill the PHB feat-level
+  // schedule) and auto-granted BONUS feats (class / bloodline), each carrying
+  // the level it's granted at via `data-feat-level` (stamped by the injecting
+  // module). Feeds CharacterHistory.reconstructFromTotals so bonus feats land
+  // at their true level in the Build Timeline (report rmso7oje3).
+  function collectFeatsForTimeline() {
+    const regular = [];
+    const bonus = [];
+    for (const row of document.querySelectorAll("#feats-container .feat-row")) {
+      const ta = row.querySelector(".feat-entry");
+      const raw = ((ta && ta.value) || "").trim();
+      if (!raw) continue;
+      const name = raw.split(/\r?\n/)[0].trim().replace(/\s*\([^)]*\)\s*$/, "").trim();
+      if (!name) continue;
+      const lvlAttr = row.dataset.featLevel;
+      if (lvlAttr != null && lvlAttr !== "") {
+        bonus.push({ name, level: parseInt(lvlAttr, 10) || 1 });
+      } else {
+        regular.push(name);
+      }
+    }
+    return { regular, bonus };
   }
 
   // ---- Persistence ----
@@ -815,7 +841,7 @@
   // reconstructed history row exists, we leave it alone and let the
   // Build Timeline view handle reconciliation drift via its own
   // audit warnings.
-  document.addEventListener("classes-changed", () => {
+  function reconstructTimelineFromState() {
     if (typeof CharacterHistory === "undefined") return;
     if (typeof BuildTimeline === "undefined") return;
     const existing = CharacterHistory.get();
@@ -845,18 +871,25 @@
       BuildTimeline.render();
       return;
     }
+    const tlFeats = collectFeatsForTimeline();
     const rebuilt = CharacterHistory.reconstructFromTotals(
       pickedClasses,
-      collectCurrentFeatNames(),
+      tlFeats.regular,
       {
         pathfinderFeats: false,
         hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
         classesB: pickedClassesB,
+        bonusFeats: tlFeats.bonus,
       },
     );
     CharacterHistory.set(rebuilt, { reconstructed: true });
     BuildTimeline.render();
-  });
+  }
+  // Bonus feats come from classes AND bloodlines; reconstruct an auto timeline
+  // when either changes so grants land at their granting level (report
+  // rmso7oje3). Curated timelines are respected inside the function.
+  document.addEventListener("classes-changed", reconstructTimelineFromState);
+  document.addEventListener("bloodline-changed", reconstructTimelineFromState);
 
   // Auto-recalc on any input change in relevant tabs
   document.addEventListener("input", (e) => {

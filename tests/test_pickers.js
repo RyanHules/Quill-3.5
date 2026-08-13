@@ -5483,6 +5483,32 @@ test('build-timeline: feats-taken is a list, not a textarea (rmso7nk4t)', () => 
     'build-timeline.js: the list no longer syncs feats_taken to the history entry.');
 });
 
+test('build-timeline: bonus feats land at their granting level (rmso7oje3)', () => {
+  // Each auto-added bonus feat carries data-feat-level (stamped by the granting
+  // module via addFeat); the timeline collector splits regular vs bonus feats,
+  // and reconstructFromTotals places bonus feats at their level.
+  const ch = readSource('character-history.js');
+  const ap = readSource('app.js');
+  const cp = readSource('class-picker.js');
+  const bl = readSource('bloodline.js');
+  const ft = readSource('feats.js');
+  assert(/options\.bonusFeats/.test(ch),
+    'character-history.js: reconstructFromTotals no longer honors options.bonusFeats.');
+  assert(/function collectFeatsForTimeline\s*\(/.test(ap) && /bonusFeats:\s*tlFeats\.bonus/.test(ap),
+    'app.js: collectFeatsForTimeline / bonusFeats wiring is missing.');
+  assert(/dataset\.featLevel/.test(ap),
+    'app.js: the timeline collector no longer reads data-feat-level.');
+  assert(/dataset\.featLevel = String\(opts\.featLevel\)/.test(ft),
+    'feats.js: addFeat no longer stamps data-feat-level from opts.featLevel.');
+  assert(/featLevel:\s*w\.level/.test(cp),
+    'class-picker.js: class bonus feats no longer pass featLevel to addFeat.');
+  assert(/featLevel:\s*w\.level/.test(bl),
+    'bloodline.js: bloodline bonus feats no longer pass featLevel to addFeat.');
+  assert(/addEventListener\("bloodline-changed",\s*reconstructTimelineFromState\)/.test(ap),
+    'app.js: the timeline no longer reconstructs on bloodline-changed — bloodline ' +
+    'bonus feats would not reach an auto timeline.');
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which

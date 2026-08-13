@@ -137,12 +137,20 @@ const CharacterHistory = (function () {
     //    UI will let the player redistribute).
     const featLvlList = featLevels(pathfinder);
     const featsByLevel = new Map();
+    const pushFeat = (lvl, name) => {
+      const L = Math.min(Math.max(1, parseInt(lvl, 10) || 1), totalLevels);
+      if (!featsByLevel.has(L)) featsByLevel.set(L, []);
+      if (!featsByLevel.get(L).includes(name)) featsByLevel.get(L).push(name);
+    };
+    // Player-chosen feats fill the PHB feat-level schedule in order.
     for (let i = 0; i < feats.length; i++) {
-      const lvl = i < featLvlList.length
-        ? featLvlList[i]
-        : totalLevels;  // overflow → highest level
-      if (!featsByLevel.has(lvl)) featsByLevel.set(lvl, []);
-      featsByLevel.get(lvl).push(feats[i]);
+      pushFeat(i < featLvlList.length ? featLvlList[i] : totalLevels, feats[i]);
+    }
+    // Auto-granted BONUS feats (class / bloodline grants) go to their ACTUAL
+    // granting level (report rmso7oje3), not the generic schedule.
+    const bonusFeats = Array.isArray(options.bonusFeats) ? options.bonusFeats : [];
+    for (const bf of bonusFeats) {
+      if (bf && bf.name) pushFeat(bf.level, bf.name);
     }
 
     // 3. Build the history array.
