@@ -518,11 +518,15 @@ const Character = (function () {
     // Grapple
     const strMod = getAbilityMod("STR");
     const grappleSize = sizeData.grappleMod;
+    // Flat feat bonus (Improved Grapple +4, PHB p.95) from Feats.getGrappleBonus.
+    const grappleFeat = (bonuses.grapple && bonuses.grapple.amount) || 0;
 
     $("#grapple-bab").textContent = fmt(bab1);
     $("#grapple-str").textContent = fmt(strMod);
     $("#grapple-size").textContent = fmt(grappleSize);
-    $("#grapple-total").textContent = fmt(bab1 + strMod + grappleSize + expr($("#grapple-misc").value));
+    const grappleFeatEl = $("#grapple-feat");
+    if (grappleFeatEl) grappleFeatEl.textContent = fmt(grappleFeat);
+    $("#grapple-total").textContent = fmt(bab1 + strMod + grappleSize + grappleFeat + expr($("#grapple-misc").value));
 
     // Per-attack bonus calculators. The size modifier to attack rolls is the
     // same value as the size modifier to AC (sizeData.acMod) in 3.5. Each

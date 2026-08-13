@@ -256,6 +256,11 @@
     bonuses.spellFocus = (typeof Feats !== "undefined" && Feats.getSpellFocusBonuses)
       ? Feats.getSpellFocusBonuses() : {};
 
+    // Grapple-check feat bonus (Improved Grapple +4). Flat, folded into the
+    // grapple total by character.js and shown as a labelled Feat component.
+    bonuses.grapple = (typeof Feats !== "undefined" && Feats.getGrappleBonus)
+      ? Feats.getGrappleBonus() : { amount: 0, sources: [] };
+
     // Movement speed (per-mode add/set + fly-encumbered flag). Each source
     // returns a RAW list of speed bonuses; categorize once so typed adds stack
     // correctly across sources. character.js layers the result onto the boxes.

@@ -1137,6 +1137,21 @@ const Feats = (function () {
     return out;
   }
 
+  // Grapple-check bonuses granted by feats. Improved Grapple is a flat +4 on
+  // ALL grapple checks (PHB p.95) — unconditional, so it folds straight into
+  // the grapple total. Returns { amount, sources:[{name,amount}] } so the
+  // grapple breakdown can show a labelled Feat component. A small table so any
+  // future grapple-check feat is one line to add.
+  const FEAT_GRAPPLE_BONUS = { "Improved Grapple": 4 };
+  function getGrappleBonus() {
+    let amount = 0;
+    const sources = [];
+    for (const [feat, bonus] of Object.entries(FEAT_GRAPPLE_BONUS)) {
+      if (hasFeat(feat)) { amount += bonus; sources.push({ name: feat, amount: bonus }); }
+    }
+    return { amount, sources };
+  }
+
   // Spell Focus / Greater Spell Focus → +1 (each) to save DCs for spells of the
   // named school. Returns { schoolLower: totalBonus }. Surfaced as a note by
   // spells.js — the sheet's DC display is per spell-LEVEL, not per-school/spell,
@@ -1165,7 +1180,7 @@ const Feats = (function () {
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
-    getWeaponFocusBonuses, getSpellFocusBonuses,
+    getWeaponFocusBonuses, getSpellFocusBonuses, getGrappleBonus,
     // Feat presence check for cross-module effect recognition (e.g. Serenity).
     hasFeat,
     // Structured-feat-entry helpers (exposed for tests).

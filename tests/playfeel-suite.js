@@ -2181,6 +2181,32 @@
       'SS-PPCLASS: class filter restores on load (reset to (any) pre-fix)');
   });
 
+  // Improved Grapple grants a flat +4 on grapple checks (PHB p.95). The sheet
+  // detects the feat (Feats.getGrappleBonus) and folds it into the grapple
+  // total as a labelled Feat component (rmsnf91kc).
+  regression('GRAPPLE: Improved Grapple adds +4 to the grapple total', async () => {
+    await newCharacter();
+    set('str-score', '14');            // +2 STR -> baseline grapple +2
+    window.recalcAll();
+    await wait(50);
+    const total = () => document.getElementById('grapple-total').textContent;
+    const feat  = () => document.getElementById('grapple-feat').textContent;
+    expect(total(), '+2', 'GRAPPLE: baseline (BAB 0 + STR +2) is +2');
+    expect(feat(), '+0', 'GRAPPLE: no feat bonus before Improved Grapple');
+    Feats.addFeat('Improved Grapple');
+    window.recalcAll();
+    await wait(50);
+    expect(feat(), '+4', 'GRAPPLE: Improved Grapple shows +4 in the Feat component');
+    expect(total(), '+6', 'GRAPPLE: total folds in the +4 (feat was ignored pre-fix)');
+    // Paren-qualified feat text still matches (hasFeat strips the trailing "(...)").
+    const ta = document.querySelector('#feats-container .feat-entry');
+    ta.value = 'Improved Grapple (Str 13)';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    window.recalcAll();
+    await wait(50);
+    expect(feat(), '+4', 'GRAPPLE: qualified "Improved Grapple (…)" still detected');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(
