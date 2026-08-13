@@ -4331,10 +4331,13 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .review-flags-modal .rf-report-form label,
 .review-flags-modal .rf-section h3 { display: block; font-size: 0.85rem;
   color: #c8a14a; margin: 0.8rem 0 0.4rem; }
-.review-flags-modal .rf-report-row { display: flex; gap: 0.4rem; }
-.review-flags-modal .rf-report-row input { flex: 1 1 auto; }
+.review-flags-modal .rf-report-row { display: flex; flex-direction: column; gap: 0.4rem; }
+.review-flags-modal .rf-report-controls { display: flex; gap: 0.4rem; align-items: center; }
+.review-flags-modal .rf-report-controls select { margin-right: auto; }
+.review-flags-modal .rf-report-row textarea { width: 100%; box-sizing: border-box;
+  resize: vertical; min-height: 3.5rem; font: inherit; line-height: 1.35; }
 .review-flags-modal .rf-report-row select,
-.review-flags-modal .rf-report-row input { background: #1a1a1a; color: #eee;
+.review-flags-modal .rf-report-row textarea { background: #1a1a1a; color: #eee;
   border: 1px solid #555; border-radius: 4px; padding: 0.25rem 0.4rem; }
 .review-flags-modal #rf-report-submit { padding: 0.25rem 0.7rem;
   background: rgba(200, 161, 74, 0.2); color: #eee; border: 1px solid #c8a14a;

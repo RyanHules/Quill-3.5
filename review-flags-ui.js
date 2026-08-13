@@ -60,10 +60,13 @@
         '<div class="rf-report-form">' +
           '<label>Report a sheet bug / feature</label>' +
           '<div class="rf-report-row">' +
-            '<select id="rf-report-kind"><option value="bug">Bug</option>' +
-              '<option value="feature">Feature</option></select>' +
-            '<input type="text" id="rf-report-note" placeholder="What\'s wrong / what would help?">' +
-            '<button type="button" id="rf-report-submit">Add</button>' +
+            '<textarea id="rf-report-note" rows="3" ' +
+              'placeholder="What\'s wrong / what would help?  (Ctrl+Enter to add)"></textarea>' +
+            '<div class="rf-report-controls">' +
+              '<select id="rf-report-kind"><option value="bug">Bug</option>' +
+                '<option value="feature">Feature</option></select>' +
+              '<button type="button" id="rf-report-submit">Add</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
         '<div class="rf-section"><h3>Open sheet reports</h3>' +
@@ -117,12 +120,21 @@
         return;
       }
     });
-    modalEl.querySelector('#rf-report-submit').addEventListener('click', () => {
+    function submitReport() {
       const kind = modalEl.querySelector('#rf-report-kind').value;
       const noteEl = modalEl.querySelector('#rf-report-note');
       const note = noteEl.value.trim();
       if (!note || !window.SheetReports) return;
       SheetReports.add(kind, note).then(() => { noteEl.value = ''; });
+    }
+    modalEl.querySelector('#rf-report-submit').addEventListener('click', submitReport);
+    // Ctrl/Cmd+Enter submits from the multi-line note box (plain Enter inserts
+    // a newline — the box is a textarea now, not a single-line input).
+    modalEl.querySelector('#rf-report-note').addEventListener('keydown', (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+        ev.preventDefault();
+        submitReport();
+      }
     });
     return modalEl;
   }
