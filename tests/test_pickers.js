@@ -5470,6 +5470,19 @@ test('skills: 📌 pin keeps a skill a class skill through class churn (rmsny857
     'class-picker.js: reconcileCurrentClassSkills no longer skips pinned boxes.');
 });
 
+test('build-timeline: feats-taken is a list, not a textarea (rmso7nk4t)', () => {
+  const src = readSource('build-timeline.js');
+  assert(/function featRowHtml\s*\(/.test(src),
+    'build-timeline.js: featRowHtml helper is missing — the feats list was reverted.');
+  assert(/class="bt-feats-list"/.test(src) && /class="bt-feat-input"/.test(src),
+    'build-timeline.js: the feats-taken list markup (.bt-feats-list / .bt-feat-input) is missing.');
+  assert(!/class="bt-edit-feats"/.test(src),
+    'build-timeline.js: the old one-per-line textarea (.bt-edit-feats) is back — ' +
+    'feats-taken should be an add/remove list.');
+  assert(/updateEntry\([^)]*feats_taken:\s*feats/.test(src),
+    'build-timeline.js: the list no longer syncs feats_taken to the history entry.');
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which

@@ -186,9 +186,12 @@ const BuildTimeline = (function () {
         (isBoostLvl
           ? `<label>Ability boost<select class="bt-edit-boost">${abilityOpts}</select></label>`
           : `<span class="bt-no-boost" style="opacity:.5">No ability boost (not L4/8/12/16/20)</span>`) +
-        `<label class="bt-edit-feats-label">Feats taken (one per line)` +
-        `<textarea class="bt-edit-feats" rows="2">${escapeHtml((entry.feats_taken || []).join('\n'))}</textarea>` +
-        `</label>` +
+        `<div class="bt-edit-feats-label"><span>Feats taken</span>` +
+          `<div class="bt-feats-list">` +
+            (entry.feats_taken || []).map(f => featRowHtml(f)).join('') +
+          `</div>` +
+          `<button type="button" class="bt-feat-add">+ Add feat</button>` +
+        `</div>` +
         `<label class="bt-edit-notes-label">Notes` +
         `<textarea class="bt-edit-notes" rows="1">${escapeHtml(entry.notes || '')}</textarea>` +
         `</label>` +
@@ -210,10 +213,26 @@ const BuildTimeline = (function () {
     if (boostEl) boostEl.addEventListener('change', (e) => {
       updateEntry(entry.level, { ability_boost: e.target.value || null });
     });
-    ed.querySelector('.bt-edit-feats').addEventListener('input', (e) => {
-      const lines = e.target.value.split(/\r?\n/)
-        .map(s => s.trim()).filter(Boolean);
-      updateEntry(entry.level, { feats_taken: lines });
+    // Feats-taken list (report rmso7nk4t): one row per feat instead of a
+    // one-per-line textarea. Mutate the list DOM directly + sync feats_taken
+    // without a full re-render (updateEntry never re-renders, so focus holds).
+    const featsList = ed.querySelector('.bt-feats-list');
+    const syncFeats = () => {
+      const feats = [...featsList.querySelectorAll('.bt-feat-input')]
+        .map(i => i.value.trim()).filter(Boolean);
+      updateEntry(entry.level, { feats_taken: feats });
+    };
+    featsList.addEventListener('input', (e) => {
+      if (e.target.classList.contains('bt-feat-input')) syncFeats();
+    });
+    featsList.addEventListener('click', (e) => {
+      const rm = e.target.closest('.bt-feat-remove');
+      if (rm) { rm.closest('.bt-feat-row').remove(); syncFeats(); }
+    });
+    ed.querySelector('.bt-feat-add').addEventListener('click', () => {
+      featsList.insertAdjacentHTML('beforeend', featRowHtml(''));
+      const inputs = featsList.querySelectorAll('.bt-feat-input');
+      inputs[inputs.length - 1].focus();
     });
     ed.querySelector('.bt-edit-notes').addEventListener('input', (e) => {
       updateEntry(entry.level, { notes: e.target.value });
@@ -318,6 +337,15 @@ const BuildTimeline = (function () {
     CharacterHistory.set(trimmed, { reconstructed: anyReconstructed(trimmed) });
     render();
     notifyChanged();
+  }
+
+  // One editable feat row in the Build Timeline editor's Feats-taken list
+  // (report rmso7nk4t: a list instead of a one-per-line textarea).
+  function featRowHtml(val) {
+    return `<div class="bt-feat-row">` +
+      `<input type="text" class="bt-feat-input" value="${escapeAttr(val)}" placeholder="Feat name">` +
+      `<button type="button" class="bt-feat-remove" title="Remove feat">×</button>` +
+      `</div>`;
   }
 
   function escapeHtml(s) {

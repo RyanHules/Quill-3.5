@@ -2301,6 +2301,41 @@
     expect(cb().dataset.pinned, '1', 'SKILLPIN: pin survives save/load (flag)');
   });
 
+  // Build Timeline "Feats taken" is an editable list of rows, not a one-per-line
+  // textarea (rmso7nk4t). Rows add/edit/remove and sync the level's feats_taken.
+  regression('BTFEATS: build-timeline feats-taken is an editable list', async () => {
+    await newCharacter();
+    CharacterHistory.set([
+      { level: 1, class_taken: 'Fighter', hp_rolled: 10, feats_taken: ['Power Attack', 'Cleave'],
+        skills_purchased: {}, spells_learned: [], spells_unlearned: [], choices: {}, notes: '' },
+    ], { reconstructed: false });
+    BuildTimeline.render();
+    await wait(60);
+    const row = document.querySelector('.bt-row[data-level="1"]');
+    if (!row) fail('BTFEATS: level-1 row not rendered');
+    (row.querySelector('.bt-row-summary, .bt-row-head, .bt-row-toggle') || row).click();
+    await wait(60);
+    expect(!!document.querySelector('.bt-edit-feats'), false, 'BTFEATS: old textarea is gone');
+    const list = document.querySelector('.bt-feats-list');
+    if (!list) fail('BTFEATS: feats list not rendered');
+    expect([...list.querySelectorAll('.bt-feat-input')].map(i => i.value).join('|'),
+      'Power Attack|Cleave', 'BTFEATS: existing feats render as rows');
+    // Add a feat.
+    document.querySelector('.bt-feat-add').click();
+    const inputs = () => [...list.querySelectorAll('.bt-feat-input')];
+    const ni = inputs()[inputs().length - 1];
+    ni.value = 'Weapon Focus';
+    ni.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(40);
+    expect(CharacterHistory.get()[0].feats_taken.join('|'), 'Power Attack|Cleave|Weapon Focus',
+      'BTFEATS: add appends to feats_taken');
+    // Remove Cleave (index 1).
+    list.querySelectorAll('.bt-feat-remove')[1].click();
+    await wait(40);
+    expect(CharacterHistory.get()[0].feats_taken.join('|'), 'Power Attack|Weapon Focus',
+      'BTFEATS: remove drops the feat');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(

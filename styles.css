@@ -1526,6 +1526,23 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .bt-edit-notes-label {
   grid-column: 1 / -1;
 }
+/* Build Timeline "Feats taken" list (report rmso7nk4t) — a row per feat. */
+.bt-edit-feats-label { display: flex; flex-direction: column; gap: 0.25rem; }
+.bt-edit-feats-label > span { font-size: 0.85em; }
+.bt-feats-list { display: flex; flex-direction: column; gap: 0.2rem; }
+.bt-feat-row { display: flex; gap: 0.3rem; align-items: center; }
+.bt-feat-input { flex: 1 1 auto; font: inherit; }
+.bt-feat-remove {
+  flex: 0 0 auto; background: none; border: 1px solid #555; color: #c99;
+  border-radius: 3px; cursor: pointer; line-height: 1; padding: 0 0.4rem;
+}
+.bt-feat-remove:hover { border-color: #a66; color: #e88; }
+.bt-feat-add {
+  align-self: flex-start; background: rgba(200,161,74,0.15); color: #eee;
+  border: 1px solid #7a6a3a; border-radius: 4px; cursor: pointer;
+  font: inherit; font-size: 0.8em; padding: 0.1rem 0.5rem; margin-top: 0.1rem;
+}
+.bt-feat-add:hover { background: rgba(200,161,74,0.28); }
 .bt-no-boost {
   align-self: end;
   padding-bottom: 0.2rem;
