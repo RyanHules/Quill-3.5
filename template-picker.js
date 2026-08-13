@@ -482,6 +482,7 @@
     const reversal = {
       name: full.name,
       templateId: full.template_id,
+      source: full.source || null,
       version: full.version,
       abilityMods: {},          // ability → amount we added
       naturalArmorAdded: 0,
@@ -688,6 +689,7 @@
         out._templates = appliedTemplates.map(t => ({
           name: t.name,
           templateId: t.templateId,
+          source: t.source || null,
           version: t.version,
           abilityMods: t.abilityMods,
           naturalArmorAdded: t.naturalArmorAdded,
@@ -708,6 +710,7 @@
           appliedTemplates.push({
             name: t.name,
             templateId: t.templateId,
+            source: t.source || null,
             version: t.version || '3.5',
             abilityMods: t.abilityMods || {},
             naturalArmorAdded: t.naturalArmorAdded || 0,
@@ -758,6 +761,58 @@
     if (db) init();
   });
 
+  // Resolve an applied template's DB row by human-meaningful identity FIRST.
+  // entry.id renumbers on every full DB rebuild (save-stability #7), so a
+  // saved `templateId` can silently resolve to a DIFFERENT template. This was
+  // the 2026-08-13 bleed: Unseelie Fey was id 3593 when a character was saved;
+  // a later rebuild shifted it to 3595 and put Seelie Court Fey (its sibling
+  // in the same book) at 3593 — so the id-first lookup returned Seelie Court
+  // Fey's bonuses (Diplomacy +4, Listen −4, Spot −4) on a character whose
+  // template is Unseelie Fey (Intimidate +4). Because the stale id still hit a
+  // valid template row, the old name-fallback never fired. Resolve by name
+  // (+ source + version) and treat the stored id as a LAST-resort fallback
+  // only. Self-heals the stale id on the entry so the next save persists the
+  // current one.
+  function resolveTemplateRow(t) {
+    if (!t) return null;
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return null;
+    let row = null;
+    if (t.name) {
+      // name + source + version — most specific; disambiguates a template
+      // reprinted across books.
+      if (t.source) {
+        row = DB.queryOne(
+          "SELECT id, data FROM entry WHERE type='template' AND name=? "
+          + "AND source=? AND version=? LIMIT 1",
+          [t.name, t.source, t.version || '3.5']);
+      }
+      // name + version.
+      if (!row && t.version) {
+        row = DB.queryOne(
+          "SELECT id, data FROM entry WHERE type='template' AND name=? "
+          + "AND version=? LIMIT 1", [t.name, t.version]);
+      }
+      // name only, preferring 3.5 then whatever remains — matches the old
+      // fallback ordering.
+      if (!row) {
+        row = DB.queryOne(
+          "SELECT id, data FROM entry WHERE type='template' AND name=? "
+          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
+          [t.name]);
+      }
+    }
+    // Last resort: the brittle saved id, ONLY when name resolution failed
+    // entirely (e.g. an entry renamed between builds). Never preferred — the
+    // id-first order is exactly what caused the bleed above.
+    if (!row && t.templateId != null) {
+      row = DB.queryOne('SELECT id, data FROM entry WHERE id = ?', [t.templateId]);
+    }
+    // Self-heal: refresh the stored id to the resolved current one so a later
+    // save writes a fresh id and the fallback path never mis-fires again.
+    if (row && row.id != null) t.templateId = row.id;
+    return row;
+  }
+
   // Current template skill bonuses (consumed by skills.js recalc). Runs the
   // SAME generic categorizer (DND35.categorizeSkillBonuses) over each applied
   // template's structured `bonuses` array. Templates carry NO structured
@@ -771,15 +826,7 @@
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
     if (typeof DND35 === 'undefined' || !DND35.categorizeSkillBonuses) return merged;
     for (const t of appliedTemplates) {
-      let row = null;
-      if (t.templateId != null) {
-        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
-      }
-      if (!row && t.name) {
-        row = DB.queryOne(
-          "SELECT data FROM entry WHERE type='template' AND name=? "
-          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
-      }
+      const row = resolveTemplateRow(t);
       if (!row) continue;
       let parsed = {};
       try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
@@ -805,15 +852,7 @@
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
     if (typeof DND35 === 'undefined' || !DND35.categorizeSaveBonuses) return merged;
     for (const t of appliedTemplates) {
-      let row = null;
-      if (t.templateId != null) {
-        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
-      }
-      if (!row && t.name) {
-        row = DB.queryOne(
-          "SELECT data FROM entry WHERE type='template' AND name=? "
-          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
-      }
+      const row = resolveTemplateRow(t);
       if (!row) continue;
       let parsed = {};
       try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
@@ -833,15 +872,7 @@
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return merged;
     if (typeof DND35 === 'undefined' || !DND35.categorizeACBonuses) return merged;
     for (const t of appliedTemplates) {
-      let row = null;
-      if (t.templateId != null) {
-        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
-      }
-      if (!row && t.name) {
-        row = DB.queryOne(
-          "SELECT data FROM entry WHERE type='template' AND name=? "
-          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
-      }
+      const row = resolveTemplateRow(t);
       if (!row) continue;
       let parsed = {};
       try { parsed = JSON.parse(row.data || '{}'); } catch (e) { continue; }
@@ -861,15 +892,7 @@
   function stripsRacialSkillBonuses() {
     if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return false;
     for (const t of appliedTemplates) {
-      let row = null;
-      if (t.templateId != null) {
-        row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [t.templateId]);
-      }
-      if (!row && t.name) {
-        row = DB.queryOne(
-          "SELECT data FROM entry WHERE type='template' AND name=? "
-          + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [t.name]);
-      }
+      const row = resolveTemplateRow(t);
       if (!row) continue;
       try {
         if (JSON.parse(row.data || '{}').strips_racial_skill_bonuses === true) return true;

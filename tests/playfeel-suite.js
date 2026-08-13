@@ -1083,6 +1083,35 @@
       'SS-ESSENTIA: capacity auto-increments to 2 on level-up after load (was frozen at 1)');
   });
 
+  // A saved character whose _templates[*].templateId is STALE — it points at a
+  // DIFFERENT template than its `name`. entry.id renumbers on every full DB
+  // rebuild, so this is what every pre-rebuild save becomes. The 2026-08-13
+  // bleed: Unseelie Fey saved as id 3593 later resolved to its sibling Seelie
+  // Court Fey, so the sheet showed Diplomacy +4 / Listen -4 / Spot -4 instead
+  // of Unseelie Fey's Intimidate +4, "from a template", on a character that
+  // never had it. loadData must resolve by NAME, not the brittle id. The test
+  // poisons the save with the WRONG template's live id so it's robust to future
+  // renumbering.
+  regression('SS-TPL: template resolves by name when the saved id is stale', async () => {
+    await newCharacter();
+    const uf = DB.queryOne("SELECT id FROM entry WHERE type='template' AND name='Unseelie Fey' " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1");
+    const wrong = DB.queryOne("SELECT id FROM entry WHERE type='template' AND name='Seelie Court Fey' LIMIT 1");
+    if (!uf) fail('SS-TPL: Unseelie Fey template not in DB');
+    if (!wrong) fail('SS-TPL: Seelie Court Fey collision fixture missing from DB');
+    // Old-style save: correct name, STALE id pointing at the wrong template,
+    // no `source` (pre-2026-08-13 saves lacked it).
+    appLoad({ _templates: [{ name: 'Unseelie Fey', templateId: wrong.id, version: '3.5' }] });
+    await wait(150);
+    const direct = (TemplatePicker.getActiveSkillBonuses() || {}).direct || {};
+    expect(direct.intimidate, 4,
+      'SS-TPL: stale-id template resolves by name to Unseelie Fey (Intimidate +4)');
+    expect(!!direct.diplomacy, false,
+      'SS-TPL: must NOT pick up Seelie Court Fey (Diplomacy +4) via the stale id');
+    expect(TemplatePicker.getApplied()[0].templateId, uf.id,
+      'SS-TPL: resolver self-heals the stale templateId to the current id');
+  });
+
   // The invocation highest-grade / known-count fields live in a dynamic panel
   // with class-based (no-id) selectors, so their data-from-class markers aren't
   // persisted — a loaded Warlock stopped advancing them on level-up (reported

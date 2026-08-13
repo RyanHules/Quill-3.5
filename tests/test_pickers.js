@@ -5341,6 +5341,80 @@ test("save: resolveMulticlassStub LEFT-JOIN queries qualify `e.` columns", (db) 
     "shape should return at least the PHB Wizard row");
 });
 
+test('save: template-picker resolves _templates by name (not brittle id)', (db) => {
+  // Regression guard for the 2026-08-13 template bleed. entry.id
+  // renumbers on every full DB rebuild, so a saved
+  // `_templates[*].templateId` can resolve to a DIFFERENT template
+  // after a rebuild. The real hit: a character saved with Unseelie Fey
+  // (Intimidate +4) whose stored id (3593) later pointed at Seelie
+  // Court Fey (Diplomacy +4, Listen -4, Spot -4), its sibling in the
+  // same book — so the sheet showed the WRONG template's skill bonuses
+  // "from a template" on a character that never had it. The bonus/query
+  // functions used to query `WHERE id = ?` FIRST; because the stale id
+  // still hit a valid template row, the name fallback never fired. Fix:
+  // resolve by name (+ source + version) first via resolveTemplateRow,
+  // with the stored id only as a last-resort fallback; persist `source`
+  // for cross-book disambiguation.
+  const src = readSource('template-picker.js');
+
+  // 1. The name-first resolver exists.
+  assert(/function resolveTemplateRow\s*\(/.test(src),
+    'template-picker.js: resolveTemplateRow helper is missing — the ' +
+    'name-first resolution path was reverted, re-introducing the ' +
+    'stale-id template bleed.');
+  const body = extractFunctionBody(src, 'resolveTemplateRow');
+  assert(body, "Couldn't extract resolveTemplateRow body");
+  // Flatten string-concatenation + quotes so the split SQL literals
+  // match as one string.
+  const flat = body.replace(/"\s*\+\s*"/g, '').replace(/"/g, '').replace(/\s+/g, ' ');
+
+  // 2. It resolves by name+source+version, and the brittle id lookup is
+  //    the LAST resort (the name query must appear BEFORE `WHERE id`).
+  assert(/name=\? AND source=\? AND version=\?/.test(flat),
+    'template-picker.js: resolveTemplateRow does not query by ' +
+    'name+source+version first. Brittle-id-first resolution would ' +
+    're-introduce the wrong-template bleed.');
+  const nameIdx = flat.indexOf('name=?');
+  const idIdx = flat.indexOf('WHERE id = ?');
+  assert(nameIdx !== -1 && idIdx !== -1 && nameIdx < idIdx,
+    'template-picker.js: resolveTemplateRow must resolve by name ' +
+    'BEFORE falling back to the stored id (id-first is exactly the bug).');
+
+  // 3. Every bonus/query function routes through the resolver — no
+  //    lingering id-first block in getActiveSkill/Save/ACBonuses or
+  //    stripsRacialSkillBonuses.
+  const uses = (src.match(/resolveTemplateRow\(t\)/g) || []).length;
+  assert(uses >= 4,
+    'template-picker.js: expected >=4 resolveTemplateRow(t) call sites ' +
+    '(getActiveSkillBonuses / getActiveSaveBonuses / getActiveACBonuses ' +
+    '/ stripsRacialSkillBonuses); found ' + uses + '. A bonus function ' +
+    'still resolves the template by brittle id.');
+
+  // 4. `source` is persisted (apply + collectData + loadData) so name
+  //    resolution can disambiguate a template reprinted across books.
+  assert(/source:\s*t\.source/.test(src),
+    'template-picker.js: collectData/loadData no longer persist ' +
+    '`source` — cross-book same-name templates can mis-resolve.');
+  assert(/source:\s*full\.source/.test(src),
+    'template-picker.js: apply-time reversal no longer captures ' +
+    '`source`, so freshly-applied templates save without it.');
+
+  // 5. Live SQL: the sibling collision the bug rode on is real, and
+  //    name-based resolution returns the RIGHT one. Unseelie Fey's
+  //    skill bonus targets Intimidate; if a rebuild ever makes name
+  //    resolution return Seelie Court Fey instead, this trips.
+  const uf = execAll(db,
+    "SELECT data FROM entry WHERE type='template' AND name='Unseelie Fey' " +
+    "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", []);
+  if (uf.length) {
+    const bonuses = JSON.parse(uf[0].data || '{}').bonuses || [];
+    const skill = bonuses.find(b => b.bonus_type === 'skill');
+    assert(skill && /intimidate/i.test(skill.target || ''),
+      'DB: Unseelie Fey should carry an Intimidate skill bonus; the ' +
+      'name-resolution guard depends on it. Got: ' + JSON.stringify(bonuses));
+  }
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which
