@@ -2148,6 +2148,39 @@
       'LOAD: removing the magic item drops Medium -> Light with no field edit');
   });
 
+  // The power-picker's Class filter is injected async into psionics panels and
+  // was never part of the saved panel data, so it reset on reload (rmsnd87u6).
+  // spells.js now persists caster.ppClass + stamps panel.dataset.ppClass, and
+  // power-picker restores from that dataset when it injects the bar.
+  regression('SS-PPCLASS: power-picker class filter round-trips through save/load', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SS-PPCLASS: DB not loaded — re-run once [DB] Loaded appears.');
+    const barSel = '#spells-content [data-caster-type="psionics"] .power-picker .pp-class';
+    Spells.addCaster('psionics', {});
+    // Wait for power-picker's async MutationObserver to inject the bar.
+    for (let i = 0; i < 60 && !document.querySelector(barSel); i++) await wait(80);
+    const sel = document.querySelector(barSel);
+    if (!sel) fail('SS-PPCLASS: power-picker bar never injected into the psionics panel');
+    const opts = Array.from(sel.options).map(o => o.value).filter(Boolean);
+    const chosen = opts.find(o => o === 'Psion/Wilder') || opts[0];
+    sel.value = chosen;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const blob = Spells.collectData();
+    const psi = (blob.casters || []).find(c => c && c.type === 'psionics');
+    expect(psi && psi.ppClass, chosen,
+      'SS-PPCLASS: collectData saves the chosen power-picker class filter');
+    // Reload the blob; the filter must restore after the bar is re-injected.
+    Spells.loadData(blob);
+    for (let i = 0; i < 60; i++) {
+      const s = document.querySelector(barSel);
+      if (s && s.value === chosen) break;
+      await wait(80);
+    }
+    const sel2 = document.querySelector(barSel);
+    expect(sel2 && sel2.value, chosen,
+      'SS-PPCLASS: class filter restores on load (reset to (any) pre-fix)');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(

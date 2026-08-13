@@ -567,6 +567,17 @@
     pwrIn.addEventListener('change',   updateInfo);
     addK.addEventListener('click',     appendKnown);
 
+    // Restore a saved class filter. The picker bar is injected async (by the
+    // MutationObserver) AFTER spells.js rebuilds the panel, so spells.js stamps
+    // the saved class onto panel.dataset.ppClass and it's applied HERE, at wire
+    // time — reading it back from spells.js would race the injection.
+    // (Report rmsnd87u6: the chosen class list didn't survive save/load.)
+    const savedClass = panel.dataset.ppClass;
+    if (savedClass) {
+      const match = matchPickerClass(classSel, savedClass);
+      if (match) classSel.value = match;
+    }
+
     refresh();
   }
 

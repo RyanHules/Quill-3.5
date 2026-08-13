@@ -208,6 +208,9 @@ const Spells = (function () {
     } else if (type === "psionics") {
       panel.innerHTML = notesHTML + buildPsionicsHTML(idx, data);
       container.appendChild(panel);
+      // Stamp the saved power-picker class filter; power-picker's async panel
+      // observer reads this dataset when it injects the picker bar (rmsnd87u6).
+      if (data.ppClass) panel.dataset.ppClass = data.ppClass;
       buildPsiPowerLists(idx, panel);
       wireLevelTabs(panel);
       wireMantleEntries(panel, data);
@@ -2679,6 +2682,9 @@ const Spells = (function () {
             .map(r => (r.querySelector(".psi-known-name")?.value || "").trim())
             .filter(Boolean);
         }
+        // Persist the power-picker's chosen class filter (rmsnd87u6). Read live
+        // from the injected bar; '' when unset or the bar isn't injected yet.
+        caster.ppClass = panel.querySelector(".power-picker .pp-class")?.value || "";
       } else if (type === "maneuvers") {
         caster.initLevel = panel.querySelector(".tom-init-level")?.value || "";
         caster.knownCount = panel.querySelector(".tom-known-count")?.value || "";

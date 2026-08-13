@@ -5415,6 +5415,25 @@ test('save: template-picker resolves _templates by name (not brittle id)', (db) 
   }
 });
 
+test('save: power-picker class filter (pp-class) round-trips (rmsnd87u6)', () => {
+  // The power-picker Class dropdown is injected async into psionics panels and
+  // isn't a native panel field, so it needs an explicit persist + restore path.
+  // spells.js saves caster.ppClass and stamps panel.dataset.ppClass on build;
+  // power-picker restores from that dataset when it wires the bar (the restore
+  // has to live in power-picker because injection races spells.js's build).
+  const sp = readSource('spells.js');
+  const pp = readSource('power-picker.js');
+  assert(/caster\.ppClass\s*=\s*panel\.querySelector\(["']\.power-picker \.pp-class["']\)/.test(sp),
+    'spells.js: psionics collectData does not save caster.ppClass from the ' +
+    'power-picker bar — the chosen class filter would reset on reload.');
+  assert(/data\.ppClass[\s\S]{0,80}panel\.dataset\.ppClass\s*=\s*data\.ppClass/.test(sp),
+    'spells.js: psionics build does not stamp panel.dataset.ppClass — the ' +
+    'async power-picker injector has nothing to restore from.');
+  assert(/panel\.dataset\.ppClass/.test(pp) && /matchPickerClass\(\s*classSel/.test(pp),
+    'power-picker.js: wirePicker does not restore the saved class from ' +
+    'panel.dataset.ppClass — the persisted filter is ignored on load.');
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which
