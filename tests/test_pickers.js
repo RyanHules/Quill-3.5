@@ -5434,6 +5434,21 @@ test('save: power-picker class filter (pp-class) round-trips (rmsnd87u6)', () =>
     'panel.dataset.ppClass — the persisted filter is ignored on load.');
 });
 
+test('item-picker: magic items auto-fill the body slot (rmsnu5814)', () => {
+  // The + Magic Item path infers a worn slot from the DB body_slot (mostly
+  // NULL) or the item name, and passes it to Equipment.addMagicItem (which
+  // pre-selects the .mi-slot dropdown). Unworn items resolve to '' (None).
+  const src = readSource('item-picker.js');
+  assert(/function inferItemSlot\s*\(/.test(src),
+    'item-picker.js: inferItemSlot helper is missing — magic items no longer ' +
+    'auto-slot on pick.');
+  assert(/slot:\s*inferItemSlot\(/.test(src),
+    'item-picker.js: resolveTyped no longer computes a slot via inferItemSlot.');
+  assert(/addMagicItem\(\{[\s\S]{0,140}slot:\s*it\.slot/.test(src),
+    'item-picker.js: the + Magic Item handler no longer passes slot to ' +
+    'Equipment.addMagicItem.');
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which

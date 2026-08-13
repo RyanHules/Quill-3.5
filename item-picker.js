@@ -178,6 +178,55 @@
       `${itemIndex.size} distinct items, ${typeIndex.size} types`);
   }
 
+  // Body-slot inference for the "+ Magic Item" path (report rmsnu5814). The
+  // DB's body_slot is mostly NULL (parser data quality), so resolve the worn
+  // slot from body_slot text when present, else from the item NAME using the
+  // DMG slot item-types (these mirror the DND35.itemSlots descriptions). Held /
+  // unworn items (rods, wands, weapons, figurines) match nothing → '' (None),
+  // which is the correct answer — the user can still pick a slot manually.
+  const SLOT_TEXT_TO_ID = {
+    head: "head", headband: "head", helm: "head", helmet: "head", hat: "head",
+    circlet: "head", crown: "head", mask: "head", phylactery: "head",
+    eye: "eyes", eyes: "eyes", goggles: "eyes", lenses: "eyes",
+    neck: "neck", throat: "neck", amulet: "neck", necklace: "neck",
+    periapt: "neck", medallion: "neck", brooch: "neck", scarab: "neck",
+    shoulder: "shoulders", shoulders: "shoulders", back: "shoulders",
+    cloak: "shoulders", cape: "shoulders", mantle: "shoulders",
+    ring: "ring1", finger: "ring1",
+    hand: "hands", hands: "hands", glove: "hands", gloves: "hands",
+    gauntlet: "hands", gauntlets: "hands",
+    arm: "arms", arms: "arms", wrist: "arms", wrists: "arms",
+    bracers: "arms", bracer: "arms", bracelet: "arms",
+    body: "body", robe: "body",
+    torso: "torso", chest: "torso", vest: "torso", vestment: "torso", shirt: "torso",
+    waist: "waist", belt: "waist", girdle: "waist",
+    feet: "feet", foot: "feet", boots: "feet", shoes: "feet", slippers: "feet",
+  };
+  const NAME_SLOT_RULES = [
+    [/\b(headband|helm|helmet|circlet|crown|diadem|mask|phylactery)\b/i, "head"],
+    [/\bhat\b/i, "head"],
+    [/\b(goggles|lenses|spectacles|monocle|eyepatch)\b/i, "eyes"],
+    [/\b(amulet|necklace|periapt|medallion|brooch|torc|scarab|pendant|choker)\b/i, "neck"],
+    [/\b(cloak|cape|mantle)\b/i, "shoulders"],
+    [/\bring\b/i, "ring1"],
+    [/\b(gauntlets?|gloves?)\b/i, "hands"],
+    [/\b(bracers?|bracelets?|armbands?|vambraces)\b/i, "arms"],
+    [/\brobe\b/i, "body"],
+    [/\b(vestment|vest|shirt|tunic|jerkin)\b/i, "torso"],
+    [/\b(belt|girdle|sash)\b/i, "waist"],
+    [/\b(boots|shoes|slippers|sandals|anklets?)\b/i, "feet"],
+  ];
+  function inferItemSlot(full, name) {
+    const bs = String((full && full.body_slot) || "").toLowerCase().trim();
+    if (bs) {
+      if (SLOT_TEXT_TO_ID[bs]) return SLOT_TEXT_TO_ID[bs];
+      // body_slot may be a phrase ("throat (amulet)"); scan its word tokens.
+      for (const tok of bs.split(/[^a-z]+/)) if (tok && SLOT_TEXT_TO_ID[tok]) return SLOT_TEXT_TO_ID[tok];
+    }
+    for (const [re, id] of NAME_SLOT_RULES) if (re.test(name || "")) return id;
+    return "";
+  }
+
   function fullItemRow(itemId) {
     // Per-field columns aliased from entry + JSON sub-fields. The
     // armor_* / damage_* / category / entry_kind fields drive the H3
@@ -700,10 +749,11 @@
                 ? full.description.slice(0, 200) + '…'
                 : full.description)
             : '',
+          slot: inferItemSlot(full, entry.displayName),
         };
       }
-      // Custom / not-in-DB item — pass through with no detail.
-      return { name: typed, weight: 0, special: '' };
+      // Custom / not-in-DB item — pass through with no detail (infer slot from name).
+      return { name: typed, weight: 0, special: '', slot: inferItemSlot(null, typed) };
     }
 
     addGear.addEventListener('click', () => {
@@ -729,8 +779,10 @@
         name: it.name,
         weight: it.weight || '',
         special: it.special,
+        slot: it.slot || '',
       });
-      flash(`Added "${it.name}" to Magic Items.`, '#7a9');
+      flash(`Added "${it.name}" to Magic Items.`
+        + (it.slot ? ` (slot: ${it.slot.replace(/\d+$/, '')})` : ''), '#7a9');
     });
 
     // Append affix name to the relevant Special Properties textarea

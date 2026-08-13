@@ -2235,6 +2235,38 @@
     expectValue('#hp-current', '20', 'REST: long-term care heals 2/level (10 -> 20)');
   });
 
+  // The item picker auto-fills a magic item's body slot from the DB body_slot
+  // (mostly NULL) or, failing that, the item NAME (rmsnu5814). Unworn items
+  // (wands/rods) correctly stay None.
+  regression('ITEMSLOT: item picker auto-fills the magic-item body slot', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('ITEMSLOT: DB not loaded — re-run once [DB] Loaded appears.');
+    const input = document.getElementById('item-lookup');
+    if (!input) fail('ITEMSLOT: item picker input (#item-lookup) not present');
+    const pickMagic = (like) => {
+      const row = DB.queryOne("SELECT name FROM entry WHERE type IN ('item','weapon','armor','gear') " +
+        "AND name LIKE ? ORDER BY length(name) LIMIT 1", [like]);
+      if (!row) return null;
+      document.getElementById('magic-items-container').innerHTML = '';
+      input.value = row.name;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('item-add-magic').click();
+      const e = document.querySelector('#magic-items-container .magic-item-entry .mi-slot');
+      return { name: row.name, slot: e ? e.value : '(none)' };
+    };
+    const cases = [
+      ['Cloak of Resistance%', 'shoulders'],
+      ['Ring of Protection%', 'ring1'],
+      ['Amulet of%', 'neck'],
+      ['Boots of%', 'feet'],
+      ['Wand of%', ''],           // unworn -> None
+    ];
+    for (const [like, want] of cases) {
+      const r = pickMagic(like);
+      if (r) expect(r.slot, want, `ITEMSLOT: "${r.name}" -> slot "${want || '(none)'}"`);
+    }
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(
