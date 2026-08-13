@@ -798,7 +798,8 @@
   // Rest (report rmsca08wf-1mwl) — heals per PHB Natural Healing and clears
   // every daily spell/power/maneuver expenditure. Lives in character.js so it
   // can reach the HP fields; Spells.restAll owns the caster half.
-  $("#btn-rest")?.addEventListener("click", () => Character.restEightHours());
+  $("#btn-rest")?.addEventListener("click", () => Character.restEightHours(false));
+  $("#btn-rest-longterm")?.addEventListener("click", () => Character.restEightHours(true));
   $("#btn-add-feat").addEventListener("click", () => Feats.addFeat());
   $("#btn-add-special-ability").addEventListener("click", () => Feats.addSpecialAbility());
   $("#btn-add-gear").addEventListener("click", () => Equipment.addGearRow());

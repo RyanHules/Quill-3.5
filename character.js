@@ -996,10 +996,13 @@ const Character = (function () {
   // a spell/effect with its own duration, and an 8-hour rest outlasts
   // virtually every temp-HP source (Aid is minutes, false life is hours), so
   // by morning they're gone. Zeroed here rather than modelled per-source.
-  function restEightHours() {
+  // longTerm doubles the natural healing (DC 15 Heal check from an attendant,
+  // PHB p.75). It's a per-action argument now — a dedicated "Rest (Long-term
+  // care)" button passes true — rather than a sticky toggle that could silently
+  // carry into a later plain rest (report rmso1h7vo).
+  function restEightHours(longTerm = false) {
     const level = (window.ClassPicker && ClassPicker.totalCharacterLevel)
       ? ClassPicker.totalCharacterLevel() : 0;
-    const longTerm = !!$("#rest-long-term-care")?.checked;
     const perLevel = longTerm ? 2 : 1;
     const heal = Math.max(0, level) * perLevel;
 

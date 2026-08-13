@@ -2207,6 +2207,34 @@
     expect(feat(), '+4', 'GRAPPLE: qualified "Improved Grapple (…)" still detected');
   });
 
+  // Long-term care is a dedicated "Rest (Long-term care)" button now, not a
+  // sticky toggle that could silently carry into a later plain rest (rmso1h7vo).
+  // Normal rest heals 1 hp/level; long-term care heals 2/level (PHB p.146/p.75).
+  regression('REST: dedicated long-term-care button heals 2x, plain rest 1x', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('REST: DB not loaded — re-run once [DB] Loaded appears.');
+    await applyClass('Fighter', 5);
+    const setv = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); };
+    setv('hp-total', '50'); setv('hp-current', '10'); setv('hp-nonlethal', '3'); setv('hp-temp', '2');
+    await wait(50);
+    expect(!!document.getElementById('rest-long-term-care'), false,
+      'REST: the sticky long-term-care toggle was removed');
+    expect(!!document.getElementById('btn-rest-longterm'), true,
+      'REST: a dedicated Rest (Long-term care) button exists');
+    // Plain rest: 1/level x5 = +5 -> 15, and clears nonlethal + temp.
+    document.getElementById('btn-rest').click();
+    await wait(50);
+    expectValue('#hp-current', '15', 'REST: plain rest heals 1/level (10 -> 15)');
+    expectValue('#hp-nonlethal', '0', 'REST: rest clears nonlethal');
+    expectValue('#hp-temp', '0', 'REST: rest clears temp HP');
+    // Long-term care: 2/level x5 = +10 -> 20.
+    setv('hp-current', '10');
+    await wait(40);
+    document.getElementById('btn-rest-longterm').click();
+    await wait(50);
+    expectValue('#hp-current', '20', 'REST: long-term care heals 2/level (10 -> 20)');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(
