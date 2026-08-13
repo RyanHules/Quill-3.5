@@ -5521,13 +5521,25 @@ test('rebuild-killer: magic-item weight counted in both weight calcs', () => {
          .test(eq),
     'equipment.js: .mi-weight input is not wired to recalcWeight — ' +
     'editing weight requires a manual recalc to update Total Weight.');
-  // Remove path: removeMagicItem must also trigger recalc, otherwise
-  // deleting a magic item leaves its weight in the displayed total.
-  assert(/entry\.remove\(\);\s*\n[^\n]*recalcWeight\(\)/.test(eq) ||
-         /entry\.remove\(\);[\s\S]{0,200}recalcWeight\(\)/.test(eq),
-    'equipment.js: removeMagicItem does not call recalcWeight after ' +
-    'removing the entry — the deleted item\'s weight stays on the ' +
-    'displayed total.');
+  // Remove path: removeMagicItem AND removeGearRow must call
+  // recalcWeightAndCascade — a weight recalc for the display PLUS the global
+  // recalcAll that recomputes the load tier (Light/Medium/Heavy). A bare
+  // recalcWeight() updates the total but leaves the load category (and the
+  // max-Dex / check-penalty / speed it drives) stale until a weight field is
+  // edited (reported rmsnu3gdx, 2026-08-13). Runtime guard: playfeel
+  // "LOAD: removing an item recomputes the load tier".
+  assert(/entry\.remove\(\);[\s\S]{0,200}recalcWeightAndCascade\(\)/.test(eq),
+    'equipment.js: removeMagicItem must call recalcWeightAndCascade after ' +
+    'removing the entry — bare recalcWeight leaves the deleted weight on the ' +
+    'total AND the load tier stale.');
+  assert(/tr\.remove\(\);[\s\S]{0,120}recalcWeightAndCascade\(\)/.test(eq),
+    'equipment.js: removeGearRow must call recalcWeightAndCascade after ' +
+    'removing the row — otherwise the load tier goes stale on gear removal.');
+  // The cascade helper itself must trigger the global recalcAll (which owns the
+  // load-category math), not just the weight display.
+  assert(/function recalcWeightAndCascade\s*\([\s\S]{0,220}recalcAll/.test(eq),
+    'equipment.js: recalcWeightAndCascade must call window.recalcAll so the ' +
+    'load category / max-Dex / check-penalty recompute, not just the total.');
 });
 
 test('rebuild-killer: spellcasting panel has Extra Slots column', () => {

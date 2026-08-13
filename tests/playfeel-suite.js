@@ -2108,6 +2108,46 @@
       'SS2: loadData re-stamps the marker so a future class-remove can clean the field');
   });
 
+  // Removing a gear row or magic item changes carried weight, which must
+  // recompute the LOAD tier (Light/Medium/Heavy). That computation lives in the
+  // global recalcAll (character.js), NOT in recalcWeight — so the pre-fix
+  // removal handlers (which called only recalcWeight) left the load tier stale
+  // until a weight field was edited. The removal itself must now cascade.
+  regression('LOAD: removing an item recomputes the load tier (no field edit)', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('LOAD: DB not loaded — re-run once [DB] Loaded appears.');
+    const loadText = () => (document.getElementById('load-category') || {}).textContent;
+    // STR 10 -> Light <=33 lb, Medium 34-66 lb.
+    set('str-score', '10');
+    document.getElementById('gear-body').innerHTML = '';
+    document.getElementById('magic-items-container').innerHTML = '';
+    window.recalcAll();
+    await wait(50);
+    expect(loadText(), 'Light', 'LOAD: empty load is Light');
+
+    // --- gear removal path ---
+    Equipment.addGearRow({ name: 'Anvil', location: 'Bag', weight: 40 });
+    window.recalcAll();               // setup: establish the Medium baseline
+    await wait(50);
+    expect(loadText(), 'Medium', 'LOAD: 40 lb of gear -> Medium (setup)');
+    // The fix: the removal CLICK alone recomputes the load tier — no recalcAll
+    // is called after it here, so a revert to bare recalcWeight() fails this.
+    $$('#gear-body tr.gear-row .gear-remove-btn')[0].click();
+    await wait(50);
+    expect(loadText(), 'Light',
+      'LOAD: removing the gear row drops Medium -> Light with no field edit (stale pre-fix)');
+
+    // --- magic-item removal path (shares recalcWeightAndCascade) ---
+    Equipment.addMagicItem({ name: 'Lead Cloak', weight: 40, special: 'x' });
+    window.recalcAll();               // setup
+    await wait(50);
+    expect(loadText(), 'Medium', 'LOAD: 40 lb magic item -> Medium (setup)');
+    document.querySelector('#magic-items-container .magic-item-entry .btn-remove').click();
+    await wait(50);
+    expect(loadText(), 'Light',
+      'LOAD: removing the magic item drops Medium -> Light with no field edit');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(

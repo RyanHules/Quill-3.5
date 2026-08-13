@@ -41,7 +41,7 @@ const Equipment = (function () {
     // row itself, then recalc since the dropped weight changes the total.
     collapseGearRules(tr);
     tr.remove();
-    recalcWeight();
+    recalcWeightAndCascade();
   }
 
   // Build the .feat-rules panel element for a given item name — shared
@@ -532,9 +532,9 @@ const Equipment = (function () {
       }
     }
     entry.remove();
-    // Removing a magic item drops its weight from the total — recalc
-    // so the displayed Total Weight + load category catch up.
-    recalcWeight();
+    // Removing a magic item drops its weight from the total — refresh the
+    // displayed Total Weight AND cascade so the load category catches up.
+    recalcWeightAndCascade();
   }
 
   let magicItemIdCounter = 0;
@@ -1169,6 +1169,20 @@ const Equipment = (function () {
       .reduce((sum, id) => sum + (parseInt($(`#${id}`)?.value) || 0), 0);
     totalWeight += coinCount / 50;
     $("#total-weight").textContent = totalWeight.toFixed(1);
+  }
+
+  // A STRUCTURAL change that alters carried weight (removing a gear row or a
+  // magic item) has to refresh BOTH the Total Weight display (recalcWeight)
+  // AND the downstream load category / max-Dex / check penalty / speed — which
+  // are computed inside the global recalcAll (character.js), NOT in
+  // recalcWeight. Editing a weight FIELD gets the cascade for free via app.js's
+  // global "input" listener; a removal is not an input event, so nothing fired
+  // recalcAll and the load tier went stale until the next edit. (Reported:
+  // removing an item didn't drop medium->light load until a weight field was
+  // directly edited.)
+  function recalcWeightAndCascade() {
+    recalcWeight();
+    if (typeof window.recalcAll === "function") window.recalcAll();
   }
 
   // ============================================================
