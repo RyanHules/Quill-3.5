@@ -618,7 +618,16 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 
 .skills-table td { padding: 0.15rem 0.2rem;border-bottom: 1px solid rgba(255,255,255,0.03);}
 
-.skill-class-col { width: 46px; text-align: center; position: relative; }
+.skill-class-col { width: 58px; text-align: center; position: relative; white-space: nowrap; }
+/* 📌 pin toggle (report rmsny857o): faint/grey when off, full-colour when a
+   skill is pinned as an always-class-skill. Sits beside the class checkbox. */
+.skill-pin {
+  background: none; border: none; cursor: pointer; padding: 0 0 0 2px;
+  font-size: 0.72rem; line-height: 1; vertical-align: middle;
+  opacity: 0.25; filter: grayscale(1);
+}
+.skill-pin:hover { opacity: 0.65; filter: grayscale(0.3); }
+.skill-pin.pinned { opacity: 1; filter: none; }
 /* Marks a skill that is a class skill via a PRIOR class only (not the
    current/last-in-timeline class): the checkbox is off, but the skill still
    counts toward max ranks. Hover for the originating class(es). Absolutely

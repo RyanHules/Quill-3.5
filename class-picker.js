@@ -5466,7 +5466,9 @@
         sources.splice(idx, 1);
         if (sources.length === 0) {
           delete cb.dataset.classSkillSources;
-          if (cb.checked) {
+          // A pinned skill stays a class skill even when no class claims it any
+          // more (report rmsny857o) — keep it checked; just drop the sourcing.
+          if (cb.checked && cb.dataset.pinned !== '1') {
             cb.checked = false;
             cb.dispatchEvent(new Event('change', { bubbles: true }));
           }
@@ -5585,6 +5587,14 @@
     const current = getCurrentClassNames();
     tab.querySelectorAll('.skill-class-check[data-class-skill-sources]')
       .forEach(cb => {
+        // Pinned skills are always current class skills — never re-pointed to
+        // "prior" or unticked by reconciliation (report rmsny857o).
+        if (cb.dataset.pinned === '1') {
+          if (!cb.checked) cb.checked = true;
+          delete cb.dataset.priorClassSkill;
+          setPriorClassSkillMark(cb, null);
+          return;
+        }
         const sources = (cb.dataset.classSkillSources || '')
           .split(',').filter(Boolean);
         if (!sources.length) return;

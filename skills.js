@@ -39,6 +39,7 @@ const Skills = (function () {
   function build(getAbilityMod) {
     const tbodyL = $("#skills-body-left");
     const tbodyR = $("#skills-body-right");
+    wirePinDelegation();
     tbodyL.innerHTML = "";
     tbodyR.innerHTML = "";
 
@@ -77,7 +78,7 @@ const Skills = (function () {
     if (skill.armorPenalty) markers += '<span class="skill-acp-marker" title="Armor check penalty applies">*</span>';
 
     tr.innerHTML = `
-      <td class="skill-class-col"><input type="checkbox" class="skill-class-check" title="Class Skill?"></td>
+      <td class="skill-class-col"><input type="checkbox" class="skill-class-check" title="Class Skill?"><button type="button" class="skill-pin" aria-pressed="false" title="Pin as a class skill (stays a class skill regardless of your classes)">📌</button></td>
       <td class="skill-name-col">
         <span class="skill-name">${displayName}</span>${markers}
         <span class="synergy-info"></span>
@@ -96,6 +97,58 @@ const Skills = (function () {
     toggleBtn.addEventListener("click", () => toggleNotes(tr, toggleBtn));
 
     return tr;
+  }
+
+  // ============================================================
+  // Class-skill pin (report rmsny857o)
+  // ============================================================
+  // A 📌 toggle that force-marks a skill as a class skill and keeps it that way
+  // regardless of the applied classes. The pin lives as `dataset.pinned` on the
+  // .skill-class-check checkbox — the element class-picker's reconciliation
+  // already queries — so its untick guards can see it. A pinned box is checked
+  // + disabled (toggle it via the pin, not the box); class-picker skips pinned
+  // boxes when it unticks/re-points class skills.
+  let pinDelegationWired = false;
+  function setSkillPin(cb, pinned, opts = {}) {
+    if (!cb) return;
+    if (pinned) {
+      cb.dataset.pinned = "1";
+      cb.checked = true;
+      cb.disabled = true;
+    } else {
+      delete cb.dataset.pinned;
+      cb.disabled = false;
+      // The pin was the only reason a class-less skill was ticked — unticking
+      // on unpin reverts it; a class-claimed skill (has sources) stays ticked.
+      if (!cb.dataset.classSkillSources) cb.checked = false;
+    }
+    const btn = cb.parentElement && cb.parentElement.querySelector(".skill-pin");
+    if (btn) {
+      btn.classList.toggle("pinned", !!pinned);
+      btn.setAttribute("aria-pressed", pinned ? "true" : "false");
+      btn.title = pinned
+        ? "Pinned as a class skill — click to unpin"
+        : "Pin as a class skill (stays a class skill regardless of your classes)";
+    }
+    if (!opts.silent) {
+      cb.dispatchEvent(new Event("input", { bubbles: true }));
+      cb.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+  // One delegated click handler for every 📌 (rows are dynamic). Attached once
+  // to the static #tab-skills; covers the main tables AND the custom skills.
+  function wirePinDelegation() {
+    if (pinDelegationWired) return;
+    const tab = document.getElementById("tab-skills");
+    if (!tab) return;
+    tab.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".skill-pin");
+      if (!btn) return;
+      const cell = btn.closest(".skill-class-col");
+      const cb = cell && cell.querySelector(".skill-class-check");
+      if (cb) setSkillPin(cb, cb.dataset.pinned !== "1");
+    });
+    pinDelegationWired = true;
   }
 
   // ============================================================
@@ -140,7 +193,7 @@ const Skills = (function () {
     const markers = skill.armorPenalty ? '<span class="skill-acp-marker" title="Armor check penalty applies">*</span>' : '';
 
     tr.innerHTML = `
-      <td class="skill-class-col"><input type="checkbox" class="skill-class-check" title="Class Skill?"></td>
+      <td class="skill-class-col"><input type="checkbox" class="skill-class-check" title="Class Skill?"><button type="button" class="skill-pin" aria-pressed="false" title="Pin as a class skill (stays a class skill regardless of your classes)">📌</button></td>
       <td class="skill-name-col">
         <div class="subtype-skill-name">
           <span class="skill-base-name">${skill.name} (</span>
@@ -159,6 +212,7 @@ const Skills = (function () {
     `;
 
     if (data.classSkill) tr.querySelector(".skill-class-check").checked = true;
+    if (data.pinned) setSkillPin(tr.querySelector(".skill-class-check"), true, { silent: true });
 
     // Insert after the header or last subtype of this group
     const existing = tbody.querySelectorAll(`tr[data-skill-index="${index}"]`);
@@ -796,6 +850,7 @@ const Skills = (function () {
       const entry = {
         type: isSub ? "subtype" : "skill",
         classSkill: row.querySelector(".skill-class-check")?.checked || false,
+        pinned: row.querySelector(".skill-class-check")?.dataset.pinned === "1",
         ranks: row.querySelector(".skill-ranks")?.value || "0",
         misc: row.querySelector(".skill-misc")?.value || "0",
         index: int(row.dataset.skillIndex),
@@ -902,6 +957,7 @@ const Skills = (function () {
         const tr = addSkillRow(tbody, skill, i, getAbilityMod);
         if (entry) {
           tr.querySelector(".skill-class-check").checked = entry.classSkill;
+          if (entry.pinned) setSkillPin(tr.querySelector(".skill-class-check"), true, { silent: true });
           tr.querySelector(".skill-ranks").value = entry.ranks;
           tr.querySelector(".skill-misc").value = entry.misc;
           if (entry.notes) {
@@ -945,7 +1001,7 @@ const Skills = (function () {
     const tr = document.createElement("tr");
     tr.dataset.customIndex = customSkillCount++;
     tr.innerHTML = `
-      <td class="skill-class-col"><input type="checkbox" class="skill-class-check"></td>
+      <td class="skill-class-col"><input type="checkbox" class="skill-class-check"><button type="button" class="skill-pin" aria-pressed="false" title="Pin as a class skill (stays a class skill regardless of your classes)">📌</button></td>
       <td class="skill-name-col"><input type="text" class="custom-skill-name" placeholder="Skill name" value="${data.name || ""}"></td>
       <td class="skill-ability-col">
         <select class="custom-skill-ability">
@@ -965,6 +1021,7 @@ const Skills = (function () {
     `;
     tbody.appendChild(tr);
     if (data.classSkill) tr.querySelector(".skill-class-check").checked = true;
+    if (data.pinned) setSkillPin(tr.querySelector(".skill-class-check"), true, { silent: true });
     if (data.ability) tr.querySelector(".custom-skill-ability").value = data.ability;
     return tr;
   }
@@ -974,6 +1031,7 @@ const Skills = (function () {
     $$("#custom-skills-body tr").forEach((row) => {
       customs.push({
         classSkill: row.querySelector(".skill-class-check").checked,
+        pinned: row.querySelector(".skill-class-check").dataset.pinned === "1",
         name: row.querySelector(".custom-skill-name").value,
         ability: row.querySelector(".custom-skill-ability").value,
         ranks: row.querySelector(".skill-ranks").value,

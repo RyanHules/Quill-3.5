@@ -2267,6 +2267,40 @@
     }
   });
 
+  // A 📌-pinned skill stays a class skill through class add/remove (rmsny857o).
+  // The gap it closes: hand-mark a skill, apply a class that also grants it,
+  // remove that class -> reconciliation used to untick it. Pins survive, and
+  // round-trip through save/load.
+  regression('SKILLPIN: pinned skill survives class add/remove + save/load', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('SKILLPIN: DB not loaded — re-run once [DB] Loaded appears.');
+    const rowFor = (name) => [...document.querySelectorAll('#skills-body-left tr, #skills-body-right tr')]
+      .find(r => r.querySelector('.skill-name') && r.querySelector('.skill-name').textContent.trim() === name);
+    const tumble = rowFor('Tumble');
+    if (!tumble) fail('SKILLPIN: Tumble row not found');
+    const cb = () => rowFor('Tumble').querySelector('.skill-class-check');
+    // Pin Tumble (no class yet).
+    tumble.querySelector('.skill-pin').click();
+    await wait(60);
+    expect(cb().checked, true, 'SKILLPIN: pinning checks the class-skill box');
+    expect(cb().dataset.pinned, '1', 'SKILLPIN: pin flag set');
+    // Apply Rogue (grants Tumble -> the box gains a class source), then remove.
+    await applyClass('Rogue', 3);
+    await wait(80);
+    expect(cb().checked, true, 'SKILLPIN: still checked while Rogue grants Tumble');
+    removeClass('Rogue');
+    await wait(200);
+    // Pre-fix, removeClassSkills unticked here (last source gone).
+    expect(cb().checked, true, 'SKILLPIN: still a class skill after Rogue removed (pin survives)');
+    expect(cb().dataset.pinned, '1', 'SKILLPIN: still pinned after class churn');
+    // Save/load round-trip.
+    const blob = appCollect();
+    appLoad(blob);
+    await wait(150);
+    expect(cb().checked, true, 'SKILLPIN: pin survives save/load (checked)');
+    expect(cb().dataset.pinned, '1', 'SKILLPIN: pin survives save/load (flag)');
+  });
+
   regression('SS5: Possessions + Magic Items ⓘ rules panel round-trip (panel-open save safety)', async () => {
     await newCharacter();
     if (!dbReady()) fail(

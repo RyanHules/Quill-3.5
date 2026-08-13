@@ -5449,6 +5449,27 @@ test('item-picker: magic items auto-fill the body slot (rmsnu5814)', () => {
     'Equipment.addMagicItem.');
 });
 
+test('skills: 📌 pin keeps a skill a class skill through class churn (rmsny857o)', () => {
+  // The pin lives as dataset.pinned on the .skill-class-check checkbox; skills.js
+  // renders the toggle + persists the flag, and class-picker's untick/re-point
+  // reconciliation must skip pinned boxes so a pin survives class add/remove.
+  const sk = readSource('skills.js');
+  const cp = readSource('class-picker.js');
+  assert(/function setSkillPin\s*\(/.test(sk),
+    'skills.js: setSkillPin helper is missing.');
+  assert(/class="skill-pin"/.test(sk),
+    'skills.js: the 📌 .skill-pin toggle is not rendered in the skill rows.');
+  assert(/pinned:[\s\S]{0,90}dataset\.pinned === "1"/.test(sk),
+    'skills.js: collectData no longer persists the pin (`pinned`).');
+  assert(/data\.pinned\)?\s*setSkillPin/.test(sk) || /if \(data\.pinned\) setSkillPin/.test(sk),
+    'skills.js: the load path no longer restores pinned skills via setSkillPin.');
+  assert(/cb\.checked && cb\.dataset\.pinned !== '1'/.test(cp),
+    "class-picker.js: removeClassSkills no longer guards pinned boxes — a pin " +
+    "would untick when the granting class is removed.");
+  assert(/cb\.dataset\.pinned === '1'[\s\S]{0,240}return;/.test(cp),
+    'class-picker.js: reconcileCurrentClassSkills no longer skips pinned boxes.');
+});
+
 test('save: class-picker installs persistence hooks at module load', () => {
   // Regression guard for the 2026-05-18 race-condition fix. Pre-fix,
   // installPersistenceHooks() was called from inside init(), which
