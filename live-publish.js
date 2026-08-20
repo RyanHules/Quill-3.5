@@ -270,6 +270,21 @@
   // everything. Those two must not be readable as one statement, so the flag
   // says which you are looking at. Same principle as `usable` on skills:
   // absent must never be readable as none.
+  // DR RESOLUTION IS THE CONSUMER'S JOB, NOT THE SHEET'S, and the shape here
+  // says so on purpose. DMG p.292: several DRs do NOT stack — for each attack
+  // the best DR that attack fails to BYPASS applies, so DR 10/silver + DR
+  // 5/evil reduces a plain weapon by 10, a silver one by 5, an evil one by 10,
+  // and a silvered unholy one by nothing. Which one wins therefore depends on
+  // what the incoming attack is made of, and the sheet does not know that.
+  //
+  // So it publishes the entries and their `stacks` flags and stops. Entries
+  // with stacks:false compete for "best applicable"; entries with stacks:true
+  // add on top of that winner (Iron Ward Diamond, Berserker Strength,
+  // Dragonward, the Armor-as-DR variant — eight such sources in the DB).
+  // A single resolved number would be a number that is wrong for most attacks.
+  //
+  // `damage_reduction_text` rides along in the books' own notation for anything
+  // that just wants to print it.
   function riders() {
     try {
       if (typeof DefenseRiders === 'undefined') return {};
@@ -278,6 +293,8 @@
         resistances: s.resistances,
         immunities: s.immunities,
         vulnerabilities: s.vulnerabilities,
+        damage_reduction: s.damage_reduction,
+        damage_reduction_text: DefenseRiders.drText(),
         fast_healing: s.fast_healing,
         regeneration: s.regeneration,
         notes_may_contain_riders: DefenseRiders.notesMayContainRiders()
@@ -288,37 +305,6 @@
       // where `[]` would say "none", which would not be.
       return {};
     }
-  }
-
-  // "5/magic, 2/-" -> [{amount:5, bypass:"magic"}, {amount:2, bypass:null}].
-  // Returns null on anything it cannot fully account for, so a consumer never
-  // acts on a half-understood string: the verbatim value is published beside
-  // this and is the one to fall back to.
-  //
-  // Bypass stays a STRING because that is how the books and the DB write it —
-  // "cold iron or evil" and "evil and silver" mean different things (either vs
-  // both), and splitting them into a list would erase the distinction. The
-  // user data already shows the same ambiguity: `15/CI; 10/evil` is two DRs
-  // while `10/evil + silver` is one with two required bypasses.
-  function parsedDR() {
-    var raw = txt('damage-reduction');
-    if (!raw) return null;
-    var body = String(raw).replace(/^\s*DR\s+/i, '');
-    var parts = body.split(/[;,]/).map(function (s) { return s.trim(); })
-                    .filter(function (s) { return s !== ''; });
-    if (!parts.length) return null;
-    var out = [];
-    for (var i = 0; i < parts.length; i++) {
-      var m = /^(\d+)\s*\/\s*(.*)$/.exec(parts[i]);
-      if (!m) return null;                       // one unparsed part, no result
-      var bypass = m[2].trim();
-      out.push({
-        amount: parseInt(m[1], 10),
-        // "—" and "-" are the books' way of writing "nothing bypasses this".
-        bypass: (bypass === '' || bypass === '-' || bypass === '—') ? null : bypass
-      });
-    }
-    return out.length ? out : null;
   }
 
   function conditions() {
@@ -360,8 +346,6 @@
         // nobody needs), so it ships BOTH: the verbatim string the player typed
         // and a best-effort parse. Verbatim first and always — the parse is a
         // convenience that may be null, never the source of truth.
-        damage_reduction: txt('damage-reduction'),
-        damage_reduction_parsed: parsedDR(),
         spell_resistance: txt('spell-resistance'),
         notes: txt('ac-defense-notes'),
         ...riders()

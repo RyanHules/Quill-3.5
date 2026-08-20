@@ -1,44 +1,77 @@
-// defense-riders.js — structured energy resistances, immunities,
-// vulnerabilities, fast healing and regeneration (2026-08-20).
+// defense-riders.js — structured defensive riders (2026-08-20).
 //
-// WHY. The sheet had dedicated fields for SR and DR and nothing for the rest,
-// so everything else landed in the free-text Defense Notes box. That was a
-// documented gap — race-picker's own comment read "folded into the free-form
-// #defense-notes (no dedicated sheet field yet)" — and it had a sharper edge
-// than a missing field usually does: the DATA ARRIVED STRUCTURED AND WE THREW
-// THE STRUCTURE AWAY. The DB carries `resistances: [{amount, damage_type}]`,
-// `immunities: [...]`, `vulnerabilities: [...]`, `fast_healing: n` and
-// `regeneration: {amount, bypass}` on 149 / 128 / 1 / 36 / 10 entries, and
-// race-picker read those fields and flattened them into a prose line. So the
-// consuming rig, asked whether a fireball hurts Kell, got a sentence.
+// Energy resistances / immunities / vulnerabilities, damage reduction, fast
+// healing and regeneration, as data instead of prose.
 //
-// This module is the missing field. It does NOT invent a shape: it adopts the
-// DB's field names and value shapes verbatim, so there is one vocabulary from
-// the book to the sheet to the bus. (Coerce to the canonical shape, never alias
-// it — the same rule the DB project runs on.)
+// WHY. The sheet had fields for DR (free text) and SR (a number) and nothing
+// for the rest, so everything else landed in the free-text Defense Notes box.
+// The sharp version of the problem was not the missing field — it was that THE
+// DATA ARRIVED STRUCTURED AND WE THREW THE STRUCTURE AWAY: the DB carries
+// `resistances: [{amount, damage_type}]`, `immunities`, `vulnerabilities`,
+// `damage_reduction: [{amount, bypass}]`, `fast_healing` and `regeneration:
+// {amount, bypass}`, and race-picker read those fields and flattened them into
+// a sentence. Anything reading the sheet downstream then had to parse English
+// to answer "does fire hurt this character".
 //
+// This module does not invent a shape. It adopts the DB's field names and
+// value shapes verbatim, so one vocabulary runs from the book to the sheet to
+// the live bus.
+//
+// ---------------------------------------------------------------------------
+// DAMAGE REDUCTION AND THE STACKING QUESTION
+//
+// DR gets a `stacks` flag per entry, and that flag exists because the corpus
+// says it has to — but the DEFAULT is not stacking, and the resolution is not
+// addition. DMG p.292:
+//
+//   "If a creature has damage reduction from more than one source, the two
+//    forms of damage reduction do not stack. Instead, the creature gets the
+//    benefit of the best damage reduction in a given situation."
+//
+// The werebear example in that entry is the one to hold on to: DR 10/silver
+// plus DR 5/evil means a plain weapon is reduced by 10, a silver weapon by 5
+// (it bypassed the 10 but not the 5), an evil weapon by 10, and a silvered
+// unholy weapon by nothing. So "best applicable to THIS attack", never a sum.
+//
+// The flag is still needed, because explicit per-source exceptions are real
+// and not rare — a DB-wide sweep found eight: Iron Ward Diamond ("stacks with
+// similar damage reduction granted by any other source"), Berserker Strength
+// (PHB2 ACF), Dragonward (invocation, "stacks with ... such as from barbarian
+// levels"), Skin of the Moon (stacks with other DR/—), Breastplate of Terror
+// (stacks with CLASS-FEATURE DR only), and the Armor-as-DR variant rule.
+//
+// So: `stacks: false` entries compete — a consumer takes the best of those the
+// attack does not bypass. `stacks: true` entries add on top of that winner.
+// The sheet does NOT resolve this, deliberately: resolution depends on what the
+// incoming attack is made of, and the sheet does not know that. It publishes
+// the entries and the flags; whoever knows the attack does the arithmetic.
+//
+// Breastplate of Terror's "stacks with class-feature DR but nothing else" is
+// beyond a boolean and is not modelled. That is a note-box case.
+//
+// ---------------------------------------------------------------------------
 // WHAT IS DELIBERATELY NOT HERE
 //
-//   * DR and SR keep their existing fields and their existing free-text /
-//     numeric storage. 158 saved characters have hand-typed DR strings, and
-//     re-parsing those into a new store is exactly the risky migration this
-//     module is built to avoid needing. live-publish.js publishes a PARSED
-//     view of DR alongside the verbatim string; storage is untouched.
+//   * SR stays a plain number field. It already is one, and it works.
 //   * The Defense Notes box stays, and stays authoritative for everything not
-//     modelled here — layered situational DR, fortification %, and the long
-//     tail nobody has thought of. A structured field that swallowed the notes
-//     box would trade a known gap for an unknown one.
+//     modelled here — conditional DR ("2/- vs Air subtype"), fortification %,
+//     and the long tail. A structured field that swallowed the notes box would
+//     trade a known gap for an unknown one.
 //
-// THE MIGRATION WINDOW IS THE INTERESTING PART. An empty rider list means "no
-// resistances entered", which for a character sheet is a claim of none. But
-// every character that predates this module ALSO has an empty list while
-// carrying "Resist 5: Acid, Fire, Cold" in its notes — and publishing `[]` for
-// them would be worse than publishing nothing, because a consumer would read
-// it as "takes full damage" and narrate it out loud. So the publisher also
-// emits `notes_may_contain_riders`, set when the free-text box still looks like
-// it is carrying rider content. Empty-and-flagged is not the same statement as
-// empty-and-clean, and the two must not be readable as one. The flag goes false
-// on its own as characters get migrated by hand.
+// THE MIGRATION WINDOW. An empty rider list means "no resistances entered",
+// which for a character sheet is a claim of none. But every character built
+// before this module ALSO has an empty list while carrying "Resist 5: Acid,
+// Fire, Cold" in its notes, and publishing `[]` for them would be worse than
+// publishing nothing — a consumer would read it as "takes full damage" and
+// narrate it out loud. So the publisher also emits `notes_may_contain_riders`.
+// Empty-and-flagged is not the same statement as empty-and-clean. The flag
+// goes false on its own as characters get migrated.
+//
+// DR migrates automatically instead, because it CAN: 157 of the 158 saved DR
+// strings parse cleanly into {amount, bypass} (the one holdout is "see SA", a
+// pointer rather than a value). `migrateLegacyDR` runs on load, and anything
+// that does not parse stays visible in the legacy text box rather than being
+// dropped on the floor.
 const DefenseRiders = (function () {
   'use strict';
 
@@ -49,9 +82,9 @@ const DefenseRiders = (function () {
   ];
 
   // Suggestion lists built from what the DB ACTUALLY carries (top values across
-  // every entry with these fields), not from what a plausible list would be.
-  // Energy types are a closed set in 3.5; immunity targets are not, so the
-  // input stays free text and the datalist is only a shortcut.
+  // every entry with these fields), not from a plausible-looking list. Energy
+  // types are a closed set in 3.5; immunity targets are not, so the input stays
+  // free text and the datalist is only a shortcut.
   const ENERGY_TYPES = ['acid', 'cold', 'electricity', 'fire', 'sonic'];
   const IMMUNITY_SUGGESTIONS = [
     'poison', 'paralysis', 'sleep', 'stunning', 'petrification', 'disease',
@@ -59,6 +92,11 @@ const DefenseRiders = (function () {
     'critical hits', 'energy drain', 'flanking', 'fear', 'polymorphing',
     'ability damage', 'ability drain', 'death from massive damage',
     'nonlethal damage', 'acid', 'cold', 'electricity', 'fire', 'sonic',
+  ];
+  const BYPASS_SUGGESTIONS = [
+    'adamantine', 'bludgeoning', 'chaotic', 'cold iron', 'epic', 'evil',
+    'good', 'lawful', 'magic', 'piercing', 'silver', 'slashing',
+    'bludgeoning and magic', 'evil and silver', 'cold iron or evil',
   ];
 
   // Anything in the notes box that looks like an unmigrated rider. Deliberately
@@ -70,7 +108,10 @@ const DefenseRiders = (function () {
   let seq = 0;
 
   function $(sel) { return document.querySelector(sel); }
-  function list() { return document.getElementById('defense-riders-list'); }
+  function byId(id) { return document.getElementById(id); }
+  function riderList() { return byId('defense-riders-list'); }
+  function drList() { return byId('dr-entries-list'); }
+  function regenList() { return byId('regen-entries-list'); }
 
   function intOrNull(v) {
     if (v == null) return null;
@@ -79,10 +120,24 @@ const DefenseRiders = (function () {
     return /^\d+$/.test(s) ? parseInt(s, 10) : null;
   }
 
-  // ---- rows ---------------------------------------------------------------
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function rowsIn(host, sel) {
+    return host ? Array.from(host.querySelectorAll(sel)) : [];
+  }
+
+  // ---- resistance / immunity / vulnerability rows -------------------------
+  //
+  // NB the class prefix is `rider-`, not `dr-`. `dr-` belongs to damage
+  // reduction below, and having "dr" mean "defense rider" three inches from
+  // real DR is exactly the kind of collision that reads fine to whoever wrote
+  // it and as a bug to whoever reads it next.
 
   function addRow(data = {}) {
-    const host = list();
+    const host = riderList();
     if (!host) return null;
     const row = document.createElement('div');
     row.className = 'defense-rider-row';
@@ -91,16 +146,13 @@ const DefenseRiders = (function () {
     const opts = KINDS.map(([v, label]) =>
       `<option value="${v}"${v === kind ? ' selected' : ''}>${label}</option>`).join('');
     row.innerHTML =
-      `<select class="dr-kind">${opts}</select>` +
-      `<input type="number" class="dr-amount" min="0" placeholder="5" ` +
+      `<select class="rider-kind">${opts}</select>` +
+      `<input type="number" class="rider-amount" min="0" placeholder="5" ` +
         `value="${data.amount != null ? data.amount : ''}">` +
-      `<input type="text" class="dr-type" placeholder="fire" ` +
+      `<input type="text" class="rider-type" placeholder="fire" ` +
         `list="defense-rider-types" value="${escapeAttr(data.type || '')}">` +
-      `<button type="button" class="dr-remove" title="Remove">&times;</button>`;
+      `<button type="button" class="rider-remove" title="Remove">&times;</button>`;
     host.appendChild(row);
-    // The marker says which source auto-filled this row, so removing that
-    // source removes exactly its rows and leaves hand-entered ones alone —
-    // the same ownership contract race-picker already uses for SR and DR.
     if (data.from) row.dataset.from = data.from;
     syncRow(row);
     return row;
@@ -109,43 +161,108 @@ const DefenseRiders = (function () {
   // An immunity has no magnitude; showing a stray amount box invites someone to
   // type 5 into it and believe it meant something.
   function syncRow(row) {
-    const kind = row.querySelector('.dr-kind').value;
-    const amount = row.querySelector('.dr-amount');
+    const kind = row.querySelector('.rider-kind').value;
+    const amount = row.querySelector('.rider-amount');
     const needsAmount = (kind === 'resistance');
     amount.style.display = needsAmount ? '' : 'none';
     if (!needsAmount) amount.value = '';
-    row.querySelector('.dr-type').placeholder =
-      kind === 'resistance' ? 'fire' : (kind === 'immunity' ? 'poison' : 'fire');
+    row.querySelector('.rider-type').placeholder =
+      kind === 'immunity' ? 'poison' : 'fire';
   }
 
-  function escapeAttr(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function riderRows() { return rowsIn(riderList(), '.defense-rider-row'); }
+
+  function readRider(row) {
+    return {
+      kind: row.querySelector('.rider-kind').value,
+      type: (row.querySelector('.rider-type').value || '').trim(),
+      amount: intOrNull(row.querySelector('.rider-amount').value),
+      from: row.dataset.from || null,
+    };
   }
 
-  function rows() {
-    const host = list();
-    return host ? Array.from(host.querySelectorAll('.defense-rider-row')) : [];
+  // ---- damage reduction rows ----------------------------------------------
+
+  function addDR(data = {}) {
+    const host = drList();
+    if (!host) return null;
+    const row = document.createElement('div');
+    row.className = 'dr-entry-row';
+    row.innerHTML =
+      `<input type="number" class="dr-amount" min="0" placeholder="5" ` +
+        `value="${data.amount != null ? data.amount : ''}">` +
+      `<span class="dr-slash">/</span>` +
+      `<input type="text" class="dr-bypass" list="dr-bypass-types" ` +
+        `placeholder="magic (blank = nothing bypasses)" ` +
+        `value="${escapeAttr(data.bypass || '')}">` +
+      `<label class="dr-stacks-label" title="RAW (DMG p.292): DR from several sources does NOT stack — the best one that the incoming attack fails to bypass applies. Tick this only for a source that says otherwise (Iron Ward Diamond, Berserker Strength, Dragonward, the Armor-as-DR variant): it then ADDS on top of that winner.">` +
+        `<input type="checkbox" class="dr-stacks"${data.stacks ? ' checked' : ''}> stacks</label>` +
+      `<button type="button" class="dr-remove" title="Remove">&times;</button>`;
+    host.appendChild(row);
+    if (data.from) row.dataset.from = data.from;
+    return row;
   }
 
-  function readRow(row) {
-    const kind = row.querySelector('.dr-kind').value;
-    const type = (row.querySelector('.dr-type').value || '').trim();
-    const amount = intOrNull(row.querySelector('.dr-amount').value);
-    return { kind, type, amount, from: row.dataset.from || null };
+  function drRows() { return rowsIn(drList(), '.dr-entry-row'); }
+
+  function readDR(row) {
+    const bypass = (row.querySelector('.dr-bypass').value || '').trim();
+    return {
+      amount: intOrNull(row.querySelector('.dr-amount').value),
+      // Blank / dash means nothing bypasses it — the books write that as
+      // "DR 5/—", and null is the honest representation of "no bypass exists"
+      // as against the empty string, which reads like a missing value.
+      bypass: (bypass === '' || bypass === '-' || bypass === '—') ? null : bypass,
+      stacks: !!row.querySelector('.dr-stacks').checked,
+      from: row.dataset.from || null,
+    };
+  }
+
+  // ---- regeneration rows --------------------------------------------------
+  //
+  // A list rather than one pair of fields, because a creature can carry several
+  // regenerations bypassed by different things (a troll's acid-and-fire plus a
+  // template's), and collapsing them to one loses the bypass that matters.
+
+  function addRegen(data = {}) {
+    const host = regenList();
+    if (!host) return null;
+    const row = document.createElement('div');
+    row.className = 'regen-entry-row';
+    row.innerHTML =
+      `<input type="number" class="regen-amount" min="0" placeholder="5" ` +
+        `value="${data.amount != null ? data.amount : ''}">` +
+      `<span class="regen-sep">bypassed by</span>` +
+      `<input type="text" class="regen-bypass" placeholder="acid, fire" ` +
+        `value="${escapeAttr(data.bypass || '')}">` +
+      `<button type="button" class="regen-remove" title="Remove">&times;</button>`;
+    host.appendChild(row);
+    if (data.from) row.dataset.from = data.from;
+    return row;
+  }
+
+  function regenRows() { return rowsIn(regenList(), '.regen-entry-row'); }
+
+  function readRegen(row) {
+    const bypass = (row.querySelector('.regen-bypass').value || '').trim();
+    return {
+      amount: intOrNull(row.querySelector('.regen-amount').value),
+      bypass: bypass || null,
+      from: row.dataset.from || null,
+    };
   }
 
   // ---- structured read (what the bus publishes) ---------------------------
 
-  // Returns the DB's own field names and shapes. A rider with no type is
-  // skipped: a resistance to nothing is not a fact, it is a half-typed row.
+  // Returns the DB's own field names and shapes. A rider with no type, or a DR
+  // with no amount, is skipped: those are half-typed rows, not facts.
   function getStructured() {
     const out = {
       resistances: [], immunities: [], vulnerabilities: [],
-      fast_healing: null, regeneration: null,
+      damage_reduction: [], fast_healing: null, regeneration: [],
     };
-    for (const row of rows()) {
-      const r = readRow(row);
+    for (const row of riderRows()) {
+      const r = readRider(row);
       if (!r.type) continue;
       if (r.kind === 'resistance') {
         out.resistances.push({ damage_type: r.type, amount: r.amount });
@@ -155,43 +272,102 @@ const DefenseRiders = (function () {
         out.vulnerabilities.push(r.type);
       }
     }
-    const fh = intOrNull(($('#fast-healing') || {}).value);
-    if (fh != null) out.fast_healing = fh;
-    const rg = intOrNull(($('#regeneration-amount') || {}).value);
-    if (rg != null) {
-      const bypass = (($('#regeneration-bypass') || {}).value || '').trim();
-      out.regeneration = bypass ? { amount: rg, bypass } : { amount: rg };
+    for (const row of drRows()) {
+      const d = readDR(row);
+      if (d.amount == null) continue;
+      out.damage_reduction.push({ amount: d.amount, bypass: d.bypass, stacks: d.stacks });
     }
+    for (const row of regenRows()) {
+      const g = readRegen(row);
+      if (g.amount == null) continue;
+      out.regeneration.push(g.bypass ? { amount: g.amount, bypass: g.bypass }
+                                     : { amount: g.amount });
+    }
+    const fh = intOrNull((byId('fast-healing') || {}).value);
+    if (fh != null) out.fast_healing = fh;
     return out;
+  }
+
+  // The books' own notation, rendered from the structure — "10/cold iron, 5/—".
+  // Published beside the entries so a consumer that just wants to print
+  // something has it, and so the value stays legible in a save file.
+  function drText() {
+    const parts = drRows().map(readDR).filter(d => d.amount != null)
+      .map(d => `${d.amount}/${d.bypass || '—'}`);
+    return parts.length ? parts.join(', ') : null;
   }
 
   // True when the free-text notes still look like they carry rider content the
   // structured fields don't have. See the migration-window note at the top:
   // this is what stops an empty list being read as a clean "none".
   function notesMayContainRiders() {
-    const el = document.getElementById('ac-defense-notes');
+    const el = byId('ac-defense-notes');
     const text = el ? String(el.value || '') : '';
     if (!text.trim()) return false;
     return NOTE_RIDER_RE.test(text);
   }
 
+  // ---- legacy DR migration ------------------------------------------------
+
+  // "10/cold iron, 5/-" -> [{amount, bypass}]. Returns null on anything it
+  // cannot fully account for, so a half-understood string is never turned into
+  // confident-looking rows. 157 of 158 saved strings parse; the holdout is
+  // "see SA", which is a pointer rather than a value and correctly refuses.
+  function parseDRText(raw) {
+    if (!raw) return null;
+    const body = String(raw).replace(/^\s*DR\s+/i, '');
+    const parts = body.split(/[;,]/).map(s => s.trim()).filter(s => s !== '');
+    if (!parts.length) return null;
+    const out = [];
+    for (const part of parts) {
+      const m = /^(\d+)\s*\/\s*(.*)$/.exec(part);
+      if (!m) return null;                       // one unparsed part, no result
+      const bypass = m[2].trim();
+      out.push({
+        amount: parseInt(m[1], 10),
+        bypass: (bypass === '' || bypass === '-' || bypass === '—') ? null : bypass,
+      });
+    }
+    return out.length ? out : null;
+  }
+
+  // Pull an old save's free-text DR into rows. Non-destructive on failure: the
+  // string stays in the legacy box, which stays visible precisely so nothing
+  // silently disappears. Only runs when there are no structured rows yet, so it
+  // can never overwrite something the player has already entered.
+  function migrateLegacyDR() {
+    const el = byId('damage-reduction');
+    if (!el) return;
+    const raw = String(el.value || '').trim();
+    if (!raw || drRows().length) { syncLegacyDR(); return; }
+    const parsed = parseDRText(raw);
+    if (!parsed) { syncLegacyDR(); return; }     // leave it visible, untouched
+    for (const d of parsed) addDR(d);
+    el.value = '';
+    syncLegacyDR();
+  }
+
+  // The legacy box earns its place on screen only while it still holds
+  // something. Empty and hidden is the end state for every character.
+  function syncLegacyDR() {
+    const el = byId('damage-reduction');
+    const wrap = el && el.closest('.legacy-dr-field');
+    if (!wrap) return;
+    wrap.style.display = String(el.value || '').trim() ? '' : 'none';
+  }
+
   // ---- auto-fill from a source (race, template, …) ------------------------
 
-  // `spec` takes the DB's shapes as-is: {resistances:[{amount,damage_type}],
-  // immunities:[...], vulnerabilities:[...], fast_healing:n,
-  // regeneration:{amount,bypass}}. Passing null removes that source's rows.
-  //
-  // Re-applying the SAME source clears its rows first, so a level-up or a
-  // re-pick refreshes rather than stacking duplicates.
+  // `spec` takes the DB's shapes as-is. Passing null removes that source's rows.
+  // Re-applying the SAME source clears its rows first, so a level-up or re-pick
+  // refreshes rather than stacking duplicates.
   function applyFromSource(sourceKey, spec) {
     if (!sourceKey) return;
     clearSource(sourceKey);
     if (!spec) { notifyChanged(); return; }
     for (const r of (spec.resistances || [])) {
-      if (!r) continue;
-      const type = r.damage_type || r.type;
-      if (!type) continue;
-      addRow({ kind: 'resistance', type, amount: r.amount, from: sourceKey });
+      const type = r && (r.damage_type || r.type);
+      if (type) addRow({ kind: 'resistance', type, amount: r.amount, from: sourceKey });
     }
     for (const t of (spec.immunities || [])) {
       if (t) addRow({ kind: 'immunity', type: String(t), from: sourceKey });
@@ -199,28 +375,40 @@ const DefenseRiders = (function () {
     for (const t of (spec.vulnerabilities || [])) {
       if (t) addRow({ kind: 'vulnerability', type: String(t), from: sourceKey });
     }
+    for (const d of (spec.damage_reduction || [])) {
+      if (d && d.amount != null) {
+        addDR({ amount: d.amount, bypass: d.bypass, stacks: !!d.stacks, from: sourceKey });
+      }
+    }
+    // `regeneration` arrives from the DB as a single {amount, bypass} object,
+    // not a list — accept both so the caller never has to normalise.
+    const regen = spec.regeneration;
+    for (const g of (Array.isArray(regen) ? regen : (regen ? [regen] : []))) {
+      if (g && g.amount != null) addRegen({ amount: g.amount, bypass: g.bypass, from: sourceKey });
+    }
     notifyChanged();
   }
 
   function clearSource(sourceKey) {
-    for (const row of rows()) {
+    for (const row of riderRows().concat(drRows(), regenRows())) {
       if (row.dataset.from === sourceKey) row.remove();
     }
   }
 
   // Every source key currently owning at least one row. Lets a caller sweep by
-  // prefix ("race:*") rather than having to remember which race it applied —
-  // a rename or a reload between apply and remove otherwise strands rows that
+  // prefix ("race:*") rather than having to remember which race it applied — a
+  // rename or a reload between apply and remove otherwise strands rows that
   // nothing will ever clean up.
   function sourceKeys() {
     const out = new Set();
-    for (const row of rows()) {
+    for (const row of riderRows().concat(drRows(), regenRows())) {
       if (row.dataset.from) out.add(row.dataset.from);
     }
     return Array.from(out);
   }
 
   function notifyChanged() {
+    syncLegacyDR();
     document.dispatchEvent(new Event('defense-riders-changed'));
     // Riders are display-and-publish only today (no bonus-layer effects), but
     // the recalc keeps any future consumer honest and costs nothing here.
@@ -230,89 +418,126 @@ const DefenseRiders = (function () {
 
   // ---- build --------------------------------------------------------------
 
-  function build() {
-    const host = list();
-    if (!host) return;
-    host.innerHTML = '';
-    seq = 0;
-
-    let dl = document.getElementById('defense-rider-types');
-    if (!dl) {
-      dl = document.createElement('datalist');
-      dl.id = 'defense-rider-types';
-      // No `label` attributes — Firefox renders them as visible suggestion
-      // text, which makes a picker look broken (the soulmeld lesson).
-      const seen = new Set();
-      for (const v of ENERGY_TYPES.concat(IMMUNITY_SUGGESTIONS)) {
-        if (seen.has(v)) continue;
-        seen.add(v);
-        const opt = document.createElement('option');
-        opt.value = v;
-        dl.appendChild(opt);
-      }
-      document.body.appendChild(dl);
+  function datalist(id, values) {
+    let dl = byId(id);
+    if (dl) return;
+    dl = document.createElement('datalist');
+    dl.id = id;
+    // No `label` attributes — Firefox renders them as visible suggestion text,
+    // which makes a picker look broken (the soulmeld lesson).
+    const seen = new Set();
+    for (const v of values) {
+      if (seen.has(v)) continue;
+      seen.add(v);
+      const opt = document.createElement('option');
+      opt.value = v;
+      dl.appendChild(opt);
     }
+    document.body.appendChild(dl);
+  }
 
+  // A hand-edit hands the row over to the player: the source marker goes, so a
+  // later race change stops managing it. Same contract as every other
+  // auto-filled field on the sheet.
+  function wireList(host, rowSel, removeCls) {
+    if (!host || host.dataset.wired) return;
+    host.dataset.wired = '1';
     host.addEventListener('change', (e) => {
-      const row = e.target.closest('.defense-rider-row');
+      const row = e.target.closest(rowSel);
       if (!row) return;
-      if (e.target.classList.contains('dr-kind')) syncRow(row);
-      // A hand-edit hands the row over to the player: the source marker goes,
-      // so a later race change stops managing it. Same contract as every other
-      // auto-filled field on the sheet.
+      if (e.target.classList.contains('rider-kind')) syncRow(row);
       if (e.isTrusted) delete row.dataset.from;
       notifyChanged();
     });
     host.addEventListener('input', (e) => {
-      const row = e.target.closest('.defense-rider-row');
+      const row = e.target.closest(rowSel);
       if (row && e.isTrusted) delete row.dataset.from;
     });
     host.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('dr-remove')) return;
-      e.target.closest('.defense-rider-row').remove();
+      if (!e.target.classList.contains(removeCls)) return;
+      e.target.closest(rowSel).remove();
       notifyChanged();
     });
+  }
 
-    const addBtn = document.getElementById('defense-riders-add');
-    if (addBtn && !addBtn.dataset.wired) {
-      addBtn.dataset.wired = '1';
-      addBtn.addEventListener('click', () => { addRow(); notifyChanged(); });
+  function wireAdd(id, fn) {
+    const btn = byId(id);
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => { fn(); notifyChanged(); });
+  }
+
+  function build() {
+    const host = riderList();
+    if (!host) return;
+    host.innerHTML = '';
+    if (drList()) drList().innerHTML = '';
+    if (regenList()) regenList().innerHTML = '';
+    seq = 0;
+
+    datalist('defense-rider-types', ENERGY_TYPES.concat(IMMUNITY_SUGGESTIONS));
+    datalist('dr-bypass-types', BYPASS_SUGGESTIONS);
+
+    wireList(host, '.defense-rider-row', 'rider-remove');
+    wireList(drList(), '.dr-entry-row', 'dr-remove');
+    wireList(regenList(), '.regen-entry-row', 'regen-remove');
+    wireAdd('defense-riders-add', () => addRow());
+    wireAdd('dr-entries-add', () => addDR());
+    wireAdd('regen-entries-add', () => addRegen());
+
+    const legacy = byId('damage-reduction');
+    if (legacy && !legacy.dataset.wired) {
+      legacy.dataset.wired = '1';
+      legacy.addEventListener('input', syncLegacyDR);
     }
+    syncLegacyDR();
   }
 
   // ---- save / load --------------------------------------------------------
 
   function collectData() {
     return {
-      _defense_riders: rows().map(readRow).filter(r => r.type),
-      'fast-healing': ($('#fast-healing') || {}).value || '',
-      'regeneration-amount': ($('#regeneration-amount') || {}).value || '',
-      'regeneration-bypass': ($('#regeneration-bypass') || {}).value || '',
+      _defense_riders: riderRows().map(readRider).filter(r => r.type),
+      _dr_entries: drRows().map(readDR).filter(d => d.amount != null),
+      _regeneration: regenRows().map(readRegen).filter(g => g.amount != null),
+      'fast-healing': (byId('fast-healing') || {}).value || '',
     };
   }
 
   function loadData(data) {
     build();
-    // Defensive default: a save written before this module existed has no
-    // `_defense_riders`, and must load as an empty list rather than as an
-    // error. Its rider prose stays in the notes box, and the publisher's
-    // `notes_may_contain_riders` flag is what keeps that visible.
-    const saved = Array.isArray(data && data._defense_riders) ? data._defense_riders : [];
-    for (const r of saved) {
-      if (!r || !r.type) continue;
-      addRow({ kind: r.kind, type: r.type, amount: r.amount, from: r.from || null });
+    // Defensive defaults: a save written before this module existed has none of
+    // these keys and must load as empty rather than as an error. Its rider
+    // prose stays in the notes box, and `notes_may_contain_riders` keeps that
+    // visible to anything reading the sheet.
+    const d = data || {};
+    for (const r of (Array.isArray(d._defense_riders) ? d._defense_riders : [])) {
+      if (r && r.type) addRow({ kind: r.kind, type: r.type, amount: r.amount, from: r.from || null });
     }
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
-    set('fast-healing', data && data['fast-healing']);
-    set('regeneration-amount', data && data['regeneration-amount']);
-    set('regeneration-bypass', data && data['regeneration-bypass']);
+    for (const e of (Array.isArray(d._dr_entries) ? d._dr_entries : [])) {
+      if (e && e.amount != null) addDR(e);
+    }
+    for (const g of (Array.isArray(d._regeneration) ? d._regeneration : [])) {
+      if (g && g.amount != null) addRegen(g);
+    }
+    const fh = byId('fast-healing');
+    if (fh) fh.value = d['fast-healing'] ?? '';
+    // Legacy single-regeneration keys (this module's own first shape, one day
+    // old). Migrated forward rather than dropped — old saves outlast every
+    // refactor, including a same-week one.
+    if (!(Array.isArray(d._regeneration) && d._regeneration.length)) {
+      const amt = intOrNull(d['regeneration-amount']);
+      if (amt != null) addRegen({ amount: amt, bypass: d['regeneration-bypass'] || '' });
+    }
+    // Runs LAST so it can see whether structured rows already arrived.
+    migrateLegacyDR();
   }
 
   return {
-    build, addRow, collectData, loadData,
-    getStructured, notesMayContainRiders,
+    build, addRow, addDR, addRegen, collectData, loadData,
+    getStructured, notesMayContainRiders, drText,
     applyFromSource, clearSource, sourceKeys,
-    // Exposed for tests and for the publisher's DR parse.
+    parseDRText, migrateLegacyDR,
     NOTE_RIDER_RE,
   };
 })();

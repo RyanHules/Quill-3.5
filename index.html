@@ -533,7 +533,13 @@
             <div class="field"><label>Touch AC</label><span id="ac-touch" class="calc-field">10</span></div>
             <div class="field"><label>Flat-Footed AC</label><span id="ac-flatfooted" class="calc-field">10</span></div>
             <div class="field"><label>Spell Resistance</label><input type="number" id="spell-resistance" min="0"></div>
-            <div class="field"><label>Damage Reduction</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
+            <!-- Legacy free-text DR. Structured DR rows live below; this box
+                 holds only what could not be migrated automatically (a string
+                 like "see SA" that is a pointer rather than a value), and
+                 hides itself the moment it is empty — which is the end state
+                 for every character. Kept so a migration can never silently
+                 drop something a player typed. -->
+            <div class="field legacy-dr-field" style="display:none" title="Unmigrated damage-reduction text. The structured DR rows below are the live field; move this across by hand and this box disappears."><label>DR (unmigrated text)</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
             <div class="field" title="Percentage chance an incoming attack misses entirely (before the to-hit roll is compared to AC). Sources: concealment (20%), total concealment (50%), incorporeal (50% vs non-magic), blink (50%), mirror image, displacement (50%), etc. Stack via the highest single source — they don't add. Enter as a percentage (e.g. 20 for 20%) or as multiple sources separated by / (e.g. 50/20 → highest wins at 50)."><label>Miss Chance %</label><input type="text" id="ac-miss-chance" value="" class="misc-expr" placeholder="e.g. 20 or 50/20"></div>
           </div>
           <!-- Structured defensive riders (defense-riders.js). Energy
@@ -546,22 +552,30 @@
           <div class="field defense-riders-block" style="margin-top:0.5rem">
             <label title="Energy resistance (Resist 5 fire), immunities (poison, mind-affecting), and vulnerabilities (+50% damage from a type). Auto-filled from an applied race and removed with it; hand-edit a row and it becomes yours. Damage Reduction and Spell Resistance keep their own fields above.">Defensive Riders</label>
             <div id="defense-riders-list"></div>
+            <button type="button" id="defense-riders-add" class="btn-small">+ Add rider</button>
+
+            <label class="defense-sub-label" title="RAW (DMG p.292): DR from several sources does NOT stack — for each incoming attack the best DR that attack fails to bypass applies, so DR 10/silver + DR 5/evil reduces a plain weapon by 10, a silver one by 5, and a silvered unholy one by nothing. Tick `stacks` only on a source that explicitly says it does (Iron Ward Diamond, Berserker Strength, Dragonward, the Armor-as-DR variant); those add on top of the winner.">Damage Reduction</label>
+            <div id="dr-entries-list"></div>
+            <button type="button" id="dr-entries-add" class="btn-small">+ Add DR</button>
+
+            <label class="defense-sub-label" title="Hit points regained each round. Regeneration converts lethal damage to nonlethal except from its bypass types; fast healing does not convert anything. Several regenerations with different bypasses can coexist — a troll's acid-and-fire plus a template's.">Regeneration &amp; Fast Healing</label>
+            <div id="regen-entries-list"></div>
             <div class="defense-riders-controls">
-              <button type="button" id="defense-riders-add" class="btn-small">+ Add rider</button>
-              <div class="field field-sm" title="Hit points regained each round. Unlike regeneration, fast healing does not convert lethal damage."><label>Fast Healing</label><input type="number" id="fast-healing" min="0"></div>
-              <div class="field field-sm" title="Hit points regained each round; damage is converted to nonlethal except from the bypass types."><label>Regeneration</label><input type="number" id="regeneration-amount" min="0"></div>
-              <div class="field field-sm" title="Damage types that bypass regeneration and deal normal damage (e.g. acid, fire)."><label>Regen bypassed by</label><input type="text" id="regeneration-bypass" placeholder="e.g. acid, fire"></div>
+              <button type="button" id="regen-entries-add" class="btn-small">+ Add regeneration</button>
+              <div class="field field-sm" title="Hit points regained each round. Unlike regeneration, fast healing does not convert lethal damage to nonlethal."><label>Fast Healing</label><input type="number" id="fast-healing" min="0"></div>
             </div>
           </div>
-          <!-- Catch-all defense notes — situational immunities, layered DR
-               that doesn't fit the equipment row, ongoing buffs that affect
-               defenses, regeneration triggers, etc. Auto-expands; round-trips
-               via Character.save/load. Still authoritative for anything the
-               structured riders above don't model. -->
+          <!-- Catch-all defense notes. The placeholder and tooltip were
+               rewritten on 2026-08-20: they used to invite exactly the things
+               that now have structured fields (resistances, immunities, DR,
+               regeneration), which would have kept feeding prose into a box
+               whose contents nothing downstream can read. What belongs here now
+               is only what the fields above genuinely cannot hold — CONDITIONAL
+               riders, percentages, and ongoing buffs. -->
           <div class="field" style="margin-top:0.5rem">
-            <label title="Free-form notes for defensive layers that don't fit the structured fields above — situational immunities (mind-affecting / poison / cold), layered DR sources, ongoing buffs (mage armor, shield, barkskin), energy resistance specifics, regeneration triggers + bypass damage types, fast healing notes, fortification %, etc.">Defense Notes</label>
+            <label title="For defensive layers the structured fields above cannot hold: CONDITIONAL riders (DR 2/— only vs the Air subtype; cold resistance only while raging), fortification and miss-chance percentages, ongoing buffs (mage armor, shield, barkskin) and when they expire, and anything situational. Flat resistances, immunities, vulnerabilities, DR and regeneration belong in the fields above — anything left in here is invisible to everything that reads this sheet.">Defense Notes</label>
             <textarea id="ac-defense-notes" class="auto-expand" rows="2"
-                      placeholder="e.g. DR 5/cold iron (after Endure Elements), Fire resist 10, immune to mind-affecting, 25% fortification vs crits, regen 2 (bypassed by acid + fire)"></textarea>
+                      placeholder="Situational only — e.g. DR 2/— vs Air subtype, cold resist 10 while raging, 25% fortification vs crits, mage armor until dusk. (Flat resistances, immunities, DR and regeneration go in the fields above.)"></textarea>
           </div>
           <!-- Auto-derived situational AC modifiers from race/template
                (structured `bonuses`) — read-only; applied at point of use. -->

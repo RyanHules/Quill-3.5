@@ -7850,13 +7850,43 @@ test('live: defensive riders publish structured, and absence is not "none"', () 
     'live-publish.js#riders must return {} (omitting the keys) when the ' +
     'module is unavailable — empty arrays would claim "none".');
 
-  // DR keeps its verbatim string; the parse rides alongside and may be null.
-  assert(/damage_reduction:\s*txt\('damage-reduction'\)/.test(pub),
-    'the verbatim DR string must still be published unchanged.');
-  const drFn = extractFunctionBody(pub, 'parsedDR');
+  // DR is structured with a per-entry `stacks` flag, and the sheet must NOT
+  // resolve it to a single number: RAW is "best DR the attack fails to bypass",
+  // which depends on what the attack is made of — something only the consumer
+  // knows. A resolved figure would be wrong for most attacks.
+  assert(/damage_reduction:\s*s\.damage_reduction/.test(pub),
+    'live-publish must publish the structured DR entries.');
+  assert(/damage_reduction_text/.test(pub),
+    'live-publish must also ship the books\' own notation for anything that ' +
+    'just wants to print it.');
+  assert(/\bstacks\b/.test(mod),
+    'DR entries must carry a `stacks` flag — the default is non-stacking ' +
+    '(DMG p.292) but eight DB sources explicitly override it.');
+
+  // The legacy free-text migration must refuse rather than half-parse, and
+  // must never overwrite rows the player already has.
+  const drFn = extractFunctionBody(mod, 'parseDRText');
   assert(drFn && /return null/.test(drFn),
-    'parsedDR must return null rather than a partial structure on anything ' +
+    'parseDRText must return null rather than a partial structure on anything ' +
     'it cannot fully account for.');
+  const migFn = extractFunctionBody(mod, 'migrateLegacyDR');
+  assert(migFn && /drRows\(\)\.length/.test(migFn),
+    'migrateLegacyDR must bail when structured rows already exist — it must ' +
+    'never overwrite something the player entered.');
+
+  // LOAD ORDER. character.js owns #damage-reduction, and migrateLegacyDR reads
+  // that field's live value — so Character.loadData must have populated it
+  // before DefenseRiders.loadData runs. Reverse them and the migration
+  // silently does nothing on every load: no error, no rows, and the DR quietly
+  // stays free text forever.
+  const appSrc = readSource('app.js');
+  const loadBody = extractFunctionBody(appSrc, 'loadData');
+  const iChar = loadBody.indexOf('Character.loadData');
+  const iRiders = loadBody.indexOf('DefenseRiders.loadData');
+  assert(iChar >= 0 && iRiders >= 0, 'both loaders must be wired in app.js#loadData');
+  assert(iChar < iRiders,
+    'Character.loadData must run BEFORE DefenseRiders.loadData — the legacy ' +
+    'DR migration reads #damage-reduction, which character.js populates.');
 });
 
 test('live: the tab refuses a field the player is editing', () => {

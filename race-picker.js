@@ -273,6 +273,15 @@
       damage_reduction: Array.isArray(parsed.damage_reduction) ? parsed.damage_reduction : null,
       immunities: Array.isArray(parsed.immunities) ? parsed.immunities : null,
       resistances: Array.isArray(parsed.resistances) ? parsed.resistances : null,
+      // Added 2026-08-20 with the structured rider store. These two were absent
+      // from this blob, so a race carrying them handed over `undefined` and the
+      // data was dropped silently — the DB has both fields and nothing here was
+      // reading them.
+      vulnerabilities: Array.isArray(parsed.vulnerabilities) ? parsed.vulnerabilities : null,
+      // The DB writes regeneration as a single {amount, bypass} object, not a
+      // list; the rider store accepts either and normalises.
+      regeneration: (parsed.regeneration && typeof parsed.regeneration === 'object')
+        ? parsed.regeneration : null,
       // Racial natural-armor bonus as a first-class integer (the DB carries
       // it as top-level `natural_armor` on 58 races today). Preferred over the
       // legacy bonuses-row / trait-text parse in the NA-apply block below — it
@@ -418,7 +427,11 @@
     if (race.spell_resistance != null) {
       raceSetOwned('spell-resistance', String(race.spell_resistance), 'input', true);
     }
-    if (race.damage_reduction && race.damage_reduction.length) {
+    // DR only goes to the legacy text box when the structured store is absent
+    // — otherwise it would be written twice, and two writers for one number is
+    // the collision the ownership split exists to prevent.
+    if (race.damage_reduction && race.damage_reduction.length
+        && typeof DefenseRiders === 'undefined') {
       const dr = race.damage_reduction
         .map(d => `${d.amount}/${d.bypass || '—'}`).join(', ');
       raceSetOwned('damage-reduction', dr, 'input');
@@ -430,6 +443,8 @@
         resistances: race.resistances,
         immunities: race.immunities,
         vulnerabilities: race.vulnerabilities,
+        damage_reduction: race.damage_reduction,
+        regeneration: race.regeneration,
       });
     } else {
       // No structured store on this page (older cached module set) — fall back

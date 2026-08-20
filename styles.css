@@ -4522,10 +4522,29 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   align-items: center;
   gap: 0.35rem;
 }
-.defense-rider-row .dr-kind { flex: 0 0 8.5rem; }
-.defense-rider-row .dr-amount { flex: 0 0 4rem; }
-.defense-rider-row .dr-type { flex: 1 1 auto; min-width: 6rem; }
-.defense-rider-row .dr-remove {
+#dr-entries-list, #regen-entries-list {
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.dr-entry-row, .regen-entry-row {
+  display: flex; align-items: center; gap: 0.35rem;
+}
+.defense-rider-row .rider-kind { flex: 0 0 8.5rem; }
+.defense-rider-row .rider-amount { flex: 0 0 4rem; }
+.defense-rider-row .rider-type { flex: 1 1 auto; min-width: 6rem; }
+.dr-entry-row .dr-amount, .regen-entry-row .regen-amount { flex: 0 0 4rem; }
+.dr-entry-row .dr-bypass, .regen-entry-row .regen-bypass { flex: 1 1 auto; min-width: 6rem; }
+.dr-slash { flex: 0 0 auto; opacity: 0.7; }
+.regen-sep { flex: 0 0 auto; opacity: 0.7; font-size: 0.85em; white-space: nowrap; }
+.dr-stacks-label {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 0.2rem;
+  font-size: 0.82em; opacity: 0.85; white-space: nowrap; cursor: help;
+}
+.defense-sub-label {
+  display: block; margin-top: 0.6rem; cursor: help;
+}
+.defense-rider-row .rider-remove,
+.dr-entry-row .dr-remove,
+.regen-entry-row .regen-remove {
   flex: 0 0 auto;
   background: transparent;
   border: 1px solid #533;
@@ -4535,7 +4554,9 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   padding: 0 0.4rem;
   line-height: 1.5;
 }
-.defense-rider-row .dr-remove:hover { background: #4a2626; color: #fff; }
+.defense-rider-row .rider-remove:hover,
+.dr-entry-row .dr-remove:hover,
+.regen-entry-row .regen-remove:hover { background: #4a2626; color: #fff; }
 .defense-riders-controls {
   display: flex;
   flex-wrap: wrap;

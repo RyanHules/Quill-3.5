@@ -3782,22 +3782,69 @@
     expect(after.vulnerabilities.join(','), 'cold iron',
       'LB7: the hand-added rider survived the race change');
 
-    // Round trip.
+    // DR entries + several regenerations with DIFFERENT bypasses, which is the
+    // case a single amount/bypass pair cannot hold.
+    DefenseRiders.addDR({ amount: 10, bypass: 'cold iron' });
+    DefenseRiders.addDR({ amount: 5, bypass: null });
+    DefenseRiders.addDR({ amount: 2, bypass: 'magic', stacks: true });
+    DefenseRiders.addRegen({ amount: 5, bypass: 'acid, fire' });
+    DefenseRiders.addRegen({ amount: 3, bypass: 'sonic' });
     $('#fast-healing').value = '3';
-    $('#regeneration-amount').value = '5';
-    $('#regeneration-bypass').value = 'acid, fire';
+
+    const dr = DefenseRiders.getStructured().damage_reduction;
+    expect(dr.length, 3, 'LB7: three DR entries');
+    expect(dr[1].bypass, null, 'LB7: a blank bypass is null, not "" — 5/— means nothing bypasses it');
+    expect(dr[2].stacks, true, 'LB7: the stacks flag survives per entry');
+    expect(dr[0].stacks, false, 'LB7: and defaults to false (DMG p.292 is non-stacking)');
+    expect(DefenseRiders.drText(), '10/cold iron, 5/—, 2/magic',
+      'LB7: the books\' notation renders from the structure');
+
+    // Round trip.
     const blob = DefenseRiders.collectData();
     $('#defense-riders-list').innerHTML = '';
+    $('#dr-entries-list').innerHTML = '';
+    $('#regen-entries-list').innerHTML = '';
     $('#fast-healing').value = '';
-    $('#regeneration-amount').value = '';
-    $('#regeneration-bypass').value = '';
     DefenseRiders.loadData(blob);
     await wait(150);
     const rt = DefenseRiders.getStructured();
     expect(rt.vulnerabilities.join(','), 'cold iron', 'LB7: riders round-trip');
     expect(rt.fast_healing, 3, 'LB7: fast healing round-trips as a number');
-    expect(rt.regeneration && rt.regeneration.bypass, 'acid, fire',
-      'LB7: regeneration bypass round-trips');
+    expect(rt.damage_reduction.length, 3, 'LB7: DR entries round-trip');
+    expect(rt.damage_reduction[2].stacks, true, 'LB7: and so does the stacks flag');
+    expect(rt.regeneration.length, 2, 'LB7: BOTH regenerations survive');
+    expect(rt.regeneration.map(g => g.bypass).join('|'), 'acid, fire|sonic',
+      'LB7: each regeneration keeps its own bypass');
+
+    // Legacy free-text DR migrates into rows, and an unparseable one does NOT
+    // vanish — it stays in the box so nothing the player typed is lost.
+    //
+    // NB the load ORDER is load-bearing and reproduced here on purpose:
+    // character.js owns #damage-reduction and app.js runs Character.loadData
+    // BEFORE DefenseRiders.loadData, so by migration time the field already
+    // holds the saved string. Calling DefenseRiders.loadData alone migrates
+    // nothing, which is what this test did on its first run — the code was
+    // right and the test was not driving the real path. A static guard in
+    // test_pickers.js pins the ordering.
+    const loadWithLegacyDR = async (drString) => {
+      $('#damage-reduction').value = drString;      // what Character.loadData does
+      DefenseRiders.loadData({ 'damage-reduction': drString });
+      await wait(120);
+    };
+    await loadWithLegacyDR('15/CI; 10/evil');
+    const migrated = DefenseRiders.getStructured().damage_reduction;
+    expect(migrated.length, 2, 'LB7: a legacy DR string migrates to rows');
+    expect(migrated.map(d => d.amount).join(','), '15,10', 'LB7: with its amounts');
+    expect(($('#damage-reduction').value || '').trim(), '',
+      'LB7: and the legacy box empties once migrated');
+
+    await loadWithLegacyDR('see SA');
+    expect(DefenseRiders.getStructured().damage_reduction.length, 0,
+      'LB7: an unparseable DR string produces NO rows (never a half-parse)');
+    expectValue('#damage-reduction', 'see SA',
+      'LB7: and stays visible in the legacy box rather than being dropped');
+    expect($('#damage-reduction').closest('.legacy-dr-field').style.display !== 'none', true,
+      'LB7: the legacy box is SHOWN while it still holds something');
 
     // An OLD save has no _defense_riders at all and must load as empty, not
     // throw — the field is new and every existing character predates it.
