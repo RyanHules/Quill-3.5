@@ -558,7 +558,22 @@ const Character = (function () {
       const enhAtk = int(entry.querySelector(".dmg-enh")?.value) || 0;
       const coPenalty = (typeof CombatOptions !== "undefined")
         ? CombatOptions.attackPenalty() : 0;
-      const total = bab1 + atkSizeMod + abilMod + misc + focus + enhAtk + coPenalty;
+      // Soulmeld attack effects, filtered by this row's fighting style for the
+      // same reason the damage side filters: Dread Carapace's penalty is a
+      // natural-weapon penalty and must not touch a longsword.
+      let meldAtk = 0;
+      if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getWeaponMods) {
+        const style = entry.querySelector(".dmg-style")?.value || "one-hand";
+        try { meldAtk = SoulmeldEffects.getWeaponMods(style).attack || 0; }
+        catch (e) { meldAtk = 0; }
+      }
+      const total = bab1 + atkSizeMod + abilMod + misc + focus + enhAtk + coPenalty + meldAtk;
+      const meldEl = entry.querySelector(".atk-calc-meld");
+      const meldTerm = entry.querySelector(".atk-calc-meld-term");
+      const meldOp = entry.querySelector(".atk-calc-meld-op");
+      if (meldEl) meldEl.textContent = fmt(meldAtk);
+      if (meldTerm) meldTerm.style.display = meldAtk ? "" : "none";
+      if (meldOp) meldOp.style.display = meldAtk ? "" : "none";
       const coEl = entry.querySelector(".atk-calc-co");
       const coTerm = entry.querySelector(".atk-calc-co-term");
       const coOp = entry.querySelector(".atk-calc-co-op");
@@ -757,6 +772,8 @@ const Character = (function () {
         <span class="atk-calc-term atk-calc-focus-term" style="display:none" title="Weapon Focus / Greater Weapon Focus bonus for this weapon"><span class="atk-calc-k">Focus</span><span class="calc-field atk-calc-focus">+0</span></span>
         <span class="atk-calc-op atk-calc-enh-op" style="display:none">+</span>
         <span class="atk-calc-term atk-calc-enh-term" style="display:none" title="Weapon enhancement bonus — the SAME field as the damage row's Enh below. Entered once, paid to both."><span class="atk-calc-k">Enh</span><span class="calc-field atk-calc-enh">+0</span></span>
+        <span class="atk-calc-op atk-calc-meld-op" style="display:none">+</span>
+        <span class="atk-calc-term atk-calc-meld-term" style="display:none" title="Soulmeld effects that apply to this weapon, from the essentia invested in them."><span class="atk-calc-k">Meld</span><span class="calc-field atk-calc-meld">+0</span></span>
         <span class="atk-calc-op atk-calc-co-op" style="display:none">+</span>
         <span class="atk-calc-term atk-calc-co-term" style="display:none" title="Power Attack + Combat Expertise, declared in Combat Options. Heedless Charge moves the Power Attack half onto AC instead of the attack roll."><span class="atk-calc-k">Options</span><span class="calc-field atk-calc-co">+0</span></span>
         <span class="atk-calc-op">=</span>

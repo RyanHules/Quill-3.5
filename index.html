@@ -1059,6 +1059,10 @@
       // function that runs after DOMContentLoaded (addAttack, recalc), not at
       // module-evaluation time. Any position before app.js works.
       'combat-options.js', 'damage-calc.js',
+      // Structured soulmeld effects: turns essentia investment into numbers.
+      // Loads after equipment.js (whose slots and pips it reads) and after
+      // damage-calc.js, which asks it for per-weapon attack/damage mods.
+      'soulmeld-effects.js',
       'feat-prereqs.js', 'character-history.js', 'build-timeline.js',
       'audit.js',
       // save-backend.js — async storage abstraction over the Python

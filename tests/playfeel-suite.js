@@ -4159,6 +4159,103 @@
     await newCharacter();
   });
 
+  regression('SME1: essentia reaches the numbers, and only the right weapons', async () => {
+    if (typeof SoulmeldEffects === 'undefined') fail('SME1: soulmeld-effects.js not loaded');
+    await newCharacter();
+    await waitForDb();
+    $('#btn-add-attack').click();
+    await wait(250);
+    setAbilities({ STR: 18 });
+    set('bab-1', '8');
+    set('char-level', '12');
+    set('sm-base-capacity', '5');
+
+    // Shape Dread Carapace in the totem chakra and invest 5 essentia — the
+    // amount the book's OWN worked example uses, so the expected numbers come
+    // from Magic of Incarnum rather than from me.
+    const nameInput = $('#totem-sm-name');
+    nameInput.value = 'Dread Carapace';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(700);
+    set('totem-sm-extra-cap', '2');       // level band gives 3; +2 = the example's 5
+    await wait(400);
+    const pips = $$('#totem-essentia-pips .essentia-pip');
+    if (pips.length < 5) fail(`SME1: expected 5 essentia pips, got ${pips.length}`);
+    pips[4].click();
+    await wait(300);
+    expect(SoulmeldEffects.shaped()[0].essentia, 5, 'SME1: five essentia invested');
+
+    // Open the panel so its effects block exists, then state the soulmeld's
+    // rules: +1 damage / -1 attack base, and the same again per essentia,
+    // natural weapons only.
+    $('.slot-totem details').open = true;
+    const panel = $('.slot-totem details > .slot-sm-info');
+    if (panel.hidden) $('.slot-totem .btn-sm-info').click();
+    await wait(300);
+    const block = $('.slot-totem .sme-block');
+    if (!block) fail('SME1: no effects block in the soulmeld panel');
+    block.querySelector('.sme-add').click();
+    block.querySelector('.sme-add').click();
+    await wait(200);
+    const rows = block.querySelectorAll('.sme-row');
+    const fill = (r, base, per, target) => {
+      r.querySelector('.sme-base').value = base;
+      r.querySelector('.sme-per').value = per;
+      r.querySelector('.sme-target').value = target;
+      r.querySelector('.sme-applies').value = 'natural';
+    };
+    fill(rows[0], 1, 1, 'damage');
+    fill(rows[1], -1, -1, 'attack');
+    rows[1].querySelector('.sme-note').dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(300);
+
+    // MoI's own example: 5 essentia gives -6 attack and +6 damage with a
+    // non-bite natural weapon. If this ever reads +5/-5 the base point (the
+    // soulmeld's own, before any essentia) has been dropped.
+    const computed = SoulmeldEffects.computeAll();
+    expect(computed.length, 2, 'SME1: two effects computed');
+    expect(computed.find(e => e.target === 'damage').value, 6,
+      'SME1: +6 damage at 5 essentia — the book\'s worked example');
+    expect(computed.find(e => e.target === 'attack').value, -6,
+      'SME1: -6 attack at 5 essentia');
+
+    // It must reach the weapon — and ONLY a weapon it applies to.
+    const row = $('.attack-entry');
+    row.querySelector('.dmg-dice').value = '1d6';
+    row.querySelector('.dmg-auto-cb').checked = true;
+    row.querySelector('.dmg-style').value = 'natural';
+    window.recalcAll();
+    await wait(200);
+    expect(row.querySelector('.dmg-meld').textContent, '+6', 'SME1: reaches natural damage');
+    expect(row.querySelector('.atk-calc-meld').textContent, '-6', 'SME1: and natural attack');
+    expect(row.querySelector('.dmg-total').textContent, '1d6+10',
+      'SME1: Str +4 plus meld +6');
+
+    // THE guard. A natural-only soulmeld effect on a longsword would be wrong
+    // in a way nobody would notice until a fight.
+    row.querySelector('.dmg-style').value = 'two-hand';
+    window.recalcAll();
+    await wait(200);
+    expect(row.querySelector('.dmg-meld').textContent, '+0',
+      'SME1: a natural-only effect must NOT touch a manufactured weapon');
+    expect(row.querySelector('.atk-calc-meld').textContent, '+0',
+      'SME1: ...on the attack side either');
+
+    // Round trip.
+    row.querySelector('.dmg-style').value = 'natural';
+    window.recalcAll();
+    await wait(150);
+    const blob = appCollect();
+    expect(!!blob._soulmeld_effects['totem:0'], true, 'SME1: effects are saved');
+    appLoad(blob);
+    await wait(900);
+    expect(SoulmeldEffects.computeAll().length, 2, 'SME1: and survive a reload');
+    expect($('.attack-entry .dmg-total').textContent, '1d6+10',
+      'SME1: with the derived total intact');
+    await newCharacter();
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {

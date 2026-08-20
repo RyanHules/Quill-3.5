@@ -270,6 +270,14 @@
       bonuses.ac += CombatOptions.getActiveBonuses().ac || 0;
     }
 
+    // Soulmeld effects: essentia invested in a shaped soulmeld, turned into
+    // numbers. Only the AC-ish targets arrive here; attack and damage are read
+    // per-weapon by the damage calculator, which needs to know what KIND of
+    // weapon it is before deciding whether a natural-only effect applies.
+    if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveBonuses) {
+      bonuses.ac += SoulmeldEffects.getActiveBonuses().ac || 0;
+    }
+
     // Grapple-check feat bonus (Improved Grapple +4). Flat, folded into the
     // grapple total by character.js and shown as a labelled Feat component.
     bonuses.grapple = (typeof Feats !== "undefined" && Feats.getGrappleBonus)
@@ -345,6 +353,7 @@
       typeof Conditions !== "undefined" ? Conditions.collectData() : {},
       typeof DefenseRiders !== "undefined" ? DefenseRiders.collectData() : {},
       typeof CombatOptions !== "undefined" ? CombatOptions.collectData() : {},
+      typeof SoulmeldEffects !== "undefined" ? SoulmeldEffects.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
       typeof BookFilter !== "undefined" ? BookFilter.collectData() : {},
@@ -365,6 +374,7 @@
     if (typeof Conditions !== "undefined") Conditions.loadData(data);
     if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData(data);
     if (typeof CombatOptions !== "undefined") CombatOptions.loadData(data);
+    if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
     if (typeof HomebrewFilter !== "undefined") HomebrewFilter.loadData(data);
@@ -1000,6 +1010,7 @@
   if (typeof Conditions !== "undefined") Conditions.build();
   if (typeof DefenseRiders !== "undefined") DefenseRiders.build();
   if (typeof CombatOptions !== "undefined") CombatOptions.build();
+  if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.build();
   if (typeof Audit !== "undefined") Audit.build();
   if (typeof BuildTimeline !== "undefined") BuildTimeline.init();
 

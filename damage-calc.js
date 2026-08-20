@@ -150,6 +150,8 @@ const DamageCalc = (function () {
         <span class="atk-calc-term" title="Weapon enhancement bonus. Feeds BOTH this equation and the attack bonus above."><span class="atk-calc-k">Enh</span><input type="text" class="dmg-enh" value="${esc(data.enh || '')}" placeholder="0"></span>
         <span class="atk-calc-op dmg-pa-op" style="display:none">+</span>
         <span class="atk-calc-term dmg-pa-term" style="display:none" title="Power Attack, declared once in Combat Options and multiplied by this weapon's fighting style (×2 two-handed, none for a light or off-hand weapon)."><span class="atk-calc-k">PA</span><span class="calc-field dmg-pa">+0</span></span>
+        <span class="atk-calc-op dmg-meld-op" style="display:none">+</span>
+        <span class="atk-calc-term dmg-meld-term" style="display:none" title="Soulmeld effects that apply to this weapon, computed from the essentia invested in them. Set them up in a soulmeld's ⓘ panel on the Equipment tab."><span class="atk-calc-k">Meld</span><span class="calc-field dmg-meld">+0</span></span>
         <span class="atk-calc-op dmg-spec-op" style="display:none">+</span>
         <span class="atk-calc-term dmg-spec-term" style="display:none" title="Weapon Specialization / Greater Weapon Specialization for this weapon, read from the Feats tab."><span class="atk-calc-k">Spec</span><span class="calc-field dmg-spec">+0</span></span>
         <span class="atk-calc-op">+</span>
@@ -267,7 +269,17 @@ const DamageCalc = (function () {
     }
     setTerm(row, '.dmg-spec', '.dmg-spec-term', '.dmg-spec-op', spec);
 
-    const flat = abilTotal + enh + pa + spec + misc;
+    // Soulmeld effects, filtered by what this weapon IS — Dread Carapace's
+    // damage applies to natural weapons and to nothing else, so the style has
+    // to be consulted before the number is allowed anywhere near the total.
+    let meld = 0;
+    if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getWeaponMods) {
+      try { meld = SoulmeldEffects.getWeaponMods(style[0]).damage || 0; }
+      catch (e) { meld = 0; }
+    }
+    setTerm(row, '.dmg-meld', '.dmg-meld-term', '.dmg-meld-op', meld);
+
+    const flat = abilTotal + enh + pa + spec + meld + misc;
     const dice = (row.querySelector('.dmg-dice').value || '').trim();
     let text = renderDamage(dice, flat);
 

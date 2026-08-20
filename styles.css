@@ -4565,6 +4565,30 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 }
 .dmg-abil-remove:hover, .dmg-abil-add:hover { background: #2a3850; color: #fff; }
 
+/* Soulmeld effects (soulmeld-effects.js) — structured, essentia-scaled rows
+   inside each soulmeld's ⓘ panel. */
+.sme-block { margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px solid #344; }
+.sme-head { font-size: 0.85em; font-weight: 600; color: #9ab; }
+.sme-sub { font-weight: 400; opacity: 0.65; font-style: italic; }
+.sme-rows { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.25rem 0; }
+.sme-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem; }
+.sme-row .sme-when { flex: 0 0 5.5rem; }
+.sme-row .sme-base, .sme-row .sme-per { flex: 0 0 3.2rem; }
+.sme-row .sme-target { flex: 0 0 9rem; }
+.sme-row .sme-applies { flex: 0 0 9rem; }
+.sme-row .sme-note { flex: 1 1 5rem; min-width: 4rem; }
+.sme-plus, .sme-per-label { flex: 0 0 auto; opacity: 0.6; font-size: 0.8em; }
+.sme-remove, .sme-add {
+  background: transparent; border: 1px solid #466; color: #9ad;
+  cursor: pointer; padding: 0 0.3rem; border-radius: 2px;
+  font-size: 0.8em; line-height: 1.4;
+}
+.sme-remove:hover, .sme-add:hover { background: #2a3850; color: #fff; }
+.sme-readout {
+  margin-top: 0.25rem; font-size: 0.82em; font-style: italic;
+  opacity: 0.85; color: #cba;
+}
+
 /* Damage riders — flaming, holy, energy enhancements. */
 .damage-riders-row { flex-wrap: wrap; gap: 0.3rem; }
 .dmg-riders { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
