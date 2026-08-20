@@ -3519,6 +3519,236 @@
     await SheetReports.remove(found.id);   // leave the store clean
   });
 
+  // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
+  //
+  // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers
+  // what the other mocks. That Python suite boots a real server and drives the
+  // protocol — deadlines, staleness, the allowlist, three-state outcomes — with
+  // a FAKE TAB standing in for the browser. These regressions are the mirror
+  // image: a fake server (none at all — `applyCommand` is pure DOM, no network)
+  // driving the REAL sheet, so they answer the one question the protocol suite
+  // structurally cannot: when a command lands, does the sheet actually move, and
+  // do the DERIVED numbers move with it?
+  //
+  // That question is the whole point of the bus. A write that sets an input and
+  // fails to cascade through recalcAll would pass every check in test_live_bus.py
+  // — the fake tab there reports whatever it likes — and would hand the rig a
+  // snapshot whose HP had changed and whose saves had not.
+
+  regression('LB1: an inbound write moves the raw field AND the derived numbers', async () => {
+    if (!window.LiveCommands) fail('LB1: live-commands.js not loaded');
+    await newCharacter();
+    setAbilities({ STR: 18, CON: 14, DEX: 10, WIS: 10 });
+    set('hp-total', '45');
+    set('hp-current', '45');
+    // Rage's ability bump comes from the Class Features numbers a Barbarian's
+    // class-picker apply would fill in; set them by hand so rage_active has
+    // something to fold in (a blank sheet rages for +0, which would make this
+    // test pass without proving anything).
+    set('rage-str-con', '4');
+    set('rage-will', '2');
+    set('rage-ac', '-2');
+    $('#rage-active').checked = false;
+    window.recalcAll();
+    await wait(120);
+
+    const before = {
+      str: $('#str-total').textContent.trim(),
+      ac: parseInt($('#ac-total').textContent, 10),
+      will: parseInt($('#will-total').textContent, 10),
+    };
+
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb1', source: 'playfeel', reason: 'LB1',
+      fields: { 'hp.current': 29, 'rage_active': true },
+    });
+    // Sampled BEFORE any wait: applyCommand is synchronous, so the flash class
+    // is on the element the instant it returns, and it self-removes on a timer.
+    // Asserting it after an await made this a race against FLASH_MS — and the
+    // harness shim that compresses long setTimeouts for hidden-tab runs shortens
+    // exactly that timer, so the test went red for a reason that had nothing to
+    // do with the sheet. Sample the instant, assert later.
+    const flashed = $('#hp-current').classList.contains('live-written');
+    await wait(150);
+
+    expect(r.applied.length, 2, 'LB1: both fields applied');
+    expect(r.rejected.length, 0, `LB1: nothing rejected (got ${JSON.stringify(r.rejected)})`);
+    // Raw field.
+    expectValue('#hp-current', '29', 'LB1: current HP took the written value');
+    // Derived. This is an OUTCOME assertion and deliberately path-agnostic: two
+    // mechanisms currently produce it (each field's dispatched `input` hits
+    // app.js's delegated recalc, and applyCommand calls recalcAll at the end),
+    // so disabling either one alone leaves this green. Verified by mutation on
+    // 2026-08-20 — worth stating, because an earlier version of this comment
+    // claimed the test isolated the explicit recalc, and it does not. What it
+    // guards is the thing that actually matters to a consumer: after a write,
+    // the derived numbers in the snapshot are right.
+    expect($('#str-total').textContent.trim(), '22',
+      `LB1: rage must fold +4 Str into the TOTAL (was ${before.str})`);
+    expect(parseInt($('#ac-total').textContent, 10), before.ac - 2,
+      'LB1: rage AC penalty reached the AC total');
+    expect(parseInt($('#will-total').textContent, 10), before.will + 2,
+      'LB1: rage morale bonus reached the Will save');
+    // Echo is read back AFTER the recalc, so it reports what the sheet holds.
+    expect(r.echo['hp.current'], 29, 'LB1: echo reports the post-recalc value');
+    expect(r.echo['rage_active'], true, 'LB1: echo reports the checkbox state');
+    // A number moving on its own must not be silent.
+    expect(flashed, true, 'LB1: a written field flashes (live-written class applied)');
+  });
+
+  regression('LB2: the player outranks the rig — a focused field is refused, not overwritten', async () => {
+    if (!window.LiveCommands) fail('LB2: live-commands.js not loaded');
+    // The Character tab must be VISIBLE: focus() on an element inside a hidden
+    // panel is a no-op, activeElement stays on <body>, and the guard under test
+    // never gets a chance to fire. Run in isolation this passed (whatever ran
+    // before happened to leave the right tab open); in a full run it went red
+    // for a reason that had nothing to do with the focus guard.
+    document.querySelector('.tab[data-tab="tab-character"]').click();
+    await wait(80);
+    set('hp-current', '29');
+    set('hp-temp', '0');
+    await wait(60);
+    $('#hp-current').focus();
+    // Assert the PRECONDITION separately. Without this, a focus() that silently
+    // fails makes the test assert nothing while still reporting a verdict — the
+    // difference between "the guard held" and "the guard was never asked".
+    if (document.activeElement !== $('#hp-current')) {
+      fail('LB2: could not focus #hp-current — precondition failed, guard untested');
+    }
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb2', fields: { 'hp.current': 1, 'hp.temp': 7 },
+    });
+    await wait(120);
+    $('#hp-current').blur();
+
+    expect(r.applied.join(','), 'hp.temp', 'LB2: only the unfocused field applied');
+    expect(r.rejected.length, 1, 'LB2: exactly one refusal');
+    expect(r.rejected[0].field, 'hp.current', 'LB2: the focused field is the refused one');
+    expectIncludes(r.rejected[0].reason, 'field-focused', 'LB2: refusal names the reason');
+    // The actual point: mid-keystroke overwrite did NOT happen.
+    expectValue('#hp-current', '29', 'LB2: the focused field kept the player\'s value');
+    expectValue('#hp-temp', '7', 'LB2: the other field still landed');
+  });
+
+  regression('LB3: a field this tab cannot place is refused, not silently dropped', async () => {
+    if (!window.LiveCommands) fail('LB3: live-commands.js not loaded');
+    // The server allowlist is what stops a caller writing nonsense; this is the
+    // OTHER half — a field the server blessed that this tab has no mapping for
+    // is a genuine divergence between the two lists, so it must surface as a
+    // refusal rather than as a no-op that reports success.
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb3', fields: { 'totally.made.up': 1, 'hp.nonlethal': 3 },
+    });
+    await wait(120);
+    expect(r.applied.join(','), 'hp.nonlethal', 'LB3: the real field applied');
+    expect(r.rejected.length, 1, 'LB3: the unmappable field was refused');
+    expectIncludes(r.rejected[0].reason, 'unknown-field', 'LB3: refusal names the divergence');
+    expect(Object.prototype.hasOwnProperty.call(r.echo, 'totally.made.up'), false,
+      'LB3: a refused field must not appear in the echo');
+  });
+
+  regression('LB4: conditions are all-or-nothing — one bad name changes nothing', async () => {
+    if (!window.LiveCommands) fail('LB4: live-commands.js not loaded');
+    const active = () => $$('.condition-toggle').filter(b => b.checked)
+      .map(b => b.dataset.condition).sort().join(',');
+
+    LiveCommands.applyCommand({ id: 'pf-lb4a', fields: { conditions: ['Shaken'] } });
+    await wait(150);
+    expect(active(), 'Shaken', 'LB4: the good write landed');
+    // conditions.js only refreshes its summary from its own loader — poking the
+    // checkboxes directly left them right and the summary blank (found in the
+    // browser 2026-08-20, invisible from outside the DOM).
+    expect(($('#conditions-summary').textContent || '').includes('Shaken'), true,
+      'LB4: the summary line refreshed, not just the checkboxes');
+
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb4b', fields: { conditions: ['Prone', 'Definitely Not A Condition'] },
+    });
+    await wait(150);
+    expect(r.applied.length, 0, 'LB4: the whole field was refused');
+    expectIncludes(r.rejected[0].reason, 'Definitely Not A Condition',
+      'LB4: the refusal names the offending condition');
+    // A partial apply would leave a state matching neither the request nor the
+    // prior state, and nothing downstream could tell.
+    expect(active(), 'Shaken', 'LB4: prior conditions untouched by the refused write');
+
+    LiveCommands.applyCommand({ id: 'pf-lb4c', fields: { conditions: [] } });
+    await wait(150);
+    expect(active(), '', 'LB4: an empty list clears them');
+  });
+
+  // `Spells` is a const-declared module, NOT a window property — `window.Spells`
+  // is undefined even when the module is loaded and working. Gate on the bare
+  // identifier via typeof. (Cost a red here on first run, and it is written down
+  // in my notes from the last time it cost one.)
+  async function addSpellcastingPanelWithSlots(lvl, perDayCount, label) {
+    if (typeof Spells === 'undefined') fail(`${label}: Spells module not loaded`);
+    Spells.addCaster('spellcasting', {});
+    await wait(300);
+    const panels = $$('[data-caster-type="spellcasting"]');
+    const panel = panels[panels.length - 1];
+    if (!panel || !panel.id) fail(`${label}: no spellcasting panel with an id`);
+    const perDay = panel.querySelector(`.sc-per-day[data-lvl="${lvl}"]`);
+    if (!perDay) fail(`${label}: no per-day input at level ${lvl}`);
+    perDay.value = String(perDayCount);
+    perDay.dispatchEvent(new Event('input', { bubbles: true }));
+    window.recalcAll();
+    await wait(150);
+    return panel;
+  }
+
+  regression('LB5: pool depletion reaches the computed remaining-slots field', async () => {
+    if (!window.LiveCommands) fail('LB5: live-commands.js not loaded');
+    const panel = await addSpellcastingPanelWithSlots(1, 4, 'LB5');
+
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb5', fields: { [`pools.spell_slots.${panel.id}.1.used`]: 2 },
+    });
+    await wait(200);
+    expect(r.applied.length, 1, `LB5: the slot write applied (${JSON.stringify(r.rejected)})`);
+    expect(panel.querySelector('.sc-used[data-lvl="1"]').value, '2', 'LB5: used slots written');
+    expect(panel.querySelector('.sc-remain[data-lvl="1"]').textContent.trim(), '2',
+      'LB5: remaining recomputed (4 per day - 2 used) — the recalc cascaded');
+
+    // A caster id that isn't on this sheet must say so precisely, not throw.
+    const bad = LiveCommands.applyCommand({
+      id: 'pf-lb5b', fields: { 'pools.spell_slots.caster-999.1.used': 1 },
+    });
+    expect(bad.applied.length, 0, 'LB5: unknown caster id applied nothing');
+    expectIncludes(bad.rejected[0].reason, 'caster-999', 'LB5: refusal names the missing panel');
+  });
+
+  regression('LB6: the sheet publishes pool CAPACITIES and never depletion (ownership split)', async () => {
+    if (!window.LivePublish) fail('LB6: live-publish.js not loaded');
+    // The split's whole point is one owner per number: the sheet hands over the
+    // ceiling, the consumer tracks what it has spent. Publishing `used`/`spent`
+    // would invite two writers for one quantity — so this asserts the ABSENCE of
+    // those keys anywhere under pools, which no static guard can see.
+    //
+    // Builds its OWN caster panel rather than reusing LB5's: a test that only
+    // passes when its neighbour ran first is the order-dependent fragility this
+    // suite has been bitten by before, and it fails in a way that blames the
+    // wrong code.
+    const panel = await addSpellcastingPanelWithSlots(1, 4, 'LB6');
+    const snap = LivePublish.snapshot();
+    if (!snap || !snap.pools) fail('LB6: snapshot carries no pools');
+    const mine = (snap.pools.spell_slots || []).find(s => s.id === panel.id);
+    if (!mine) fail(`LB6: this test's caster panel (${panel.id}) was not published`);
+    const lvl = (mine.levels || []).find(l => l.level === 1);
+    if (!lvl) fail('LB6: expected the level-1 row to be published');
+    expect(lvl.capacity, 4, 'LB6: capacity IS published (the sheet owns the ceiling)');
+    const asText = JSON.stringify(snap.pools);
+    expect(asText.includes('"used"'), false,
+      'LB6: `used` must never be published — the consumer owns depletion');
+    expect(asText.includes('"spent"'), false,
+      'LB6: `spent` must never be published — the consumer owns depletion');
+
+    // Leave the sheet clean. LB1/LB4/LB5 leave conditions, HP and caster panels
+    // behind, and these run last — a test that quietly hands its residue to
+    // whatever gets added after it is how order-dependent phantoms start.
+    await newCharacter();
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {

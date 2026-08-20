@@ -258,9 +258,25 @@
       touched.push({ field: field, target: target });
     });
 
-    // ONE recalc for the whole batch, after every field has landed. Per-field
-    // recalcs would publish intermediate states — a character at -3 HP for a
-    // frame because damage arrived before temp HP did.
+    // A final recalc after every field has landed.
+    //
+    // This is NOT the only recalc, and an earlier comment here claiming it was
+    // "one recalc for the whole batch" was wrong — measured 2026-08-20: app.js
+    // has a delegated `input` listener over the character / skills / equipment /
+    // spells / class-features tabs, so every `fire()` above already triggers a
+    // full recalc on its own. A five-field write costs SEVEN; a one-field write
+    // costs two. Every field this module can currently place lives inside one of
+    // those containers, which makes the call below redundant in practice today.
+    //
+    // It stays because it is the only thing that GUARANTEES the cascade: the
+    // delegated listener is scoped by tab container, so the first mapped field
+    // that lands outside one would otherwise write its value and quietly fail to
+    // recalculate — a snapshot with changed HP and unchanged saves, which is
+    // exactly the class of wrongness this whole bus exists to prevent. Cheap
+    // insurance, and idempotent.
+    //
+    // The redundancy is a real (small) cost on the hot path and is worth
+    // removing properly — see TODO. Not by deleting this line.
     if (applied.length) {
       try {
         if (typeof window.recalcAll === 'function') window.recalcAll();
