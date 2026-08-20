@@ -570,6 +570,104 @@
       return true;
     }
 
+    // Shared candidate-ROW acquisition. Both consumers start here and then
+    // post-process differently: refreshSpellList dedupes by NAME (it renders
+    // one entry per spell name, canonical printing wins) while
+    // computeCandidateIds dedupes by ID (it counts distinct spells per tag).
+    //
+    // WHY THIS EXISTS. These two carried near-identical copies of this
+    // cascade, and they had already drifted in three ways: only one selected
+    // e.school, only one had the componentFilter branch, only one had the
+    // typed-name branch. The missing component branch was a live bug — with a
+    // component-only filter, computeCandidateIds produced NO candidates, so
+    // every tag count read zero. Copy #2 is exactly how that happened, so
+    // there is now one cascade.
+    //
+    // BRANCH ORDER IS LOAD-BEARING. This is an if/else chain and the first
+    // matching filter decides which query runs; the order is preserved from
+    // refreshSpellList, with the typed-name branch (tag-count path only) last.
+    // A caller opts a branch out by passing that filter empty — the tag-count
+    // path passes tagF: null when it wants counts for OTHER tags, which is why
+    // the old `&& !ignoreTag` guard is no longer needed here.
+    function queryCandidateRows(f) {
+      const cls = f.cls;
+      const lvlFilter = f.lvlFilter;
+      const tagF = f.tagF;
+      const componentFilter = f.componentFilter || '';
+      const typed = f.typed || '';
+      const COLS = "e.id AS spell_id, e.name, e.school, e.version, " +
+                   "       e.source, b.publication_date ";
+      const FROM = "FROM entry e LEFT JOIN book b ON b.name = e.source ";
+      const ORDER = "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+                    "         b.publication_date DESC, e.name COLLATE NOCASE";
+
+      if (cls && canonical.has(cls) && lvlFilter && lvlFilter.min === lvlFilter.max) {
+        // Exact level + class — the indexed fast path.
+        return spellsFor(cls, lvlFilter.min);
+      }
+      if (cls && canonical.has(cls)) {
+        // Class set but level is a range or absent — union the per-level
+        // results across the filter range (or 0..9 if absent).
+        const lo = lvlFilter ? lvlFilter.min : 0;
+        const hi = lvlFilter ? lvlFilter.max : 9;
+        const seenIds = new Set();
+        const rows = [];
+        for (let l = lo; l <= hi; l++) {
+          for (const s of spellsFor(cls, l)) {
+            if (seenIds.has(s.spell_id)) continue;
+            seenIds.add(s.spell_id);
+            rows.push(s);
+          }
+        }
+        return rows;
+      }
+      if (lvlFilter) {
+        // No class, but a level (or range) — every spell with a class-level
+        // mapping in range. A spell can appear once per class entry; both
+        // callers dedupe below.
+        return DB.query(
+          "SELECT DISTINCT " + COLS +
+          "FROM entry e JOIN spell_class_level scl ON e.id = scl.entry_id " +
+          "LEFT JOIN book b ON b.name = e.source " +
+          "WHERE e.type = 'spell' AND scl.level BETWEEN ? AND ? " + ORDER,
+          [lvlFilter.min, lvlFilter.max]
+        );
+      }
+      if (tagF) {
+        // Tag-only. With positives, IN(...) over the positive id set is fast.
+        // With only negatives, query every spell and let the caller's per-row
+        // filter exclude — avoids a 4000-placeholder IN clause.
+        if (tagF.include) {
+          const ids = Array.from(tagF.include);
+          if (!ids.length) return [];
+          const placeholders = ids.map(() => '?').join(',');
+          return DB.query(
+            "SELECT " + COLS + FROM +
+            `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` + ORDER,
+            ids
+          );
+        }
+        return DB.query(
+          "SELECT " + COLS + FROM + "WHERE e.type = 'spell' " + ORDER);
+      }
+      if (componentFilter) {
+        // Component-only — query every spell; the caller's per-row component
+        // test narrows it (mirrors the all-negative tag path).
+        return DB.query(
+          "SELECT " + COLS + FROM + "WHERE e.type = 'spell' " + ORDER);
+      }
+      if (typed) {
+        // Name-only, used by the tag-count path when nothing else is set.
+        // Capped — the user is going to keep typing anyway.
+        return DB.query(
+          "SELECT " + COLS + FROM +
+          "WHERE e.type = 'spell' AND LOWER(e.name) LIKE ? " + ORDER + " LIMIT 2000",
+          [`%${typed}%`]
+        );
+      }
+      return [];
+    }
+
     function refreshSpellList() {
       const cls = normalizeClass(classInput.value);
       const lvlFilter = parseLevelFilter(levelInput.value);
@@ -596,85 +694,9 @@
       }
       // Filter is set — use the per-instance filtered datalist.
       spellInput.setAttribute('list', dlId);
-      // Build the candidate list. Class+level path uses spellsFor (fast,
-      // indexed via spell_class_level). Class-only / level-only / tag-only
-      // paths union across all (class, level) rows passing the filter.
-      let candidates = [];
-      if (cls && canonical.has(cls) && lvlFilter && lvlFilter.min === lvlFilter.max) {
-        // Exact level + class — the indexed fast path.
-        candidates = spellsFor(cls, lvlFilter.min);
-      } else if (cls && canonical.has(cls)) {
-        // Class set but level is a range or absent — union the per-level
-        // results across the filter range (or 0..9 if absent).
-        const lo = lvlFilter ? lvlFilter.min : 0;
-        const hi = lvlFilter ? lvlFilter.max : 9;
-        const seenIds = new Set();
-        for (let l = lo; l <= hi; l++) {
-          for (const s of spellsFor(cls, l)) {
-            if (seenIds.has(s.spell_id)) continue;
-            seenIds.add(s.spell_id);
-            candidates.push(s);
-          }
-        }
-      } else if (lvlFilter) {
-        // No class set, but level (or range) is — query all spells with
-        // any class-level mapping in range. Spell may appear multiple
-        // times if it has multiple class entries; the case-insensitive
-        // dedup below collapses those.
-        candidates = DB.query(
-          "SELECT DISTINCT e.id AS spell_id, e.name, e.school, e.version, " +
-          "       e.source, b.publication_date " +
-          "FROM entry e JOIN spell_class_level scl ON e.id = scl.entry_id " +
-          "LEFT JOIN book b ON b.name = e.source " +
-          "WHERE e.type = 'spell' AND scl.level BETWEEN ? AND ? " +
-          "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-          "         b.publication_date DESC, e.name COLLATE NOCASE",
-          [lvlFilter.min, lvlFilter.max]
-        );
-      } else if (tagF) {
-        // Tag-only path — no class, no level, just tag filter. With
-        // positives, IN(...) over the positive id set is fast. With
-        // only negatives, query every spell + let the per-row filter
-        // do the exclusion (avoids a 4000-placeholder IN clause).
-        if (tagF.include) {
-          const ids = Array.from(tagF.include);
-          if (ids.length) {
-            const placeholders = ids.map(() => '?').join(',');
-            candidates = DB.query(
-              "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
-              "       e.source, b.publication_date " +
-              "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-              `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
-              "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-              "         b.publication_date DESC, e.name COLLATE NOCASE",
-              ids
-            );
-          }
-        } else {
-          // All-negative: query every spell, let the loop exclude.
-          candidates = DB.query(
-            "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
-            "       e.source, b.publication_date " +
-            "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-            "WHERE e.type = 'spell' " +
-            "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-            "         b.publication_date DESC, e.name COLLATE NOCASE"
-          );
-        }
-      } else if (componentFilter) {
-        // Component-only path — no class / level / tag. Query every spell;
-        // the per-row component test below narrows it (mirrors the
-        // all-negative tag path).
-        candidates = DB.query(
-          "SELECT e.id AS spell_id, e.name, e.school, e.version, " +
-          "       e.source, b.publication_date " +
-          "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-          "WHERE e.type = 'spell' " +
-          "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-          "         b.publication_date DESC, e.name COLLATE NOCASE"
-        );
-      }
-      currentSpells = candidates;
+      // Candidate rows come from the shared cascade (see queryCandidateRows).
+      // No `typed` here: this path narrows via the datalist, not the query.
+      currentSpells = queryCandidateRows({ cls, lvlFilter, tagF, componentFilter });
       // Dedupe by case-insensitive name; prefer 3.5 over 3.0 since the
       // ORDER BY puts 3.5 rows first. Apply tag + book filters per-candidate
       // (any-printing, matching the existing tag behavior). The COMPONENT
@@ -806,69 +828,15 @@
       const typedRaw = spellInput.value.trim();
       const typed = applyName ? typedRaw.toLowerCase() : '';
 
-      let candidates = [];
-      if (cls && canonical.has(cls) && lvlFilter && lvlFilter.min === lvlFilter.max) {
-        candidates = spellsFor(cls, lvlFilter.min);
-      } else if (cls && canonical.has(cls)) {
-        const lo = lvlFilter ? lvlFilter.min : 0;
-        const hi = lvlFilter ? lvlFilter.max : 9;
-        const seenIds = new Set();
-        for (let l = lo; l <= hi; l++) {
-          for (const s of spellsFor(cls, l)) {
-            if (seenIds.has(s.spell_id)) continue;
-            seenIds.add(s.spell_id);
-            candidates.push(s);
-          }
-        }
-      } else if (lvlFilter) {
-        candidates = DB.query(
-          "SELECT DISTINCT e.id AS spell_id, e.name, e.source, " +
-          "       e.version, b.publication_date " +
-          "FROM entry e JOIN spell_class_level scl ON e.id = scl.entry_id " +
-          "LEFT JOIN book b ON b.name = e.source " +
-          "WHERE e.type = 'spell' AND scl.level BETWEEN ? AND ? " +
-          "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-          "         b.publication_date DESC, e.name COLLATE NOCASE",
-          [lvlFilter.min, lvlFilter.max]
-        );
-      } else if (tagF && !ignoreTag) {
-        if (tagF.include) {
-          const ids = Array.from(tagF.include);
-          if (ids.length) {
-            const placeholders = ids.map(() => '?').join(',');
-            candidates = DB.query(
-              "SELECT e.id AS spell_id, e.name, e.source, " +
-              "       e.version, b.publication_date " +
-              "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-              `WHERE e.type = 'spell' AND e.id IN (${placeholders}) ` +
-              "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-              "         b.publication_date DESC, e.name COLLATE NOCASE",
-              ids
-            );
-          }
-        } else {
-          // All-negative — query every spell + let the loop exclude.
-          candidates = DB.query(
-            "SELECT e.id AS spell_id, e.name, e.source, " +
-            "       e.version, b.publication_date " +
-            "FROM entry e LEFT JOIN book b ON b.name = e.source " +
-            "WHERE e.type = 'spell' " +
-            "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-            "         b.publication_date DESC, e.name COLLATE NOCASE"
-          );
-        }
-      } else if (typed && ignoreTag) {
-        // Tag-count case with only a name filter: scan all spells.
-        // The global spell-options datalist isn't a usable spell-id
-        // source, so query the DB.  Cap to a reasonable result count
-        // — the user is going to keep typing anyway.
-        candidates = DB.query(
-          "SELECT e.id AS spell_id, e.name, e.source, e.version " +
-          "FROM entry e WHERE e.type = 'spell' " +
-          "  AND LOWER(e.name) LIKE ? LIMIT 2000",
-          [`%${typed}%`]
-        );
-      }
+      // Candidate rows come from the shared cascade (see queryCandidateRows).
+      // Passing tagF as null when ignoreTag is what makes that branch skip,
+      // so the old `&& !ignoreTag` guard lives in the caller now, not the query.
+      // componentFilter is passed HERE where the old copy omitted it entirely —
+      // that omission meant a component-only filter yielded zero candidates and
+      // every tag count read zero.
+      const componentFilter = componentSelect ? componentSelect.value : '';
+      const candidates = queryCandidateRows(
+        { cls, lvlFilter, tagF, componentFilter, typed });
 
       const baseIds = new Set();
       const seen = new Set();
@@ -876,6 +844,13 @@
         if (!spellPassesTagFilter(tagF, s.spell_id)) continue;
         if (window.BookFilter && !window.BookFilter.allowsEntry(
               { ...s, type: 'spell' })) continue;
+        // Counts must reflect the component filter too, or they promise more
+        // matches than the list can show. Applied PER ID here, where
+        // refreshSpellList rejects the whole NAME — deliberate, and it follows
+        // from what each side counts: the list renders one row per name, this
+        // counts distinct spell ids.
+        if (componentFilter
+            && !spellPassesComponentFilter(componentFilter, s.spell_id)) continue;
         if (typed && !s.name.toLowerCase().includes(typed)) continue;
         // Dedupe — multi-class spells appear once per class.
         if (seen.has(s.spell_id)) continue;
