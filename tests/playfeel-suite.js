@@ -3927,6 +3927,12 @@
     await wait(120);
     expect(dmgTerm('.dmg-abil-val'), '+5', 'DMG1: light weapon takes full Str');
     expect(dmgTerm('.dmg-pa'), '+0', 'DMG1: a LIGHT weapon gets NO Power Attack damage');
+    // The second clause of the same sentence: "...even though the penalty on
+    // attack rolls still applies." A light weapon pays for Power Attack and
+    // gets nothing. This is the assertion that stops someone "fixing" the
+    // style-blind attack penalty by making it conditional.
+    expect(dmgTerm('.atk-calc-co'), '-5',
+      'DMG1: ...but the attack penalty STILL applies to a light weapon');
 
     // Natural secondary: half Str, but Power Attack DOES apply — Ryan's ruling
     // that natural weapons are an explicit exception to the light-weapon bar.
@@ -4089,6 +4095,67 @@
     expect(dmgTerm('.dmg-total'), total, 'DMG4: and survives a reload');
     expect($$('.attack-entry .damage-calc-row').length, 1,
       'DMG4: exactly one damage row after reload (no duplicate attach)');
+    await newCharacter();
+  });
+
+  regression('DMG5: damage riders — unconditional folds in, conditional never does', async () => {
+    if (typeof DamageCalc === 'undefined') fail('DMG5: damage-calc.js not loaded');
+    await newCharacter();
+    $('#btn-add-attack').click();
+    await wait(250);
+    setAbilities({ STR: 20 });
+    set('bab-1', '11');
+    const row = $('.attack-entry');
+    row.querySelector('.dmg-dice').value = '2d6';
+    row.querySelector('.dmg-style').value = 'two-hand';
+    row.querySelector('.dmg-enh').value = '2';
+    row.querySelector('.dmg-auto-cb').checked = true;
+    set('co-power-attack', '5');
+    await wait(150);
+    const base = row.querySelector('.dmg-total').textContent;
+    expect(base, '2d6+19', 'DMG5: baseline before riders');
+
+    const add = row.querySelector('.dmg-rider-add');
+    add.click(); add.click();
+    await wait(120);
+    const riders = row.querySelectorAll('.dmg-rider');
+    expect(riders.length, 2, 'DMG5: + rider adds a rider (its button lives in a SIBLING row — ' +
+      'a listener bound to the damage row never sees it, which renders fine and does nothing)');
+    riders[0].querySelector('.dmg-rider-amount').value = '1d6';
+    riders[0].querySelector('.dmg-rider-label').value = 'fire';
+    riders[1].querySelector('.dmg-rider-amount').value = '2d6';
+    riders[1].querySelector('.dmg-rider-label').value = 'holy';
+    riders[1].querySelector('.dmg-rider-cond').value = 'vs evil';
+    window.recalcAll();
+    await wait(150);
+
+    expect(row.querySelector('.dmg-total').textContent, '2d6+19 plus 1d6 fire',
+      'DMG5: an unconditional rider joins the line, carrying its own DICE');
+    expectIncludes(row.querySelector('.dmg-riders-readout').textContent, '2d6 holy vs evil',
+      'DMG5: a conditional rider is listed separately');
+    // THE assertion. Summing "2d6 vs evil" into the headline figure would
+    // overstate every swing against everything that is not evil.
+    expect(row.querySelector('.dmg-total').textContent.includes('2d6 holy'), false,
+      'DMG5: a CONDITIONAL rider must never be folded into the base total');
+    expect(row.querySelector('.atk-damage').value, '2d6+19 plus 1d6 fire',
+      'DMG5: and the filled field matches the total');
+
+    // Structured, and round-tripped.
+    const structured = DamageCalc.readRiders(row);
+    expect(structured.length, 2, 'DMG5: both riders are published structured');
+    expect(structured[1].condition, 'vs evil', 'DMG5: with their conditions intact');
+    const blob = appCollect();
+    expect(blob.attacks[0].damageCalc.riders.length, 2, 'DMG5: riders are saved');
+    appLoad(blob);
+    await wait(500);
+    expect($('.attack-entry .dmg-total').textContent, '2d6+19 plus 1d6 fire',
+      'DMG5: and survive a reload');
+    // A blank rider row is someone mid-typing, not a fact about the weapon.
+    $('.attack-entry .dmg-rider-add').click();
+    window.recalcAll();
+    await wait(150);
+    expect(DamageCalc.readRiders($('.attack-entry')).length, 2,
+      'DMG5: an empty rider row is not published');
     await newCharacter();
   });
 

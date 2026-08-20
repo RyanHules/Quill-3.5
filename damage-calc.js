@@ -17,22 +17,28 @@
 //   one-handed         x1       x1             PHB
 //   two-handed / 1H-in-2H  x1.5 x2             PHB Power Attack: "instead add
 //                                              twice the number subtracted"
-//   light              x1       NONE           PHB Power Attack: "You can't add
-//                                              the bonus ... with a light
-//                                              weapon (except unarmed strikes)"
+//   light              x1       NONE           PHB Power Attack, below
 //   off-hand           x0.5     NONE           light, wielded off-hand
-//   unarmed            x1       x1             the explicit exception above
-//   natural (primary)  x1       x1             see below
-//   natural (secondary) x0.5    x1             see below
+//   unarmed            x1       x1             explicit exception, below
+//   natural (primary)  x1       x1             explicit exception, below
+//   natural (secondary) x0.5    x1             explicit exception, below
 //
-// The two natural-weapon rows are RYAN'S RULING, and flagged as such because I
-// could not corroborate them from this corpus. The only statement I found is
-// Weapon Finesse's "Natural weapons are always considered light weapons", which
-// read generally would forbid Power Attack on them entirely. He rules that
-// natural weapons are an explicit exception and CAN be Power Attacked; that is
-// his table and his call. It is modelled as its own STYLE rather than as a
-// branch inside "light" precisely so the ruling is visible in the dropdown
-// instead of buried in a condition somebody later "simplifies".
+// The carve-out is RAW and worth quoting in full, because it has two clauses
+// and the second one is easy to miss:
+//
+//   "You can't add the bonus from Power Attack to the damage dealt with a light
+//    weapon (except with unarmed strikes or natural weapon attacks), EVEN
+//    THOUGH THE PENALTY ON ATTACK ROLLS STILL APPLIES."
+//
+// So a light weapon pays for Power Attack and gets nothing: the to-hit penalty
+// lands anyway. That falls out correctly here because CombatOptions.attackPenalty()
+// is style-blind by design — do not "fix" it by making the penalty conditional
+// on the style, which is the shape of the mistake this comment exists to stop.
+//
+// (An earlier version of this comment claimed the natural-weapon exception was
+// an uncorroborated house ruling. It is not; I had read a truncated excerpt
+// that cut off mid-parenthesis at "except with unarmed stri" and concluded the
+// text did not cover it. Read to the end of the sentence.)
 //
 // ABILITY TERMS ARE A LIST, not a single select, because a damage figure can
 // draw on several abilities at once and can drop Strength entirely (Shadow
@@ -104,6 +110,29 @@ const DamageCalc = (function () {
       `</span>`;
   }
 
+  // ---- riders (phase B) ---------------------------------------------------
+  //
+  // A rider is extra damage that is not part of the weapon's own equation: a
+  // flaming weapon's +1d6 fire, a holy weapon's +2d6 against evil, an energy
+  // enhancement, a class feature that adds dice to one weapon.
+  //
+  // Two things keep this honest. Riders carry their own DICE rather than being
+  // folded into the flat total, because "+1d6 fire" and "+3" are different
+  // facts and a consumer rolling damage needs them apart. And a rider with a
+  // CONDITION is never added to the base total — it is listed after it, because
+  // a holy weapon's 2d6 against evil is not damage this weapon deals, it is
+  // damage it deals sometimes, and quietly summing it would overstate every
+  // swing against everything else.
+  function riderHtml(r) {
+    r = r || {};
+    return `<span class="dmg-rider">` +
+      `<input type="text" class="dmg-rider-amount" placeholder="1d6" value="${esc(r.amount || '')}" title="Dice or a flat number — 1d6, 2d6, +2.">` +
+      `<input type="text" class="dmg-rider-label" placeholder="fire" value="${esc(r.label || '')}" title="What kind of damage it is: fire, cold, sonic, unholy…">` +
+      `<input type="text" class="dmg-rider-cond" placeholder="always" value="${esc(r.condition || '')}" title="When it applies. Leave blank for always. A rider WITH a condition is listed separately and never folded into the base total — &quot;2d6 vs evil&quot; is not damage this weapon deals, it is damage it sometimes deals.">` +
+      `<button type="button" class="dmg-rider-remove" title="Remove this rider">&times;</button>` +
+      `</span>`;
+  }
+
   function rowHtml(data) {
     const style = STYLES.some(s => s[0] === data.style) ? data.style : 'one-hand';
     const styleOpts = STYLES.map(([v, label]) =>
@@ -128,6 +157,12 @@ const DamageCalc = (function () {
         <span class="atk-calc-op">=</span>
         <span class="calc-field dmg-total atk-calc-total-big">—</span>
         <label class="atk-calc-auto" title="Auto-fill the Damage field above from this equation."><input type="checkbox" class="dmg-auto-cb"${data.auto ? ' checked' : ''}> fill damage</label>
+      </div>
+      <div class="attack-row damage-riders-row" title="Extra damage that is not part of the weapon's own equation — a flaming weapon's +1d6 fire, a holy weapon's +2d6 against evil.">
+        <span class="atk-calc-label">Riders</span>
+        <span class="dmg-riders">${(Array.isArray(data.riders) ? data.riders : []).map(riderHtml).join('')}</span>
+        <button type="button" class="dmg-rider-add" title="Add a damage rider">+ rider</button>
+        <span class="dmg-riders-readout"></span>
       </div>`;
   }
 
@@ -141,14 +176,27 @@ const DamageCalc = (function () {
     wire(entry);
   }
 
+  // Listeners go on the ENTRY, not on the damage row: the riders live in a
+  // SIBLING row, so a listener bound to the damage row never sees the "+ rider"
+  // button at all. (It rendered fine and did nothing, which is the failure mode
+  // that looks like a styling problem.)
   function wire(entry) {
     const row = entry.querySelector('.damage-calc-row');
-    if (!row || row.dataset.wired) return;
-    row.dataset.wired = '1';
-    row.addEventListener('click', (e) => {
+    if (!row || entry.dataset.dmgWired) return;
+    entry.dataset.dmgWired = '1';
+    entry.addEventListener('click', (e) => {
       if (e.target.classList.contains('dmg-abil-add')) {
         row.querySelector('.dmg-abil-terms')
           .insertAdjacentHTML('beforeend', abilityTermHtml({ ability: 'STR', mult: '1' }));
+        recalc();
+      } else if (e.target.classList.contains('dmg-rider-add')) {
+        // `entry`, not `row`: the riders strip is in the SIBLING riders row, so
+        // querying from the damage row returns null. Same trap as the listener
+        // binding above, one level down.
+        entry.querySelector('.dmg-riders').insertAdjacentHTML('beforeend', riderHtml({}));
+        recalc();
+      } else if (e.target.classList.contains('dmg-rider-remove')) {
+        e.target.closest('.dmg-rider').remove();
         recalc();
       } else if (e.target.classList.contains('dmg-abil-remove')) {
         const terms = row.querySelectorAll('.dmg-abil-term');
@@ -158,8 +206,12 @@ const DamageCalc = (function () {
         recalc();
       }
     });
-    row.addEventListener('input', recalc);
-    row.addEventListener('change', recalc);
+    entry.addEventListener('input', (e) => {
+      if (e.target.closest('.damage-calc-row, .damage-riders-row')) recalc();
+    });
+    entry.addEventListener('change', (e) => {
+      if (e.target.closest('.damage-calc-row, .damage-riders-row')) recalc();
+    });
   }
 
   function recalc() {
@@ -217,7 +269,21 @@ const DamageCalc = (function () {
 
     const flat = abilTotal + enh + pa + spec + misc;
     const dice = (row.querySelector('.dmg-dice').value || '').trim();
-    const text = renderDamage(dice, flat);
+    let text = renderDamage(dice, flat);
+
+    // Riders. Unconditional ones join the line ("plus 1d6 fire"); conditional
+    // ones are listed after it and are NEVER summed in, because a holy weapon's
+    // 2d6 against evil is not damage this weapon deals — it is damage it deals
+    // sometimes, and folding it in would overstate every other swing.
+    const riders = readRiders(entry);
+    const always = riders.filter(r => !r.condition);
+    const sometimes = riders.filter(r => r.condition);
+    if (always.length) text += ' plus ' + always.map(riderText).join(', ');
+    const readout = row.parentElement.querySelector('.dmg-riders-readout');
+    if (readout) {
+      readout.textContent = sometimes.length
+        ? 'situational: ' + sometimes.map(riderText).join(', ') : '';
+    }
     row.querySelector('.dmg-total').textContent = text || '—';
 
     const dmgInput = entry.querySelector('.atk-damage');
@@ -229,6 +295,26 @@ const DamageCalc = (function () {
       dmgInput.readOnly = false;
       dmgInput.classList.remove('atk-bonus-auto');
     }
+  }
+
+  // A rider is only real once it has an amount; a blank row is someone
+  // mid-typing, not a fact about the weapon.
+  function readRiders(entry) {
+    const row = entry.querySelector('.damage-calc-row');
+    const strip = entry.querySelector('.dmg-riders');
+    if (!row || !strip) return [];
+    return Array.from(strip.querySelectorAll('.dmg-rider')).map(r => ({
+      amount: (r.querySelector('.dmg-rider-amount').value || '').trim(),
+      label: (r.querySelector('.dmg-rider-label').value || '').trim(),
+      condition: (r.querySelector('.dmg-rider-cond').value || '').trim(),
+    })).filter(r => r.amount);
+  }
+
+  // "1d6 fire" for an unconditional rider, "2d6 unholy vs good" for a
+  // conditional one. Used for the readout and the fill text.
+  function riderText(r) {
+    const head = r.amount + (r.label ? ' ' + r.label : '');
+    return r.condition ? `${head} ${r.condition}` : head;
   }
 
   function setTerm(row, valSel, termSel, opSel, value) {
@@ -260,6 +346,7 @@ const DamageCalc = (function () {
       enh: row.querySelector('.dmg-enh').value || '',
       misc: row.querySelector('.dmg-misc').value || '',
       auto: !!row.querySelector('.dmg-auto-cb')?.checked,
+      riders: readRiders(entry),
       abilityTerms: Array.from(row.querySelectorAll('.dmg-abil-term')).map(t => ({
         ability: t.querySelector('.dmg-abil').value || 'STR',
         mult: t.querySelector('.dmg-abil-mult').value || 'auto',
@@ -269,6 +356,7 @@ const DamageCalc = (function () {
 
   return {
     attachRow, recalcRow, collectRow, renderDamage, styleFor,
+    readRiders, riderText,
     STYLES, ABILITIES,
   };
 })();

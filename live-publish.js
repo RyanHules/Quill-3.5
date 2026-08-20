@@ -119,10 +119,26 @@
         notes: f('.atk-notes'),
         // true when the sheet filled the bonus itself; false means the player
         // typed it and it is NOT guaranteed to reflect current modifiers.
-        auto: !!(bonusEl && bonusEl.classList.contains('atk-bonus-auto'))
+        auto: !!(bonusEl && bonusEl.classList.contains('atk-bonus-auto')),
+        // Damage riders, structured. A rider with a `condition` is NOT part of
+        // the `damage` string above — a holy weapon's 2d6 against evil is
+        // damage this weapon deals sometimes, and folding it into the headline
+        // figure would overstate every swing against everything else. Roll it
+        // when the condition holds; the sheet is not in a position to know.
+        damage_riders: damageRiders(row)
       });
     });
     return out;
+  }
+
+  // Null rather than [] when the module is absent, for the same reason the
+  // defensive riders omit their keys: "not modelled" and "none" are different
+  // statements and must not share a representation.
+  function damageRiders(row) {
+    try {
+      if (typeof DamageCalc === 'undefined' || !DamageCalc.readRiders) return null;
+      return DamageCalc.readRiders(row);
+    } catch (e) { return null; }
   }
 
   // --- schema 2 ------------------------------------------------------------

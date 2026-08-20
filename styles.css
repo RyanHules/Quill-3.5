@@ -4565,6 +4565,28 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 }
 .dmg-abil-remove:hover, .dmg-abil-add:hover { background: #2a3850; color: #fff; }
 
+/* Damage riders — flaming, holy, energy enhancements. */
+.damage-riders-row { flex-wrap: wrap; gap: 0.3rem; }
+.dmg-riders { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.dmg-rider {
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  padding: 0 0.2rem;
+  background: rgba(200, 161, 74, 0.10);
+  border-radius: 3px;
+}
+.dmg-rider .dmg-rider-amount { width: 4rem; }
+.dmg-rider .dmg-rider-label { width: 5rem; }
+.dmg-rider .dmg-rider-cond { width: 7rem; }
+.dmg-rider-remove, .dmg-rider-add {
+  background: transparent; border: 1px solid #654; color: #cba;
+  cursor: pointer; padding: 0 0.3rem; border-radius: 2px;
+  font-size: 0.8em; line-height: 1.4;
+}
+.dmg-rider-remove:hover, .dmg-rider-add:hover { background: #4a3a20; color: #fff; }
+.dmg-riders-readout {
+  font-size: 0.82em; font-style: italic; opacity: 0.75; color: #cba;
+}
+
 /* Structured defensive riders (defense-riders.js) — energy resistance,
    immunity, vulnerability rows under the AC block. */
 #defense-riders-list { display: flex; flex-direction: column; gap: 0.25rem; }
