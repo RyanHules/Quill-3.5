@@ -3785,8 +3785,10 @@
     // DR entries + several regenerations with DIFFERENT bypasses, which is the
     // case a single amount/bypass pair cannot hold.
     DefenseRiders.addDR({ amount: 10, bypass: 'cold iron' });
-    DefenseRiders.addDR({ amount: 5, bypass: null });
-    DefenseRiders.addDR({ amount: 2, bypass: 'magic', stacks: true });
+    DefenseRiders.addDR({ amount: 5, bypass: null, stacks_with: 'same-bypass' });
+    DefenseRiders.addDR({ amount: 2, bypass: 'magic', stacks_with: 'all' });
+    // Several regenerations with DIFFERENT bypasses — the case a single
+    // amount/bypass pair cannot hold.
     DefenseRiders.addRegen({ amount: 5, bypass: 'acid, fire' });
     DefenseRiders.addRegen({ amount: 3, bypass: 'sonic' });
     $('#fast-healing').value = '3';
@@ -3794,10 +3796,24 @@
     const dr = DefenseRiders.getStructured().damage_reduction;
     expect(dr.length, 3, 'LB7: three DR entries');
     expect(dr[1].bypass, null, 'LB7: a blank bypass is null, not "" — 5/— means nothing bypasses it');
-    expect(dr[2].stacks, true, 'LB7: the stacks flag survives per entry');
-    expect(dr[0].stacks, false, 'LB7: and defaults to false (DMG p.292 is non-stacking)');
+    // THREE states, not a boolean: Berserker Strength stacks only with DR of
+    // the same kind, Black Blood Cultist stacks with any source, and the DMG
+    // default is neither. A boolean would over-apply the first.
+    expect(dr[0].stacks_with, 'none', 'LB7: default is non-stacking (DMG p.292)');
+    expect(dr[1].stacks_with, 'same-bypass', 'LB7: the Berserker Strength case');
+    expect(dr[2].stacks_with, 'all', 'LB7: the Black Blood Cultist case');
     expect(DefenseRiders.drText(), '10/cold iron, 5/—, 2/magic',
       'LB7: the books\' notation renders from the structure');
+
+    // Regeneration resolves the OPPOSITE way from DR, and unlike DR the sheet
+    // CAN resolve it: highest rate, bypassed by the INTERSECTION of the bypass
+    // sets (a type must get past EVERY source to stay lethal).
+    const resolved = DefenseRiders.resolveRegeneration();
+    expect(resolved.amount, 5, 'LB7: resolved regeneration takes the HIGHEST rate');
+    expect(resolved.bypass, null,
+      'LB7: {acid,fire} ∩ {sonic} is empty — nothing bypasses, so both sources ' +
+      'together are strictly tougher than either alone');
+    expect(resolved.sources, 2, 'LB7: and it reports how many sources it merged');
 
     // Round trip.
     const blob = DefenseRiders.collectData();
@@ -3811,7 +3827,9 @@
     expect(rt.vulnerabilities.join(','), 'cold iron', 'LB7: riders round-trip');
     expect(rt.fast_healing, 3, 'LB7: fast healing round-trips as a number');
     expect(rt.damage_reduction.length, 3, 'LB7: DR entries round-trip');
-    expect(rt.damage_reduction[2].stacks, true, 'LB7: and so does the stacks flag');
+    expect(rt.damage_reduction[1].stacks_with, 'same-bypass',
+      'LB7: and so does each entry\'s stacking mode');
+    expect(rt.damage_reduction[2].stacks_with, 'all', 'LB7: including the other one');
     expect(rt.regeneration.length, 2, 'LB7: BOTH regenerations survive');
     expect(rt.regeneration.map(g => g.bypass).join('|'), 'acid, fire|sonic',
       'LB7: each regeneration keeps its own bypass');
@@ -3864,6 +3882,213 @@
     expect(DefenseRiders.notesMayContainRiders(), false,
       'LB7: ordinary notes are not flagged (the flag must be able to be false)');
 
+    await newCharacter();
+  });
+
+  // ---- DMG: the damage equation + shared combat options (phase A) ---------
+
+  function dmgRow() { return $('.attack-entry .damage-calc-row'); }
+  function dmgTerm(sel) { return ($(`.attack-entry ${sel}`) || {}).textContent; }
+  function setStyle(v) {
+    $('.attack-entry .dmg-style').value = v;
+    window.recalcAll();
+  }
+
+  regression('DMG1: fighting style drives BOTH the Str multiplier and Power Attack', async () => {
+    if (typeof DamageCalc === 'undefined') fail('DMG1: damage-calc.js not loaded');
+    await newCharacter();
+    // "New" leaves NO attack rows (character.js deliberately does not seed one
+    // — only a cold page load does), so the row has to be added before there
+    // is anything to calculate on.
+    $('#btn-add-attack').click();
+    await wait(200);
+    setAbilities({ STR: 20 });            // +5
+    set('bab-1', '11');
+    await wait(200);
+    const row = $('.attack-entry');
+    if (!row) fail('DMG1: no attack row after + Add Attack');
+    if (!row.querySelector('.damage-calc-row')) fail('DMG1: no damage row attached to it');
+    row.querySelector('.atk-name').value = 'Greatsword';
+    row.querySelector('.dmg-dice').value = '2d6';
+    row.querySelector('.dmg-enh').value = '2';
+    set('co-power-attack', '5');
+    setStyle('two-hand');
+    await wait(150);
+
+    // Two-handed: Str x1.5 (floored) and Power Attack DOUBLED — PHB Power
+    // Attack, "instead add twice the number subtracted".
+    expect(dmgTerm('.dmg-abil-val'), '+7', 'DMG1: two-handed Str is floor(5 × 1½) = +7');
+    expect(dmgTerm('.dmg-pa'), '+10', 'DMG1: two-handed Power Attack is doubled');
+    expect(dmgTerm('.dmg-total'), '2d6+19', 'DMG1: 7 Str + 2 enh + 10 PA');
+
+    // Light: no Power Attack damage at all. "You can't add the bonus from
+    // Power Attack to the damage dealt with a light weapon."
+    setStyle('light');
+    await wait(120);
+    expect(dmgTerm('.dmg-abil-val'), '+5', 'DMG1: light weapon takes full Str');
+    expect(dmgTerm('.dmg-pa'), '+0', 'DMG1: a LIGHT weapon gets NO Power Attack damage');
+
+    // Natural secondary: half Str, but Power Attack DOES apply — Ryan's ruling
+    // that natural weapons are an explicit exception to the light-weapon bar.
+    // Its own style rather than a branch inside "light" so the call stays
+    // visible in the dropdown.
+    setStyle('natural-secondary');
+    await wait(120);
+    expect(dmgTerm('.dmg-abil-val'), '+2', 'DMG1: secondary natural takes half Str');
+    expect(dmgTerm('.dmg-pa'), '+5', 'DMG1: natural weapons DO get Power Attack');
+
+    setStyle('off-hand');
+    await wait(120);
+    expect(dmgTerm('.dmg-abil-val'), '+2', 'DMG1: off-hand takes half Str');
+    expect(dmgTerm('.dmg-pa'), '+0', 'DMG1: off-hand gets no Power Attack');
+  });
+
+  regression('DMG2: combat options are shared — and Combat Expertise never touches damage', async () => {
+    if (typeof CombatOptions === 'undefined') fail('DMG2: combat-options.js not loaded');
+    if (!$('.attack-entry .damage-calc-row')) {
+      // Standalone-run guard: these build on DMG1's row, and a lone
+      // run has none. Seed one rather than fail for a reason that has
+      // nothing to do with what the test is checking.
+      $('#btn-add-attack').click();
+      await wait(250);
+      $('.attack-entry .dmg-dice').value = '2d6';
+      setAbilities({ STR: 20 });
+      set('bab-1', '11');
+      set('co-power-attack', '5');
+      await wait(150);
+    }
+    setStyle('two-hand');
+    set('co-combat-expertise', '0');
+    $('#co-heedless-charge').checked = false;
+    window.recalcAll();
+    await wait(150);
+    const dmgBefore = dmgTerm('.dmg-total');
+    const acBefore = parseInt($('#ac-total').textContent, 10);
+
+    set('co-combat-expertise', '4');
+    await wait(180);
+    // Attack and AC only. The feat text is explicit: "-5 on your attack roll
+    // and ... the same number as a dodge bonus to your Armor Class". No damage.
+    expect(parseInt($('#ac-total').textContent, 10), acBefore + 4,
+      'DMG2: Combat Expertise adds a dodge bonus to AC');
+    expect(dmgTerm('.dmg-total'), dmgBefore,
+      'DMG2: Combat Expertise must NOT change damage');
+    expect(dmgTerm('.atk-calc-co'), '-9', 'DMG2: both options hit the attack roll (PA 5 + CE 4)');
+
+    // Heedless Charge MOVES Power Attack's penalty to AC. Damage unchanged —
+    // it is usually described as a damage feat and it is not one.
+    $('#co-heedless-charge').checked = true;
+    $('#co-heedless-charge').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(180);
+    expect(dmgTerm('.atk-calc-co'), '-4', 'DMG2: Heedless Charge takes PA off the attack roll');
+    expect(parseInt($('#ac-total').textContent, 10), acBefore - 1,
+      'DMG2: ...and onto AC (+4 CE − 5 PA)');
+    expect(dmgTerm('.dmg-total'), dmgBefore, 'DMG2: Heedless Charge does not change damage');
+
+    // Below -5 it is inert, and says so rather than silently doing nothing.
+    set('co-power-attack', '3');
+    await wait(180);
+    expect(CombatOptions.heedlessActive(), false,
+      'DMG2: Heedless Charge needs a Power Attack of 5+');
+    expectIncludes($('#co-readout').textContent, 'inert',
+      'DMG2: an inert Heedless Charge is surfaced, not swallowed');
+    $('#co-heedless-charge').checked = false;
+    set('co-power-attack', '5');
+    set('co-combat-expertise', '0');
+    await wait(150);
+  });
+
+  regression('DMG3: Weapon Specialization is read off the Feats tab, enhancement is shared', async () => {
+    if (!$('.attack-entry .damage-calc-row')) {
+      // Standalone-run guard: these build on DMG1's row, and a lone
+      // run has none. Seed one rather than fail for a reason that has
+      // nothing to do with what the test is checking.
+      $('#btn-add-attack').click();
+      await wait(250);
+      $('.attack-entry .dmg-dice').value = '2d6';
+      setAbilities({ STR: 20 });
+      set('bab-1', '11');
+      set('co-power-attack', '5');
+      await wait(150);
+    }
+    setStyle('two-hand');
+    await wait(120);
+    const before = dmgTerm('.dmg-total');
+    // Feats.addFeat takes the text directly, which is both shorter and less
+    // fragile than clicking + then hunting for the row that appeared. (A blank
+    // sheet has no feat rows at all, so indexing into the list found nothing.)
+    Feats.addFeat('Weapon Specialization (Greatsword)');
+    await wait(200);
+    const ta = $$('#feats-container .feat-entry').slice(-1)[0];
+    if (!ta) fail('DMG3: no feat row after addFeat');
+    ta.value = 'Weapon Specialization (Greatsword)';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    window.recalcAll();
+    await wait(180);
+    expect(Feats.getWeaponSpecBonuses().greatsword, 2,
+      'DMG3: the aggregator reads +2 per Specialization feat, not +1');
+    expect(dmgTerm('.dmg-spec'), '+2', 'DMG3: matched to this row by weapon name');
+    expect(dmgTerm('.dmg-total') !== before, true, 'DMG3: and it reaches the total');
+
+    // A non-matching weapon name must NOT pick it up.
+    $('.attack-entry .atk-name').value = 'Dagger';
+    window.recalcAll();
+    await wait(150);
+    expect(dmgTerm('.dmg-spec'), '+0', 'DMG3: Specialization does not leak to another weapon');
+    $('.attack-entry .atk-name').value = 'Greatsword';
+
+    // Enhancement is ONE field feeding both equations — that is the point of
+    // putting it on the damage row and reading it from the attack calc.
+    $('.attack-entry .dmg-enh').value = '3';
+    window.recalcAll();
+    await wait(150);
+    expect(dmgTerm('.atk-calc-enh'), '+3', 'DMG3: enhancement reaches the ATTACK bonus');
+    expectIncludes(dmgTerm('.dmg-total'), '2d6+', 'DMG3: and the damage total');
+  });
+
+  regression('DMG4: the equation is OPT-IN — unticked, it never touches the damage field', async () => {
+    // The data-safety property. 517 saved attack rows carry hand-typed damage
+    if (!$('.attack-entry .damage-calc-row')) {
+      // Standalone-run guard: these build on DMG1's row, and a lone
+      // run has none. Seed one rather than fail for a reason that has
+      // nothing to do with what the test is checking.
+      $('#btn-add-attack').click();
+      await wait(250);
+      $('.attack-entry .dmg-dice').value = '2d6';
+      setAbilities({ STR: 20 });
+      set('bab-1', '11');
+      set('co-power-attack', '5');
+      await wait(150);
+    }
+    // strings; this equation must be inert against every one of them until a
+    // player asks for it, exactly like the attack calculator above it.
+    const row = $('.attack-entry');
+    row.querySelector('.dmg-auto-cb').checked = false;
+    row.querySelector('.atk-damage').value = '1d8+S+1 (hand typed)';
+    window.recalcAll();
+    await wait(180);
+    expectValue('.attack-entry .atk-damage', '1d8+S+1 (hand typed)',
+      'DMG4: an unticked equation must leave the player\'s text alone');
+    expect(row.querySelector('.atk-damage').readOnly, false,
+      'DMG4: and leave the field editable');
+
+    row.querySelector('.dmg-auto-cb').checked = true;
+    window.recalcAll();
+    await wait(180);
+    expect(row.querySelector('.atk-damage').value, dmgTerm('.dmg-total'),
+      'DMG4: ticked, it drives the field');
+    expect(row.querySelector('.atk-damage').readOnly, true,
+      'DMG4: and locks it, so the two can never disagree');
+
+    // Round trip, through the app's own collect/load.
+    const total = dmgTerm('.dmg-total');
+    const blob = appCollect();
+    expect(!!blob.attacks[0].damageCalc, true, 'DMG4: the equation state is saved');
+    appLoad(blob);
+    await wait(500);
+    expect(dmgTerm('.dmg-total'), total, 'DMG4: and survives a reload');
+    expect($$('.attack-entry .damage-calc-row').length, 1,
+      'DMG4: exactly one damage row after reload (no duplicate attach)');
     await newCharacter();
   });
 

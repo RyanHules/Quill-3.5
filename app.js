@@ -255,6 +255,20 @@
       ? Feats.getWeaponFocusBonuses() : {};
     bonuses.spellFocus = (typeof Feats !== "undefined" && Feats.getSpellFocusBonuses)
       ? Feats.getSpellFocusBonuses() : {};
+    // Weapon Specialization is the damage-side twin of Weapon Focus — same
+    // weapon-name matching, +2 damage instead of +1 attack. Consumed by
+    // damage-calc.js on each attack row.
+    bonuses.weaponSpec = (typeof Feats !== "undefined" && Feats.getWeaponSpecBonuses)
+      ? Feats.getWeaponSpecBonuses() : {};
+
+    // Combat options (Power Attack / Combat Expertise / Heedless Charge). Only
+    // the AC half arrives here: Combat Expertise's dodge bonus, less whatever
+    // Power Attack penalty Heedless Charge moved onto AC. The attack and damage
+    // halves are read directly by their own calculators, which need the raw
+    // numbers rather than a sum.
+    if (typeof CombatOptions !== "undefined" && CombatOptions.getActiveBonuses) {
+      bonuses.ac += CombatOptions.getActiveBonuses().ac || 0;
+    }
 
     // Grapple-check feat bonus (Improved Grapple +4). Flat, folded into the
     // grapple total by character.js and shown as a labelled Feat component.
@@ -330,6 +344,7 @@
       typeof Bloodline !== "undefined" ? Bloodline.collectData() : {},
       typeof Conditions !== "undefined" ? Conditions.collectData() : {},
       typeof DefenseRiders !== "undefined" ? DefenseRiders.collectData() : {},
+      typeof CombatOptions !== "undefined" ? CombatOptions.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
       typeof BookFilter !== "undefined" ? BookFilter.collectData() : {},
@@ -349,6 +364,7 @@
     if (typeof Bloodline !== "undefined") Bloodline.loadData(data);
     if (typeof Conditions !== "undefined") Conditions.loadData(data);
     if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData(data);
+    if (typeof CombatOptions !== "undefined") CombatOptions.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
     if (typeof HomebrewFilter !== "undefined") HomebrewFilter.loadData(data);
@@ -983,6 +999,7 @@
   Equipment.buildMagicItemSlots();
   if (typeof Conditions !== "undefined") Conditions.build();
   if (typeof DefenseRiders !== "undefined") DefenseRiders.build();
+  if (typeof CombatOptions !== "undefined") CombatOptions.build();
   if (typeof Audit !== "undefined") Audit.build();
   if (typeof BuildTimeline !== "undefined") BuildTimeline.init();
 

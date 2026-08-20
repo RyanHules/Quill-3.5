@@ -552,7 +552,25 @@ const Character = (function () {
           if (weaponFocusMatches(weaponName, k)) focus += v;
         }
       }
-      const total = bab1 + atkSizeMod + abilMod + misc + focus;
+      // Power Attack / Combat Expertise, declared once in Combat Options and
+      // paid by every attack this round. Heedless Charge moves Power Attack's
+      // share onto AC instead, which CombatOptions resolves.
+      const enhAtk = int(entry.querySelector(".dmg-enh")?.value) || 0;
+      const coPenalty = (typeof CombatOptions !== "undefined")
+        ? CombatOptions.attackPenalty() : 0;
+      const total = bab1 + atkSizeMod + abilMod + misc + focus + enhAtk + coPenalty;
+      const coEl = entry.querySelector(".atk-calc-co");
+      const coTerm = entry.querySelector(".atk-calc-co-term");
+      const coOp = entry.querySelector(".atk-calc-co-op");
+      if (coEl) coEl.textContent = fmt(coPenalty);
+      if (coTerm) coTerm.style.display = coPenalty ? "" : "none";
+      if (coOp) coOp.style.display = coPenalty ? "" : "none";
+      const enhEl = entry.querySelector(".atk-calc-enh");
+      const enhTerm = entry.querySelector(".atk-calc-enh-term");
+      const enhOp = entry.querySelector(".atk-calc-enh-op");
+      if (enhEl) enhEl.textContent = fmt(enhAtk);
+      if (enhTerm) enhTerm.style.display = enhAtk ? "" : "none";
+      if (enhOp) enhOp.style.display = enhAtk ? "" : "none";
       entry.querySelector(".atk-calc-bab").textContent = fmt(bab1);
       entry.querySelector(".atk-calc-size").textContent = fmt(atkSizeMod);
       entry.querySelector(".atk-calc-abilmod").textContent = fmt(abilMod);
@@ -571,6 +589,18 @@ const Character = (function () {
       } else {
         bonusInput.readOnly = false;
         bonusInput.classList.remove("atk-bonus-auto");
+      }
+
+      // The damage equation for this same row. Given the bonus-aware ability
+      // modifier and the Weapon Specialization map so it never has to reach for
+      // globals of its own.
+      if (typeof DamageCalc !== "undefined") {
+        DamageCalc.recalcRow(entry, {
+          getAbilityMod,
+          expr,
+          weaponSpec: bonuses.weaponSpec || {},
+          matches: weaponFocusMatches,
+        });
       }
     });
 
@@ -725,11 +755,19 @@ const Character = (function () {
         <span class="atk-calc-term"><span class="atk-calc-k">Other</span><input type="text" class="atk-calc-misc" value="${data.calcMisc || ""}" placeholder="0"></span>
         <span class="atk-calc-op atk-calc-focus-op" style="display:none">+</span>
         <span class="atk-calc-term atk-calc-focus-term" style="display:none" title="Weapon Focus / Greater Weapon Focus bonus for this weapon"><span class="atk-calc-k">Focus</span><span class="calc-field atk-calc-focus">+0</span></span>
+        <span class="atk-calc-op atk-calc-enh-op" style="display:none">+</span>
+        <span class="atk-calc-term atk-calc-enh-term" style="display:none" title="Weapon enhancement bonus — the SAME field as the damage row's Enh below. Entered once, paid to both."><span class="atk-calc-k">Enh</span><span class="calc-field atk-calc-enh">+0</span></span>
+        <span class="atk-calc-op atk-calc-co-op" style="display:none">+</span>
+        <span class="atk-calc-term atk-calc-co-term" style="display:none" title="Power Attack + Combat Expertise, declared in Combat Options. Heedless Charge moves the Power Attack half onto AC instead of the attack roll."><span class="atk-calc-k">Options</span><span class="calc-field atk-calc-co">+0</span></span>
         <span class="atk-calc-op">=</span>
         <span class="calc-field atk-calc-total atk-calc-total-big">+0</span>
         <label class="atk-calc-auto" title="Auto-fill the Attack Bonus field above from this total"><input type="checkbox" class="atk-calc-auto-cb"${data.calcAuto ? " checked" : ""}> fill bonus</label>
       </div>
     `;
+    container.appendChild(div);
+    // The damage equation is a sibling of the attack calculator above and lives
+    // in its own module — same row, same grammar, same opt-in fill checkbox.
+    if (typeof DamageCalc !== "undefined") DamageCalc.attachRow(div, data.damageCalc || {});
     if (data.fromClass) {
       div.dataset.fromClass = data.fromClass;
       // Any hand-edit to a managed field hands the row over to the player:
@@ -739,7 +777,6 @@ const Character = (function () {
         if (ev.isTrusted) delete div.dataset.fromClass;
       });
     }
-    container.appendChild(div);
     return div;
   }
 
@@ -868,6 +905,12 @@ const Character = (function () {
         calcAbility: entry.querySelector(".atk-calc-ability")?.value || "STR",
         calcMisc: entry.querySelector(".atk-calc-misc")?.value || "",
         calcAuto: entry.querySelector(".atk-calc-auto-cb")?.checked || false,
+        // The damage equation's own state (dice, fighting style, ability terms,
+        // enhancement, fill toggle). Nested under one key so the attack row's
+        // flat fields stay readable, and absent on a row that predates the
+        // calculator — addAttack defaults it to {}.
+        damageCalc: (typeof DamageCalc !== "undefined")
+          ? DamageCalc.collectRow(entry) : null,
         // Round-trip the class-grant marker so a reloaded character's
         // eldritch blast is still recognised as managed — without it, the
         // sync would add a SECOND row on the next class change.

@@ -4514,6 +4514,57 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   white-space: nowrap;
 }
 
+/* Combat options bar (combat-options.js) — Power Attack / Combat Expertise /
+   Heedless Charge, declared once and paid by every attack this round. */
+.combat-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid #6a8aaa;
+  border-radius: 3px;
+}
+.combat-options .field { margin: 0; }
+.combat-options .co-label {
+  font-weight: 600; color: #9ab; font-size: 0.9em;
+  align-self: center; cursor: help;
+}
+.co-toggle {
+  display: flex; align-items: center; gap: 0.25rem;
+  font-size: 0.88em; cursor: help; white-space: nowrap;
+}
+.co-readout {
+  flex: 1 1 100%;
+  font-size: 0.82em; font-style: italic; opacity: 0.7;
+}
+.co-readout.co-readout-active { opacity: 0.95; color: #cba; font-style: normal; }
+
+/* Per-weapon damage equation (damage-calc.js) — a sibling of the attack
+   calculator, sharing its term/operator grammar. */
+.damage-calc-row { flex-wrap: wrap; }
+.damage-calc-row .dmg-dice { width: 5.5rem; }
+.damage-calc-row .dmg-style { max-width: 11rem; }
+.damage-calc-row .dmg-enh,
+.damage-calc-row .dmg-misc { width: 3.5rem; }
+.dmg-abil-terms { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.dmg-abil-term {
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  padding: 0 0.2rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+}
+.dmg-abil-term .dmg-abil { max-width: 4.5rem; }
+.dmg-abil-term .dmg-abil-mult { max-width: 5rem; }
+.dmg-abil-remove, .dmg-abil-add {
+  background: transparent; border: 1px solid #466; color: #9ad;
+  cursor: pointer; padding: 0 0.3rem; border-radius: 2px;
+  font-size: 0.8em; line-height: 1.4;
+}
+.dmg-abil-remove:hover, .dmg-abil-add:hover { background: #2a3850; color: #fff; }
+
 /* Structured defensive riders (defense-riders.js) — energy resistance,
    immunity, vulnerability rows under the AC block. */
 #defense-riders-list { display: flex; flex-direction: column; gap: 0.25rem; }

@@ -1141,6 +1141,28 @@ const Feats = (function () {
     return out;
   }
 
+  // Weapon Specialization / Greater Weapon Specialization → +2 DAMAGE each with
+  // the named weapon (PHB: "You gain a +2 bonus on all damage rolls you make
+  // using the selected weapon"). Mirrors getWeaponFocusBonuses, which returns
+  // +1 per feat because Focus grants +1; Specialization grants +2, so the value
+  // is the bonus rather than a count — the consumer adds what it is given.
+  // Returns { weaponLower: totalDamageBonus }.
+  function getWeaponSpecBonuses() {
+    const out = {};
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      // "Weapon Specialization (Longsword)" / "Greater Weapon Specialization
+      // (Longsword)". Anchored so "Melee Weapon Specialization" or a note
+      // mentioning the feat in passing doesn't match.
+      const m = text.match(/^\s*(?:greater\s+)?weapon\s+specialization\s*\(([^)]+)\)/i);
+      if (!m) return;
+      const weapon = m[1].trim().toLowerCase();
+      if (weapon) out[weapon] = (out[weapon] || 0) + 2;
+    });
+    return out;
+  }
+
   // Grapple-check bonuses granted by feats. Improved Grapple is a flat +4 on
   // ALL grapple checks (PHB p.95) — unconditional, so it folds straight into
   // the grapple total. Returns { amount, sources:[{name,amount}] } so the
@@ -1184,7 +1206,8 @@ const Feats = (function () {
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
-    getWeaponFocusBonuses, getSpellFocusBonuses, getGrappleBonus,
+    getWeaponFocusBonuses, getWeaponSpecBonuses, getSpellFocusBonuses,
+    getGrappleBonus,
     // Feat presence check for cross-module effect recognition (e.g. Serenity).
     hasFeat,
     // Structured-feat-entry helpers (exposed for tests).
