@@ -772,9 +772,15 @@
           && !spellInput.value.trim()) {
         return;
       }
-      const candidates = computeCandidateIds(
+      // computeCandidateIds already returns a Set of spell IDS (see its own
+      // comment below) — not rows. This used to do
+      // `new Set(candidates.map(c => c.spell_id))`, which threw
+      // "candidates.map is not a function" on every call, so the throw landed
+      // before setCounts() and the tag dropdown's counts NEVER updated. It
+      // failed silently in the UI because the counts simply kept their previous
+      // values; only the console showed it. (2026-08-20)
+      const candidateIds = computeCandidateIds(
         { ignoreTag: true, applyName: false });
-      const candidateIds = new Set(candidates.map(c => c.spell_id));
       const newCounts = new Map();
       for (const [tag, ids] of spellTagIndex.entries()) {
         let n = 0;
