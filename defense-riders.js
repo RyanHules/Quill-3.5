@@ -183,11 +183,30 @@ const DefenseRiders = (function () {
 
   // ---- damage reduction rows ----------------------------------------------
 
+  // Three states, not a boolean, because the two named exceptions in the corpus
+  // are genuinely different:
+  //   Berserker Strength (PHB2 ACF) — "stacks with any SIMILAR kind of damage
+  //     reduction", i.e. only with DR sharing its bypass (its own is DR/—).
+  //   Black Blood Cultist (CoR) — "you gain damage reduction, which stacks with
+  //     damage reduction from other sources", full stop, no qualifier.
+  // A boolean would over-apply the first, letting a DR/— stack onto a DR/silver
+  // it has no business stacking with.
+  const DR_STACK_MODES = [
+    ['none', "doesn't stack"],
+    ['same-bypass', 'stacks (same bypass)'],
+    ['all', 'stacks (any source)'],
+  ];
+
   function addDR(data = {}) {
     const host = drList();
     if (!host) return null;
     const row = document.createElement('div');
     row.className = 'dr-entry-row';
+    // Migrate the one-day-old boolean shape forward rather than dropping it.
+    const mode = DR_STACK_MODES.some(m => m[0] === data.stacks_with)
+      ? data.stacks_with : (data.stacks ? 'all' : 'none');
+    const opts = DR_STACK_MODES.map(([v, label]) =>
+      `<option value="${v}"${v === mode ? ' selected' : ''}>${label}</option>`).join('');
     row.innerHTML =
       `<input type="number" class="dr-amount" min="0" placeholder="5" ` +
         `value="${data.amount != null ? data.amount : ''}">` +
@@ -195,8 +214,7 @@ const DefenseRiders = (function () {
       `<input type="text" class="dr-bypass" list="dr-bypass-types" ` +
         `placeholder="magic (blank = nothing bypasses)" ` +
         `value="${escapeAttr(data.bypass || '')}">` +
-      `<label class="dr-stacks-label" title="RAW (DMG p.292): DR from several sources does NOT stack — the best one that the incoming attack fails to bypass applies. Tick this only for a source that says otherwise (Iron Ward Diamond, Berserker Strength, Dragonward, the Armor-as-DR variant): it then ADDS on top of that winner.">` +
-        `<input type="checkbox" class="dr-stacks"${data.stacks ? ' checked' : ''}> stacks</label>` +
+      `<select class="dr-stacks" title="RAW (DMG p.292): DR from several sources does NOT stack — the best one the incoming attack fails to bypass applies. Two corpus exceptions need the other two settings: Berserker Strength stacks only with DR of the same kind (its own is DR/—), while Black Blood Cultist stacks with DR from any source.">${opts}</select>` +
       `<button type="button" class="dr-remove" title="Remove">&times;</button>`;
     host.appendChild(row);
     if (data.from) row.dataset.from = data.from;
@@ -213,7 +231,7 @@ const DefenseRiders = (function () {
       // "DR 5/—", and null is the honest representation of "no bypass exists"
       // as against the empty string, which reads like a missing value.
       bypass: (bypass === '' || bypass === '-' || bypass === '—') ? null : bypass,
-      stacks: !!row.querySelector('.dr-stacks').checked,
+      stacks_with: row.querySelector('.dr-stacks').value || 'none',
       from: row.dataset.from || null,
     };
   }
@@ -275,7 +293,8 @@ const DefenseRiders = (function () {
     for (const row of drRows()) {
       const d = readDR(row);
       if (d.amount == null) continue;
-      out.damage_reduction.push({ amount: d.amount, bypass: d.bypass, stacks: d.stacks });
+      out.damage_reduction.push({ amount: d.amount, bypass: d.bypass,
+                                  stacks_with: d.stacks_with });
     }
     for (const row of regenRows()) {
       const g = readRegen(row);
@@ -286,6 +305,62 @@ const DefenseRiders = (function () {
     const fh = intOrNull((byId('fast-healing') || {}).value);
     if (fh != null) out.fast_healing = fh;
     return out;
+  }
+
+  // REGENERATION RESOLVES THE OPPOSITE WAY FROM DR, and unlike DR the sheet
+  // CAN resolve it — because the answer doesn't depend on what the incoming
+  // attack is.
+  //
+  // Regeneration turns any damage that does NOT bypass it into nonlethal, and
+  // you then heal *all* nonlethal damage at the listed rate. So with several
+  // sources:
+  //
+  //   * a damage type only stays LETHAL if it bypasses EVERY regeneration you
+  //     have — one source failing to bypass is enough to convert it. So the
+  //     effective bypass set is the INTERSECTION of the individual sets, not
+  //     the union.
+  //   * the healing is one pool of nonlethal damage cleared at a rate, and the
+  //     rates don't stack, so the effective amount is the MAXIMUM.
+  //
+  // Worked: Regen 5 (acid, fire) + Regen 3 (sonic) = Regen 5 bypassed by
+  // nothing. Acid bypasses the first but the second still converts it; sonic
+  // bypasses the second but the first still converts it. Nothing gets through
+  // as lethal damage, and the pool clears at 5.
+  //
+  // That is the mirror image of DR, where several sources make you WEAKER to a
+  // weapon that bypasses the big one. Here they make you strictly tougher.
+  function splitBypass(s) {
+    if (!s) return [];
+    return String(s).toLowerCase()
+      // For regeneration the bypass list is disjunctive — ANY listed type gets
+      // through — so commas, "and" and "or" all mean the same thing here. (DR
+      // is different: "evil and silver" requires both, which is why DR keeps
+      // its bypass as an unsplit string.)
+      .split(/\s*(?:,|;|\+|\band\b|\bor\b)\s*/)
+      .map(t => t.trim()).filter(Boolean);
+  }
+
+  function resolveRegeneration() {
+    const entries = regenRows().map(readRegen).filter(g => g.amount != null);
+    if (!entries.length) return null;
+    let amount = 0;
+    let intersection = null;
+    for (const g of entries) {
+      if (g.amount > amount) amount = g.amount;
+      const set = splitBypass(g.bypass);
+      if (intersection === null) {
+        intersection = set.slice();
+      } else {
+        intersection = intersection.filter(t => set.indexOf(t) !== -1);
+      }
+    }
+    return {
+      amount,
+      // null, not [] — "nothing bypasses this" is a statement, and an empty
+      // list would read as a missing value the way it does everywhere else here.
+      bypass: (intersection && intersection.length) ? intersection.join(', ') : null,
+      sources: entries.length,
+    };
   }
 
   // The books' own notation, rendered from the structure — "10/cold iron, 5/—".
@@ -536,6 +611,7 @@ const DefenseRiders = (function () {
   return {
     build, addRow, addDR, addRegen, collectData, loadData,
     getStructured, notesMayContainRiders, drText,
+    resolveRegeneration, splitBypass,
     applyFromSource, clearSource, sourceKeys,
     parseDRText, migrateLegacyDR,
     NOTE_RIDER_RE,

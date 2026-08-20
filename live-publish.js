@@ -297,6 +297,12 @@
         damage_reduction_text: DefenseRiders.drText(),
         fast_healing: s.fast_healing,
         regeneration: s.regeneration,
+        // Unlike DR, regeneration CAN be resolved here, because the answer does
+        // not depend on the incoming attack: several sources give you the
+        // HIGHEST rate bypassed by the INTERSECTION of their bypass sets (a
+        // type has to get past every one of them to stay lethal). Use this
+        // field, not the raw list — the list is shown for provenance.
+        regeneration_resolved: DefenseRiders.resolveRegeneration(),
         notes_may_contain_riders: DefenseRiders.notesMayContainRiders()
       };
     } catch (e) {
