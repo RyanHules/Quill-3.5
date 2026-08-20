@@ -22,11 +22,12 @@
 // `.sc-used` / `.sc-remain` / `.psi-pp-spent` are deliberately not published.
 // One owner per number.
 //
-// SCOPE — phase 1 is PUBLISH ONLY. No inbound commands, no writes into the
-// sheet. A consumer can read; it cannot yet change anything. Phase 2 (a
-// command queue) is deliberately a separate change, because it needs a
-// field-ownership split before it is safe to let anything else drive a sheet
-// a player is editing live.
+// SCOPE — this file is the OUTBOUND half: publish only. The inbound half
+// (a consumer writing volatile session state back into the sheet) lives in
+// live-commands.js, kept separate because it answers a different question and
+// carries a different risk: publishing cannot break a sheet, applying can.
+// Its safety property is the server-side field-ownership allowlist, the way
+// staleness is this half's.
 //
 // DESIGN NOTES
 //
@@ -423,6 +424,19 @@
     snapshot: function () {
       var q = (window.AppState && window.AppState.currentQualifiedName) || null;
       return snapshot(q);
+    },
+    // live-commands.js publishes THROUGH its ack (the server stores the
+    // snapshot the ack carries, so a writer gets back exactly what a reader
+    // would). Recording it here keeps the change-watcher from turning around
+    // and re-publishing identical content 1.5 seconds later. Takes the
+    // UNSTAMPED snapshot — `published_at` is added after the fingerprint, and
+    // including a clock in the fingerprint would make every comparison differ.
+    notePublished: function (snap) {
+      try {
+        lastFingerprint = JSON.stringify(snap);
+        stats.published++;
+        stats.lastAt = new Date().toISOString();
+      } catch (e) { /* fingerprint is an optimisation, never break the page */ }
     }
   };
 })();

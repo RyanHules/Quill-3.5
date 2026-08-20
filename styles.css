@@ -4513,3 +4513,23 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   border-radius: 3px;
   white-space: nowrap;
 }
+
+/* A field a consumer just wrote through the live bus (live-commands.js).
+   A number changing by itself on a sheet somebody is looking at should
+   never be silent — this is how the player sees that the rig, not a
+   mis-click, moved it.
+
+   A keyframe animation rather than a transition, deliberately: a
+   transition ramps the highlight IN over its duration and then has it
+   yanked when the class comes off, which is the opposite shape from a
+   flash. This starts at full strength on the frame the value changes —
+   the moment worth catching — and fades out on its own. */
+@keyframes live-written-flash {
+  0%   { box-shadow: 0 0 0 2px rgba(120, 180, 230, 0.85);
+         background-color: rgba(120, 180, 230, 0.30); }
+  100% { box-shadow: 0 0 0 2px rgba(120, 180, 230, 0);
+         background-color: rgba(120, 180, 230, 0); }
+}
+.live-written {
+  animation: live-written-flash 1.2s ease-out;
+}

@@ -1090,6 +1090,12 @@
       // window.recalcAll, so app.js must already have defined it. Purely
       // additive — the sheet is unaffected when the API isn't there.
       'live-publish.js',
+      // The inbound half of the same bus: a consumer writes VOLATILE session
+      // state (current HP, conditions, spent slots) and gets the post-recalc
+      // snapshot back. Loads after live-publish.js, whose snapshot it reuses
+      // for the acknowledgement. Also purely additive — with no API behind it
+      // the long poll backs off and the sheet never notices.
+      'live-commands.js',
     ];
     // Register the expected module set, then emit each tag with load telemetry.
     // onload → the script finished executing OK; onerror → it 404'd / network-

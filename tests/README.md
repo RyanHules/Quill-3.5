@@ -76,6 +76,28 @@ cd "../../D&D 3.5 Database/databases/manual"
 python test_db.py
 ```
 
+## Server suites (no DB, no browser)
+
+`test_save_server.py` — the review-flag / sheet-report store's atomic
+add/resolve/remove, including the multi-tab concurrency guard that is the
+actual thing that once regressed.
+
+`test_live_bus.py` — the live resolved-state bus's inbound half. Boots a real
+server on an ephemeral port and drives `/api/live-write` over HTTP with a fake
+"tab" thread doing poll → apply → ack. Integration rather than unit on purpose:
+every property worth testing here is a property of the HANDOFF, and none of them
+survive being tested against a mock of the thing doing the handing off. Several
+checks are pure negative controls — a stale tab must NOT accept a write, an
+unrecognised field must NOT be applied, a command past its deadline must NOT be
+dispatched.
+
+```bash
+python tests/test_save_server.py
+python tests/test_live_bus.py
+```
+
+Both are zero-dependency (no pytest) and exit 1 on any failure.
+
 ## When to run which
 
 | Event | Run |
@@ -84,6 +106,7 @@ python test_db.py
 | Adapted a picker module | `node tests/test_pickers.js` |
 | About to add a new picker | Both layers |
 | Rebuilt the DB upstream | Both layers |
+| Touched `save_server.py` or the live bus | `python tests/test_live_bus.py` + `python tests/test_save_server.py` |
 
 ## Why two layers?
 

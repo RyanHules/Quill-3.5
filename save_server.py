@@ -37,7 +37,7 @@ PUT    /api/saves/<name>        -> write JSON body (creates or
                                    overwrites; returns 204)
 DELETE /api/saves/<name>        -> remove save (returns 204)
 
-Live resolved-state bus (2026-08-20, phase 1 — publish/read only):
+Live resolved-state bus (2026-08-20). Phase 1 — publish / read:
 
 PUT    /api/live/<qualified>    -> an open tab publishes its RESOLVED
                                    snapshot (204). In memory only.
@@ -47,11 +47,26 @@ GET    /api/live/<qualified>    -> {"qualified", "age_seconds", "stale",
 GET    /api/live                -> summary of every live character
                                    (no snapshots; cheap to poll)
 
+Phase 2 — inbound writes (a consumer changes volatile session state):
+
+POST   /api/live-write/<qual>   -> {"fields": {"hp.current": 23, ...}} ->
+                                   {"status", "applied", "rejected",
+                                    "echo", "snapshot"}. Blocks until the
+                                   tab applies + recalculates, so the
+                                   snapshot returned is post-write.
+GET    /api/live-writable       -> the field-ownership split, machine-
+                                   readable: what a consumer may write and
+                                   why everything else is refused.
+GET    /api/live-commands/<qual> -> the TAB's long-poll for queued writes
+POST   /api/live-ack/<qual>     -> the TAB reports what it applied and
+                                   publishes the post-recalc snapshot
+
 The point: `saves/` holds RAW form fields, so anything reading them for a
 character's real numbers gets them wrong. The sheet is the only thing that
 knows the derived values, so the sheet publishes them. Consumers MUST honour
 `stale` — a closed tab leaves a snapshot that still reads perfectly. See the
-block comment above `_LIVE` for the full rationale.
+block comment above `_LIVE` for the full rationale, and the one above
+`_LIVE_CMDS` for why phase 2's allowlist is the same kind of safety property.
 
 `<name>` in URLs is URL-encoded canonical name (e.g. "Dust",
 "Old Char Sheet 1"). The server slugifies internally for filenames
@@ -133,6 +148,159 @@ _LIVE_LOCK = threading.Lock()
 # Tabs heartbeat well inside this even when nothing changes, so exceeding
 # it means the tab is gone, reloading, or wedged — not merely idle.
 LIVE_STALE_AFTER_SEC = 90.0
+
+
+# ---------------------------------------------------------------------------
+# PHASE 2 — INBOUND WRITES (2026-08-20)
+#
+# Phase 1 is one-way: tabs publish, consumers read. Phase 2 lets a consumer
+# write BACK — the megadungeon rig applies combat damage, spends a slot, sets
+# a condition — and receive the post-recalc snapshot in the same response, so
+# it never has to guess what the write did to the derived numbers.
+#
+# THE ALLOWLIST IS THE SAFETY PROPERTY, exactly as `stale` is phase 1's. The
+# field-ownership split agreed with the rig: the CONSUMER owns volatile session
+# state (current HP, conditions, spent slots / power points, rages used, XP,
+# coin) and the SHEET owns structural state (classes, feats, ability scores,
+# equipment) plus every number derived from it. One owner per quantity. So a
+# write to a structural field is REFUSED WITH ITS REASON rather than quietly
+# applied — two writers for one number is the exact collision the split exists
+# to prevent, and a refusal that explains itself is what keeps the split alive
+# in two codebases that cannot see each other.
+#
+# ABSOLUTE VALUES ONLY, NEVER DELTAS. `hp.current = 23`, not `hp.current -= 7`.
+# The writer owns the number, so it sends the number it owns. A delta that gets
+# lost, retried or duplicated silently corrupts the value and nothing can tell
+# afterwards; an absolute value is idempotent under all three. That also makes
+# the two-tabs-same-character case harmless — both tabs apply the same value.
+#
+# A WRITE WITH NO FRESH TAB FAILS, IT DOES NOT QUEUE. This is the mirror of the
+# read side's staleness contract. A queued command that applies ten minutes
+# later, when the player has moved on, is worse than a refusal: the writer was
+# told nothing happened, so it will say so out loud and move on. Commands
+# therefore carry a deadline and are dropped at dispatch time, not applied late.
+#
+# THE OUTCOME IS THREE-STATE, NOT TWO. applied / not-applied / unknown. If no
+# tab ever claimed the command we can say "not applied" with certainty. If a
+# tab claimed it and then went quiet, the honest answer is that we do not know
+# — reporting either success or failure there would be inventing a fact. That
+# third bucket should be empty in practice; it exists so it is never silently
+# folded into one of the other two.
+#
+# WHY A QUEUE AT ALL. The server cannot touch the sheet — the resolved numbers
+# live in a browser DOM. So the tab long-polls for commands, applies them,
+# recalculates, and ACKs with a fresh snapshot; the ack IS a publish (it
+# updates _LIVE), which guarantees the snapshot handed back to the writer is
+# byte-for-byte what a reader would have got. Delivery rides the network, not
+# a timer, so it is immune to the background-tab timer throttling that slows
+# phase 1's change-watcher in the three tabs that are not on screen.
+_LIVE_CMDS = {}
+# One condition variable guards the command registry AND wakes long-pollers.
+# Deliberately not _LIVE_LOCK: a long-poll parks for up to 25 seconds, and
+# holding the snapshot lock that long would stall every publish and read.
+_LIVE_CMD_COND = threading.Condition()
+_LIVE_CMD_SEQ = [0]
+# How long a writer waits for a tab to apply and ack. The tab's poll returns
+# instantly when a command is waiting and applying is synchronous, so this is
+# generous by an order of magnitude — it is a ceiling, not a budget.
+LIVE_WRITE_TIMEOUT_SEC = 5.0
+LIVE_WRITE_TIMEOUT_MAX = 30.0
+# Ceiling on a tab's long-poll park. Must stay under the handler's 60s socket
+# timeout or the connection dies under the poll rather than returning empty.
+LIVE_POLL_MAX_SEC = 25.0
+
+# Fields a consumer may write, as (pattern, kind, description). The pattern is
+# matched against the DOTTED PATH OF THE PUBLISHED SNAPSHOT — a consumer reads
+# `snapshot["hp"]["current"]` and writes `"hp.current"`, so the read and write
+# vocabularies are the same one. Parameterised paths carry the same addresses
+# phase 1 publishes: caster `id` (stable; the label is not), then spell level.
+LIVE_WRITABLE = [
+    (r"^hp\.current$", "int", "current hit points"),
+    (r"^hp\.temp$", "int", "temporary hit points"),
+    (r"^hp\.nonlethal$", "int", "nonlethal damage taken"),
+    (r"^conditions$", "list[str]",
+     "the COMPLETE set of active conditions, not a delta; [] clears them"),
+    (r"^rage_active$", "bool",
+     "currently raging — folds +4 Str/+4 Con/-2 AC into the returned snapshot"),
+    (r"^uses_per_day\.rage\.used$", "int", "rages used today"),
+    (r"^xp$", "int", "experience points"),
+    (r"^money\.(cp|sp|gp|pp)$", "num", "coin on hand"),
+    # The groups are not used on this side — they are here so the pattern
+    # SOURCE is character-identical to live-commands.js's, which extracts the
+    # caster id and level from them. tests/test_pickers.js compares the two
+    # lists as text, and a comparison that has to normalise first is a
+    # comparison that can be talked into passing.
+    (r"^pools\.power_points\.([^.]+)\.spent$", "int",
+     "power points spent, addressed by caster id (pools.power_points.caster-1.spent)"),
+    (r"^pools\.spell_slots\.([^.]+)\.(\d+)\.used$", "int",
+     "slots used, addressed by caster id then spell level "
+     "(pools.spell_slots.caster-0.3.used)"),
+]
+
+# Refusals that TEACH. Every one of these is a field a consumer can plausibly
+# reach for and must not own; answering "unknown field" would read as a typo
+# and invite a retry. Ordered — first match wins — and consulted only after
+# LIVE_WRITABLE misses, so a writable path can never be shadowed by a hint.
+LIVE_NOT_WRITABLE = [
+    (r"^hp\.total$",
+     "hp.total is structural — the sheet derives it from class HD and Con"),
+    (r"^abilities\.",
+     "ability scores are structural — the sheet owns them, and every derived "
+     "number depends on them"),
+    (r"^(defense|saves|initiative|grapple|bab|attacks|skills)\b",
+     "derived — this is computed from structural state; write the cause, not "
+     "the effect (e.g. a condition), and read the recomputed value back"),
+    (r"^identity\.",
+     "identity is structural — name, race, classes and level belong to the sheet"),
+    (r"^speed\.",
+     "speed is structural — the sheet derives it from race, load and armour"),
+    (r"\.(max|capacity|per_day|known|dc)$",
+     "pool CAPACITIES are the sheet's half of the split — it hands you the "
+     "ceiling and you own the depletion"),
+    (r"^pools\.",
+     "the only writable pool fields are `.spent` on a power-point block and "
+     "`.used` on a spell-slot level"),
+]
+
+
+def live_field_check(field, value):
+    """Return (ok, reason) for one requested write.
+
+    Reason is None when ok. The value's type is checked here rather than in the
+    tab because a type error is a WRITER bug: it should come back on the write
+    call, not arrive at a browser that has to decide what `"twelve"` means.
+    """
+    if not isinstance(field, str) or not field:
+        return False, "field must be a non-empty string"
+    for pattern, kind, _desc in LIVE_WRITABLE:
+        if re.match(pattern, field):
+            return live_value_check(kind, value)
+    for pattern, reason in LIVE_NOT_WRITABLE:
+        if re.match(pattern, field):
+            return False, reason
+    return False, "not a writable field (GET /api/live-writable lists them)"
+
+
+def live_value_check(kind, value):
+    # bool is a subclass of int in Python and JSON `true` would sail straight
+    # into an integer field, so it is excluded explicitly rather than by luck.
+    if kind == "int":
+        if isinstance(value, bool) or not isinstance(value, int):
+            return False, "expected an integer"
+        return True, None
+    if kind == "num":
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False, "expected a number"
+        return True, None
+    if kind == "bool":
+        if not isinstance(value, bool):
+            return False, "expected true or false"
+        return True, None
+    if kind == "list[str]":
+        if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+            return False, "expected a list of strings"
+        return True, None
+    return False, "unknown field kind %r" % (kind,)  # unreachable; keeps it loud
 
 
 def flags_path(surface: str) -> Path:
@@ -562,6 +730,10 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_get_flags()
         if self.path == "/api/live":
             return self._api_list_live()
+        if self.path == "/api/live-writable":
+            return self._api_live_writable()
+        if self.path.startswith("/api/live-commands/"):
+            return self._api_live_commands()
         if self.path.startswith("/api/live/"):
             return self._api_get_live()
         if self._is_index_request():
@@ -614,7 +786,23 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
 
     def _live_key(self):
         """The qualified save name from /api/live/<qualified>, or None."""
-        raw = urllib.parse.unquote(self.path[len("/api/live/"):]).strip("/")
+        return self._live_key_for("/api/live/")
+
+    def _live_key_for(self, prefix):
+        """The qualified save name following `prefix`, or None if unusable.
+
+        A qualified name legitimately CONTAINS slashes ("active/Gorrash Head
+        Smasher"), which is why phase 2's verbs live in sibling namespaces
+        (/api/live-write/<qualified>) rather than as a trailing path segment:
+        with the name last, there is no way to tell a verb from a character
+        called "write" without guessing, and guessing wrong on somebody's
+        character name is a bug that would surface once a year and make no
+        sense when it did.
+        """
+        path = urllib.parse.urlparse(self.path).path
+        if not path.startswith(prefix):
+            return None
+        raw = urllib.parse.unquote(path[len(prefix):]).strip("/")
         # Same containment rule as the save endpoints: a key is a plain
         # qualified name, never a traversal.
         if not raw or ".." in raw or raw.startswith("/") or "\\" in raw:
@@ -686,6 +874,274 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             "stale_after_seconds": LIVE_STALE_AFTER_SEC,
         })
 
+    # ---- API: live bus phase 2 — inbound writes -------------------------
+
+    def _api_live_writable(self):
+        """The ownership split, machine-readable.
+
+        It exists so the split is not prose duplicated in two repositories
+        that cannot see each other: a consumer can ask what it owns, and the
+        refusal list tells it WHY the rest is refused rather than leaving it
+        to guess at a typo.
+        """
+        return self._send_json(200, {
+            "writable": [{"field": p, "kind": k, "description": d}
+                         for p, k, d in LIVE_WRITABLE],
+            "refused": [{"field": p, "reason": r} for p, r in LIVE_NOT_WRITABLE],
+            "absolute_values_only": True,
+            "notes": [
+                "Field paths are the dotted paths of the published snapshot: "
+                "read snapshot['hp']['current'], write 'hp.current'.",
+                "Values are absolute, never deltas. Send the number you own.",
+                "A write with no fresh publishing tab fails; it does not queue.",
+                "Outcomes are three-state: applied / partial / not-applied, "
+                "plus 'unknown' when a tab claimed the write and went quiet.",
+            ],
+            "write_timeout_seconds": LIVE_WRITE_TIMEOUT_SEC,
+            "write_timeout_max_seconds": LIVE_WRITE_TIMEOUT_MAX,
+            "stale_after_seconds": LIVE_STALE_AFTER_SEC,
+        })
+
+    def _read_json_body(self, limit=1024 * 1024):
+        """(payload, error_response_sent). Shared by the two phase-2 POSTs."""
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > limit:
+            self._send_json(413, {"error": "payload too large"})
+            return None, True
+        raw = self.rfile.read(length) if length > 0 else b""
+        try:
+            payload = json.loads(raw) if raw.strip() else None
+        except (ValueError, json.JSONDecodeError) as e:
+            self._send_json(400, {"error": "invalid JSON: %s" % e})
+            return None, True
+        if not isinstance(payload, dict):
+            self._send_json(400, {"error": "expected a JSON object"})
+            return None, True
+        return payload, False
+
+    def _api_live_write(self):
+        key = self._live_key_for("/api/live-write/")
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        payload, sent = self._read_json_body()
+        if sent:
+            return
+        fields = payload.get("fields")
+        if not isinstance(fields, dict) or not fields:
+            return self._send_json(400, {
+                "error": "expected {\"fields\": {\"<path>\": <value>, ...}}"})
+        try:
+            timeout = float(payload.get("timeout_seconds") or LIVE_WRITE_TIMEOUT_SEC)
+        except (TypeError, ValueError):
+            timeout = LIVE_WRITE_TIMEOUT_SEC
+        timeout = max(0.1, min(LIVE_WRITE_TIMEOUT_MAX, timeout))
+
+        # FAIL FAST WHEN NOBODY IS LISTENING. Mirror of the read side's
+        # staleness contract: no fresh tab means the write cannot happen, and
+        # saying so now is strictly better than queueing it for a tab that may
+        # never come back. 409, and the two causes are distinguished — "never
+        # had this character open" and "had it open and went away" are
+        # different problems for whoever is reading the error.
+        now = time.monotonic()
+        with _LIVE_LOCK:
+            rec = _LIVE.get(key)
+            age = None if rec is None else max(0.0, now - rec["received_at"])
+        if rec is None:
+            return self._send_json(409, {
+                "status": "not-applied",
+                "reason": "no-live-tab",
+                "qualified": key,
+                "hint": "no open sheet tab is publishing this character",
+            })
+        if age > LIVE_STALE_AFTER_SEC:
+            return self._send_json(409, {
+                "status": "not-applied",
+                "reason": "stale-tab",
+                "qualified": key,
+                "age_seconds": round(age, 1),
+                "stale_after_seconds": LIVE_STALE_AFTER_SEC,
+                "hint": "the last publish is older than the stale window; "
+                        "treat this character as absent",
+            })
+
+        accepted, rejected = {}, []
+        for field, value in fields.items():
+            ok, reason = live_field_check(field, value)
+            if ok:
+                accepted[field] = value
+            else:
+                rejected.append({"field": field, "reason": reason})
+        if not accepted:
+            return self._send_json(400, {
+                "status": "not-applied",
+                "reason": "no-writable-fields",
+                "qualified": key,
+                "rejected": rejected,
+                "hint": "GET /api/live-writable lists what a consumer owns",
+            })
+
+        with _LIVE_CMD_COND:
+            _LIVE_CMD_SEQ[0] += 1
+            cmd = {
+                "id": "cmd-%d" % _LIVE_CMD_SEQ[0],
+                "fields": accepted,
+                "source": str(payload.get("source") or "")[:120],
+                "reason": str(payload.get("reason") or "")[:400],
+                # The deadline is the WRITER's patience, and it is enforced at
+                # dispatch: a command whose writer has stopped waiting is never
+                # handed to a tab. Late application is the failure mode this
+                # whole design is built to avoid.
+                "expires_at": now + timeout,
+                "dispatched_at": None,
+                "result": None,
+            }
+            _LIVE_CMDS.setdefault(key, []).append(cmd)
+            _LIVE_CMD_COND.notify_all()
+
+            deadline = time.monotonic() + timeout
+            while cmd["result"] is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                _LIVE_CMD_COND.wait(remaining)
+
+            result = cmd["result"]
+            dispatched = cmd["dispatched_at"] is not None
+            # Withdraw it either way — identity, not equality, since two
+            # commands can carry identical fields.
+            queue = [c for c in _LIVE_CMDS.get(key) or [] if c is not cmd]
+            if queue:
+                _LIVE_CMDS[key] = queue
+            else:
+                _LIVE_CMDS.pop(key, None)
+
+        if result is not None:
+            applied = result.get("applied") or []
+            rejected = rejected + (result.get("rejected") or [])
+            if len(applied) == len(fields):
+                status = "applied"
+            elif applied:
+                status = "partial"
+            else:
+                status = "not-applied"
+            return self._send_json(200, {
+                "status": status,
+                "qualified": key,
+                "command_id": cmd["id"],
+                "applied": applied,
+                "rejected": rejected,
+                # What the fields actually read back as after the sheet applied
+                # and recalculated — a clamp or a coercion shows up here rather
+                # than being reported as a clean success.
+                "echo": result.get("echo") or {},
+                "snapshot": result.get("snapshot"),
+            })
+        if not dispatched:
+            # Certain: no tab ever took it, and it can no longer be taken.
+            return self._send_json(504, {
+                "status": "not-applied",
+                "reason": "no-tab-claimed",
+                "qualified": key,
+                "command_id": cmd["id"],
+                "rejected": rejected,
+                "timeout_seconds": timeout,
+                "hint": "a tab is publishing but did not poll for commands; "
+                        "it may be an older tab without live-commands.js",
+            })
+        # A tab took it and went quiet. We do not know whether it applied.
+        # Saying so is the only honest answer, and this bucket exists precisely
+        # so it never gets folded into one of the certain two.
+        return self._send_json(504, {
+            "status": "unknown",
+            "reason": "claimed-but-no-ack",
+            "qualified": key,
+            "command_id": cmd["id"],
+            "rejected": rejected,
+            "timeout_seconds": timeout,
+            "hint": "the tab claimed this write and did not acknowledge in "
+                    "time; it may or may not have applied. Re-read the "
+                    "snapshot before deciding.",
+        })
+
+    def _api_live_commands(self):
+        """A tab long-polls here for work. Returns instantly when work waits."""
+        key = self._live_key_for("/api/live-commands/")
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        try:
+            wait = float((query.get("wait") or [LIVE_POLL_MAX_SEC])[0])
+        except (TypeError, ValueError):
+            wait = LIVE_POLL_MAX_SEC
+        wait = max(0.0, min(LIVE_POLL_MAX_SEC, wait))
+
+        deadline = time.monotonic() + wait
+        with _LIVE_CMD_COND:
+            while True:
+                now = time.monotonic()
+                ready = []
+                for cmd in _LIVE_CMDS.get(key) or []:
+                    if cmd["dispatched_at"] is not None:
+                        continue          # another tab already took it
+                    if cmd["expires_at"] <= now:
+                        continue          # writer stopped waiting; never apply
+                    cmd["dispatched_at"] = now
+                    ready.append(cmd)
+                if ready:
+                    out = [{"id": c["id"], "fields": c["fields"],
+                            "source": c["source"], "reason": c["reason"]}
+                           for c in ready]
+                    break
+                remaining = deadline - now
+                if remaining <= 0:
+                    out = []
+                    break
+                _LIVE_CMD_COND.wait(remaining)
+        return self._send_json(200, {
+            "qualified": key,
+            "commands": out,
+            "poll_max_seconds": LIVE_POLL_MAX_SEC,
+        })
+
+    def _api_live_ack(self):
+        """A tab reports what it did, and publishes in the same breath.
+
+        The ack carries the post-recalc snapshot and it is stored exactly like
+        a PUT publish would store it, which is what makes the snapshot handed
+        back to the writer identical to what any reader would get. One code
+        path, so the two can never drift.
+        """
+        key = self._live_key_for("/api/live-ack/")
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        payload, sent = self._read_json_body(limit=10 * 1024 * 1024)
+        if sent:
+            return
+        snapshot = payload.get("snapshot")
+        if isinstance(snapshot, dict):
+            with _LIVE_LOCK:
+                _LIVE[key] = {"snapshot": snapshot, "received_at": time.monotonic()}
+        results = payload.get("results")
+        if not isinstance(results, list):
+            results = []
+        with _LIVE_CMD_COND:
+            queue = {c["id"]: c for c in _LIVE_CMDS.get(key) or []}
+            for item in results:
+                if not isinstance(item, dict):
+                    continue
+                cmd = queue.get(item.get("id"))
+                if cmd is None:
+                    continue      # the writer already timed out and withdrew it
+                cmd["result"] = {
+                    "applied": item.get("applied") or [],
+                    "rejected": item.get("rejected") or [],
+                    "echo": item.get("echo") or {},
+                    "snapshot": snapshot,
+                }
+            _LIVE_CMD_COND.notify_all()
+        self.send_response(204)
+        self.end_headers()
+
     def do_POST(self):
         # /api/move is the atomic rename / folder-move endpoint —
         # used by the library modal's "→ active" / "→ library"
@@ -696,6 +1152,10 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_move_save()
         if self.path.startswith("/api/flags/"):
             return self._api_post_flags()
+        if self.path.startswith("/api/live-write/"):
+            return self._api_live_write()
+        if self.path.startswith("/api/live-ack/"):
+            return self._api_live_ack()
         if self.path == "/api/loadstatus":
             return self._api_loadstatus()
         self.send_error(405, "method not allowed")

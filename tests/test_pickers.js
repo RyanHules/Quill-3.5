@@ -7715,6 +7715,95 @@ test('focus-aggregator: spells.js surfaces Spell Focus as a per-panel note', () 
     'spells.js must inject the .sc-focus-note element.');
 });
 
+// ---- live bus (phase 2 — inbound writes) ---------------------------------
+//
+// The writable-field list necessarily exists twice: the SERVER owns the
+// ownership split (what a consumer may write, and why the rest is refused) and
+// the TAB owns the DOM mapping (where a blessed field actually lives). Those
+// are two different questions, but they are indexed by the same set of field
+// paths — so the duplication is real and the only honest answer is to gate it.
+// Both lists are written with character-identical pattern sources; this test
+// parses them out of the two files and fails on any divergence. Without it,
+// adding a field on one side lands as a silent no-op at 2am mid-combat.
+
+// Both readers tolerate either line ending: save_server.py sits in a CRLF
+// working tree on Windows while the JS modules are LF, and a test that only
+// passes under one of them is a test that fails for the wrong reason later.
+function liveServerPatterns() {
+  const src = readSource('save_server.py');
+  const block = src.match(/^LIVE_WRITABLE = \[\r?\n([\s\S]*?)^\]/m);
+  assert(block, 'save_server.py must define a LIVE_WRITABLE list.');
+  return (block[1].match(/r"([^"]+)"/g) || []).map((s) => s.slice(2, -1));
+}
+
+function liveTabPatterns() {
+  const src = readSource('live-commands.js');
+  const block = src.match(/^  var FIELDS = \[\r?\n([\s\S]*?)^  \];/m);
+  assert(block, 'live-commands.js must define a FIELDS list.');
+  return (block[1].match(/pattern: \/([^/]+)\//g) || [])
+    .map((s) => s.replace(/^pattern: \//, '').replace(/\/$/, ''));
+}
+
+test('live: the writable-field list is identical on both halves of the bus', () => {
+  const server = liveServerPatterns();
+  const tab = liveTabPatterns();
+  assertGE(server.length, 8, 'expected the server allowlist to be populated');
+  assertEq(tab.length, server.length,
+    'live-commands.js FIELDS and save_server.py LIVE_WRITABLE have different ' +
+    `lengths — server [${server.join(', ')}] vs tab [${tab.join(', ')}]`);
+  server.forEach((pattern, i) => {
+    assertEq(tab[i], pattern,
+      `live bus field #${i} diverges: the server allows \`${pattern}\` and the ` +
+      `tab maps \`${tab[i]}\`. Both lists must carry the same pattern sources ` +
+      'in the same order.');
+  });
+});
+
+test('live: structural fields are refused with a reason, not merely unknown', () => {
+  const src = readSource('save_server.py');
+  const block = src.match(/^LIVE_NOT_WRITABLE = \[\r?\n([\s\S]*?)^\]/m);
+  assert(block, 'save_server.py must define LIVE_NOT_WRITABLE.');
+  // The ownership split's sheet-owned side. A consumer reaching for one of
+  // these must get told WHY, or the refusal reads as a typo and invites a retry.
+  for (const owned of ['hp\\.total', 'abilities', 'identity', 'capacity']) {
+    assert(new RegExp(owned).test(block[1]),
+      `LIVE_NOT_WRITABLE must explain refusals for ${owned}.`);
+  }
+  assert(/live_field_check/.test(src) && /LIVE_WRITABLE/.test(src),
+    'live_field_check must consult the allowlist before the refusal hints.');
+});
+
+test('live: a write fails fast when no fresh tab is publishing', () => {
+  const src = readSource('save_server.py');
+  const body = src.slice(src.indexOf('def _api_live_write'));
+  // Mirror of the read side's staleness contract: queueing a write for a tab
+  // that may never return is worse than refusing it, because the writer is
+  // told nothing happened and moves on.
+  assert(/no-live-tab/.test(body) && /stale-tab/.test(body),
+    '_api_live_write must distinguish "never open" from "went stale" and ' +
+    'refuse both with 409 rather than queueing.');
+  assert(/"unknown"/.test(body) && /claimed-but-no-ack/.test(body),
+    'the outcome must be three-state — a tab that claimed a write and went ' +
+    'quiet is neither applied nor not-applied, and folding it into either ' +
+    'is inventing a fact.');
+  assert(/expires_at/.test(src),
+    'commands must carry a deadline so a stale one is dropped at dispatch ' +
+    'rather than applied late.');
+});
+
+test('live: the tab refuses a field the player is editing', () => {
+  const src = readSource('live-commands.js');
+  assert(/field-focused/.test(src),
+    'live-commands.js must refuse a focused field instead of overwriting it ' +
+    'mid-keystroke.');
+  assert(/live-written/.test(src) && /live-written/.test(readSource('styles.css')),
+    'a rig-written field must flash — a number moving by itself on a sheet ' +
+    'somebody is watching should never be silent.');
+  assert(/notePublished/.test(src) && /notePublished/.test(readSource('live-publish.js')),
+    'the ack doubles as a publish, so live-publish.js must be told or its ' +
+    'watcher re-publishes identical content.');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {
