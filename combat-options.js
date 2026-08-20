@@ -17,7 +17,8 @@
 //     your base attack bonus. ... If you attack with a two-handed weapon, or
 //     with a one-handed weapon wielded in two hands, instead add TWICE the
 //     number subtracted. You can't add the bonus from Power Attack to the
-//     damage dealt with a LIGHT weapon (except with unarmed strikes)."
+//     damage dealt with a light weapon (except with unarmed strikes or natural
+//     weapon attacks), even though the penalty on attack rolls still applies."
 //
 //   Combat Expertise (PHB): "take a penalty of as much as -5 on your attack
 //     roll and add the same number as a DODGE bonus to your Armor Class. This
@@ -33,11 +34,12 @@
 //     penalty. Damage is untouched, which is worth saying out loud because it
 //     is usually described as a damage feat.
 //
-// The light-weapon carve-out has its own carve-out: natural weapons can be
-// Power Attacked despite counting as light (Ryan's ruling — see the fighting
-// style table in damage-calc.js, where "natural" is a style of its own rather
-// than a flavour of "light", so the call is visible in the UI instead of buried
-// in a branch).
+// The light-weapon carve-out has its own carve-out, and it is RAW: the full
+// sentence reads "...with a light weapon (except with unarmed strikes or
+// natural weapon attacks), even though the penalty on attack rolls still
+// applies." Note the second clause — a light weapon pays the to-hit penalty and
+// gets no damage for it. attackPenalty() below is therefore STYLE-BLIND on
+// purpose; damage-calc.js is where the style decides who gets the damage.
 const CombatOptions = (function () {
   'use strict';
 
