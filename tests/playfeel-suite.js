@@ -3749,6 +3749,77 @@
     await newCharacter();
   });
 
+  regression('LB7: defensive riders take the DB\'s structure instead of flattening it', async () => {
+    if (typeof DefenseRiders === 'undefined') fail('LB7: defense-riders.js not loaded');
+    await newCharacter();
+    await wait(150);
+
+    // A race the DB carries BOTH structured resistances and immunities for.
+    // The old path turned these into a prose line in the notes box; the point
+    // of the module is that the structure survives the trip.
+    set('char-race', 'Bladeling (as Characters)');
+    $('#char-race').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(900);
+
+    const s = DefenseRiders.getStructured();
+    expect(s.resistances.length, 2, `LB7: two racial resistances (got ${JSON.stringify(s.resistances)})`);
+    expect(s.resistances.every(r => r.amount === 5), true, 'LB7: both resist 5');
+    expect(s.resistances.map(r => r.damage_type).sort().join(','), 'cold,fire',
+      'LB7: the damage types survived as data, not prose');
+    expect(s.immunities.sort().join(','), 'acid,rust attacks', 'LB7: immunities structured');
+    // The whole point: nothing was written into the free-text box.
+    expect(($('#ac-defense-notes').value || '').trim(), '',
+      'LB7: the race must NOT flatten its riders into the notes box any more');
+
+    // Ownership: a hand-added rider survives a race change, race rows don't.
+    DefenseRiders.addRow({ kind: 'vulnerability', type: 'cold iron' });
+    set('char-race', 'Deep Gnome');
+    $('#char-race').dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(900);
+    const after = DefenseRiders.getStructured();
+    expect(after.resistances.length, 0, 'LB7: the old race took its resistances with it');
+    expect(after.immunities.length, 0, 'LB7: and its immunities');
+    expect(after.vulnerabilities.join(','), 'cold iron',
+      'LB7: the hand-added rider survived the race change');
+
+    // Round trip.
+    $('#fast-healing').value = '3';
+    $('#regeneration-amount').value = '5';
+    $('#regeneration-bypass').value = 'acid, fire';
+    const blob = DefenseRiders.collectData();
+    $('#defense-riders-list').innerHTML = '';
+    $('#fast-healing').value = '';
+    $('#regeneration-amount').value = '';
+    $('#regeneration-bypass').value = '';
+    DefenseRiders.loadData(blob);
+    await wait(150);
+    const rt = DefenseRiders.getStructured();
+    expect(rt.vulnerabilities.join(','), 'cold iron', 'LB7: riders round-trip');
+    expect(rt.fast_healing, 3, 'LB7: fast healing round-trips as a number');
+    expect(rt.regeneration && rt.regeneration.bypass, 'acid, fire',
+      'LB7: regeneration bypass round-trips');
+
+    // An OLD save has no _defense_riders at all and must load as empty, not
+    // throw — the field is new and every existing character predates it.
+    DefenseRiders.loadData({ 'char-name': 'legacy' });
+    await wait(100);
+    expect(DefenseRiders.getStructured().resistances.length, 0,
+      'LB7: a pre-module save loads clean');
+
+    // And the migration flag: rider prose still in the notes must stop an
+    // empty structured list reading as a clean "none".
+    $('#ac-defense-notes').value = 'Resist 5: Sonic';
+    expect(DefenseRiders.notesMayContainRiders(), true,
+      'LB7: unmigrated rider prose in the notes is flagged');
+    expect(LivePublish.snapshot().defense.notes_may_contain_riders, true,
+      'LB7: and the flag reaches the published snapshot');
+    $('#ac-defense-notes').value = 'Wears a red hat.';
+    expect(DefenseRiders.notesMayContainRiders(), false,
+      'LB7: ordinary notes are not flagged (the flag must be able to be false)');
+
+    await newCharacter();
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {

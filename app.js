@@ -329,6 +329,7 @@
       ClassFeatures.collectData(),
       typeof Bloodline !== "undefined" ? Bloodline.collectData() : {},
       typeof Conditions !== "undefined" ? Conditions.collectData() : {},
+      typeof DefenseRiders !== "undefined" ? DefenseRiders.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
       typeof BookFilter !== "undefined" ? BookFilter.collectData() : {},
@@ -347,6 +348,7 @@
     ClassFeatures.loadData(data);
     if (typeof Bloodline !== "undefined") Bloodline.loadData(data);
     if (typeof Conditions !== "undefined") Conditions.loadData(data);
+    if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
     if (typeof HomebrewFilter !== "undefined") HomebrewFilter.loadData(data);
@@ -980,6 +982,7 @@
   Skills.build(getAbilityMod);
   Equipment.buildMagicItemSlots();
   if (typeof Conditions !== "undefined") Conditions.build();
+  if (typeof DefenseRiders !== "undefined") DefenseRiders.build();
   if (typeof Audit !== "undefined") Audit.build();
   if (typeof BuildTimeline !== "undefined") BuildTimeline.init();
 

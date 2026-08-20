@@ -536,10 +536,28 @@
             <div class="field"><label>Damage Reduction</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
             <div class="field" title="Percentage chance an incoming attack misses entirely (before the to-hit roll is compared to AC). Sources: concealment (20%), total concealment (50%), incorporeal (50% vs non-magic), blink (50%), mirror image, displacement (50%), etc. Stack via the highest single source — they don't add. Enter as a percentage (e.g. 20 for 20%) or as multiple sources separated by / (e.g. 50/20 → highest wins at 50)."><label>Miss Chance %</label><input type="text" id="ac-miss-chance" value="" class="misc-expr" placeholder="e.g. 20 or 50/20"></div>
           </div>
+          <!-- Structured defensive riders (defense-riders.js). Energy
+               resistances / immunities / vulnerabilities used to land in the
+               free-text notes below, which meant the DB's already-structured
+               `resistances` / `immunities` data was flattened into prose on its
+               way in and unreadable on its way out. These rows carry the DB's
+               own shapes; the notes box below stays for everything not
+               modelled here. -->
+          <div class="field defense-riders-block" style="margin-top:0.5rem">
+            <label title="Energy resistance (Resist 5 fire), immunities (poison, mind-affecting), and vulnerabilities (+50% damage from a type). Auto-filled from an applied race and removed with it; hand-edit a row and it becomes yours. Damage Reduction and Spell Resistance keep their own fields above.">Defensive Riders</label>
+            <div id="defense-riders-list"></div>
+            <div class="defense-riders-controls">
+              <button type="button" id="defense-riders-add" class="btn-small">+ Add rider</button>
+              <div class="field field-sm" title="Hit points regained each round. Unlike regeneration, fast healing does not convert lethal damage."><label>Fast Healing</label><input type="number" id="fast-healing" min="0"></div>
+              <div class="field field-sm" title="Hit points regained each round; damage is converted to nonlethal except from the bypass types."><label>Regeneration</label><input type="number" id="regeneration-amount" min="0"></div>
+              <div class="field field-sm" title="Damage types that bypass regeneration and deal normal damage (e.g. acid, fire)."><label>Regen bypassed by</label><input type="text" id="regeneration-bypass" placeholder="e.g. acid, fire"></div>
+            </div>
+          </div>
           <!-- Catch-all defense notes — situational immunities, layered DR
                that doesn't fit the equipment row, ongoing buffs that affect
-               defenses, energy resistance specifics, regeneration triggers,
-               etc. Auto-expands; round-trips via Character.save/load. -->
+               defenses, regeneration triggers, etc. Auto-expands; round-trips
+               via Character.save/load. Still authoritative for anything the
+               structured riders above don't model. -->
           <div class="field" style="margin-top:0.5rem">
             <label title="Free-form notes for defensive layers that don't fit the structured fields above — situational immunities (mind-affecting / poison / cold), layered DR sources, ongoing buffs (mage armor, shield, barkskin), energy resistance specifics, regeneration triggers + bypass damage types, fast healing notes, fortification %, etc.">Defense Notes</label>
             <textarea id="ac-defense-notes" class="auto-expand" rows="2"
@@ -1003,6 +1021,11 @@
       // safety, but we should still load it first).
       'feats.js', 'item-familiar.js', 'companion.js',
       'class-features.js', 'conditions.js',
+      // Structured energy resistances / immunities / vulnerabilities + fast
+      // healing + regeneration. Adopts the DB's own field shapes so the same
+      // vocabulary runs from the book to the sheet to the live bus. Must load
+      // before race-picker, which auto-fills it.
+      'defense-riders.js',
       'feat-prereqs.js', 'character-history.js', 'build-timeline.js',
       'audit.js',
       // save-backend.js — async storage abstraction over the Python

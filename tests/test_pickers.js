@@ -4905,16 +4905,45 @@ test('feats: Special Abilities ⓘ resolves creature abilities (renderCreatureAb
 });
 
 test('save: every UI module exposes collectData + loadData', () => {
-  // Catch the case where a new module is added without persistence.
-  const modules = [
-    'character.js', 'equipment.js', 'spells.js', 'feats.js',
-    'companion.js', 'class-features.js', 'skills.js',
-  ];
+  // DERIVED from app.js, not hand-listed. The previous version carried a
+  // literal array of seven filenames and a comment promising to "catch the case
+  // where a new module is added without persistence" — which it could not do,
+  // because catching a NEW module required somebody to remember to add it to
+  // the list. conditions.js, bloodline.js and defense-riders.js were all wired
+  // into app.js and none of them were ever covered.
+  //
+  // Same failure shape as a schema field that is required and read by nothing:
+  // the check exists, it passes, and it is not looking at the thing it names.
+  // Deriving the list from app.js's own collectData/loadData bodies makes it
+  // self-maintaining — wiring a module in is what puts it under the guard.
+  const src = readSource('app.js');
+  const collectBody = extractFunctionBody(src, 'collectData');
+  const loadBody = extractFunctionBody(src, 'loadData');
+  assert(collectBody && loadBody, "Couldn't extract app.js collectData/loadData");
+
+  // PascalCase module global -> kebab-case filename (ClassFeatures ->
+  // class-features.js). Holds for every module in the project.
+  const fileFor = (name) =>
+    name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() + '.js';
+
+  const wired = new Set();
+  for (const body of [collectBody, loadBody]) {
+    for (const m of body.matchAll(/\b([A-Z][A-Za-z0-9]+)\.(?:collect|load)[A-Za-z]*\s*\(/g)) {
+      wired.add(m[1]);
+    }
+  }
+  assertGE(wired.size, 10, `expected app.js to wire 10+ modules, found ${wired.size}`);
+
   const missing = [];
-  for (const m of modules) {
-    const src = readSource(m);
-    if (!/function collectData\s*\(/.test(src)) missing.push(`${m}: collectData`);
-    if (!/function loadData\s*\(/.test(src))     missing.push(`${m}: loadData`);
+  for (const mod of wired) {
+    const file = fileFor(mod);
+    if (!fs.existsSync(path.join(ROOT, file))) {
+      missing.push(`${mod}: no ${file} (naming convention broken?)`);
+      continue;
+    }
+    const modSrc = readSource(file);
+    if (!/function collectData\s*\(/.test(modSrc)) missing.push(`${file}: collectData`);
+    if (!/function loadData\s*\(/.test(modSrc)) missing.push(`${file}: loadData`);
   }
   assert(missing.length === 0,
     `Missing persistence functions:\n  ${missing.join('\n  ')}`);
@@ -7789,6 +7818,45 @@ test('live: a write fails fast when no fresh tab is publishing', () => {
   assert(/expires_at/.test(src),
     'commands must carry a deadline so a stale one is dropped at dispatch ' +
     'rather than applied late.');
+});
+
+test('live: defensive riders publish structured, and absence is not "none"', () => {
+  const pub = readSource('live-publish.js');
+  const mod = readSource('defense-riders.js');
+
+  // The rider block must carry the DB's OWN field names. Aliasing them here
+  // would put a second vocabulary between the book and the bus, which is the
+  // drift the DB project's canon rule exists to prevent.
+  for (const field of ['resistances', 'immunities', 'vulnerabilities',
+                       'fast_healing', 'regeneration']) {
+    assert(new RegExp(`\\b${field}\\b`).test(mod),
+      `defense-riders.js must use the DB's field name \`${field}\`.`);
+    assert(new RegExp(`\\b${field}\\b`).test(pub),
+      `live-publish.js must publish \`${field}\`.`);
+  }
+
+  // THE migration guard. Every character built before this module has an empty
+  // rider list AND rider prose in its notes; publishing a bare [] for them
+  // would read as "takes full damage" and get narrated out loud.
+  assert(/notes_may_contain_riders/.test(pub) && /notes_may_contain_riders/.test(mod),
+    'live-publish.js must emit `notes_may_contain_riders` so an empty rider ' +
+    'list cannot be read as a clean "none" during the migration window.');
+
+  // With the module absent the publisher must omit the keys entirely, not
+  // emit empty arrays — "not modelled" and "none" are different statements.
+  const ridersFn = extractFunctionBody(pub, 'riders');
+  assert(ridersFn, "Couldn't extract live-publish.js#riders");
+  assert(/return\s*\{\s*\}/.test(ridersFn),
+    'live-publish.js#riders must return {} (omitting the keys) when the ' +
+    'module is unavailable — empty arrays would claim "none".');
+
+  // DR keeps its verbatim string; the parse rides alongside and may be null.
+  assert(/damage_reduction:\s*txt\('damage-reduction'\)/.test(pub),
+    'the verbatim DR string must still be published unchanged.');
+  const drFn = extractFunctionBody(pub, 'parsedDR');
+  assert(drFn && /return null/.test(drFn),
+    'parsedDR must return null rather than a partial structure on anything ' +
+    'it cannot fully account for.');
 });
 
 test('live: the tab refuses a field the player is editing', () => {

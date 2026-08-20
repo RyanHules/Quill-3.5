@@ -4514,6 +4514,37 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   white-space: nowrap;
 }
 
+/* Structured defensive riders (defense-riders.js) — energy resistance,
+   immunity, vulnerability rows under the AC block. */
+#defense-riders-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.defense-rider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.defense-rider-row .dr-kind { flex: 0 0 8.5rem; }
+.defense-rider-row .dr-amount { flex: 0 0 4rem; }
+.defense-rider-row .dr-type { flex: 1 1 auto; min-width: 6rem; }
+.defense-rider-row .dr-remove {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #533;
+  color: #c88;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 0.4rem;
+  line-height: 1.5;
+}
+.defense-rider-row .dr-remove:hover { background: #4a2626; color: #fff; }
+.defense-riders-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.defense-riders-controls .field { margin: 0; }
+
 /* A field a consumer just wrote through the live bus (live-commands.js).
    A number changing by itself on a sheet somebody is looking at should
    never be silent — this is how the player sees that the rig, not a

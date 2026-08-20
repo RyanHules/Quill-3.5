@@ -47,7 +47,12 @@
 (function () {
   'use strict';
 
-  var SCHEMA = 2;   // 2: + skills, defensive riders, pool capacities (rig ask)
+  // 2: + skills, defensive riders (as free text), pool capacities (rig ask)
+  // 3: defensive riders become STRUCTURED — resistances / immunities /
+  //    vulnerabilities / fast_healing / regeneration in the DB's own shapes,
+  //    plus `notes_may_contain_riders` and a parsed view of DR beside the
+  //    verbatim string. Additive: every schema-2 field is still emitted.
+  var SCHEMA = 3;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -254,6 +259,68 @@
     return { id: panel.id || ('#' + i), label: label };
   }
 
+  // Structured defensive riders, in the DB's own field names and shapes so a
+  // consumer reads the same vocabulary the books use.
+  //
+  // `notes_may_contain_riders` is the load-bearing field here, and it exists
+  // for the migration window. An empty `resistances: []` from a character
+  // built after this shipped means "no resistances" — a real claim. The same
+  // empty list from a character built BEFORE it means "nobody has migrated the
+  // prose in the notes box yet", and the prose might say Resist 5 to
+  // everything. Those two must not be readable as one statement, so the flag
+  // says which you are looking at. Same principle as `usable` on skills:
+  // absent must never be readable as none.
+  function riders() {
+    try {
+      if (typeof DefenseRiders === 'undefined') return {};
+      var s = DefenseRiders.getStructured();
+      return {
+        resistances: s.resistances,
+        immunities: s.immunities,
+        vulnerabilities: s.vulnerabilities,
+        fast_healing: s.fast_healing,
+        regeneration: s.regeneration,
+        notes_may_contain_riders: DefenseRiders.notesMayContainRiders()
+      };
+    } catch (e) {
+      // Module absent or mid-load. Emit NOTHING rather than empty arrays —
+      // omitting the keys says "this sheet doesn't model it", which is true,
+      // where `[]` would say "none", which would not be.
+      return {};
+    }
+  }
+
+  // "5/magic, 2/-" -> [{amount:5, bypass:"magic"}, {amount:2, bypass:null}].
+  // Returns null on anything it cannot fully account for, so a consumer never
+  // acts on a half-understood string: the verbatim value is published beside
+  // this and is the one to fall back to.
+  //
+  // Bypass stays a STRING because that is how the books and the DB write it —
+  // "cold iron or evil" and "evil and silver" mean different things (either vs
+  // both), and splitting them into a list would erase the distinction. The
+  // user data already shows the same ambiguity: `15/CI; 10/evil` is two DRs
+  // while `10/evil + silver` is one with two required bypasses.
+  function parsedDR() {
+    var raw = txt('damage-reduction');
+    if (!raw) return null;
+    var body = String(raw).replace(/^\s*DR\s+/i, '');
+    var parts = body.split(/[;,]/).map(function (s) { return s.trim(); })
+                    .filter(function (s) { return s !== ''; });
+    if (!parts.length) return null;
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      var m = /^(\d+)\s*\/\s*(.*)$/.exec(parts[i]);
+      if (!m) return null;                       // one unparsed part, no result
+      var bypass = m[2].trim();
+      out.push({
+        amount: parseInt(m[1], 10),
+        // "—" and "-" are the books' way of writing "nothing bypasses this".
+        bypass: (bypass === '' || bypass === '-' || bypass === '—') ? null : bypass
+      });
+    }
+    return out.length ? out : null;
+  }
+
   function conditions() {
     try {
       if (typeof Conditions !== 'undefined' && Conditions.getActive) {
@@ -283,15 +350,21 @@
         ac: num('ac-total'),
         touch: num('ac-touch'),
         flat_footed: num('ac-flatfooted'),
-        // Riders. DR and SR are their own fields; energy resistances and
-        // immunities are NOT separately modelled by the sheet — whatever the
-        // player wrote lands in `notes` as free text. Said plainly rather than
-        // emitted as a structured field we cannot actually fill, because a
-        // consumer parsing an empty `resistances: []` would read "none" where
-        // the truth is "not modelled".
+        // Riders. SCHEMA 3 (2026-08-20): energy resistances, immunities and
+        // vulnerabilities are structured now — defense-riders.js gives them
+        // real fields carrying the DB's own shapes, so this no longer has to
+        // hand over a sentence and hope.
+        //
+        // DR keeps its free-text field (158 saved characters have hand-typed
+        // strings there and re-parsing them into a new store is a migration
+        // nobody needs), so it ships BOTH: the verbatim string the player typed
+        // and a best-effort parse. Verbatim first and always — the parse is a
+        // convenience that may be null, never the source of truth.
         damage_reduction: txt('damage-reduction'),
+        damage_reduction_parsed: parsedDR(),
         spell_resistance: txt('spell-resistance'),
-        notes: txt('ac-defense-notes')
+        notes: txt('ac-defense-notes'),
+        ...riders()
       },
       saves: { fort: num('fort-total'), ref: num('ref-total'), will: num('will-total') },
       initiative: num('init-total'),

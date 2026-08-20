@@ -405,8 +405,16 @@
     }
 
     // 4c. Structured defenses — SR → #spell-resistance, DR → #damage-reduction
-    // (both shared, ownership-tracked), and immunities + energy resistances
-    // folded into the free-form #defense-notes (no dedicated sheet field yet).
+    // (both shared, ownership-tracked), and immunities / resistances /
+    // vulnerabilities into the structured rider rows.
+    //
+    // These used to be flattened into a prose line in #ac-defense-notes, which
+    // was the sharpest form of the missing-field problem: the DB hands us
+    // `resistances: [{amount, damage_type}]` and we turned it into a sentence,
+    // so anything reading the sheet downstream had to parse English to answer
+    // "does fire hurt this character". defense-riders.js takes the DB's shapes
+    // through unchanged. Ownership is per-source, so re-applying or removing
+    // the race takes exactly its rows.
     if (race.spell_resistance != null) {
       raceSetOwned('spell-resistance', String(race.spell_resistance), 'input', true);
     }
@@ -415,13 +423,25 @@
         .map(d => `${d.amount}/${d.bypass || '—'}`).join(', ');
       raceSetOwned('damage-reduction', dr, 'input');
     }
-    const defNotes = [];
-    if (race.immunities && race.immunities.length)
-      defNotes.push(`Immune to ${race.immunities.join(', ')}`);
-    if (race.resistances && race.resistances.length)
-      defNotes.push('Resist ' + race.resistances
-        .map(r => `${r.damage_type} ${r.amount}`).join(', '));
-    if (defNotes.length) raceSetDefenseNotes(defNotes.join('; '));
+    if (typeof DefenseRiders !== 'undefined') {
+      // Keyed by name so the marker is human-readable in a save file and
+      // survives a DB rebuild (entry ids renumber; names don't).
+      DefenseRiders.applyFromSource(`race:${race.name}`, {
+        resistances: race.resistances,
+        immunities: race.immunities,
+        vulnerabilities: race.vulnerabilities,
+      });
+    } else {
+      // No structured store on this page (older cached module set) — fall back
+      // to the prose line rather than dropping the data on the floor.
+      const defNotes = [];
+      if (race.immunities && race.immunities.length)
+        defNotes.push(`Immune to ${race.immunities.join(', ')}`);
+      if (race.resistances && race.resistances.length)
+        defNotes.push('Resist ' + race.resistances
+          .map(r => `${r.damage_type} ${r.amount}`).join(', '));
+      if (defNotes.length) raceSetDefenseNotes(defNotes.join('; '));
+    }
 
     // 4d. Racial casting/initiation — auto-spawn the matching caster panel(s)
     // (Valkyrie's swordsage maneuvers at IL 10, pre-loaded from
@@ -1035,6 +1055,15 @@
     raceClearOwned('spell-resistance', '', 'input');
     raceClearOwned('damage-reduction', '', 'input');
     raceClearDefenseNotes();
+    // Structured riders we applied. clearSource is keyed by source, so a
+    // hand-added rider — or one the player edited, which drops the marker —
+    // survives a race change. Sweeps ANY race:* key rather than just the
+    // current race's, so a mid-session rename can't strand rows.
+    if (typeof DefenseRiders !== 'undefined') {
+      for (const key of DefenseRiders.sourceKeys()) {
+        if (key.startsWith('race:')) DefenseRiders.clearSource(key);
+      }
+    }
     // Auto-spawned racial caster panels (Valkyrie maneuvers etc.).
     teardownRaceCasterPanels();
     const c = document.getElementById('special-abilities-container');
