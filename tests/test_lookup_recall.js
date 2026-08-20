@@ -11,6 +11,33 @@
 //   * Top-N hard gate — each case declares maxRank; if the expected entry falls
 //     outside it, the run FAILS.  These are the regression teeth.
 //
+// ...and, since 2026-08-20, the DISTANCE either side of that gate, because the
+// gate alone is binary where the thing it measures is graded.  A case that
+// slipped from rank 3 to 4 and one that collapsed from 3 to 40 produced the
+// identical red, which destroyed the most useful diagnostic at exactly the
+// moment a regression made it valuable.  The same blindness runs the other way
+// and is arguably worse: a case passing AT its maxRank is one slot from failing
+// and read exactly like a case passing at rank 1, so the harness could not warn
+// before a break, only report after one.
+//
+// So every case now reports `vs gate` — slots of headroom, AT GATE, or how far
+// over — and the summary calls out anything sitting on the edge.  This changes
+// no pass/fail behaviour; it is strictly more information about the same runs.
+//
+// `--save-baseline` writes tests/_recall_baseline.json; when that file exists,
+// each case also shows its rank transition since the baseline (`3→5`).  That
+// half is deliberately INFORMATION AND NEVER TEETH — a missing, stale or
+// hand-edited baseline can shift no verdict.  A stored expectation that can
+// change an outcome is the kind of instrument that eventually lies, and the
+// gate above is the one that gets to decide.
+//
+// Not Somers' D, which the ordinal-regression literature would suggest here:
+// that measures association between a PREDICTED and a TRUE ordinal label, and
+// this suite has no ordinal target — only the observed position of a known-
+// correct item.  Importing the statistic would be answering a weaker question
+// than it looks like.  It is the discipline that transfers, not the formula:
+// instrument the graded thing gradedly.
+//
 // Runs headless in Node against the real DB (deterministic string-scoring, no
 // embeddings/LLM), reusing lookup.js's rankResults seam via the same
 // new Function sandbox tests/test_pickers.js uses.
@@ -39,9 +66,16 @@ const WASM_PATH = path.join(ROOT, 'vendor/sql-wasm.wasm');
 const CASES = [
   // --- regression anchor (the bug this harness exists for) ---
   // Weapon Focus's "selected weapon" lives in its `benefit`, which the COALESCE
-  // index bug never indexed (fixed 2026-08-05).  It sits mid-pack among the
-  // weapon-focus family that also match the phrase, so the bar is "reachable",
-  // not "top": the failure mode was ABSENCE (rank MISS), now it's rank ~13.
+  // index bug never indexed (fixed 2026-08-05).  The bar is "reachable", not
+  // "top", because the failure mode it guards is ABSENCE (rank MISS) — the
+  // weapon-focus family all match the phrase, so which one leads is not the
+  // thing under test.
+  //   Measured rank 1 as of 2026-08-20 — the comment here previously said "~13",
+  //   which was true when written and is not now; the ranker has moved under it.
+  //   The gate stays at 15 deliberately: tightening it would convert this from a
+  //   presence check into a ranking check, which is a different test and one the
+  //   `vs gate` column ("14 free") already reports without any teeth. If we DO
+  //   want a ranking bar here, add a second case rather than narrowing this one.
   { query: 'selected weapon', expect: { name: 'Weapon Focus', type: 'feat' }, maxRank: 15,
     note: 'body-text match on benefit; regressed by the COALESCE index bug (2026-08-05)' },
 
@@ -295,8 +329,43 @@ function recallAt(ranked, mustInclude, topN) {
   return { found, missed, recall: found.length / mustInclude.length };
 }
 
+// ---- run-over-run baseline (information only, never teeth) ----------------
+// A stable identity for a case, so reordering or editing CASES doesn't silently
+// re-pair rows against the wrong baseline entry.
+function caseKey(c) {
+  return `${c.query} => ${c.expect.name}${c.expect.type ? `[${c.expect.type}]` : ''}`;
+}
+
+const SAVE_BASELINE = process.argv.includes('--save-baseline');
+const BASELINE_PATH = path.join(__dirname, '_recall_baseline.json');
+
+function readBaseline() {
+  // Every failure path returns null and the run proceeds ungated by it: the
+  // baseline may not shift a verdict, so a corrupt one degrades to "no
+  // baseline" rather than to an error or, worse, a wrong comparison.
+  //
+  // But it degrades OUT LOUD. An absent baseline is the normal state and says
+  // nothing; an unreadable one means somebody has a file they think is working,
+  // and a comparison column that quietly stops comparing looks exactly like a
+  // suite where nothing moved.
+  if (!fs.existsSync(BASELINE_PATH)) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'));
+    if (!raw || typeof raw.cases !== 'object' || raw.cases === null) {
+      throw new Error('no `cases` object');
+    }
+    return raw;
+  } catch (e) {
+    console.log(`(baseline at ${path.relative(ROOT, BASELINE_PATH)} is unreadable — ` +
+      `${e.message}; comparison column disabled, verdicts unaffected. ` +
+      'Re-create it with --save-baseline.)');
+    return null;
+  }
+}
+
 // ---- run ------------------------------------------------------------------
 (async () => {
+  const baseline = readBaseline();
   const initSqlJs = require(SQL_JS_PATH);
   const SQL = await initSqlJs({ locateFile: () => WASM_PATH });
   const db = new SQL.Database(fs.readFileSync(DB_PATH));
@@ -307,8 +376,9 @@ function recallAt(ranked, mustInclude, topN) {
     process.exit(1);
   }
 
-  let rrSum = 0, failures = 0;
+  let rrSum = 0, failures = 0, atGate = 0, worstOver = 0;
   const rows = [];
+  const nextBaseline = {};
   for (const c of CASES) {
     const ranked = Lookup.rankResults(c.query);
     const rank = rankOf(ranked, c.expect);
@@ -316,26 +386,70 @@ function recallAt(ranked, mustInclude, topN) {
     rrSum += rr;
     const pass = rank <= c.maxRank;
     if (!pass) failures++;
+
+    // The graded reading the binary gate throws away, both directions.
+    let vsGate;
+    if (rank === Infinity) {
+      vsGate = 'MISS';
+    } else if (rank < c.maxRank) {
+      vsGate = `${c.maxRank - rank} free`;
+    } else if (rank === c.maxRank && c.maxRank === 1) {
+      // Rank 1 against a maxRank of 1 is a PERFECT result, not a near-miss.
+      // There is no headroom to have lost, so "one slot from a red" is true of
+      // every passing state this case can ever be in — a warning whose output
+      // cannot change, which trains the reader to ignore the ones that can.
+      vsGate = 'exact';
+    } else if (rank === c.maxRank) {
+      vsGate = 'AT GATE';   // used every slot of the slack it was given
+      atGate++;
+    } else {
+      vsGate = `+${rank - c.maxRank} over`;
+      worstOver = Math.max(worstOver, rank - c.maxRank);
+    }
+
+    const key = caseKey(c);
+    nextBaseline[key] = rank === Infinity ? null : rank;
+    const was = baseline && Object.prototype.hasOwnProperty.call(baseline.cases || {}, key)
+      ? baseline.cases[key] : undefined;
+    const nowStr = rank === Infinity ? 'MISS' : String(rank);
+    const wasStr = was === null ? 'MISS' : String(was);
+    // Blank when unchanged: the column exists to make MOVEMENT visible, and a
+    // wall of "=" would bury the two rows that actually moved.
+    const moved = (was === undefined || wasStr === nowStr) ? '' : `${wasStr}→${nowStr}`;
+
     rows.push({
-      mark: pass ? 'ok ' : 'XX ',
+      mark: pass ? (vsGate === 'AT GATE' ? 'ok!' : 'ok ') : 'XX ',
       query: c.query,
       expect: c.expect.name + (c.expect.type ? ` [${c.expect.type}]` : ''),
-      rank: rank === Infinity ? 'MISS' : String(rank),
+      rank: nowStr,
       max: c.maxRank,
+      vsGate,
+      moved,
     });
   }
 
   // report
   const w = (s, n) => String(s).padEnd(n).slice(0, n);
   console.log('Lookup usability harness');
-  console.log('─'.repeat(72));
-  console.log(`${w('', 3)}${w('query', 22)}${w('-> expected', 30)}${w('rank', 6)}max`);
+  console.log('─'.repeat(84));
+  console.log(`${w('', 3)}${w('query', 22)}${w('-> expected', 34)}${w('rank', 6)}${w('max', 5)}${w('vs gate', 10)}since base`);
   for (const r of rows) {
-    console.log(`${r.mark}${w(r.query, 22)}${w('-> ' + r.expect, 30)}${w(r.rank, 6)}${r.max}`);
+    console.log(`${r.mark}${w(r.query, 22)}${w('-> ' + r.expect, 34)}${w(r.rank, 6)}` +
+      `${w(r.max, 5)}${w(r.vsGate, 10)}${r.moved}`);
   }
-  console.log('─'.repeat(72));
+  console.log('─'.repeat(84));
   const mrr = (rrSum / CASES.length).toFixed(3);
   console.log(`MRR ${mrr} over ${CASES.length} lookup cases | ${CASES.length - failures} pass, ${failures} fail (top-N gate)`);
+  // Surfaced as its own line because it is the EARLY warning: `ok!` rows pass
+  // today and are one slot from failing, which the pass/fail count cannot say.
+  if (atGate) {
+    console.log(`⚠ ${atGate} case${atGate === 1 ? '' : 's'} sitting AT the gate (marked ok!) — ` +
+      'passing, one slot from a red.');
+  }
+  if (worstOver) {
+    console.log(`worst overshoot: +${worstOver} past its gate ` +
+      '(a near-miss and a collapse are different bugs).');
+  }
 
   // ---- discovery cases (recall@N of the canonical must-have set) ----
   if (DISCOVERY_CASES.length) {
@@ -356,6 +470,26 @@ function recallAt(ranked, mustInclude, topN) {
       if (missed.length) console.log('     out: ' + missed.map(fmt).join(', '));
     }
     console.log('─'.repeat(72));
+  }
+
+  if (SAVE_BASELINE) {
+    // `generated` is a note to a human reading the file, not an input: nothing
+    // reads it back. The DB stamp is the useful half — ranks move when the DB
+    // is rebuilt, so a baseline from a different blob explains a wall of
+    // movement that would otherwise read as a ranking regression.
+    fs.writeFileSync(BASELINE_PATH, JSON.stringify({
+      generated: new Date().toISOString(),
+      db_bytes: fs.statSync(DB_PATH).size,
+      cases: nextBaseline,
+    }, null, 2) + '\n', 'utf8');
+    console.log(`baseline written: ${path.relative(ROOT, BASELINE_PATH)} ` +
+      `(${Object.keys(nextBaseline).length} cases)`);
+  } else if (baseline) {
+    const moved = rows.filter(r => r.moved).length;
+    console.log(`baseline: ${moved} of ${rows.length} case${rows.length === 1 ? '' : 's'} moved ` +
+      `since ${baseline.generated || 'an unstamped run'}` +
+      (baseline.db_bytes && baseline.db_bytes !== fs.statSync(DB_PATH).size
+        ? ' — NB the DB blob has changed size since then, so movement is expected' : ''));
   }
 
   process.exit(failures > 0 ? 1 : 0);

@@ -14,7 +14,21 @@ node tests/test_lookup_recall.js
 ```
 
 Reports an MRR health number and hard-gates a per-case top-N threshold
-(exit 1 on any miss). Exists because the "selected weapon -> Weapon Focus"
+(exit 1 on any miss), plus a `vs gate` column giving the DISTANCE either side
+of that threshold — `4 free`, `AT GATE`, `+35 over`, `MISS`. The gate is
+binary where the thing it measures is graded, so on its own a slip from rank
+3 to 4 and a collapse from 3 to 40 produced the identical red, and a case
+passing at its very limit read like one passing at rank 1. Anything sitting
+`AT GATE` is called out in the summary — that is the early warning the
+pass/fail count can't give.
+
+`--save-baseline` writes `tests/_recall_baseline.json` (gitignored — the ranks
+depend on `data/dnd35.db`, which is itself untracked, so a shared baseline
+would compare each clone against a blob it doesn't have). When present, each
+case shows its rank transition since the baseline (`3→5`), blank when
+unchanged. That half is **information and never teeth**: an absent baseline is
+silent, a corrupt one says so and disables the column, and neither can shift a
+verdict. Exists because the "selected weapon -> Weapon Focus"
 search bug (2026-08-05) shipped with nothing testing retrieval quality. Add
 a case for every future search gap — same discipline as the save-stability
 regressions. The metric is ISEE's (Tian et al., 2026) Usability dimension —

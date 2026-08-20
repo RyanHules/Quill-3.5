@@ -12,3 +12,10 @@ saves/**
 # saves/library, local working data — the DB-side reader reads the live file.
 reviews/**
 __pycache__/**
+
+# Lookup-recall run-over-run baseline (test_lookup_recall.js --save-baseline).
+# Deliberately NOT tracked: the ranks it stores are a function of data/dnd35.db,
+# which is itself gitignored, so a shared baseline would compare each clone
+# against a blob it doesn't have. Local reference point only; it can shift no
+# verdict, and the top-N gate in the suite is the thing with teeth.
+tests/_recall_baseline.json
