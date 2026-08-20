@@ -706,7 +706,14 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
     # Keep API requests + errors though so the user can see saves
     # working in the terminal.
     def log_message(self, fmt, *args):
-        if self.path.startswith("/api/") or "code" in fmt:
+        # getattr, not self.path: a keep-alive socket that times out before
+        # sending a request line never sets `path`, and http.server logs THAT
+        # through here — so the plain attribute raised AttributeError from
+        # inside the logger and took the connection thread down with a
+        # traceback. Latent since keep-alive went in; the live bus's long polls
+        # made idle-then-timeout sockets routine and turned it into a steady
+        # drip of tracebacks in the terminal during play.
+        if getattr(self, "path", "").startswith("/api/") or "code" in fmt:
             sys.stderr.write("[%s] %s - %s\n" % (
                 self.log_date_time_string(),
                 self.address_string(),
@@ -1499,6 +1506,19 @@ class CharacterSheetServer(http.server.ThreadingHTTPServer):
     # Re-bind immediately after a restart instead of tripping over a
     # socket still in TIME_WAIT.
     allow_reuse_address = True
+
+    # Client-side disconnects are NORMAL here, not errors: every character
+    # swap aborts a parked long poll, every closed tab drops a keep-alive
+    # socket, and a reload does both. socketserver's default prints a full
+    # traceback for each, which buries the API log this server exists to make
+    # readable. Stay quiet for those three — and ONLY those three; anything
+    # else still gets its traceback, because a server that ate real errors
+    # would be worse than a noisy one.
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
 
 def main():
