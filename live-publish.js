@@ -13,6 +13,15 @@
 // tab publishes what it already computed, and consumers read that. One
 // implementation, and it is the one the player is looking at.
 //
+// SCHEMA 2 (2026-08-20) added, at the consuming rig's request and in its stated
+// priority order: resolved SKILLS (final integers — the place it was drifting
+// worst, since it rolls PC social skills against NPCs), defensive RIDERS
+// (damage_reduction / spell_resistance / free-text notes), and daily-pool
+// CAPACITIES. Capacities only, never current values: per the field-ownership
+// split the consumer tracks depletion and the sheet hands it the ceiling, so
+// `.sc-used` / `.sc-remain` / `.psi-pp-spent` are deliberately not published.
+// One owner per number.
+//
 // SCOPE — phase 1 is PUBLISH ONLY. No inbound commands, no writes into the
 // sheet. A consumer can read; it cannot yet change anything. Phase 2 (a
 // command queue) is deliberately a separate change, because it needs a
@@ -37,7 +46,7 @@
 (function () {
   'use strict';
 
-  var SCHEMA = 1;
+  var SCHEMA = 2;   // 2: + skills, defensive riders, pool capacities (rig ask)
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -110,6 +119,129 @@
     return out;
   }
 
+  // --- schema 2 ------------------------------------------------------------
+  // Added 2026-08-20 at the rig's request, in its stated priority order:
+  // resolved skills, defensive riders, pool CAPACITIES.
+
+  function cell(row, sel) {
+    var el = row.querySelector(sel);
+    if (!el) return null;
+    var v = ('value' in el ? el.value : el.textContent);
+    v = (v == null ? '' : String(v)).trim();
+    return v === '' ? null : v;
+  }
+
+  function intOf(v) {
+    if (v == null) return null;
+    var m = /^[+-]?\d+$/.exec(String(v).replace(/\s+/g, ''));
+    return m ? parseInt(m[0], 10) : null;
+  }
+
+  // Resolved skill modifiers. `.skill-total` is a calc-field — the sheet always
+  // computes it — so unlike an attack bonus there is no hand-typed variant and
+  // no `auto` flag is needed. Ranks/misc ride along because a consumer that
+  // wants to explain a number ("+14 = 9 ranks +3 Cha +2 synergy") otherwise has
+  // to re-derive it, which is the whole thing we are avoiding.
+  function skills() {
+    var rows = document.querySelectorAll('#skills-body-left tr, #skills-body-right tr');
+    var out = [];
+    Array.prototype.forEach.call(rows, function (row) {
+      var name = cell(row, '.skill-name');
+      if (!name) return;                       // subtype group header
+      out.push({
+        name: name,
+        ability: cell(row, '.skill-ability-col'),
+        total: intOf(cell(row, '.skill-total')),
+        ability_mod: intOf(cell(row, '.skill-ability-mod')),
+        ranks: cell(row, '.skill-ranks'),
+        misc: cell(row, '.skill-misc'),
+        class_skill: !!(row.querySelector('.skill-class-check') || {}).checked
+      });
+    });
+    return out;
+  }
+
+  // Daily pools: CAPACITY ONLY, deliberately.
+  //
+  // The ownership split says current/spent values belong to the consumer that
+  // narrates the change — it tracks depletion, the sheet hands it the ceiling.
+  // So `.sc-used`, `.sc-remain` and `.psi-pp-spent` are NOT published even
+  // though they sit in the same rows. One owner per number; publishing them
+  // would invite two writers for the same quantity, which is the collision the
+  // split exists to prevent.
+  function pools() {
+    var out = { power_points: [], spell_slots: [], uses_per_day: {} };
+
+    document.querySelectorAll('[data-caster-type="psionics"]').forEach(function (p, i) {
+      var maxPP = intOf(cell(p, '.psi-pp-day'));
+      if (maxPP == null) return;
+      var pid = casterIdentity(p, i);
+      out.power_points.push({ id: pid.id, label: pid.label, max: maxPP });
+    });
+
+    document.querySelectorAll('[data-caster-type="spellcasting"]').forEach(function (p, i) {
+      var levels = [];
+      p.querySelectorAll('.spell-slots-table tbody tr').forEach(function (row) {
+        var perDay = intOf(cell(row, '.sc-per-day')) || 0;
+        var bonus = intOf(cell(row, '.sc-bonus')) || 0;
+        var domain = intOf(cell(row, '.sc-domain-slots')) || 0;
+        var spec = intOf(cell(row, '.sc-specialist-slots')) || 0;
+        var extra = intOf(cell(row, '.sc-extra')) || 0;
+        var total = perDay + bonus + domain + spec + extra;
+        var known = intOf(cell(row, '.sc-known'));
+        var dc = intOf(cell(row, '.sc-dc'));
+        if (!total && known == null && dc == null) return;   // unused level
+        var lvlEl = row.querySelector('[data-lvl]');
+        levels.push({
+          level: lvlEl ? intOf(lvlEl.getAttribute('data-lvl')) : null,
+          known: known, dc: dc,
+          per_day: perDay, bonus: bonus, domain: domain,
+          specialist: spec, extra: extra,
+          capacity: total
+        });
+      });
+      if (levels.length) {
+        var cid = casterIdentity(p, i);
+        out.spell_slots.push({ id: cid.id, label: cid.label, levels: levels });
+      }
+    });
+
+    // Class daily uses that live as plain top-level fields.
+    var rage = num('rage-per-day'), turn = num('turn-per-day');
+    if (rage != null) out.uses_per_day.rage = rage;
+    if (turn != null) out.uses_per_day.turn_undead = turn;
+
+    return out;
+  }
+
+  // Caster blocks have NO class-name field of their own, which matters when a
+  // character has several: Kell carries three spellcasting blocks whose only
+  // distinguishing signal is the spell PICKER's class filter (.sp-class), and
+  // that is a user-editable search box, not an identity.
+  //
+  // So publish both, honestly separated:
+  //   id    — the panel's DOM id (caster-0, caster-1, ...). STABLE. Address by this.
+  //   label — best-effort class name. May be blank or wrong if the player
+  //           retyped the picker filter. Display it; do not key off it.
+  //
+  // Found by testing Kell rather than by reading: my first cut emitted only a
+  // label and returned "Spellcasting" three times, which is useless to a
+  // consumer that needs to tell a 7th-level caster from two 3rd-level ones.
+  function casterIdentity(panel, i) {
+    var label = null;
+    var pp = panel.getAttribute('data-pp-class');           // psionics blocks carry this
+    if (pp && pp.trim()) label = pp.trim();
+    if (!label) {
+      var follow = panel.querySelector('.caster-follow-class');
+      if (follow && follow.value && follow.value.trim()) label = follow.value.trim();
+    }
+    if (!label) {
+      var sp = panel.querySelector('.sp-class');
+      if (sp && sp.value && sp.value.trim()) label = sp.value.trim();
+    }
+    return { id: panel.id || ('#' + i), label: label };
+  }
+
   function conditions() {
     try {
       if (typeof Conditions !== 'undefined' && Conditions.getActive) {
@@ -138,7 +270,16 @@
       defense: {
         ac: num('ac-total'),
         touch: num('ac-touch'),
-        flat_footed: num('ac-flatfooted')
+        flat_footed: num('ac-flatfooted'),
+        // Riders. DR and SR are their own fields; energy resistances and
+        // immunities are NOT separately modelled by the sheet — whatever the
+        // player wrote lands in `notes` as free text. Said plainly rather than
+        // emitted as a structured field we cannot actually fill, because a
+        // consumer parsing an empty `resistances: []` would read "none" where
+        // the truth is "not modelled".
+        damage_reduction: txt('damage-reduction'),
+        spell_resistance: txt('spell-resistance'),
+        notes: txt('ac-defense-notes')
       },
       saves: { fort: num('fort-total'), ref: num('ref-total'), will: num('will-total') },
       initiative: num('init-total'),
@@ -152,6 +293,8 @@
       },
       speed: { land: txt('speed-land'), fly: txt('speed-fly') },
       attacks: attacks(),
+      skills: skills(),
+      pools: pools(),
       conditions: conditions()
     };
   }
