@@ -13,6 +13,9 @@ saves/**
 reviews/**
 __pycache__/**
 
+# graphify: local code knowledge graph — regenerable build output
+graphify-out/
+
 # Lookup-recall run-over-run baseline (test_lookup_recall.js --save-baseline).
 # Deliberately NOT tracked: the ranks it stores are a function of data/dnd35.db,
 # which is itself gitignored, so a shared baseline would compare each clone

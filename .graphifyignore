@@ -1,0 +1,20 @@
+# .graphifyignore — keep the graph to real source. gitignore syntax; `graphify
+# update` respects it, so the scope persists across rebuilds.
+#
+# This project is small and clean (89 tracked files, 67 of them .js), so unlike the
+# sibling DB project there is no data-vs-code problem here — this only trims local
+# audit artifacts and the vendored blob.
+
+graphify-out/
+__pycache__/
+*.pyc
+
+# local audit/debug artifacts, not source
+_audit_output.json
+_audit_filled.pdf
+_lv.txt
+_pt.txt
+
+# the deployed DB blob + its wasm loader are build inputs, not code to navigate
+*.db
+*.wasm
