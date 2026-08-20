@@ -1084,6 +1084,12 @@
       // `?playfeel=1` in the URL; otherwise this is a near-zero-cost
       // no-op. See tests/playfeel-suite.js for the scenario list.
       'tests/playfeel-suite.js',
+      // Publishes this tab's RESOLVED state to /api/live/<qualified> so the
+      // megadungeon rig reads what the sheet computed instead of scraping raw
+      // save fields and narrating wrong numbers. Loads LAST: it wraps
+      // window.recalcAll, so app.js must already have defined it. Purely
+      // additive — the sheet is unaffected when the API isn't there.
+      'live-publish.js',
     ];
     // Register the expected module set, then emit each tag with load telemetry.
     // onload → the script finished executing OK; onerror → it 404'd / network-

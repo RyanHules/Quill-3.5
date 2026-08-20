@@ -37,6 +37,22 @@ PUT    /api/saves/<name>        -> write JSON body (creates or
                                    overwrites; returns 204)
 DELETE /api/saves/<name>        -> remove save (returns 204)
 
+Live resolved-state bus (2026-08-20, phase 1 — publish/read only):
+
+PUT    /api/live/<qualified>    -> an open tab publishes its RESOLVED
+                                   snapshot (204). In memory only.
+GET    /api/live/<qualified>    -> {"qualified", "age_seconds", "stale",
+                                    "stale_after_seconds", "snapshot"}
+                                   or 404 when no tab is publishing it
+GET    /api/live                -> summary of every live character
+                                   (no snapshots; cheap to poll)
+
+The point: `saves/` holds RAW form fields, so anything reading them for a
+character's real numbers gets them wrong. The sheet is the only thing that
+knows the derived values, so the sheet publishes them. Consumers MUST honour
+`stale` — a closed tab leaves a snapshot that still reads perfectly. See the
+block comment above `_LIVE` for the full rationale.
+
 `<name>` in URLs is URL-encoded canonical name (e.g. "Dust",
 "Old Char Sheet 1"). The server slugifies internally for filenames
 (lower-case, non-alphanumeric → underscore). The canonical name is
@@ -58,6 +74,7 @@ import os
 import re
 import sys
 import threading
+import time
 import urllib.parse
 
 from datetime import datetime, timezone
@@ -81,6 +98,41 @@ _FLAG_SURFACES = {"entry-flags", "sheet-reports"}
 # would otherwise race on the file. The lock is process-wide (all surfaces share
 # it) — flag ops are rare + tiny, so there's no contention worth sharding for.
 _FLAGS_LOCK = threading.Lock()
+
+# ---- Live resolved-state bus (phase 1: publish/read only) ---------------
+#
+# WHY THIS EXISTS. `saves/` holds RAW FORM FIELDS — `cha-score`,
+# `armor-ac-bonus`, `bab-1`. Everything the sheet actually computes
+# (final initiative, AC/touch/flat-footed, saves with all bonuses folded
+# in, attack routines) is derived in browser JS at display time and has
+# never existed on disk. So anything reading `saves/*.json` to learn a
+# character's real numbers gets them WRONG — which is exactly the bug the
+# megadungeon rig hit, narrating stale initiative and missing Strength
+# mid-combat.
+#
+# Rather than re-implement the derivation (two implementations of D&D
+# math = guaranteed drift), each open sheet tab PUBLISHES its own resolved
+# snapshot here after every recalc. Consumers read it. One implementation
+# of the math, and it is the one the player is looking at.
+#
+# DELIBERATELY IN MEMORY, NOT ON DISK. This is live session state whose
+# only meaning is "a tab currently has this character open and computed
+# these numbers." A server restart genuinely INVALIDATES that — the
+# restarted process has no idea whether those tabs are still open — so
+# losing it on restart is correct behaviour, not a limitation. Persisting
+# it would manufacture exactly the failure this design is built to avoid:
+# a stale snapshot that still looks authoritative.
+#
+# STALENESS IS THE SAFETY PROPERTY. A closed tab leaves a snapshot sitting
+# here looking perfectly fine. Every read therefore reports `age_seconds`
+# and a `stale` flag; consumers MUST treat stale as ABSENT and say so
+# rather than narrate from it. Reading a number is easy; knowing whether
+# it is still true is the whole job.
+_LIVE = {}
+_LIVE_LOCK = threading.Lock()
+# Tabs heartbeat well inside this even when nothing changes, so exceeding
+# it means the tab is gone, reloading, or wedged — not merely idle.
+LIVE_STALE_AFTER_SEC = 90.0
 
 
 def flags_path(surface: str) -> Path:
@@ -508,6 +560,10 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_get_save()
         if self.path.startswith("/api/flags/"):
             return self._api_get_flags()
+        if self.path == "/api/live":
+            return self._api_list_live()
+        if self.path.startswith("/api/live/"):
+            return self._api_get_live()
         if self._is_index_request():
             return self._serve_index()
         # Everything else is a static file.
@@ -550,7 +606,85 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_put_save()
         if self.path.startswith("/api/flags/"):
             return self._api_put_flags()
+        if self.path.startswith("/api/live/"):
+            return self._api_put_live()
         self.send_error(405, "method not allowed")
+
+    # ---- API: live resolved-state bus -----------------------------------
+
+    def _live_key(self):
+        """The qualified save name from /api/live/<qualified>, or None."""
+        raw = urllib.parse.unquote(self.path[len("/api/live/"):]).strip("/")
+        # Same containment rule as the save endpoints: a key is a plain
+        # qualified name, never a traversal.
+        if not raw or ".." in raw or raw.startswith("/") or "\\" in raw:
+            return None
+        return raw
+
+    @staticmethod
+    def _live_view(key, rec, now):
+        age = max(0.0, now - rec["received_at"])
+        return {
+            "qualified": key,
+            "age_seconds": round(age, 1),
+            # The consumer's contract: stale means TREAT AS ABSENT. It does
+            # not mean "slightly old but probably fine" — a tab that closed
+            # an hour ago still has a snapshot that reads perfectly.
+            "stale": age > LIVE_STALE_AFTER_SEC,
+            "stale_after_seconds": LIVE_STALE_AFTER_SEC,
+            "snapshot": rec["snapshot"],
+        }
+
+    def _api_put_live(self):
+        key = self._live_key()
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length > 0 else b""
+        try:
+            payload = json.loads(raw) if raw.strip() else None
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._send_json(400, {"error": "invalid JSON: %s" % e})
+        if not isinstance(payload, dict):
+            return self._send_json(400, {"error": "expected a JSON object"})
+        now = time.monotonic()
+        with _LIVE_LOCK:
+            _LIVE[key] = {"snapshot": payload, "received_at": now}
+        self.send_response(204)
+        self.end_headers()
+
+    def _api_get_live(self):
+        key = self._live_key()
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        now = time.monotonic()
+        with _LIVE_LOCK:
+            rec = _LIVE.get(key)
+            view = self._live_view(key, rec, now) if rec else None
+        if view is None:
+            # 404, not an empty snapshot. "No tab has this character open"
+            # and "here are some numbers" must never look the same.
+            return self._send_json(404, {
+                "error": "no live snapshot",
+                "qualified": key,
+                "hint": "no open sheet tab is publishing this character",
+            })
+        return self._send_json(200, view)
+
+    def _api_list_live(self):
+        now = time.monotonic()
+        with _LIVE_LOCK:
+            items = [self._live_view(k, r, now) for k, r in _LIVE.items()]
+        # Summary only — the caller asks for a specific PC to get its
+        # snapshot. Keeps the party overview cheap to poll.
+        for it in items:
+            it.pop("snapshot", None)
+        items.sort(key=lambda i: i["qualified"])
+        return self._send_json(200, {
+            "live": items,
+            "fresh": sum(1 for i in items if not i["stale"]),
+            "stale_after_seconds": LIVE_STALE_AFTER_SEC,
+        })
 
     def do_POST(self):
         # /api/move is the atomic rename / folder-move endpoint —
