@@ -148,10 +148,21 @@
     Array.prototype.forEach.call(rows, function (row) {
       var name = cell(row, '.skill-name');
       if (!name) return;                       // subtype group header
+      // The sheet renders "NR" instead of a number for a TRAINED-ONLY skill
+      // with no ranks (skills.js: `trainedOnly && ranks === 0`). That is a
+      // RULE — the character cannot attempt the check at all — not a missing
+      // value, and publishing it as a bare null collapses it with "we failed
+      // to read this". Same distinction as energy resistances: absent must not
+      // be readable as none. `usable:false` says the skill is unrollable;
+      // `total:null` with `usable:true` would mean we could not parse it.
+      var rawTotal = cell(row, '.skill-total');
+      var trainedOnlyNoRanks = (rawTotal === 'NR');
       out.push({
         name: name,
         ability: cell(row, '.skill-ability-col'),
-        total: intOf(cell(row, '.skill-total')),
+        total: trainedOnlyNoRanks ? null : intOf(rawTotal),
+        usable: !trainedOnlyNoRanks,
+        unusable_reason: trainedOnlyNoRanks ? 'trained-only, no ranks' : null,
         ability_mod: intOf(cell(row, '.skill-ability-mod')),
         ranks: cell(row, '.skill-ranks'),
         misc: cell(row, '.skill-misc'),
