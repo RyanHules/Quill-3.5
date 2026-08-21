@@ -426,12 +426,30 @@ const SoulmeldEffects = (function () {
   // both granted attacks and the player's own rows, because a modifier that
   // says "all natural attacks" means the character's whole attack list and
   // must not mean something narrower depending on which caller asked.
+  // A MONK'S unarmed strike is BOTH, and the class feature says so in as many
+  // words: "A monk's unarmed strike is treated both as a manufactured weapon
+  // and a natural weapon." So on a monk, an unarmed row matches the
+  // `manufactured` AND `natural` scopes as well as `unarmed` — Mauling
+  // Gauntlets doubles its threat range, Dread Carapace doubles it too, and
+  // neither is a bug. On anyone else an unarmed strike is neither.
+  //
+  // Checked against the character rather than assumed, so a non-monk's fists
+  // do not quietly inherit weapon effects.
+  function unarmedIsAlsoWeaponAndNatural() {
+    try {
+      return typeof ClassPicker !== 'undefined' && ClassPicker.getClassLevel
+        && ClassPicker.getClassLevel('Monk') > 0;
+    } catch (e) { return false; }
+  }
+
   function scopeCoversStyle(scope, style) {
     const s = String(style || '');
     if (scope === 'all') return true;
-    if (scope === 'natural') return s.indexOf('natural') === 0;
+    const monkFists = s === 'unarmed' && unarmedIsAlsoWeaponAndNatural();
+    if (scope === 'natural') return s.indexOf('natural') === 0 || monkFists;
     if (scope === 'unarmed') return s === 'unarmed';
     if (scope === 'manufactured') {
+      if (monkFists) return true;
       return s !== 'unarmed' && s.indexOf('natural') !== 0 && s !== 'none';
     }
     return false;                                  // 'own' is never style-based

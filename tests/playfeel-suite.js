@@ -4025,6 +4025,73 @@
         'GR11: still a move action, not a standing speed');
     });
 
+  regression('GR12: a monk’s fists get their own die AND count as both kinds',
+    async () => {
+      // The damage ladder comes from the DB, not a copied table: the Monk
+      // entry carries the Medium progression as a per-level
+      // `columns.unarmed_damage` and Table 3-11 for Small/Large.
+      //
+      // And a monk's unarmed strike is BOTH kinds of weapon — the class
+      // feature says "treated both as a manufactured weapon and a natural
+      // weapon" — which is what finally gives the `unarmed` modifier scope
+      // something real to reason about. Mauling Gauntlets doubles the threat
+      // range of "any melee weapon wielded", and on a monk that includes fists.
+      await newCharacter();
+      setAbilities({ STR: 16 });
+      set('class-lookup', 'Monk');
+      set('class-lookup-level', 8);
+      $('#class-lookup-apply').click();
+      await wait(400);
+      expect(ClassPicker.getClassLevel('Monk'), 8, 'GR12: monk 8 applied');
+
+      // The table, by level and size, read from the DB.
+      expect(ClassPicker.getMonkUnarmedDamage().dice, '1d10',
+        'GR12: a level 8 Medium monk deals 1d10');
+      set('char-size', 'Small');
+      expect(ClassPicker.getMonkUnarmedDamage().dice, '1d8',
+        'GR12: ...1d8 if Small (Table 3-11)');
+      set('char-size', 'Large');
+      expect(ClassPicker.getMonkUnarmedDamage().dice, '2d8',
+        'GR12: ...2d8 if Large');
+      // The book gives three sizes and no more. Anything else must say so
+      // rather than extrapolate up an unrelated ladder.
+      set('char-size', 'Huge');
+      const huge = ClassPicker.getMonkUnarmedDamage();
+      expect(huge.dice, null, 'GR12: Huge is not in the tables');
+      expectIncludes(huge.note || '', 'Small, Medium and Large',
+        'GR12: ...and it says why rather than guessing');
+      set('char-size', 'Medium');
+
+      $('#btn-add-attack').click();
+      await wait(250);
+      const rows = $$('#attacks-container .attack-entry');
+      const fists = rows[rows.length - 1];
+      fillWeaponRow(fists, { name: 'Unarmed strike', crit: '20/x2', style: 'unarmed' });
+      window.recalcAll();
+      await wait(200);
+      expect(fists.querySelector('.dmg-dice-meld').textContent, '→ 1d10',
+        'GR12: the row shows the monk die');
+      expect(fists.querySelector('.dmg-total').textContent, '1d10+3',
+        'GR12: and it drives the total (Str 16 = +3)');
+
+      // Now the both-kinds rule.
+      bindSlot('arms', 'Mauling Gauntlets');
+      setIncarnumCapacity();
+      window.recalcAll();
+      await wait(250);
+      expect(fists.querySelector('.atk-crit-meld').textContent, '→ 19-20',
+        'GR12: a MANUFACTURED-scope bind reaches a monk’s unarmed strike');
+
+      // ...and must NOT reach a non-monk's. Remove the monk levels and it goes.
+      ClassPicker.clearAll();
+      await wait(350);
+      window.recalcAll();
+      await wait(200);
+      expect(ClassPicker.getClassLevel('Monk'), 0, 'GR12: monk levels gone');
+      expect(fists.querySelector('.atk-crit-meld').textContent, '',
+        'GR12: an ordinary unarmed strike is neither manufactured nor natural');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers

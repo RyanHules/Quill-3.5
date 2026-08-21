@@ -355,17 +355,49 @@ const DamageCalc = (function () {
         }
       } catch (e) { /* a module that is not ready must not break the row */ }
     }
+    // A MONK'S unarmed strike has its own damage ladder — by monk level and by
+    // size, not by anything the player types. Read from the DB (the Monk entry
+    // carries both the Medium progression and Table 3-11 for Small/Large), so
+    // an unarmed row on a monk shows the die the class actually gives.
+    //
+    // It fills an EMPTY dice box and otherwise only reports: a player who typed
+    // their own value there has said something the sheet should not argue with,
+    // and a monk with a magic amulet or an unusual ruling is exactly the person
+    // who would.
+    let monkDice = null;
+    if (style[0] === 'unarmed' && typeof ClassPicker !== 'undefined'
+        && ClassPicker.getMonkUnarmedDamage) {
+      try { monkDice = ClassPicker.getMonkUnarmedDamage(); }
+      catch (e) { monkDice = null; }
+    }
     let dice = typedDice;
+    if (monkDice && monkDice.dice && !typedDice) dice = monkDice.dice;
+
     const stepEl = entry.querySelector('.dmg-dice-meld');
     if (stepEl) {
       let shown = '', why = '';
+      // The monk's own die comes first in the chip, because it is what the
+      // damage IS rather than a modification of it — and a step applies on top.
+      if (monkDice) {
+        if (monkDice.dice) {
+          shown = (typedDice && typedDice !== monkDice.dice)
+            ? `monk ${monkDice.dice}` : `→ ${monkDice.dice}`;
+          why = `a level ${monkDice.level} ${monkDice.size} monk's unarmed `
+            + `strike deals ${monkDice.dice}`
+            + (typedDice && typedDice !== monkDice.dice
+               ? ` — your box says ${typedDice}, which is left alone` : '');
+        } else if (monkDice.note) {
+          shown = 'monk ?';
+          why = monkDice.note;
+        }
+      }
       const total = steps.reduce((t, s) => t + s.n, 0);
-      if (total && typedDice && typeof DND35 !== 'undefined' && DND35.stepWeaponDamage) {
-        const out = DND35.stepWeaponDamage(typedDice, total);
+      if (total && dice && typeof DND35 !== 'undefined' && DND35.stepWeaponDamage) {
+        const out = DND35.stepWeaponDamage(dice, total);
         if (out.stepped) {
           dice = out.dice;
           shown = `→ ${out.dice}`;
-          why = `${typedDice} stepped up ${total > 1 ? total + ' steps' : 'one step'}`
+          why = `${dice} stepped up ${total > 1 ? total + ' steps' : 'one step'}`
             + ` by ${steps.map(s => s.from).join(', ')}`;
         } else {
           // The progression does not cover this die (1d12, 2d10). Say so

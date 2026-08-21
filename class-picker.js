@@ -5555,6 +5555,91 @@
     return out;
   }
 
+  // Total levels in one named class, across BOTH gestalt sides. A character
+  // can hold the same class on each track, and for anything that reads "your
+  // monk level" the answer is the levels they have, not the levels on side A.
+  function getClassLevel(name) {
+    const want = String(name || '').toLowerCase();
+    if (!want) return 0;
+    let lvl = 0;
+    for (const side of [pickedClasses, pickedClassesB]) {
+      for (const e of (side || [])) {
+        if (String(e.className || '').toLowerCase() === want) lvl += (e.level || 0);
+      }
+    }
+    return lvl;
+  }
+
+  // A monk's unarmed strike damage, from the DB rather than a copied table.
+  //
+  // The Monk entry already carries BOTH tables the rule needs: the Medium
+  // progression as a per-level `columns.unarmed_damage` on the class table,
+  // and Table 3-11 ("Small or Large Monk Unarmed Damage") in the entry's
+  // `tables`. So this is a lookup by level and size, not a hand-transcribed
+  // ladder that would rot the moment either was corrected upstream.
+  //
+  // The book gives Small, Medium and Large and nothing else, so any other size
+  // returns no die WITH the reason. Extrapolating a Tiny monk's fists up an
+  // unrelated progression would be inventing a rule.
+  let _monkTables = null;
+  function monkTables() {
+    if (_monkTables) return _monkTables;
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return null;
+    try {
+      const row = DB.queryOne(
+        "SELECT data FROM entry WHERE type='class' AND name='Monk' LIMIT 1");
+      if (!row) return null;
+      const d = JSON.parse(row.data);
+      const byLevel = {};
+      for (const r of (d.class_table || [])) {
+        const dmg = (r.columns || {}).unarmed_damage;
+        if (r.level && dmg) byLevel[r.level] = dmg;
+      }
+      let smallLarge = null;
+      for (const t of (d.tables || [])) {
+        if (/Small or Large Monk Unarmed Damage/i.test(t.caption || '')) {
+          smallLarge = t.rows || [];
+        }
+      }
+      _monkTables = { byLevel, smallLarge };
+      return _monkTables;
+    } catch (e) { return null; }
+  }
+
+  // "1st-3rd" / "20th" -> does it contain this level?
+  function bandHasLevel(label, lvl) {
+    const nums = String(label || '').match(/\d+/g);
+    if (!nums || !nums.length) return false;
+    const lo = parseInt(nums[0], 10);
+    const hi = nums.length > 1 ? parseInt(nums[1], 10) : lo;
+    return lvl >= lo && lvl <= hi;
+  }
+
+  function getMonkUnarmedDamage() {
+    const lvl = getClassLevel('Monk');
+    if (!lvl) return null;
+    const t = monkTables();
+    if (!t) return null;
+    const size = (document.getElementById('char-size') || {}).value || 'Medium';
+    const s = String(size).toLowerCase();
+    if (s === 'medium') {
+      const dice = t.byLevel[Math.min(lvl, 20)];
+      return dice ? { dice, level: lvl, size: 'Medium' } : null;
+    }
+    const col = s === 'small' ? 1 : (s === 'large' ? 2 : null);
+    if (col == null) {
+      return { dice: null, level: lvl, size,
+               note: 'the monk unarmed-damage tables cover Small, Medium and '
+                     + 'Large only' };
+    }
+    for (const row of (t.smallLarge || [])) {
+      if (bandHasLevel(row[0], Math.min(lvl, 20))) {
+        return { dice: row[col], level: lvl, size: s === 'small' ? 'Small' : 'Large' };
+      }
+    }
+    return null;
+  }
+
   // Render (or clear) the small "prior class skill" marker beside a
   // class-skill checkbox. `priorSources` = the earlier classes that make this
   // a class skill, or null/[] to remove the marker.
@@ -6253,6 +6338,7 @@
     // and stamp prior-class markers. Exposed for the timeline + tests.
     reconcileCurrentClassSkills,
     getCurrentClassName, getCurrentClassNames,
+    getClassLevel, getMonkUnarmedDamage,
     // Recompute every maneuver panel's IL (incl. the racial-initiation pass).
     // Called by race-picker after spawning a racial maneuvers panel so a
     // Valkyrie applied on top of existing swordsage levels stacks immediately.
