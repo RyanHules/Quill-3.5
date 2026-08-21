@@ -310,6 +310,9 @@
       typeof ClassFeatures !== "undefined" ? ClassFeatures : null,
       typeof Bloodline !== "undefined" ? Bloodline : null,
       typeof Conditions !== "undefined" ? Conditions : null,
+      // Cerulean Sandals (+5 ft land per essentia), Worg Pelt's feet bind,
+      // Lamia Belt, Kraken Mantle's swim rate.
+      typeof SoulmeldEffects !== "undefined" ? SoulmeldEffects : null,
     ]) {
       if (mod && typeof mod.getActiveSpeedBonuses === "function") {
         const s = mod.getActiveSpeedBonuses();
@@ -369,6 +372,7 @@
       typeof DefenseRiders !== "undefined" ? DefenseRiders.collectData() : {},
       typeof CombatOptions !== "undefined" ? CombatOptions.collectData() : {},
       typeof SoulmeldEffects !== "undefined" ? SoulmeldEffects.collectData() : {},
+      typeof Senses !== "undefined" ? Senses.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
       typeof BookFilter !== "undefined" ? BookFilter.collectData() : {},
@@ -390,6 +394,7 @@
     if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData(data);
     if (typeof CombatOptions !== "undefined") CombatOptions.loadData(data);
     if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.loadData(data);
+    if (typeof Senses !== "undefined") Senses.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
     if (typeof HomebrewFilter !== "undefined") HomebrewFilter.loadData(data);
@@ -1026,6 +1031,7 @@
   if (typeof DefenseRiders !== "undefined") DefenseRiders.build();
   if (typeof CombatOptions !== "undefined") CombatOptions.build();
   if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.build();
+  if (typeof Senses !== "undefined") Senses.build();
   if (typeof Audit !== "undefined") Audit.build();
   if (typeof BuildTimeline !== "undefined") BuildTimeline.init();
 

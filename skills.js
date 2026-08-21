@@ -430,6 +430,24 @@ const Skills = (function () {
     // Jump/Tumble, and it changes the moment a pip is clicked.
     const meldSkill = (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveSkillBonuses)
       ? SoulmeldEffects.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    // ABILITY-CHECK bonuses that the book says also cover that ability's SKILL
+    // checks — Sphinx Claws' "+1 on Strength checks and Strength-based skill
+    // checks" reaches Climb, Jump and Swim. The DB carries an explicit
+    // `includes_ability_skills` flag for this rather than leaving it to be
+    // parsed, because the distinction is real and unparseable: Mauling
+    // Gauntlets says "but NOT Strength-based skill checks" in the same breath,
+    // so a consumer that guessed would overstate one of the two.
+    // Keyed by the three-letter ability code the skill rows use.
+    const meldAbilitySkill = {};
+    if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getAbilitySkillBonuses) {
+      for (const b of SoulmeldEffects.getAbilitySkillBonuses()) {
+        const key = String(b.ability || "").slice(0, 3).toUpperCase();
+        if (!key) continue;
+        if (!meldAbilitySkill[key]) meldAbilitySkill[key] = { amount: 0, froms: [] };
+        meldAbilitySkill[key].amount += b.amount;
+        meldAbilitySkill[key].froms.push(`${b.source}: ${b.amount >= 0 ? "+" : ""}${b.amount}`);
+      }
+    }
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
       Array.isArray(tmplSkill.situational) ? tmplSkill.situational : [],
@@ -566,9 +584,13 @@ const Skills = (function () {
       // Class-feature skill bonuses (Druid Nature Sense, …), untyped.
       const classBonus = (classSkill.direct[blKey] || 0)
         + (blBaseKey ? (classSkill.direct[blBaseKey] || 0) : 0) + (classSkill.global || 0);
-      // Shaped-soulmeld skill bonuses, essentia already folded in.
+      // Shaped-soulmeld skill bonuses, essentia already folded in. The second
+      // term is the ability-check bonus that also covers this skill because it
+      // is based on that ability (a Strength-based skill for a Strength check).
+      const meldAbil = meldAbilitySkill[row.dataset.ability];
       const meldBonus = (meldSkill.direct[blKey] || 0)
-        + (blBaseKey ? (meldSkill.direct[blBaseKey] || 0) : 0) + (meldSkill.global || 0);
+        + (blBaseKey ? (meldSkill.direct[blBaseKey] || 0) : 0) + (meldSkill.global || 0)
+        + ((meldAbil && meldAbil.amount) || 0);
       // UA trait/flaw skill bonuses — full name + subtype-base match, untyped.
       const traitBonus = (traitSkill.direct[blKey] || 0)
         + (blBaseKey ? (traitSkill.direct[blBaseKey] || 0) : 0) + (traitSkill.global || 0);
@@ -650,7 +672,12 @@ const Skills = (function () {
              "Skill bonus from a class feature");
         chip(meldBonus, "soulmeld", "120,160,220",
              "Skill bonus from a shaped soulmeld, scaled by the essentia "
-             + "invested in it");
+             + "invested in it"
+             + (meldAbil
+                ? ` — includes a ${row.dataset.ability} ability-check bonus `
+                  + `that the book says also covers ${row.dataset.ability}-based `
+                  + `skill checks (${meldAbil.froms.join(", ")})`
+                : ""));
         if (traitOnly === null) {
           chip(traitBonus, "trait", "190,130,160",
                "Skill bonus from a UA trait or flaw");

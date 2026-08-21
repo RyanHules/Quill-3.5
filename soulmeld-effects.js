@@ -470,6 +470,79 @@ const SoulmeldEffects = (function () {
 
   function getBestSpellResistance() { return bestOf('spell_resistance'); }
   function getBestMissChance() { return bestOf('miss_chance'); }
+  function getBestTurnResistance() { return bestOf('turn_resistance'); }
+
+  // Everything below SUMS rather than takes the best, because each is a bonus
+  // to a number the character already has rather than a defence that overlaps:
+  // two sources of extra hit points give you both lots.
+  // Conditional rows are kept OUT of the number and listed separately, the same
+  // split the save and skill categorizers make: a bonus you only sometimes have
+  // is a note, not a total.
+  function sumOf(type, opts) {
+    const scope = opts && opts.applies_to;
+    let total = 0;
+    let condAmount = 0;
+    const froms = [];
+    const conditional = [];
+    for (const e of flatRows()) {
+      if (e.bonus_type !== type || !e.amount) continue;
+      if (scope && (e.applies_to || 'all') !== 'all' && e.applies_to !== scope) continue;
+      const label = `${e.soulmeld} ${e.amount >= 0 ? '+' : ''}${e.amount}`;
+      if (e.condition) {
+        conditional.push(`${label} — ${e.condition}`);
+        condAmount = Math.max(condAmount, e.amount);
+        continue;
+      }
+      total += e.amount;
+      froms.push(label);
+    }
+    // The best CONDITIONAL amount is reported separately so a chip can show a
+    // number rather than just a count — "+3 conditional" tells you what you
+    // might get; "(1 conditional)" makes you open the tooltip to find out.
+    return { amount: total, froms, conditional, conditionalAmount: condAmount };
+  }
+
+  // Extra MAXIMUM hit points. Necrocarnum Vestments' are explicitly not
+  // temporary hit points — dropping the essentia can leave you staggered,
+  // unconscious or dead — so they belong on the maximum, not in the temp box.
+  function getExtraHP() { return sumOf('hp'); }
+  function getGrappleBonus() { return sumOf('grapple'); }
+  function getCasterLevelBonus() { return sumOf('caster_level'); }
+  function getSpellDCBonus() { return sumOf('spell_dc'); }
+  function getSpellDamageBonus() { return sumOf('spell_damage'); }
+  // `style` is the attack row's fighting style, so a manufactured-only crit
+  // bonus (Necrocarnum Weapon) does not follow a claw.
+  function getConfirmCritBonus(style) {
+    const s = String(style || '');
+    const scope = s.indexOf('natural') === 0 ? 'natural'
+      : (s === 'unarmed' ? null : 'manufactured');
+    return sumOf('confirm_critical', scope ? { applies_to: scope } : undefined);
+  }
+
+  // Speed, in the RAW shape app.js's speed loop collects from every source and
+  // hands to DND35.categorizeSpeedBonuses once. The rows already carry `mode`,
+  // so they arrive in that categorizer's own vocabulary.
+  function getActiveSpeedBonuses() {
+    return flatRows()
+      .filter(e => e.bonus_type === 'speed' && e.amount)
+      .map(e => ({ bonus_type: 'speed', mode: e.mode || 'land', amount: e.amount,
+                   bonus_category: e.bonus_category, condition: e.condition,
+                   source: e.source }));
+  }
+
+  // Ability-check bonuses that the book says ALSO cover that ability's skill
+  // checks. The distinction is real and cannot be parsed: Sphinx Claws says
+  // "Strength checks and Strength-based skill checks", while Mauling Gauntlets
+  // says "but NOT Strength-based skill checks" — so the DB carries a
+  // `includes_ability_skills` flag and this reads it rather than guessing.
+  function getAbilitySkillBonuses() {
+    return flatRows()
+      .filter(e => e.bonus_type === 'ability_check' && e.amount
+                   && e.includes_ability_skills && e.target)
+      .map(e => ({ ability: e.target, amount: e.amount,
+                   bonus_category: e.bonus_category, source: e.source,
+                   condition: e.condition }));
+  }
 
   // ---- the sheet's own typed aggregators ----------------------------------
   //
@@ -779,7 +852,10 @@ const SoulmeldEffects = (function () {
     getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,
     getActiveSkillBonuses,
     getDefenseRiderSpec, syncDefenseRiders,
-    getBestSpellResistance, getBestMissChance,
+    getBestSpellResistance, getBestMissChance, getBestTurnResistance,
+    getExtraHP, getGrappleBonus, getCasterLevelBonus, getSpellDCBonus,
+    getSpellDamageBonus, getConfirmCritBonus,
+    getActiveSpeedBonuses, getAbilitySkillBonuses,
     dbRowsFor,
     collectData, loadData,
     TYPES, APPLIES,

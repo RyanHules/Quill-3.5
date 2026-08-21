@@ -75,12 +75,77 @@ const Character = (function () {
     show("sr-effective", "spell-resistance",
          SME && SME.getBestSpellResistance ? SME.getBestSpellResistance() : null,
          "", (v) => parseInt(v, 10) || 0);
+    // Turn resistance is added to your effective HD against a turn attempt, and
+    // like SR it does not stack — the best source applies.
+    show("tr-effective", "turn-resistance",
+         SME && SME.getBestTurnResistance ? SME.getBestTurnResistance() : null,
+         "", (v) => parseInt(v, 10) || 0);
     // The miss-chance box accepts "50/20" — several sources, highest wins — so
     // the manual side is the max of its parts, not a parse of the whole string.
     show("miss-chance-effective", "ac-miss-chance",
          SME && SME.getBestMissChance ? SME.getBestMissChance() : null,
          "%", (v) => String(v || "").split("/")
            .reduce((m, p) => Math.max(m, parseInt(p, 10) || 0), 0));
+  }
+
+  // A SUMMED derived contribution, shown beside the field it adds to. Unlike
+  // the best-of pair above these add — two sources of extra hit points give you
+  // both lots — so the chip shows the total and names every contributor.
+  function SME_extraHP() {
+    return (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getExtraHP)
+      ? SoulmeldEffects.getExtraHP() : null;
+  }
+  function renderDerivedSum(elId, sum, prefix, suffix) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!sum || !sum.amount) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = `${prefix}${sum.amount >= 0 ? "+" : ""}${sum.amount}${suffix}`;
+    el.title = sum.froms.join("\n");
+  }
+
+  // One chip per ability that currently has a CHECK bonus, saying how much,
+  // from what, and whether the book extends it to that ability's skill checks.
+  // That last part is the whole reason this is worth showing: two soulmelds
+  // grant a Strength-check bonus and only one of them reaches Climb.
+  function renderAbilityCheckBonuses() {
+    const host = document.getElementById("ability-check-bonuses");
+    if (!host) return;
+    const rows = [];
+    if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.flatRows) {
+      try {
+        for (const e of SoulmeldEffects.flatRows()) {
+          if (e.bonus_type !== "ability_check" || !e.amount) continue;
+          rows.push({
+            ability: e.target || "any check",
+            amount: e.amount,
+            skills: !!e.includes_ability_skills,
+            source: e.soulmeld,
+            condition: e.condition || "",
+          });
+        }
+      } catch (err) { /* a picker mid-load must not break the panel */ }
+    }
+    if (!rows.length) { host.hidden = true; host.innerHTML = ""; return; }
+    host.hidden = false;
+    host.innerHTML = '<span class="ability-check-label">Check bonuses:</span>'
+      + rows.map((r) => {
+        const tip = [`${r.source}: ${r.amount >= 0 ? "+" : ""}${r.amount} to ${r.ability} checks`,
+                     r.skills
+                       ? `also applies to ${r.ability}-based SKILL checks`
+                       : `ability checks ONLY — not this ability's skill checks`,
+                     r.condition].filter(Boolean).join(" — ");
+        return `<span class="ability-check-chip${r.skills ? " with-skills" : ""}" `
+          + `title="${escapeAttrCh(tip)}">`
+          + `${r.amount >= 0 ? "+" : ""}${r.amount} ${escapeAttrCh(r.ability)}`
+          + (r.skills ? " <b>+skills</b>" : "")
+          + `<span class="ability-check-from">${escapeAttrCh(r.source)}</span></span>`;
+      }).join("");
+  }
+
+  function escapeAttrCh(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   }
 
   function renderSituationalAC(list) {
@@ -502,6 +567,24 @@ const Character = (function () {
     // pip moves has no business overwriting what they typed.
     renderDerivedDefense();
 
+    // Senses and the light source. Recomputed here rather than pushed, because
+    // a race change, a soulmeld, an essentia pip and a template all move it.
+    if (typeof Senses !== "undefined" && Senses.render) Senses.render();
+
+    // Extra MAXIMUM hit points. Shown as "+N" beside the total the player
+    // typed rather than folded into it, because the box is theirs: the sheet
+    // does not know their rolled hit dice, so it can add to their number but
+    // must never replace it. Necrocarnum Vestments' are explicitly NOT
+    // temporary hp — dropping essentia can leave you dead — so they belong on
+    // the maximum and not in the Temp HP box.
+    renderDerivedSum("hp-extra", SME_extraHP(), "", " max hp");
+
+    // Which abilities currently have a CHECK bonus, and whether it reaches
+    // that ability's skills. Shown under the ability table because that is
+    // where you look when asking "what is my Strength check", and a bonus to
+    // checks is invisible in the score / modifier columns.
+    renderAbilityCheckBonuses();
+
     // Saving throws
     [
       { prefix: "fort", ability: "CON" },
@@ -572,7 +655,19 @@ const Character = (function () {
     $("#grapple-size").textContent = fmt(grappleSize);
     const grappleFeatEl = $("#grapple-feat");
     if (grappleFeatEl) grappleFeatEl.textContent = fmt(grappleFeat);
-    $("#grapple-total").textContent = fmt(bab1 + strMod + grappleSize + grappleFeat + expr($("#grapple-misc").value));
+    // Girallon Arms and Kraken Mantle both grant a grapple bonus that scales
+    // with essentia. Its own box rather than folded into Feat, so the formula
+    // still reconciles by eye — which is the whole point of showing the parts.
+    const grappleMeldSum = (typeof SoulmeldEffects !== "undefined"
+                            && SoulmeldEffects.getGrappleBonus)
+      ? SoulmeldEffects.getGrappleBonus() : { amount: 0, froms: [] };
+    const grappleMeld = grappleMeldSum.amount || 0;
+    const grappleMeldEl = $("#grapple-meld");
+    if (grappleMeldEl) {
+      grappleMeldEl.textContent = fmt(grappleMeld);
+      grappleMeldEl.title = grappleMeldSum.froms.join(", ");
+    }
+    $("#grapple-total").textContent = fmt(bab1 + strMod + grappleSize + grappleFeat + grappleMeld + expr($("#grapple-misc").value));
 
     // Per-attack bonus calculators. The size modifier to attack rolls is the
     // same value as the size modifier to AC (sizeData.acMod) in 3.5. Each
@@ -614,6 +709,39 @@ const Character = (function () {
         catch (e) { meldAtk = 0; }
       }
       const total = bab1 + atkSizeMod + abilMod + misc + focus + enhAtk + coPenalty + meldAtk;
+      // Crit CONFIRMATION. Deliberately NOT in `total` above: it applies only
+      // to the confirmation roll, and folding it into the attack bonus would
+      // inflate every swing. Power Critical is the only unconditional
+      // weapon-named 3.5 feat here — the others (Confound the Big Folk, Vow of
+      // Vengeance, Mark of Avernus) are situational and stay in the tooltip.
+      let critConfirm = 0;
+      const critNotes = [];
+      const styleNow = entry.querySelector(".dmg-style")?.value || "one-hand";
+      if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getConfirmCritBonus) {
+        try {
+          const c = SoulmeldEffects.getConfirmCritBonus(styleNow);
+          critConfirm += c.amount || 0;
+          critNotes.push(...(c.froms || []), ...(c.conditional || []));
+        } catch (e) { /* leave it at zero */ }
+      }
+      if (typeof Feats !== "undefined" && Feats.getCritConfirmBonuses && weaponName) {
+        // Matched the same way Weapon Focus is — whole-word, so the feat's
+        // "longsword" hits "Masterwork Longsword" but not a stray substring.
+        for (const [k, v] of Object.entries(Feats.getCritConfirmBonuses())) {
+          if (weaponFocusMatches(weaponName, k)) {
+            critConfirm += v;
+            critNotes.push(`Power Critical (${k}) +${v}`);
+          }
+        }
+      }
+      const critEl = entry.querySelector(".atk-calc-crit");
+      const critTerm = entry.querySelector(".atk-calc-crit-term");
+      const critOp = entry.querySelector(".atk-calc-crit-op");
+      const showCrit = !!(critConfirm || critNotes.length);
+      if (critEl) { critEl.textContent = fmt(critConfirm); critEl.title = critNotes.join("; "); }
+      if (critTerm) critTerm.style.display = showCrit ? "" : "none";
+      if (critOp) critOp.style.display = showCrit ? "" : "none";
+
       const meldEl = entry.querySelector(".atk-calc-meld");
       const meldTerm = entry.querySelector(".atk-calc-meld-term");
       const meldOp = entry.querySelector(".atk-calc-meld-op");
@@ -818,6 +946,8 @@ const Character = (function () {
         <span class="atk-calc-term atk-calc-focus-term" style="display:none" title="Weapon Focus / Greater Weapon Focus bonus for this weapon"><span class="atk-calc-k">Focus</span><span class="calc-field atk-calc-focus">+0</span></span>
         <span class="atk-calc-op atk-calc-enh-op" style="display:none">+</span>
         <span class="atk-calc-term atk-calc-enh-term" style="display:none" title="Weapon enhancement bonus — the SAME field as the damage row's Enh below. Entered once, paid to both."><span class="atk-calc-k">Enh</span><span class="calc-field atk-calc-enh">+0</span></span>
+        <span class="atk-calc-op atk-calc-crit-op" style="display:none">+</span>
+        <span class="atk-calc-term atk-calc-crit-term" style="display:none" title="Bonus on the roll to CONFIRM a critical threat — not on the attack itself, so it is not in the total above."><span class="atk-calc-k">Crit</span><span class="calc-field atk-calc-crit">+0</span></span>
         <span class="atk-calc-op atk-calc-meld-op" style="display:none">+</span>
         <span class="atk-calc-term atk-calc-meld-term" style="display:none" title="Soulmeld effects that apply to this weapon, from the essentia invested in them."><span class="atk-calc-k">Meld</span><span class="calc-field atk-calc-meld">+0</span></span>
         <span class="atk-calc-op atk-calc-co-op" style="display:none">+</span>

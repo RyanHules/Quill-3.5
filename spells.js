@@ -460,7 +460,7 @@ const Spells = (function () {
           </div>
         </details>
         <div class="spell-header">
-          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"></div>
+          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"><span class="sc-cl-bonus derived-note" hidden></span></div>
           <div class="field"><label>Spellcasting Ability</label><select class="sc-ability">${buildAbilityOptions(data.ability || "", false)}</select></div>
           <div class="field"
                title="Optional override. Set ONLY for classes whose bonus spells per day use a different ability than DCs (Favored Soul: CHA bonus / WIS DC; Spirit Shaman: WIS bonus / CHA DC). Leave blank for everyone else — bonus spells fall back to Spellcasting Ability.">
@@ -468,6 +468,12 @@ const Spells = (function () {
             <select class="sc-bonus-ability">${buildAbilityOptions(data.bonusAbility || "", true)}</select>
           </div>
           <div class="field"><label>Arcane Spell Failure %</label><span class="sc-spell-fail calc-field">0%</span></div>
+          <!-- Derived, from shaped soulmelds (and later, anything else that
+               grants them). Chips rather than fields because the sheet is
+               adding to numbers the player owns: a caster level it does not
+               know the class breakdown of, and a DC that is per-spell-level. -->
+          <div class="field sc-derived-field" hidden><label>Save DC</label><span class="sc-dc-bonus derived-note"></span></div>
+          <div class="field sc-derived-field" hidden><label>Spell Damage</label><span class="sc-dmg-bonus derived-note"></span></div>
           <div class="field"><label>Conditional Modifiers</label><textarea class="sc-conditional" rows="1">${data.conditional || ""}</textarea></div>
         </div>
         <div class="spell-header" style="margin-top:0.5rem">
@@ -2186,6 +2192,38 @@ const Spells = (function () {
     el.appendChild(document.createTextNode(" " + note));
   }
 
+  // Caster level / save DC / spell damage contributed by shaped soulmelds.
+  // Each is a chip beside the field it modifies, never written into it — see
+  // the call site for why. Conditional sources are shown and labelled rather
+  // than either dropped or silently counted, which is the same treatment
+  // conditional bonuses get everywhere else on the sheet.
+  function renderCasterChips(panel) {
+    const SME = (typeof SoulmeldEffects !== "undefined") ? SoulmeldEffects : null;
+    const put = (sel, sum, suffix) => {
+      const el = panel.querySelector(sel);
+      if (!el) return;
+      const field = el.closest(".sc-derived-field");
+      const total = (sum && sum.amount) || 0;
+      const cond = (sum && sum.conditional) || [];
+      if (!total && !cond.length) {
+        el.hidden = true; el.textContent = "";
+        if (field) field.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      if (field) field.hidden = false;
+      const condAmt = (sum && sum.conditionalAmount) || 0;
+      el.textContent = (total ? `${total >= 0 ? "+" : ""}${total}${suffix}` : "")
+        + (cond.length
+           ? `${total ? " " : ""}${condAmt ? `+${condAmt}${suffix} ` : ""}conditional*`
+           : "");
+      el.title = (sum.froms || []).concat(cond).join("\n");
+    };
+    put(".sc-cl-bonus", SME && SME.getCasterLevelBonus ? SME.getCasterLevelBonus() : null, "");
+    put(".sc-dc-bonus", SME && SME.getSpellDCBonus ? SME.getSpellDCBonus() : null, "");
+    put(".sc-dmg-bonus", SME && SME.getSpellDamageBonus ? SME.getSpellDamageBonus() : null, "");
+  }
+
   function recalc(getAbilityMod, bonuses) {
     if (getAbilityMod) _getAbilityMod = getAbilityMod;
     // Fall back to the cached ability-mod accessor when called without
@@ -2243,6 +2281,15 @@ const Spells = (function () {
       const bonusAbilityMod = bonusAbility && abilityModFn ? abilityModFn(bonusAbility) : 0;
       const failEl = panel.querySelector(".sc-spell-fail");
       if (failEl) failEl.textContent = spellFail + "%";
+
+      // Derived spellcasting bonuses from shaped soulmelds. Shown as chips
+      // beside the fields rather than folded into them: the caster-level box
+      // is the player's (the sheet does not know their class breakdown), and
+      // the DC is computed per spell LEVEL, so a flat +1 has no single box to
+      // live in. Therapeutic Mantle's caster-level bonus is healing-subschool
+      // only and Arcane Focus' damage is arcane-only — both conditions ride
+      // along in the tooltip rather than being silently generalised.
+      renderCasterChips(panel);
       const maxLevel = int(panel.querySelector(".spell-slots-table")?.dataset.maxLevel || 9);
 
       // Classes whose "spells" never allow saving throws (Artificer

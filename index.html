@@ -420,6 +420,11 @@
               <tr><td class="ability-label">CHA<span>Charisma</span></td><td><input type="number" id="cha-score" class="ability-score"></td><td><input type="number" id="cha-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="cha-template"><span id="cha-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="cha-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="cha-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Eagle's Splendor, -2 damage)"></td><td><span id="cha-total" class="calc-field ability-total"></span></td><td><span id="cha-mod" class="calc-field">+0</span></td></tr>
             </tbody>
           </table>
+          <!-- Ability-CHECK bonuses. Distinct from a bonus to the SCORE: these
+               apply to raw ability checks (and, where the book says so, to that
+               ability's skill checks too — which is why some of these also show
+               as a "soulmeld" chip on the skill rows). -->
+          <div id="ability-check-bonuses" class="ability-check-bonuses" hidden></div>
           <div class="ability-to-ac-section">
             <label class="ability-to-ac-label">Add to AC:</label>
             <div id="ability-ac-list" class="ability-ac-list"></div>
@@ -431,7 +436,7 @@
         <section class="section">
           <h2>Hit Points</h2>
           <div class="hp-row">
-            <div class="field"><label>Total HP</label><input type="number" id="hp-total" min="0"></div>
+            <div class="field"><label>Total HP</label><input type="number" id="hp-total" min="0"><span id="hp-extra" class="derived-note" hidden></span></div>
             <div class="field"><label>Current HP</label><input type="number" id="hp-current"></div>
             <div class="field"><label>Temp HP</label><input type="number" id="hp-temp" min="0"></div>
             <div class="field"><label>Nonlethal Damage</label><input type="number" id="hp-nonlethal" min="0"></div>
@@ -490,6 +495,7 @@
             <div class="field"><label>STR Mod</label><span id="grapple-str" class="calc-field">+0</span></div>
             <div class="field"><label>Size Mod</label><span id="grapple-size" class="calc-field">+0</span></div>
             <div class="field"><label>Feat</label><span id="grapple-feat" class="calc-field">+0</span></div>
+            <div class="field" title="Grapple bonus from a shaped soulmeld (Girallon Arms, Kraken Mantle), scaled by the essentia invested."><label>Soulmeld</label><span id="grapple-meld" class="calc-field">+0</span></div>
             <div class="field"><label>Misc Mod</label><input type="text" id="grapple-misc" value="0" class="misc-expr"></div>
           </div>
         </section>
@@ -545,6 +551,7 @@
             <div class="field"><label>Touch AC</label><span id="ac-touch" class="calc-field">10</span></div>
             <div class="field"><label>Flat-Footed AC</label><span id="ac-flatfooted" class="calc-field">10</span></div>
             <div class="field"><label>Spell Resistance</label><input type="number" id="spell-resistance" min="0"><span id="sr-effective" class="derived-note" hidden></span></div>
+            <div class="field" title="Turn resistance (MM p.317): added to your effective Hit Dice when a cleric tries to turn, rebuke, command or bolster you. Only matters for undead — including an undead PC, and living characters a necrocarnum effect is protecting."><label>Turn Resistance</label><input type="number" id="turn-resistance" min="0"><span id="tr-effective" class="derived-note" hidden></span></div>
             <!-- Legacy free-text DR. Structured DR rows live below; this box
                  holds only what could not be migrated automatically (a string
                  like "see SA" that is a pointer rather than a value), and
@@ -592,6 +599,27 @@
           <!-- Auto-derived situational AC modifiers from race/template
                (structured `bonuses`) — read-only; applied at point of use. -->
           <div id="ac-situational-auto" class="save-situational-auto" style="display:none"></div>
+        </section>
+
+        <!-- Senses (senses.js). The race's canonical `senses` list has been
+             parsed and variant-merged in race-picker for months and only ever
+             reached one sentence in the race panel; soulmelds grant darkvision
+             too. This is the central place for "what can this character
+             perceive", plus what it is currently lighting. Ranges DO NOT add —
+             the best applies. -->
+        <section class="section" id="senses-block">
+          <h2>Senses
+            <span id="illumination-chip" class="derived-note" hidden></span>
+          </h2>
+          <div id="senses-list" class="senses-list"></div>
+          <div class="light-row">
+            <label for="light-source">Light</label>
+            <select id="light-source" title="Radius and burn time are the PHB's own values. A bullseye lantern is a 60-ft. CONE, not a radius."></select>
+            <span id="light-ticks" class="light-ticks"></span>
+            <button type="button" id="light-reset" class="btn-small" title="Lit a fresh one — refill the burn ticks.">reset</button>
+          </div>
+          <div id="senses-manual" class="senses-manual"></div>
+          <button type="button" id="senses-add" class="btn-small">+ sense</button>
         </section>
 
         <!-- Saving Throws -->
@@ -1052,6 +1080,10 @@
       // vocabulary runs from the book to the sheet to the live bus. Must load
       // before race-picker, which auto-fills it.
       'defense-riders.js',
+      // Senses block — races and soulmelds both grant senses, and until now
+      // the parsed data reached only one sentence in the race panel. Loads
+      // after defense-riders because it sits directly under it.
+      'senses.js',
       // Combat options (Power Attack / Combat Expertise / Heedless Charge) and
       // the per-weapon damage equation that reads them. character.js loads
       // EARLIER and calls into both — that is fine, and deliberately noted

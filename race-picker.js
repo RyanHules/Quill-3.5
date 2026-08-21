@@ -1262,6 +1262,31 @@
     return cat;
   }
 
+  // The applied race's canonical `senses` list, variant-merged the same way
+  // the race panel's own Vision line is. Added 2026-08-21 for the Senses block:
+  // this data has been parsed and merged here for months and only ever reached
+  // a sentence in the race panel, so nothing downstream could answer "how far
+  // can this character see in the dark".
+  function getActiveSenses() {
+    if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) return [];
+    const input = document.getElementById('char-race');
+    const name = ((input && input.value) || '').trim()
+      .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
+    if (!name) return [];
+    const raceId = raceIndex.get(name.toLowerCase());
+    if (raceId === undefined) return [];
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return [];
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return []; }
+    const baseParsed = resolveVariantBase(parsed);
+    const merged = mergeSenses(parsed.senses,
+                               baseParsed && baseParsed.data.senses);
+    return (Array.isArray(merged) ? merged : [])
+      .filter(s => s && s.sense)
+      .map(s => Object.assign({}, s, { source: name }));
+  }
+
   // Racial movement-speed bonuses (effects-aggregator P2). Returns the RAW
   // speed-typed bonus entries for the applied race; app.js concats them with
   // the other sources and categorizes once. Covers both the canonical
@@ -1373,6 +1398,7 @@
   window.RacePicker = {
     resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
+    getActiveSenses, formatSenses,
   };
 
   // Wait for DB to load, then init.

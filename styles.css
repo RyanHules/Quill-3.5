@@ -383,6 +383,48 @@ textarea {
 }
 .derived-note[hidden] { display: none; }
 
+/* === Senses block === */
+.senses-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.senses-empty { font-size: 0.8rem; opacity: 0.6; font-style: italic; }
+.sense-chip {
+  display: inline-flex; align-items: baseline; gap: 0.35rem;
+  background: rgba(120,160,220,0.16); border: 1px solid rgba(120,160,220,0.45);
+  border-radius: var(--radius); padding: 0.15rem 0.45rem; font-size: 0.8rem;
+}
+/* The source is what makes an auto-derived row trustworthy — a number with no
+   provenance is the thing the player has to go and re-derive by hand. */
+.sense-from { font-size: 0.7rem; opacity: 0.65; }
+.light-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.light-row > label { font-size: 0.8rem; opacity: 0.8; }
+.light-ticks { display: inline-flex; align-items: center; gap: 0.2rem; }
+/* Six ticks whatever the source, so a tick is always "a sixth of this one's
+   printed duration" — 10 minutes of a torch, an hour of a lantern. */
+.light-tick {
+  width: 14px; height: 14px; padding: 0; border-radius: 3px;
+  border: 1px solid rgba(200,170,90,0.6); background: transparent; cursor: pointer;
+}
+.light-tick.used { background: rgba(200,170,90,0.75); }
+.light-note { font-size: 0.72rem; opacity: 0.75; margin-left: 0.3rem; }
+.senses-manual { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.35rem; }
+.sense-row { display: flex; align-items: center; gap: 0.3rem; }
+.sense-row .sense-val { width: 5rem; }
+.sense-noval { opacity: 0.5; width: 5rem; text-align: center; }
+
+/* === Ability-CHECK bonuses (distinct from a bonus to the score) === */
+.ability-check-bonuses { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.4rem; }
+.ability-check-label { font-size: 0.78rem; opacity: 0.8; }
+.ability-check-chip {
+  display: inline-flex; align-items: baseline; gap: 0.3rem;
+  background: rgba(160,160,200,0.14); border: 1px solid rgba(160,160,200,0.4);
+  border-radius: var(--radius); padding: 0.12rem 0.4rem; font-size: 0.78rem;
+}
+/* Reaching the skill rows is the part worth seeing at a glance — two soulmelds
+   grant a Strength-check bonus and only one of them touches Climb. */
+.ability-check-chip.with-skills {
+  background: rgba(120,160,220,0.18); border-color: rgba(120,160,220,0.5);
+}
+.ability-check-from { font-size: 0.68rem; opacity: 0.65; }
+
 /* === Ability Scores Table === */
 .ability-table { width: 100%;border-collapse: collapse;}
 

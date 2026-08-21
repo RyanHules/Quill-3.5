@@ -1147,6 +1147,33 @@ const Feats = (function () {
   // +1 per feat because Focus grants +1; Specialization grants +2, so the value
   // is the bonus rather than a count — the consumer adds what it is given.
   // Returns { weaponLower: totalDamageBonus }.
+  // Power Critical (Complete Warrior) → +4 on the roll to CONFIRM a threat with
+  // the named weapon. Same weapon-parameterized shape as Weapon Focus.
+  //
+  // Note on the 3.5 landscape here, because it is easy to reach for the wrong
+  // feat: there is no "Critical Focus" in 3.5 (that is Pathfinder). A DB sweep
+  // for feats that touch confirmation finds nine, and only Power Critical is an
+  // unconditional, weapon-named, always-on bonus — which is why it is the only
+  // one auto-filled. Confound the Big Folk (+4 vs larger foes), Vow of
+  // Vengeance (+4 profane vs the sworn enemy) and Mark of Avernus (auto-confirm)
+  // are all situational, and Cobalt Critical / Cobalt Precision are incarnum
+  // feats scaled by essentia invested in the FEAT, which the sheet does not
+  // model. Auto-filling any of those would assert a bonus the character only
+  // sometimes has.
+  // Returns { weaponLower: totalConfirmBonus }.
+  function getCritConfirmBonuses() {
+    const out = {};
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const m = text.match(/^\s*power\s+critical\s*\(([^)]+)\)/i);
+      if (!m) return;
+      const weapon = m[1].trim().toLowerCase();
+      if (weapon) out[weapon] = (out[weapon] || 0) + 4;
+    });
+    return out;
+  }
+
   function getWeaponSpecBonuses() {
     const out = {};
     document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
@@ -1207,7 +1234,7 @@ const Feats = (function () {
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
     getWeaponFocusBonuses, getWeaponSpecBonuses, getSpellFocusBonuses,
-    getGrappleBonus,
+    getCritConfirmBonuses, getGrappleBonus,
     // Feat presence check for cross-module effect recognition (e.g. Serenity).
     hasFeat,
     // Structured-feat-entry helpers (exposed for tests).
