@@ -211,6 +211,108 @@ const SoulmeldEffects = (function () {
     return { attack, damage, sources };
   }
 
+  // ---- suggestion from the book text (T3) ---------------------------------
+  //
+  // Reads the soulmeld's own essentia prose and proposes what it can. This is a
+  // SUGGESTION and never an auto-apply, and the reason is measured rather than
+  // cautious: run over all 94 soulmelds, the per-point SCALE parses for 88 of
+  // them (94%) while the TARGET only parses for 51 (54%). The gap is not
+  // sloppiness in the regexes — it is that a third of the entries name their
+  // target with a pronoun that lives in the DESCRIPTION, not the essentia
+  // sentence:
+  //
+  //     "Every point of essentia invested in the acrobat boots increases
+  //      the bonus by 2."          <- which bonus? not stated here
+  //     "...increases the insight bonus by 2."   <- on what? not stated here
+  //
+  // So the split is deliberate: the arithmetic, which is tedious and 94%
+  // machine-readable, is filled in; the target, which needs judgement a third
+  // of the time, is left for the player and the parse says so. Guessing it
+  // would be right two times in three, which is the worst possible accuracy for
+  // something that looks authoritative.
+  const SCALE_PATTERNS = [
+    // "5 times the number of points", "3 × the number of points"
+    [/(\d+)\s*(?:times|[x×])\s*the number of points of (?:invested )?essentia/i,
+     m => ({ per: parseInt(m[1], 10) })],
+    // "equal to (double) the number of points of essentia"
+    [/equal to (double )?the number of points of (?:invested )?essentia/i,
+     m => ({ per: m[1] ? 2 : 1 })],
+    // Dice-valued: "increases the damage dealt by 1d6 points" per essentia.
+    [/\bby (\d+d\d+)\b[^.]{0,80}?(?:for every|per) point of (?:invested )?essentia/i,
+     m => ({ dice: m[1] })],
+    [/(?:every|each) point of (?:invested )?essentia[^.]{0,140}?\bby (\d+d\d+)\b/i,
+     m => ({ dice: m[1] })],
+    // Flat: "increases X by N per point" / "every point ... increases X by N"
+    [/\bby (\d+)\b[^.]{0,80}?(?:for every|per) point of (?:invested )?essentia/i,
+     m => ({ per: parseInt(m[1], 10) })],
+    [/(?:every|each) point of (?:invested )?essentia[^.]{0,140}?\bby (\d+)\b/i,
+     m => ({ per: parseInt(m[1], 10) })],
+    // "N feet per point", "5% per point"
+    [/(\d+)\s*(?:feet|ft\.?|%)\s*per point of (?:invested )?essentia/i,
+     m => ({ per: parseInt(m[1], 10) })],
+    // Bare mention with no number means one per point.
+    [/per point of (?:invested )?essentia|for (?:each|every) point of (?:invested )?essentia/i,
+     () => ({ per: 1 })],
+  ];
+
+  const TARGET_PATTERNS = [
+    [/\bdamage reduction\b/i, 'other'],          // DR has its own store; see below
+    [/resistance to (?:acid|cold|electricity|fire|sonic)|energy resistance/i, 'resistance'],
+    [/\bnatural armor\b/i, 'natural-armor'],
+    [/bonus to (?:your )?armor class|\barmor bonus\b/i, 'ac'],
+    [/\bwill saves?\b/i, 'save-will'],
+    [/\breflex saves?\b/i, 'save-ref'],
+    [/\bfortitude saves?\b/i, 'save-fort'],
+    [/\bdamage rolls?\b|\bdamage bonus\b|\bdamage dealt\b|\bextra damage\b/i, 'damage'],
+    [/\battack rolls?\b|\battack penalty\b/i, 'attack'],
+    [/\bhit points?\b/i, 'hp'],
+    [/\bspeed\b|\bfly\b/i, 'speed'],
+    [/\bchecks?\b/i, 'skill'],
+  ];
+
+  // Returns {per, dice, target, sentence, targetKnown} or null.
+  function suggestFrom(text) {
+    if (!text) return null;
+    // The books follow the rule with a worked example ("Thus, if you invest 5
+    // points...") whose numbers would parse as the scale if we let them.
+    const sentences = String(text).split(/(?<=\.)\s+/)
+      .filter(s => /essentia/i.test(s) && !/^\s*(thus|for example)\b/i.test(s));
+    for (const sentence of sentences) {
+      let scale = null;
+      for (const [re, fn] of SCALE_PATTERNS) {
+        const m = re.exec(sentence);
+        if (m) { scale = fn(m); break; }
+      }
+      if (!scale) continue;
+      let target = null;
+      for (const [re, t] of TARGET_PATTERNS) { if (re.test(sentence)) { target = t; break; } }
+      return {
+        per: scale.per != null ? scale.per : null,
+        dice: scale.dice || null,
+        target, targetKnown: !!target,
+        sentence: sentence.trim(),
+      };
+    }
+    return null;
+  }
+
+  // The soulmeld's essentia prose as the sheet holds it. soulmeld-picker writes
+  // "<base effect> (Essentia: <essentia text>)" into the base field, so the
+  // text is already on the page and this needs no DB round trip.
+  function essentiaTextFor(key) {
+    const [slotId, idx] = String(key).split(':');
+    let el;
+    if (slotId === 'totem') {
+      el = byId(idx === '1' ? 'totem-sm2-base' : 'totem-sm-base');
+    } else {
+      const slot = document.querySelector(`.magic-item-slot[data-slot-id="${slotId}"]`);
+      el = slot && slot.querySelector(idx === '1' ? '.slot-sm2-base' : '.slot-sm-base');
+    }
+    const raw = (el && el.value) || '';
+    const m = /\(Essentia:\s*([\s\S]*)\)\s*$/.exec(raw);
+    return m ? m[1] : raw;
+  }
+
   // ---- UI -----------------------------------------------------------------
 
   function rowHtml(r) {
@@ -245,12 +347,44 @@ const SoulmeldEffects = (function () {
       `<div class="sme-head">Effects <span class="sme-sub">— computed from the essentia invested here</span></div>` +
       `<div class="sme-rows"></div>` +
       `<button type="button" class="sme-add">+ effect</button>` +
+      `<button type="button" class="sme-suggest" title="Read this soulmeld's own essentia text and fill in what it can. It fills the per-essentia NUMBER, which is machine-readable for 94% of the catalogue, and leaves the TARGET blank when the book names it with a pronoun (&quot;increases the bonus by 2&quot;) — which is a third of them. It will not guess.">suggest from book text</button>` +
+      `<div class="sme-suggest-note"></div>` +
       `<div class="sme-readout"></div>`;
     panel.appendChild(block);
     for (const r of rowsFor(key)) {
       block.querySelector('.sme-rows').insertAdjacentHTML('beforeend', rowHtml(r));
     }
     return block;
+  }
+
+  // Fill a fresh row from the book text, saying plainly what it could and could
+  // not work out. The note is the point: a suggestion that silently omits the
+  // half it failed on is indistinguishable from one that succeeded.
+  function applySuggestion(block) {
+    const key = block.dataset.key;
+    const note = block.querySelector('.sme-suggest-note');
+    const parsed = suggestFrom(essentiaTextFor(key));
+    if (!parsed) {
+      if (note) note.textContent =
+        'Could not find a per-essentia scale in this soulmeld text — enter it by hand.';
+      return;
+    }
+    const row = { when: 'shaped', base: '', perEssentia: parsed.per != null ? parsed.per : '',
+                  target: parsed.target || 'other', appliesTo: 'all', note: '' };
+    block.querySelector('.sme-rows').insertAdjacentHTML('beforeend', rowHtml(row));
+    syncBlock(block);
+    if (!note) return;
+    const bits = [];
+    if (parsed.dice) {
+      bits.push(`the book scales this by ${parsed.dice} PER POINT — dice-valued effects ` +
+        `are not modelled here (5 soulmelds do this); use a damage rider instead`);
+    } else if (parsed.per != null) {
+      bits.push(`+${parsed.per} per point of essentia`);
+    }
+    bits.push(parsed.targetKnown
+      ? `target read as "${parsed.target}"`
+      : 'TARGET NOT SET — the book names it with a pronoun here, so pick it yourself');
+    note.textContent = bits.join(' · ');
   }
 
   function readBlock(block) {
@@ -314,6 +448,8 @@ const SoulmeldEffects = (function () {
         block.querySelector('.sme-rows').insertAdjacentHTML('beforeend', rowHtml({}));
         syncBlock(block); recalc(); return;
       }
+      const sug = ev.target.closest('.sme-suggest');
+      if (sug) { applySuggestion(sug.closest('.sme-block')); recalc(); return; }
       const rm = ev.target.closest('.sme-remove');
       if (rm) {
         const block = rm.closest('.sme-block');
@@ -384,6 +520,7 @@ const SoulmeldEffects = (function () {
   return {
     build, attachBlocks, refreshAll,
     shaped, computeAll, unrouted, getActiveBonuses, getWeaponMods,
+    suggestFrom, essentiaTextFor,
     collectData, loadData,
     TARGETS, APPLIES,
   };

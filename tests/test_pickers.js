@@ -7744,6 +7744,40 @@ test('focus-aggregator: spells.js surfaces Spell Focus as a per-panel note', () 
     'spells.js must inject the .sc-focus-note element.');
 });
 
+test('source: no stray control bytes in any module (heredoc escape corruption)', () => {
+  // CLAUDE.md forbids writing file CONTENT through a bash heredoc because the
+  // escaping layers (shell -> Python -> regex) silently mangle backslashes.
+  // On 2026-08-21 I did it anyway and every `\b` word boundary in
+  // soulmeld-effects.js became a literal BACKSPACE byte: Python reads `\b` as
+  // the backspace escape. The file still PARSED — a control character inside a
+  // regex literal is just a character — the module loaded, no error appeared,
+  // and every word boundary silently stopped matching. Parse-checking cannot
+  // see it and neither can review.
+  //
+  // So: a byte-level guard. NUL is allowed because lookup.js uses it
+  // deliberately as a composite-key separator (a byte that cannot occur in the
+  // data); nothing else below 0x20 belongs in source but tab, LF and CR.
+  const files = fs.readdirSync(ROOT).filter(f => f.endsWith('.js'))
+    .concat(fs.readdirSync(path.join(ROOT, 'tests'))
+      .filter(f => f.endsWith('.js')).map(f => path.join('tests', f)));
+  const offenders = [];
+  for (const rel of files) {
+    const buf = fs.readFileSync(path.join(ROOT, rel));
+    for (let i = 0; i < buf.length; i++) {
+      const b = buf[i];
+      const allowed = b === 0x00 || b === 0x09 || b === 0x0a || b === 0x0d;
+      if (b < 0x20 && !allowed) {
+        offenders.push(`${rel}: 0x${b.toString(16)} at byte ${i} — ` +
+          JSON.stringify(buf.slice(Math.max(0, i - 30), i + 15).toString('utf8')));
+        break;
+      }
+    }
+  }
+  assert(offenders.length === 0,
+    'Control bytes in source — almost certainly a mangled backslash escape ' +
+    'from a scripted edit:\n  ' + offenders.join('\n  '));
+});
+
 // ---- live bus (phase 2 — inbound writes) ---------------------------------
 //
 // The writable-field list necessarily exists twice: the SERVER owns the
