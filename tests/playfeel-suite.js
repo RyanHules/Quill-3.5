@@ -3519,6 +3519,258 @@
     await SheetReports.remove(found.id);   // leave the store clean
   });
 
+  // ---- GR: soulmeld granted effects + granted attacks (2026-08-21) --------
+  //
+  // WHAT THESE COVER THAT THE NODE SUITE CANNOT. tests/test_pickers.js guards
+  // the DATA (every granted attack states its damage, every bound item names
+  // its chakra) and the WIRING (the module reads the field, the destinations
+  // are called). Neither can answer the question that matters: shape a
+  // soulmeld and does a row appear with the right number in it?
+  //
+  // That gap is not hypothetical. The whole feature was built against a fully
+  // green Node suite while two real bugs sat in it — the damage total lagged a
+  // pass behind the essentia pips, and a rider's descriptive note was being
+  // passed as its CONDITION, which made damage the claw deals on every swing
+  // display as situational and drop out of the total. Both were invisible
+  // until someone moved a pip and read the number.
+
+  // Shape a soulmeld into the totem slot with N essentia, bound.
+  async function shapeTotem(name, essentia, bound = true) {
+    // ORDER MATTERS. The essentia pips for a slot are rendered when the
+    // CAPACITY changes, and only for slots that already hold a soulmeld — so
+    // setting the capacity before the name renders nothing, and no amount of
+    // waiting fixes it. Name first, capacity second. (Found by probing the
+    // live DOM: the only pips on the page belonged to a different slot.)
+    set('totem-sm-name', name);
+    const b = $('#totem-sm-bound');
+    if (b) { b.checked = !!bound; b.dispatchEvent(new Event('change', { bubbles: true })); }
+    set('sm-max-soulmelds', 4);
+    set('sm-max-binds', 2);
+    set('sm-base-capacity', 4);
+    set('sm-max-essentia', 8);
+    window.recalcAll();
+    // The pips are rendered FROM the capacity, so they do not exist until a
+    // pass after it is set — and not reliably on the first one. Poll rather
+    // than sleeping a guessed interval: a fixed wait here made this flaky in
+    // exactly the way that gets a test deleted instead of fixed.
+    let pips = [];
+    for (let tries = 0; tries < 20; tries++) {
+      await wait(50);
+      pips = document.querySelectorAll('#totem-essentia-pips .essentia-pip');
+      if (pips.length) break;
+    }
+    if (!pips.length) fail('shapeTotem: essentia pips never rendered');
+    for (let i = 0; i < essentia && i < pips.length; i++) pips[i].click();
+    await wait(200);
+    return pips.length;
+  }
+
+  function grantedRow(attackName) {
+    return document.querySelector(
+      `#attacks-container .attack-entry[data-from-class^="soulmeld:"][data-from-class$="|${attackName}"]`);
+  }
+
+  regression('GR1: shaping a soulmeld creates its attack row, resolved', async () => {
+    // `typeof` on the BARE identifier, not window.SoulmeldEffects: the module
+    // is const-declared, so it never lands on window and the window check is
+    // always false. Documented trap; it cost a session once already.
+    if (typeof SoulmeldEffects === 'undefined') fail('GR1: soulmeld-effects.js not loaded');
+    await newCharacter();
+    setAbilities({ STR: 18 });
+    await shapeTotem('Kruthik Claws', 3);
+
+    const row = grantedRow('Claw');
+    if (!row) fail('GR1: no managed attack row for the granted claws');
+    expect(row.querySelector('.dmg-dice').value, '1d6', 'GR1: claw die');
+    expect(row.querySelector('.dmg-style').value, 'natural',
+      'GR1: a granted natural attack uses a natural fighting style, so the '
+      + 'sheet supplies the Strength multiplier and Power Attack per RAW');
+    // Str 18 -> +4 at x1 for a primary natural attack.
+    expect(row.querySelector('.dmg-total').textContent, '1d6+4 plus 3d4 acid',
+      'GR1: the acid rider scales with essentia (3 points = 3d4) and, being '
+      + 'UNCONDITIONAL, is part of the headline damage');
+  });
+
+  regression('GR2: moving an essentia pip moves the damage in the same pass',
+    async () => {
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      await shapeTotem('Kruthik Claws', 3);
+      const row = grantedRow('Claw');
+      if (!row) fail('GR2: no managed attack row');
+      const at3 = row.querySelector('.dmg-total').textContent;
+
+      document.querySelectorAll('#totem-essentia-pips .essentia-pip')[3].click();
+      await wait(200);
+      const at4 = row.querySelector('.dmg-total').textContent;
+
+      // The REGRESSION: this used to lag one recalc behind, so the rider
+      // visibly read 4d4 while the total still showed the 3-essentia figure
+      // until something unrelated triggered another pass.
+      expect(at3, '1d6+4 plus 3d4 acid', 'GR2: 3 essentia');
+      expect(at4, '1d6+4 plus 4d4 acid',
+        'GR2: the total must follow the pip in the SAME pass, not the next one');
+    });
+
+  regression('GR3: unbinding removes the row; a hand-edited row is never taken',
+    async () => {
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      await shapeTotem('Kruthik Claws', 2);
+      if (!grantedRow('Claw')) fail('GR3: no managed row to start from');
+
+      const b = $('#totem-sm-bound');
+      b.checked = false;
+      b.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(200);
+      expect(!!grantedRow('Claw'), false,
+        'GR3: the claws come from the TOTEM bind, so unbinding removes them');
+
+      b.checked = true;
+      b.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(200);
+      const row = grantedRow('Claw');
+      if (!row) fail('GR3: re-binding did not restore the row');
+
+      // Simulate the state AFTER a real keystroke handed the row over. A
+      // synthetic event cannot set isTrusted — which IS the guard — so this
+      // asserts the property that actually matters: once the marker is gone,
+      // the sync never touches or deletes the row again.
+      delete row.dataset.fromClass;
+      row.querySelector('.atk-name').value = 'My Own Claws';
+      // Untick `fill damage` first, which is what a player does before typing
+      // their own. While it is ticked the equation OWNS that field and keeps
+      // rewriting it — correctly, and for managed and unmanaged rows alike.
+      const auto = row.querySelector('.dmg-auto-cb');
+      auto.checked = false;
+      auto.dispatchEvent(new Event('change', { bubbles: true }));
+      row.querySelector('.atk-damage').value = '1d6+9 hand typed';
+      set('totem-sm-name', '');
+      await wait(200);
+
+      const survivor = [...document.querySelectorAll('#attacks-container .attack-entry')]
+        .find(r => r.querySelector('.atk-name').value === 'My Own Claws');
+      if (!survivor) fail('GR3: unshaping DELETED a row the player had taken over');
+      expect(survivor.querySelector('.atk-damage').value, '1d6+9 hand typed',
+        'GR3: the player’s hand-typed damage survived unshaping');
+      expect(document.querySelectorAll('[data-from-class^="soulmeld:"]').length, 0,
+        'GR3: no managed rows left behind');
+    });
+
+  regression('GR4: a bind that IMPROVES an attack changes the row', async () => {
+    // Claws of the Wyrm grants claws while merely SHAPED, and its hands bind
+    // improves their damage one die step ("from 1d6 to 1d8, if you are
+    // Medium" — the book names the case). These modifiers spent a day as inert
+    // tags: the panel announced the improvement and the row kept the old die.
+    await newCharacter();
+    setAbilities({ STR: 12 });
+    set('char-size', 'Medium');
+    const slot = document.querySelector('.magic-item-slot[data-slot-id="hands"]');
+    if (!slot) fail('GR4: no hands slot');
+    const sw = slot.querySelector('.slot-soulmeld-check');
+    if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+    const nameEl = slot.querySelector('.slot-sm-name');
+    nameEl.value = 'Claws of the Wyrm';
+    nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+    nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+    const bound = slot.querySelector('.slot-sm-bound');
+    bound.checked = false;
+    bound.dispatchEvent(new Event('change', { bubbles: true }));
+    window.recalcAll();
+    await wait(200);
+
+    const row = grantedRow('Claw');
+    if (!row) fail('GR4: Claws of the Wyrm grants claws while shaped');
+    expect(row.querySelector('.dmg-dice').value, '1d6',
+      'GR4: Medium claws are 1d6 unbound');
+
+    bound.checked = true;
+    bound.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(250);
+    expect(grantedRow('Claw').querySelector('.dmg-dice').value, '1d8',
+      'GR4: the hands bind steps the damage up one step, 1d6 -> 1d8');
+  });
+
+  regression('GR5: granted feats, senses and movement reach their own sections',
+    async () => {
+      await newCharacter();
+      // Basilisk Mask: low-light vision while shaped, Blind-Fight on the brow
+      // bind. The eyes slot IS the brow chakra.
+      const slot = document.querySelector('.magic-item-slot[data-slot-id="eyes"]');
+      const sw = slot.querySelector('.slot-soulmeld-check');
+      if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+      const nameEl = slot.querySelector('.slot-sm-name');
+      nameEl.value = 'Basilisk Mask';
+      nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+      nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+      const bound = slot.querySelector('.slot-sm-bound');
+      bound.checked = true;
+      bound.dispatchEvent(new Event('change', { bubbles: true }));
+      window.recalcAll();
+      await wait(250);
+
+      const featRow = document.querySelector(
+        '#feats-container .feat-row[data-from-soulmeld="1"] .feat-entry');
+      if (!featRow) fail('GR5: the brow bind’s granted feat never reached the Feats tab');
+      expect(featRow.value, 'Blind-Fight', 'GR5: granted feat name');
+
+      const senses = $('#senses-list').textContent;
+      if (!/low-light/i.test(senses)) {
+        fail('GR5: low-light vision never reached the Senses block — got '
+          + JSON.stringify(senses.slice(0, 120)));
+      }
+      // Derived rows must NOT persist: they re-derive from what is shaped.
+      const saved = Feats.collectData();
+      if ((saved.feats || []).some(f => /Blind-Fight/.test(f || ''))) {
+        fail('GR5: a soulmeld-granted feat was written into the save; it must '
+          + 're-derive, or it outlives unshaping the soulmeld');
+      }
+    });
+
+  regression('GR6: Girallon’s rend resolves its damage from the claw, across slots',
+    async () => {
+      // The rend deals "double claw damage, including double your Strength
+      // bonus", so it is expressed BY REFERENCE rather than as a literal 2d4 —
+      // that is what makes it follow the claw if the claw is itself improved.
+      //
+      // The claws come from the TOTEM bind and the rend from the ARMS bind, so
+      // they live in different slots. A same-slot lookup finds nothing and the
+      // rend reports itself ungranted, which is exactly what it did until the
+      // reference was widened. The book is explicit that the claws may come
+      // from "a different soulmeld... or some other source".
+      await newCharacter();
+      setAbilities({ STR: 18 });
+
+      set('totem-sm-name', 'Girallon Arms');
+      const tb = $('#totem-sm-bound');
+      tb.checked = true;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+
+      const arms = document.querySelector('.magic-item-slot[data-slot-id="arms"]');
+      const sw = arms.querySelector('.slot-soulmeld-check');
+      if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+      const an = arms.querySelector('.slot-sm-name');
+      an.value = 'Girallon Arms';
+      an.dispatchEvent(new Event('input', { bubbles: true }));
+      an.dispatchEvent(new Event('change', { bubbles: true }));
+      const ab = arms.querySelector('.slot-sm-bound');
+      ab.checked = true;
+      ab.dispatchEvent(new Event('change', { bubbles: true }));
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const claw = grantedRow('Claw');
+      const rend = grantedRow('Rend');
+      if (!claw) fail('GR6: the totem bind grants no claws');
+      if (!rend) fail('GR6: the arms bind grants no rend');
+      expect(claw.querySelector('.dmg-dice').value, '1d4', 'GR6: claw die');
+      expect(rend.querySelector('.dmg-dice').value, '2d4',
+        'GR6: the rend is DOUBLE the claw, resolved from the other slot');
+      expect(rend.querySelector('.dmg-total').textContent, '2d4+8',
+        'GR6: and double Strength — 18 gives +4, doubled to +8');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers
@@ -4005,13 +4257,24 @@
   });
 
   regression('DMG3: Weapon Specialization is read off the Feats tab, enhancement is shared', async () => {
-    if (!$('.attack-entry .damage-calc-row')) {
+    // The sheet SHIPS with one blank attack row, so "does a damage row
+    // exist" is true even on a fresh load — the old guard therefore never
+    // fired standalone and this spec failed for want of a weapon name.
+    // Test whether the row has actually been SET UP instead.
+    if (!$('.attack-entry .dmg-dice') || !$('.attack-entry .dmg-dice').value) {
       // Standalone-run guard: these build on DMG1's row, and a lone
       // run has none. Seed one rather than fail for a reason that has
       // nothing to do with what the test is checking.
       $('#btn-add-attack').click();
       await wait(250);
       $('.attack-entry .dmg-dice').value = '2d6';
+      // The weapon NAME too. Weapon Specialization is matched to a row BY
+      // NAME, so a guard that seeds the dice and not the name makes this
+      // spec fail standalone for a reason that has nothing to do with what
+      // it checks — the exact false red the guard exists to prevent. (Found
+      // 2026-08-21 while diagnosing whether an unrelated change had broken
+      // it; DMG3 passes in natural order after DMG1, which seeds the name.)
+      $('.attack-entry .atk-name').value = 'Greatsword';
       setAbilities({ STR: 20 });
       set('bab-1', '11');
       set('co-power-attack', '5');
