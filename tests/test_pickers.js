@@ -7936,6 +7936,45 @@ test('live: the tab refuses a field the player is editing', () => {
     'watcher re-publishes identical content.');
 });
 
+// ---- source hygiene: no control characters in shipped JS -------------------
+//
+// A stray control byte in source is invisible in every direction you would
+// normally look: the file still parses, `node --check` is green, the app runs,
+// and reading the code shows nothing. It surfaces only as grep suddenly calling
+// the file "binary".
+//
+// This exists because it HAPPENED, twice, in two days and in two languages: a
+// `\b` written through a shell heredoc became 41 literal 0x08 bytes inside a
+// Python module's regexes (every word boundary silently stopped matching), and
+// a NUL sentinel intended as an escape was emitted as a raw NUL into
+// soulmeld-effects.js. The sibling DB project answered the first with a
+// byte-level test over its modules; this is the same guard for the sheet's JS,
+// because prose telling me to be careful has now failed to stop it three times.
+//
+// It lives in test_pickers because that is the suite that actually gets run.
+test('source: no shipped .js carries a control character', () => {
+  const ALLOWED = new Set([9, 10, 13]);          // tab, LF, CR
+  const files = fs.readdirSync(ROOT)
+    .filter(f => f.endsWith('.js'))
+    .concat(fs.readdirSync(path.join(ROOT, 'tests'))
+      .filter(f => f.endsWith('.js')).map(f => path.join('tests', f)));
+  const bad = [];
+  for (const rel of files) {
+    const buf = fs.readFileSync(path.join(ROOT, rel));
+    for (let i = 0; i < buf.length; i++) {
+      const b = buf[i];
+      if (b < 0x20 && !ALLOWED.has(b)) {
+        const line = buf.slice(0, i).toString('utf8').split('\n').length;
+        bad.push(`${rel}:${line} byte 0x${b.toString(16).padStart(2, '0')}`);
+        break;                                    // one report per file
+      }
+    }
+  }
+  assert(bad.length === 0,
+    `control characters in shipped source (invisible on read, and node --check `
+    + `will not catch them): ${bad.join(', ')}`);
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

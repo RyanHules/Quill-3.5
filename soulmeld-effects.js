@@ -442,7 +442,7 @@ const SoulmeldEffects = (function () {
   // and re-rendering under them would eat a keystroke or a half-open select.
   function syncRendered(block, key) {
     const sm = find(key);
-    if (isEdited(key, sm)) { block.dataset.renderedFor = ' edited'; return; }
+    if (isEdited(key, sm)) { block.dataset.renderedFor = '(edited)'; return; }
     const want = sm ? sm.name : '';
     if (block.dataset.renderedFor === want) return;
     block.dataset.renderedFor = want;

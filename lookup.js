@@ -3253,8 +3253,8 @@
     const seen = new Set();
     const out = [];
     for (const { entry } of scored) {
-      const key = entry.type + ' ' + (entry.version || '') +
-        ' ' + (entry.name || '').toLowerCase();
+      const key = entry.type + '\u0000' + (entry.version || '') +
+        '\u0000' + (entry.name || '').toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(entry);
