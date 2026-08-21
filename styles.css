@@ -653,6 +653,34 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 
 .btn-add:hover { background: rgba(233,69,96,0.1); }
 
+/* Inline sibling of .btn-add, for the add/reset buttons that sit INSIDE a
+   block rather than spanning it (the Defense riders, DR and regeneration
+   adders; the Senses "+ sense" and light "reset").
+
+   These carried `btn-small` with no rule behind it at all, so they rendered as
+   raw browser default buttons — pale, chunky and system-styled — next to a
+   dark sheet of dashed-accent controls. Same visual language as .btn-add, just
+   not full width and a step smaller, so a new section reads as part of the
+   sheet instead of as something bolted on. */
+.btn-small {
+  background: var(--btn-bg);
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+  /* No font-family on purpose: .btn-add and .btn-remove do not set one either,
+     so every button on the sheet renders in the same face. Setting `inherit`
+     here looked tidier in isolation and would have made these the only buttons
+     in a different typeface. */
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-small:hover { background: rgba(233,69,96,0.1); }
+
 .btn-remove {
   background: var(--danger);
   color: white;
@@ -4808,6 +4836,13 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 /* A damage die stepped up by Improved Natural Attack or a soulmeld bind —
    shown beside the player's own dice box, never written into it. */
 .dmg-dice-meld {
+  margin-left: 0.25rem; font-size: 0.82em; white-space: nowrap;
+  color: #fd9; opacity: 0.9;
+}
+
+/* A soulmeld's enhancement bonus, shown beside the player's own Enh box —
+   it supersedes rather than adds, so the box stays theirs. */
+.dmg-enh-meld {
   margin-left: 0.25rem; font-size: 0.82em; white-space: nowrap;
   color: #fd9; opacity: 0.9;
 }

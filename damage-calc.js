@@ -147,7 +147,7 @@ const DamageCalc = (function () {
         <span class="dmg-abil-terms">${terms.map(abilityTermHtml).join('')}</span>
         <button type="button" class="dmg-abil-add" title="Add another ability to damage">+ ability</button>
         <span class="atk-calc-op">+</span>
-        <span class="atk-calc-term" title="Weapon enhancement bonus. Feeds BOTH this equation and the attack bonus above."><span class="atk-calc-k">Enh</span><input type="text" class="dmg-enh" value="${esc(data.enh || '')}" placeholder="0"></span>
+        <span class="atk-calc-term" title="Weapon enhancement bonus. Feeds BOTH this equation and the attack bonus above."><span class="atk-calc-k">Enh</span><input type="text" class="dmg-enh" value="${esc(data.enh || '')}" placeholder="0"><span class="dmg-enh-meld" style="display:none"></span></span>
         <span class="atk-calc-op dmg-pa-op" style="display:none">+</span>
         <span class="atk-calc-term dmg-pa-term" style="display:none" title="Power Attack, declared once in Combat Options and multiplied by this weapon's fighting style (×2 two-handed, none for a light or off-hand weapon)."><span class="atk-calc-k">PA</span><span class="calc-field dmg-pa">+0</span></span>
         <span class="atk-calc-op dmg-meld-op" style="display:none">+</span>
@@ -326,11 +326,30 @@ const DamageCalc = (function () {
       } catch (e) { meld = 0; meldEnh = 0; }
     }
     setTerm(row, '.dmg-meld', '.dmg-meld-term', '.dmg-meld-op', meld);
+    // The Enh box is the player's input and stays empty when the enhancement
+    // comes from a soulmeld — so the damage row showed nothing while the
+    // attack row showed "+3", which reads as "it applies to attack and not to
+    // damage". It applies to both; this says so.
+    const enhChip = row.querySelector('.dmg-enh-meld');
+    if (enhChip) {
+      const show = meldEnh > (num(row.querySelector('.dmg-enh').value));
+      enhChip.textContent = show ? `+${meldEnh}` : '';
+      enhChip.title = show
+        ? 'Enhancement bonus from a soulmeld. Enhancement bonuses do not '
+          + 'stack — the highest applies, so this supersedes the box.'
+        : '';
+      enhChip.style.display = show ? '' : 'none';
+    }
 
     // HIGHEST enhancement applies, they do not sum. `.dmg-enh` stays the
     // player's own field — the effective value shows in the attack row's Enh
     // term and in this total, rather than being written into a box they own.
     const enhEff = Math.max(enh, meldEnh);
+    // Stashed so the structured publisher reports the enhancement that ACTUALLY
+    // applied. It used to read the input box, which meant a soulmeld's +3 was
+    // in the damage string and absent from `damage_structured.enhancement` —
+    // the components not summing to the total they sit beside.
+    row.dataset.enhEffective = String(enhEff);
     const flat = abilTotal + enhEff + pa + spec + meld + misc;
     const typedDice = (row.querySelector('.dmg-dice').value || '').trim();
 
@@ -593,7 +612,11 @@ const DamageCalc = (function () {
         value: Number.isFinite(v) ? v : 0,
       };
     });
-    const enh = num(row.querySelector('.dmg-enh').value);
+    // The enhancement that APPLIED, not the box: a soulmeld's enhancement
+    // supersedes it and is what the damage string already reflects.
+    const enh = row.dataset.enhEffective != null
+      ? (parseInt(row.dataset.enhEffective, 10) || 0)
+      : num(row.querySelector('.dmg-enh').value);
     const misc = num(row.querySelector('.dmg-misc').value);
     const abilityTotal = abilityTerms.reduce((a, t) => a + (t.value || 0), 0);
     const powerAttack = readTerm('.dmg-pa');
