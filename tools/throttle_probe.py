@@ -12,6 +12,18 @@ What the numbers mean:
 
 Chrome's intensive throttling starts ~5 minutes after a tab is hidden, so the
 window has to be longer than that to mean anything.
+
+RESULT, 2026-08-22, Firefox, four sheets in ONE window (so three were genuinely
+hidden for the whole run — the worst case, not a lucky arrangement):
+
+    11.1 min, 39 samples
+    aku 18.0s | gorrash 20.4s | kell 20.4s | uta 20.4s   max age
+    flat from 2.3 min through 9.1 min, zero stale samples
+
+Against a 20s heartbeat. Chrome would have pushed these toward 60s past the
+5-minute mark. Firefox does not throttle this, and the concern the TODO carried
+for weeks came from reading Chrome's docs rather than measuring the browser in
+use.
 """
 import json
 import sys
