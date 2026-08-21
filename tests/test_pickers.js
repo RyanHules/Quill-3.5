@@ -2785,7 +2785,7 @@ test('class-picker: every meldshaper base class is in INCARNUM_CLASSES', (db) =>
     `\nFix: add each to INCARNUM_CLASSES in class-picker.js.`);
 });
 
-// ---- tests: soulmeld granted abilities + granted attacks ------------------
+// ---- tests: soulmeld granted effects + granted attacks ------------------
 //
 // The half of incarnum that is NOT a number (2026-08-21). Roughly half of
 // every soulmeld's printed text grants an ABILITY rather than a bonus, and for
@@ -2795,10 +2795,10 @@ test('class-picker: every meldshaper base class is in INCARNUM_CLASSES', (db) =>
 
 test('soulmeld granted: the data reached the deployed blob', (db) => {
   const rows = execAll(db,
-    "SELECT name, json_extract(data, '$.granted_abilities') AS g "
+    "SELECT name, json_extract(data, '$.granted_effects') AS g "
     + "FROM entry WHERE type = 'soulmeld' "
-    + "AND json_extract(data, '$.granted_abilities') IS NOT NULL");
-  assertGE(rows.length, 85, 'granted_abilities stamped on the soulmelds');
+    + "AND json_extract(data, '$.granted_effects') IS NOT NULL");
+  assertGE(rows.length, 85, 'granted_effects stamped on the soulmelds');
   let attacks = 0;
   for (const r of rows) {
     const items = JSON.parse(r.g || '[]');
@@ -2820,9 +2820,9 @@ test('soulmeld granted: the data reached the deployed blob', (db) => {
 
 test('soulmeld granted: every attack can fill an attack row', (db) => {
   const rows = execAll(db,
-    "SELECT name, json_extract(data, '$.granted_abilities') AS g "
+    "SELECT name, json_extract(data, '$.granted_effects') AS g "
     + "FROM entry WHERE type = 'soulmeld' "
-    + "AND json_extract(data, '$.granted_abilities') IS NOT NULL");
+    + "AND json_extract(data, '$.granted_effects') IS NOT NULL");
   const bad = [];
   for (const r of rows) {
     for (const it of JSON.parse(r.g || '[]')) {
@@ -2851,7 +2851,7 @@ test('soulmeld granted: Kruthik Claws is wired end to end', (db) => {
   // with 1d4 acid PER POINT of essentia on each — which exercises the count,
   // the ability term, and a per-essentia rider in one entry.
   const row = execOne(db,
-    "SELECT json_extract(data, '$.granted_abilities') AS g "
+    "SELECT json_extract(data, '$.granted_effects') AS g "
     + "FROM entry WHERE type = 'soulmeld' AND name = 'Kruthik Claws'");
   const items = JSON.parse(row.g || '[]');
   const claw = items.find(i => i.kind === 'attack');
@@ -2874,8 +2874,8 @@ test('soulmeld granted: Kruthik Claws is wired end to end', (db) => {
 
 test('soulmeld granted: the sheet routes each kind somewhere', () => {
   const src = readSource('soulmeld-effects.js');
-  assert(/granted_abilities/.test(src),
-    'soulmeld-effects must read granted_abilities from the DB');
+  assert(/granted_effects/.test(src),
+    'soulmeld-effects must read granted_effects from the DB');
   // The bind gate is SHARED with the bonus rows. Two copies would drift the
   // moment one of them learned something the other did not.
   assert(/function inForce\(/.test(src)
@@ -2893,7 +2893,7 @@ test('soulmeld granted: the sheet routes each kind somewhere', () => {
     'senses.js must consume the non-numeric granted senses');
   assert(/grantedMovement\(\)/.test(src),
     'granted movement must reach getActiveSpeedBonuses');
-  assert(/grantedAbilities/.test(readSource('live-publish.js')),
+  assert(/grantedEffects/.test(readSource('live-publish.js')),
     'the live bus must publish granted abilities');
 });
 

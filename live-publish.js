@@ -275,8 +275,8 @@
   function grantedFor(s) {
     try {
       if (typeof SoulmeldEffects === 'undefined'
-          || !SoulmeldEffects.grantedAbilities) return [];
-      return SoulmeldEffects.grantedAbilities()
+          || !SoulmeldEffects.grantedEffects) return [];
+      return SoulmeldEffects.grantedEffects()
         .filter(function (g) {
           return g.soulmeld === s.name && g.slot === s.slot;
         })

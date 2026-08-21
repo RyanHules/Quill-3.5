@@ -156,10 +156,10 @@ const SoulmeldEffects = (function () {
       }
       const rows = DB.query(
         "SELECT name, json_extract(data, '$.bonuses') AS bonuses, "
-        + "json_extract(data, '$.granted_abilities') AS granted "
+        + "json_extract(data, '$.granted_effects') AS granted "
         + "FROM entry WHERE type = 'soulmeld' "
         + "AND (json_extract(data, '$.bonuses') IS NOT NULL "
-        + "     OR json_extract(data, '$.granted_abilities') IS NOT NULL)");
+        + "     OR json_extract(data, '$.granted_effects') IS NOT NULL)");
       for (const r of rows) {
         const key = String(r.name || '').toLowerCase();
         let parsed = [];
@@ -360,14 +360,14 @@ const SoulmeldEffects = (function () {
   //
   // Roughly half of every soulmeld's printed text grants an ABILITY rather
   // than a bonus — a bite attack, a breath weapon, flight, incorporeality.
-  // The DB now carries all 202 of them as `granted_abilities`, each tagged
+  // The DB now carries all 202 of them as `granted_effects`, each tagged
   // with the bind it comes from and, where the sheet can do something with it,
   // a structured payload (see the sibling project's _soulmeld_granted_data.py).
   //
   // Gated identically to the bonus rows, which is the point: a Throat bind's
   // breath weapon must not appear on a character bound at the totem.
 
-  function grantedAbilities() {
+  function grantedEffects() {
     const out = [];
     for (const sm of shaped()) {
       const valid = chakrasForSlot(sm.slot).map(c => String(c).toLowerCase());
@@ -383,7 +383,7 @@ const SoulmeldEffects = (function () {
   }
 
   function grantedOfKind(kind) {
-    return grantedAbilities().filter(g => g.kind === kind);
+    return grantedEffects().filter(g => g.kind === kind);
   }
 
   function charSize() {
@@ -409,8 +409,38 @@ const SoulmeldEffects = (function () {
   // gets style `none` plus an EXPLICIT ability term, because those do not
   // follow the natural-weapon rules and inheriting them would be wrong. A
   // trample's 1½ Strength is printed in its own text, not derived from a grip.
-  function resolveAttack(g) {
+  // Every attack_modifier in force. Split by reach: `own` ones improve a named
+  // attack of the SAME soulmeld and are matched by (slot, name); the rest are
+  // scopes over the character's whole attack list, which is how the book words
+  // them — Dread Carapace doubles the threat range of "all natural attacks",
+  // whatever granted them.
+  function activeModifiers() {
+    return grantedOfKind('attack_modifier')
+      .map(g => Object.assign({}, g.modifier, {
+        soulmeld: g.soulmeld, slotKey: g.slotKey,
+      }));
+  }
+
+  // Which modifiers apply to one granted attack.
+  function modifiersFor(g) {
     const a = (g && g.attack) || {};
+    const isNatural = a.attack_kind === 'natural';
+    return activeModifiers().filter((m) => {
+      if (m.scope === 'own') {
+        return m.slotKey === g.slotKey && m.modifies_attack === a.name;
+      }
+      if (m.scope === 'natural') return isNatural;
+      if (m.scope === 'manufactured') return false;   // no granted attack is
+      if (m.scope === 'unarmed') return false;        // manufactured/unarmed
+      return m.scope === 'all';
+    });
+  }
+
+  function resolveAttack(g, depth) {
+    const a = (g && g.attack) || {};
+    // `damage_as` resolves one attack from another, so a cycle in the data
+    // would spin forever. Bounded rather than trusted.
+    depth = depth || 0;
     let dice = a.dice || null;
     let diceNote = null;
     if (!dice && a.dice_by_size) {
@@ -427,6 +457,74 @@ const SoulmeldEffects = (function () {
       dice = scaleDice(a.dice_per_essentia, g.essentia);
       if (!dice) diceNote = `${a.dice_per_essentia} per point of essentia — `
         + 'no essentia invested, so it deals nothing yet';
+    }
+
+    // ---- improvements ------------------------------------------------------
+    //
+    // A bind that IMPROVES an attack rather than granting one. These were
+    // carried as inert tags for a day: the panel said "claw damage improves one
+    // die step" and the row kept its old die, which is worse than not saying it.
+    const mods = modifiersFor(g);
+    const modNotes = [];
+    let threatRange = null;
+    for (const m of mods) {
+      const steps = (m.damage_step || 0) + (m.size_step || 0);
+      if (steps && dice) {
+        const out = DND35.stepWeaponDamage(dice, steps);
+        if (out.stepped) {
+          modNotes.push(`${dice} → ${out.dice} (${m.soulmeld})`);
+          dice = out.dice;
+        } else {
+          // The chain does not cover this die. Say so rather than leaving the
+          // player to wonder whether the improvement applied.
+          modNotes.push(`${m.soulmeld} improves this damage a step, but the `
+            + `progression does not cover ${dice} — apply it by hand`);
+        }
+      }
+      if (m.threat_range_double) {
+        // 3.5 doubles the THREAT RANGE, not the crit multiplier: 20 → 19-20,
+        // 19-20 → 17-20. Computed off the row's current crit range so a weapon
+        // that already threatens on 19 is handled, and these explicitly do NOT
+        // stack with each other or with keen / Improved Critical.
+        threatRange = threatRange || { from: m.soulmeld,
+                                       no_stack_with: m.no_stack_with || null };
+      }
+      if (m.note) modNotes.push(m.note);
+    }
+
+    // Damage BY REFERENCE — Girallon's rend deals "double claw damage,
+    // including double your Strength bonus", and Dragon Tail's sweep deals
+    // whatever the tail currently deals. Resolving it by reference rather than
+    // as a literal 2d4 is what makes the rend follow the claw when the claw is
+    // itself improved a die step, which is what the book's wording requires.
+    if (!dice && a.damage_as) {
+      // Search ACROSS slots, not just this one. Girallon Arms grants its claws
+      // from the TOTEM bind and its rend from the ARMS bind, so a same-slot
+      // lookup finds nothing and the rend reports itself ungranted — which is
+      // exactly what it did. The book is explicit that the claws may come from
+      // "your girallon arms, a different soulmeld, your own innate abilities,
+      // or some other source", so the nearest match wins: same slot first,
+      // then the same soulmeld in another slot, then any granted attack of
+      // that name.
+      const named = grantedOfKind('attack')
+        .filter(o => (o.attack || {}).name === a.damage_as);
+      const ref = named.find(o => o.slotKey === g.slotKey)
+        || named.find(o => o.soulmeld === g.soulmeld)
+        || named[0];
+      if (ref && depth < 3) {
+        const base = resolveAttack(ref, depth + 1);
+        if (base.dice) {
+          dice = a.damage_multiplier
+            ? (scaleDice(base.dice, a.damage_multiplier) || base.dice)
+            : base.dice;
+        }
+      }
+      if (!dice) {
+        diceNote = `damage as your ${a.damage_as}`
+          + (a.damage_multiplier ? `, ×${a.damage_multiplier}` : '')
+          + ' — that attack is not currently granted, so there is no die to '
+          + 'double';
+      }
     }
 
     const isNatural = a.attack_kind === 'natural';
@@ -488,7 +586,7 @@ const SoulmeldEffects = (function () {
       if (r.note) notesFromRiders.push(r.note);
     }
 
-    const notes = notesFromRiders.slice();
+    const notes = notesFromRiders.concat(modNotes);
     if (a.count > 1) notes.push(`×${a.count}`);
     if (a.count_per_essentia) notes.push('one per point of essentia');
     if (a.role === 'primary_or_secondary') {
@@ -499,7 +597,10 @@ const SoulmeldEffects = (function () {
                                        + `${a.secondary_count} secondary`);
     if (a.role === 'only') notes.push('the only attack you may make that round');
     if (a.reach_bonus_ft) notes.push(`reach +${a.reach_bonus_ft} ft`);
-    if (a.damage_as) notes.push(`damage as your ${a.damage_as}`);
+    // Only when it did NOT resolve: with a resolved die the row already shows
+    // the number, and printing "damage as your Claw" beside it reads as an
+    // unresolved caveat rather than an explanation.
+    if (a.damage_as && !dice) notes.push(`damage as your ${a.damage_as}`);
     if (a.damage_kind === 'ability_damage') notes.push('ability damage, not hit points');
     if (a.action) notes.push(`${a.action} action`);
     if (diceNote) notes.push(diceNote);
@@ -514,8 +615,20 @@ const SoulmeldEffects = (function () {
     const range = a.range_ft ? `${a.range_ft} ft`
       : (a.range_increment_ft ? `${a.range_increment_ft} ft increment` : '');
 
+    if (threatRange) {
+      notes.push('threat range doubled (' + threatRange.from + ')'
+        + (threatRange.no_stack_with
+           ? '; does not stack with ' + threatRange.no_stack_with : ''));
+    }
+
+    // A natural attack's default threat range is 20/x2; a doubling modifier
+    // makes it 19-20. Written into the row's Critical box so the player sees
+    // the improvement where they look for it.
+    const crit = threatRange ? '19-20/x2' : '20/x2';
+
     return {
       key: `${g.slotKey}|${a.name}`,
+      threatRange, crit,
       name: `${a.name} (${g.soulmeld})`,
       dice: dice || '',
       style, abilityTerms, riders,
@@ -582,6 +695,7 @@ const SoulmeldEffects = (function () {
       const row = Character.upsertClassAttack(key, {
         name: a.name,
         damage: '',              // the equation fills it if the player opts in
+        crit: a.crit,
         type: a.type,
         range: a.range,
         notes: a.notes,
@@ -1186,6 +1300,7 @@ const SoulmeldEffects = (function () {
   // promises and a player should not have to guess which they got.
   const GRANT_TAG = {
     attack: '→ attack row',
+    attack_modifier: '→ improves an attack',
     feat: '→ Feats tab',
     special_ability: '→ Special Abilities',
     sense: '→ Senses',
@@ -1201,7 +1316,7 @@ const SoulmeldEffects = (function () {
       block.appendChild(holder);
     }
     if (!sm) { holder.innerHTML = ''; return; }
-    const mine = grantedAbilities()
+    const mine = grantedEffects()
       .filter(g => g.slot === sm.slot && g.soulmeld === sm.name);
     if (!mine.length) { holder.innerHTML = ''; return; }
 
@@ -1377,7 +1492,7 @@ const SoulmeldEffects = (function () {
   return {
     build, attachBlocks, refreshAll,
     shaped, computeAll, unrouted, flatRows,
-    grantedAbilities, grantedAttacks, grantedFeats, grantedSpecials,
+    grantedEffects, grantedAttacks, grantedFeats, grantedSpecials,
     grantedSenses, grantedMovement, syncGrantedAttacks, syncGrantedFeats,
     getWeaponMods,
     getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,

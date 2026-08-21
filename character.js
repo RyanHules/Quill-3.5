@@ -389,6 +389,31 @@ const Character = (function () {
         flyEl.classList.remove("speed-reduced");
       }
     }
+    // Maneuverability, auto-selected from whatever GRANTED the flight — a
+    // soulmeld, a race, a class feature. The aggregator already resolved which
+    // source won (best speed), so its maneuverability is the one that applies,
+    // and making the player re-pick it from a dropdown after the sheet already
+    // knew is busywork.
+    //
+    // It stays EDITABLE, because the granted value is a default and not a law:
+    // Improved Flight and similar effects raise maneuverability by a step, and
+    // the sheet has no way to know. Marked `data-from-speed` and cleared on the
+    // player's first real edit, the same handover every other auto-filled field
+    // on this sheet uses.
+    const manEl = $("#speed-fly-maneuver");
+    if (manEl && spd.fly && spd.fly.maneuver) {
+      const owned = manEl.dataset.fromSpeed != null;
+      if (!manEl.value || owned) {
+        if (manEl.value !== spd.fly.maneuver) manEl.value = spd.fly.maneuver;
+        manEl.dataset.fromSpeed = spd.fly.maneuver;
+        if (!manEl.dataset.fromSpeedWired) {
+          manEl.dataset.fromSpeedWired = "1";
+          manEl.addEventListener("change", (ev) => {
+            if (ev.isTrusted) delete manEl.dataset.fromSpeed;
+          });
+        }
+      }
+    }
     // Swim / Burrow / Climb — box + aggregator, not load-reduced.
     for (const m of ["swim", "burrow", "climb"]) {
       const el = $(`#speed-${m}-current`);
@@ -1042,6 +1067,14 @@ const Character = (function () {
       const el = $(`#${id}`);
       if (el) data[id] = el.value;
     });
+    // Save-stability: the fly-maneuverability dropdown is AUTO-FILLED from
+    // whatever granted the flight, and hands over to the player on their first
+    // edit. Its VALUE round-trips through the list above, but the marker does
+    // not — and without the marker a loaded character reads as player-owned,
+    // so the dropdown would freeze at whatever it held when saved and never
+    // follow a changed soulmeld or race again.
+    const manSave = $("#speed-fly-maneuver");
+    if (manSave && manSave.dataset.fromSpeed != null) data._flyManeuverAuto = true;
 
     // Ability scores (base, racial adjustment, template, temp adjustment).
     // Temp is persisted under a NEW key (`-temp-adj`) because its meaning
@@ -1208,6 +1241,15 @@ const Character = (function () {
       set("speed-swim", m.swim);
       set("speed-burrow", m.burrow);
       set("speed-climb", m.climb);
+    }
+    // Re-stamp the fly-maneuverability auto-fill marker (see collectData). A
+    // save WITHOUT the flag is a player-owned value and must be left alone —
+    // which is also the right answer for every character saved before the flag
+    // existed, since those dropdowns were all hand-picked.
+    const manLoad = $("#speed-fly-maneuver");
+    if (manLoad) {
+      if (data._flyManeuverAuto) manLoad.dataset.fromSpeed = manLoad.value || "";
+      else delete manLoad.dataset.fromSpeed;
     }
 
     // Saves

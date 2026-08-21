@@ -444,6 +444,40 @@ const DND35 = {
   // Format: stepUp[smallerSize] = {str, dex, con, na}
   sizeOrder: ['Fine', 'Diminutive', 'Tiny', 'Small', 'Medium',
               'Large', 'Huge', 'Gargantuan', 'Colossal'],
+
+  // Weapon / natural-attack damage progression (PHB p.114, "if a weapon's
+  // damage increases or decreases"). ONE step along a chain, used for both
+  // reasons the rules give: an effect that improves a die "one step" (Claws of
+  // the Wyrm's hands bind, which names its own Medium case "from 1d6 to 1d8"),
+  // and an effect that makes attacks deal damage "as if you were one size
+  // category larger" (Totem Avatar's shoulders bind).
+  //
+  // Two chains, because the d10 line does not merge into the d6 line. Anything
+  // not on a chain is returned UNCHANGED rather than guessed at — a die the
+  // table does not cover has no defined step, and inventing one would silently
+  // hand the player damage the book never granted.
+  damageStepChains: [
+    ['1d2', '1d3', '1d4', '1d6', '1d8', '2d6', '3d6', '4d6', '6d6', '8d6',
+     '12d6'],
+    ['1d10', '2d8', '3d8', '4d8', '6d8', '8d8'],
+  ],
+
+  // Step `dice` up (or down, for a negative `steps`). Returns
+  // {dice, stepped} so a caller can tell "improved to 1d8" from "the table
+  // does not cover 1d12, so it is unchanged" — the difference matters, since
+  // the second case is a note the player needs to see.
+  stepWeaponDamage(dice, steps) {
+    const d = String(dice || '').trim().toLowerCase();
+    const n = parseInt(steps, 10) || 0;
+    if (!d || !n) return { dice: dice, stepped: false };
+    for (const chain of this.damageStepChains) {
+      const i = chain.indexOf(d);
+      if (i === -1) continue;
+      const j = Math.max(0, Math.min(chain.length - 1, i + n));
+      return { dice: chain[j], stepped: j !== i };
+    }
+    return { dice: dice, stepped: false };
+  },
   sizeStepUp: {
     // From → next-larger size deltas (MM p.291 / SRD)
     'Fine':       { str: +2, dex: -2, con:  0, na: 0 },   // F → D
