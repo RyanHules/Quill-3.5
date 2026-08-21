@@ -4330,6 +4330,94 @@
         + 'the name');
     });
 
+  regression('GR18: the totemist’s totem chakra bind raises capacity, and only there',
+    async () => {
+      // MoI's Totem Chakra Bind prints TWO worked examples and both are
+      // asserted here verbatim, because a capacity rule is exactly the kind of
+      // thing that can be off by one in a direction nobody notices:
+      //
+      //   "a 2nd-level totemist can invest up to 2 points of essentia in any
+      //    soulmeld bound to his totem chakra bind (rather than the normal
+      //    limit of 1 point)"
+      //   "a 15th-level totemist could invest up to 5 points"
+      //
+      // The MIRROR CLAUSES are the discriminators, and without them this spec
+      // would pass against a bonus that simply raised everything: the bonus
+      // must vanish when the meld is UNBOUND (the book hangs it on the bind,
+      // not on the slot), and it must not reach a BODY slot at all.
+      await newCharacter();
+      set('char-level', '2');
+      await applyClass('Totemist', 2);
+      const details = document.querySelector('.slot-totem details');
+      if (details) details.open = true;
+      set('totem-sm-name', 'Girallon Arms');
+      await wait(200);
+      const totemPips = () => $$('#totem-essentia-pips .essentia-pip').length;
+
+      expect(totemPips(), 1, 'GR18: unbound at 2nd — the ordinary Table 2-1 ceiling');
+      const tb = $('#totem-sm-bound');
+      tb.checked = true;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      expect(totemPips(), 2, 'GR18: bound at 2nd — the book’s first worked example');
+
+      // Second worked example. Character level drives the base (Table 2-1),
+      // totemist level drives the bonus — 3 + 2 = 5.
+      set('char-level', '15');
+      await applyClass('Totemist', 15);
+      await wait(250);
+      expect(totemPips(), 5, 'GR18: bound at 15th — the book’s second worked example');
+
+      tb.checked = false;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      expect(totemPips(), 3, 'GR18: unbinding drops it back to the base ceiling');
+
+      // A body slot is never the totem chakra, however high the totemist is.
+      const arms = document.querySelector('.magic-item-slot[data-slot-id="arms"]');
+      const chk = arms.querySelector('.slot-soulmeld-check');
+      chk.checked = true;
+      chk.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      expect(arms.querySelectorAll('.essentia-pips:not(.essentia-pips-2) .essentia-pip').length,
+        3, 'GR18: the totem bonus does not leak to a body slot');
+    });
+
+  regression('GR19: Necrocarnate’s +1 is name-scoped and stacks with the incarnate bonus',
+    async () => {
+      // "When you attain 9th level, the essentia capacity of each necrocarnum
+      // meld you shape increases by 1" — and the entry says in as many words
+      // that it stacks with the incarnate's expanded soulmeld capacity, which
+      // is why this is added rather than max'd.
+      //
+      // Both directions again: a necrocarnum meld gets it, a plain meld in the
+      // same slot does not. Renaming the meld is what moves the ceiling, so
+      // this also pins that the name listener is wired.
+      await newCharacter();
+      set('char-level', '15');
+      await applyClass('Incarnate', 6);
+      await applyClass('Necrocarnate', 9);
+
+      const arms = document.querySelector('.magic-item-slot[data-slot-id="arms"]');
+      const chk = arms.querySelector('.slot-soulmeld-check');
+      chk.checked = true;
+      chk.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      const nameEl = arms.querySelector('.slot-sm-name');
+      const pips = () => arms.querySelectorAll(
+        '.essentia-pips:not(.essentia-pips-2) .essentia-pip').length;
+
+      nameEl.value = 'Girallon Arms';
+      nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(200);
+      expect(pips(), 4, 'GR19: base 3 (char 15) + 1 incarnate — no necrocarnum bonus');
+
+      nameEl.value = 'Necrocarnum Vestments';
+      nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(200);
+      expect(pips(), 5, 'GR19: a necrocarnum meld stacks the +1 on top');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers

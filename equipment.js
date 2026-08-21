@@ -654,6 +654,13 @@ const Equipment = (function () {
         recalcSoulmelds();
       });
       div.querySelector(".slot-sm2-bound").addEventListener("change", recalcSoulmelds);
+      // The necrocarnate bonus is scoped by the soulmeld's NAME, so naming a
+      // meld can move its ceiling. A body slot is never the totem chakra, so
+      // the bind checkboxes above don't need the same treatment.
+      div.querySelector(".slot-sm-name")?.addEventListener("input",
+        () => rebuildEssentiaPips(div));
+      div.querySelector(".slot-sm2-name")?.addEventListener("input",
+        () => rebuildEssentiaPips(div, true));
       div.querySelector(".slot-sm-extra-cap").addEventListener("input", () => rebuildEssentiaPips(div));
       div.querySelector(".slot-sm2-extra-cap").addEventListener("input", () => rebuildEssentiaPips(div, true));
     });
@@ -673,7 +680,7 @@ const Equipment = (function () {
           <label class="mi-toggle"><input type="checkbox" id="totem-sm-double"> Double Chakra</label>
         </div>
         <div class="slot-sm-fields">
-          <div class="field field-sm"><label>Extra Capacity</label><input type="number" id="totem-sm-extra-cap" min="0" value="0"></div>
+          <div class="field field-sm"><label>Extra Capacity</label><input type="number" id="totem-sm-extra-cap" min="0" value="0"><span id="totem-cap-bonus-note" class="sm-cap-note" hidden></span></div>
         </div>
         <div class="slot-sm-info" hidden>
           <div class="slot-sm-info-view"></div>
@@ -716,7 +723,18 @@ const Equipment = (function () {
     // Wire totem
     const totemBound = totemDiv.querySelector("#totem-sm-bound");
     const totemDouble = totemDiv.querySelector("#totem-sm-double");
-    totemBound?.addEventListener("change", recalcSoulmelds);
+    // Ticking Bound can CHANGE THE CEILING (totemist's totem chakra bind), so
+    // the pips have to be rebuilt, not just recalculated.
+    totemBound?.addEventListener("change", () => {
+      rebuildTotemPips(totemDouble?.checked); recalcSoulmelds();
+    });
+    // Likewise the soulmeld's NAME: the necrocarnate bonus is name-scoped.
+    totemDiv.querySelector("#totem-sm-name")?.addEventListener("input", () => {
+      rebuildTotemPips(totemDouble?.checked);
+    });
+    totemDiv.querySelector("#totem-sm2-name")?.addEventListener("input", () => {
+      rebuildTotemPips(true);
+    });
     totemDouble?.addEventListener("change", () => {
       const second = totemDiv.querySelector("#totem-sm-second");
       if (second) second.style.display = totemDouble.checked ? "" : "none";
@@ -725,7 +743,9 @@ const Equipment = (function () {
     });
     totemDiv.querySelector("#totem-sm-extra-cap")?.addEventListener("input", () => rebuildTotemPips(false));
     totemDiv.querySelector("#totem-sm2-extra-cap")?.addEventListener("input", () => rebuildTotemPips(true));
-    totemDiv.querySelector("#totem-sm2-bound")?.addEventListener("change", recalcSoulmelds);
+    totemDiv.querySelector("#totem-sm2-bound")?.addEventListener("change", () => {
+      rebuildTotemPips(true); recalcSoulmelds();
+    });
 
     // Counter inputs trigger recalc
     ["sm-max-soulmelds", "sm-max-essentia", "sm-max-binds", "sm-base-capacity"].forEach(id => {
@@ -918,9 +938,36 @@ const Equipment = (function () {
     return (parseInt($("#sm-base-capacity")?.value) || 0) + classCapacityBonus();
   }
 
+  // Capacity bonuses that belong to ONE soulmeld rather than to the character.
+  // effectiveBaseCapacity is the ceiling for every meld you shape; these two
+  // raise it for a particular one, so they are resolved per slot:
+  //
+  //   Totemist      +1 (+2 at 15th) to a soulmeld BOUND to the totem chakra
+  //   Necrocarnate  +1 to each necrocarnum meld shaped (9th), and the book
+  //                 says it stacks with the incarnate bonus
+  //
+  // Passed the values rather than the slot element because the totem's two
+  // soulmelds live in ids, not classes, and a caller that had to know which
+  // shape it held would be the thing that rots.
+  function slotCapacityBonus(soulmeldName, totemBound) {
+    if (typeof ClassPicker === "undefined") return 0;
+    let bonus = 0;
+    if (totemBound && typeof ClassPicker.getTotemChakraCapacityBonus === "function") {
+      bonus += ClassPicker.getTotemChakraCapacityBonus();
+    }
+    if (typeof ClassPicker.getNecrocarnumCapacityBonus === "function"
+        && /necrocarnum/i.test(String(soulmeldName || ""))) {
+      bonus += ClassPicker.getNecrocarnumCapacityBonus();
+    }
+    return bonus;
+  }
+
   function getCapacity(slotDiv) {
     const extra = parseInt(slotDiv.querySelector(".slot-sm-extra-cap")?.value) || 0;
-    return effectiveBaseCapacity() + extra;
+    // A body slot is never the totem chakra, so only the name-scoped half can
+    // apply here.
+    const name = slotDiv.querySelector(".slot-sm-name")?.value;
+    return effectiveBaseCapacity() + extra + slotCapacityBonus(name, false);
   }
 
   function rebuildEssentiaPips(slotDiv, alsoSecond) {
@@ -930,8 +977,9 @@ const Equipment = (function () {
     if (alsoSecond || slotDiv.querySelector(".slot-sm-double")?.checked) {
       const base = effectiveBaseCapacity();
       const extra2 = parseInt(slotDiv.querySelector(".slot-sm2-extra-cap")?.value) || 0;
+      const name2 = slotDiv.querySelector(".slot-sm2-name")?.value;
       const pips2 = slotDiv.querySelector(".essentia-pips-2");
-      if (pips2) buildPipButtons(pips2, base + extra2);
+      if (pips2) buildPipButtons(pips2, base + extra2 + slotCapacityBonus(name2, false));
     }
     recalcSoulmelds();
   }
@@ -939,12 +987,19 @@ const Equipment = (function () {
   function rebuildTotemPips(alsoSecond) {
     const base = effectiveBaseCapacity();
     const extra = parseInt($("#totem-sm-extra-cap")?.value) || 0;
+    // The totemist bonus rides the BIND, not the slot: an unbound soulmeld
+    // parked in the totem slot gets the ordinary ceiling.
+    const bonus = slotCapacityBonus($("#totem-sm-name")?.value,
+                                    !!$("#totem-sm-bound")?.checked);
     const pips = $("#totem-essentia-pips");
-    if (pips) buildPipButtons(pips, base + extra);
+    if (pips) buildPipButtons(pips, base + extra + bonus);
+    updateTotemCapacityNote();
     if (alsoSecond) {
       const extra2 = parseInt($("#totem-sm2-extra-cap")?.value) || 0;
+      const bonus2 = slotCapacityBonus($("#totem-sm2-name")?.value,
+                                       !!$("#totem-sm2-bound")?.checked);
       const pips2 = $("#totem-essentia-pips-2");
-      if (pips2) buildPipButtons(pips2, base + extra2);
+      if (pips2) buildPipButtons(pips2, base + extra2 + bonus2);
     }
     recalcSoulmelds();
   }
@@ -971,6 +1026,37 @@ const Equipment = (function () {
       note.textContent = `+${bonus} Incarnate`;
       note.title = "Incarnate: Expanded Soulmeld Capacity (+1 at 3rd, +2 at 15th) — " +
         "added to every soulmeld's capacity automatically.";
+      note.hidden = false;
+    } else {
+      note.textContent = "";
+      note.hidden = true;
+    }
+  }
+
+  // Same job as updateCapacityBonusNote, for the bonus that only the totem
+  // slot can earn. Worth showing rather than silently handing out a pip: a
+  // capacity that changes when you tick Bound looks like a bug unless the
+  // sheet says which class feature did it.
+  function updateTotemCapacityNote() {
+    const note = $("#totem-cap-bonus-note");
+    if (!note) return;
+    const parts = [];
+    const totem = (typeof ClassPicker !== "undefined"
+      && typeof ClassPicker.getTotemChakraCapacityBonus === "function"
+      && $("#totem-sm-bound")?.checked)
+      ? ClassPicker.getTotemChakraCapacityBonus() : 0;
+    if (totem > 0) parts.push(`+${totem} totem chakra`);
+    if (/necrocarnum/i.test(String($("#totem-sm-name")?.value || ""))
+        && typeof ClassPicker !== "undefined"
+        && typeof ClassPicker.getNecrocarnumCapacityBonus === "function") {
+      const necro = ClassPicker.getNecrocarnumCapacityBonus();
+      if (necro > 0) parts.push(`+${necro} necrocarnum`);
+    }
+    if (parts.length) {
+      note.textContent = parts.join(", ");
+      note.title = "Totemist: a soulmeld bound to your totem chakra has +1 "
+        + "essentia capacity (+2 at 15th). Necrocarnate 9th: +1 to each "
+        + "necrocarnum meld. Counted automatically — don't re-add it here.";
       note.hidden = false;
     } else {
       note.textContent = "";

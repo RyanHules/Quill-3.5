@@ -6070,6 +6070,38 @@
     return bonus;
   }
 
+  // PER-SOULMELD capacity bonuses. Unlike the incarnate bonus above, these
+  // raise the ceiling for SOME of a character's soulmelds and not others, so
+  // they cannot fold into the global base capacity — the consumer has to ask
+  // per slot.
+  //
+  // Totemist, Totem Chakra Bind (MoI p.22): "Any soulmeld bound to your totem
+  // chakra has an essentia capacity 1 higher than the normal capacity for your
+  // soulmelds", and at 15th it "increases by an additional point". BOUND, not
+  // merely shaped in the totem slot — the book hangs it on the bind.
+  //
+  // The two axes are different levels and it matters: the base capacity comes
+  // from CHARACTER level (Table 2-1) while this bonus comes from TOTEMIST
+  // level, so a Totemist 15 / Fighter 5 has base 4 (18th-20th band) + 2 = 6.
+  // The book prints two worked examples and both are pinned as regressions: a
+  // 2nd-level totemist invests up to 2 (base 1 + 1), a 15th-level totemist up
+  // to 5 (base 3 + 2).
+  function getTotemChakraCapacityBonus() {
+    const lvl = getClassLevel('Totemist');
+    if (lvl >= 15) return 2;
+    if (lvl >= 2) return 1;
+    return 0;
+  }
+
+  // Necrocarnate, Expanded Necrocarnum Meld Capacity (MoI): "When you attain
+  // 9th level, the essentia capacity of each necrocarnum meld you shape
+  // increases by 1." Name-scoped — it reaches the necrocarnum melds only — and
+  // the entry says in as many words that it STACKS with the incarnate bonus,
+  // which is why this is added rather than max'd against it.
+  function getNecrocarnumCapacityBonus() {
+    return getClassLevel('Necrocarnate') >= 9 ? 1 : 0;
+  }
+
   // ============================================================
   // Class-granted attacks (Warlock's eldritch blast)
   // ============================================================
@@ -6309,6 +6341,7 @@
     getActiveSpeedBonuses,
     getActiveSkillBonuses, getActiveSaveBonuses, getActiveACBonuses,
     getActiveInitiativeBonuses, getActiveSoulmeldCapacityBonus,
+    getTotemChakraCapacityBonus, getNecrocarnumCapacityBonus,
     getTouchACFeatures,
     getFollowableClasses, fillPanelFromClass,
     getStateB: () => pickedClassesB.slice(),
