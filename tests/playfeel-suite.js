@@ -3565,6 +3565,47 @@
     return pips.length;
   }
 
+  // The FIRST attack row, creating one if the sheet has none. `#btn-new`
+  // empties the attacks container outright, so a fresh character has zero rows
+  // — the blank one exists only on an untouched page load.
+  async function firstAttackRow() {
+    let row = $('#attacks-container .attack-entry');
+    if (!row) {
+      $('#btn-add-attack').click();
+      await wait(250);
+      row = $('#attacks-container .attack-entry');
+    }
+    if (!row) fail('firstAttackRow: could not create an attack row');
+    return row;
+  }
+
+  // Fill an attack row as a weapon of the player's own.
+  function fillWeaponRow(row, { name, crit, dice, style }) {
+    row.querySelector('.atk-name').value = name;
+    if (crit != null) row.querySelector('.atk-crit').value = crit;
+    if (dice != null) row.querySelector('.dmg-dice').value = dice;
+    row.querySelector('.dmg-style').value = style;
+    ['.atk-name', '.atk-crit', '.dmg-dice'].forEach(sel =>
+      row.querySelector(sel).dispatchEvent(new Event('input', { bubbles: true })));
+    row.querySelector('.dmg-style').dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Bind a soulmeld into a named body slot (not the totem).
+  function bindSlot(slotId, name) {
+    const slot = document.querySelector(`.magic-item-slot[data-slot-id="${slotId}"]`);
+    if (!slot) fail(`bindSlot: no ${slotId} slot`);
+    const sw = slot.querySelector('.slot-soulmeld-check');
+    if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+    const n = slot.querySelector('.slot-sm-name');
+    n.value = name;
+    n.dispatchEvent(new Event('input', { bubbles: true }));
+    n.dispatchEvent(new Event('change', { bubbles: true }));
+    const b = slot.querySelector('.slot-sm-bound');
+    b.checked = true;
+    b.dispatchEvent(new Event('change', { bubbles: true }));
+    return slot;
+  }
+
   function grantedRow(attackName) {
     return document.querySelector(
       `#attacks-container .attack-entry[data-from-class^="soulmeld:"][data-from-class$="|${attackName}"]`);
@@ -3727,17 +3768,17 @@
       }
     });
 
-  regression('GR6: Girallon’s rend resolves its damage from the claw, across slots',
+  regression('GR6: Girallon’s rend rides the claw as a separate instance',
     async () => {
-      // The rend deals "double claw damage, including double your Strength
-      // bonus", so it is expressed BY REFERENCE rather than as a literal 2d4 —
-      // that is what makes it follow the claw if the claw is itself improved.
+      // The rend is NOT an attack: it takes no attack roll ("This attack
+      // automatically deals..."), it fires because two claws already hit, and
+      // it has no attack line of its own. So it is a conditional RIDER on the
+      // claw. What distinguishes it from an ordinary rider is that its damage
+      // is a distinct INSTANCE rather than bundled into the claw's, which is
+      // what matters when damage reduction is applied to each.
       //
-      // The claws come from the TOTEM bind and the rend from the ARMS bind, so
-      // they live in different slots. A same-slot lookup finds nothing and the
-      // rend reports itself ungranted, which is exactly what it did until the
-      // reference was widened. The book is explicit that the claws may come
-      // from "a different soulmeld... or some other source".
+      // It used to be modelled as its own attack row. That produced an attack
+      // line nobody rolls.
       await newCharacter();
       setAbilities({ STR: 18 });
 
@@ -3745,108 +3786,66 @@
       const tb = $('#totem-sm-bound');
       tb.checked = true;
       tb.dispatchEvent(new Event('change', { bubbles: true }));
-
-      const arms = document.querySelector('.magic-item-slot[data-slot-id="arms"]');
-      const sw = arms.querySelector('.slot-soulmeld-check');
-      if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
-      const an = arms.querySelector('.slot-sm-name');
-      an.value = 'Girallon Arms';
-      an.dispatchEvent(new Event('input', { bubbles: true }));
-      an.dispatchEvent(new Event('change', { bubbles: true }));
-      const ab = arms.querySelector('.slot-sm-bound');
-      ab.checked = true;
-      ab.dispatchEvent(new Event('change', { bubbles: true }));
-      set('sm-max-essentia', 8);
-      window.recalcAll();
-      await wait(250);
-
-      const claw = grantedRow('Claw');
-      const rend = grantedRow('Rend');
-      if (!claw) fail('GR6: the totem bind grants no claws');
-      if (!rend) fail('GR6: the arms bind grants no rend');
-      expect(claw.querySelector('.dmg-dice').value, '1d4', 'GR6: claw die');
-      expect(rend.querySelector('.dmg-dice').value, '2d4',
-        'GR6: the rend is DOUBLE the claw, resolved from the other slot');
-      expect(rend.querySelector('.dmg-total').textContent, '2d4+8',
-        'GR6: and double Strength — 18 gives +4, doubled to +8');
-    });
-
-  // The FIRST attack row, creating one if the sheet has none. `#btn-new`
-  // empties the attacks container outright, so a fresh character has zero rows
-  // — the blank one exists only on an untouched page load. Assuming it is
-  // there is how both of these specs first died.
-  async function firstAttackRow() {
-    let row = $('#attacks-container .attack-entry');
-    if (!row) {
-      $('#btn-add-attack').click();
-      await wait(250);
-      row = $('#attacks-container .attack-entry');
-    }
-    if (!row) fail('firstAttackRow: could not create an attack row');
-    return row;
-  }
-
-  // Fill an attack row as a weapon of the player's own.
-  function fillWeaponRow(row, { name, crit, dice, style }) {
-    row.querySelector('.atk-name').value = name;
-    if (crit != null) row.querySelector('.atk-crit').value = crit;
-    if (dice != null) row.querySelector('.dmg-dice').value = dice;
-    row.querySelector('.dmg-style').value = style;
-    ['.atk-name', '.atk-crit', '.dmg-dice'].forEach(sel =>
-      row.querySelector(sel).dispatchEvent(new Event('input', { bubbles: true })));
-    row.querySelector('.dmg-style').dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // Bind a soulmeld into a named body slot (not the totem).
-  function bindSlot(slotId, name) {
-    const slot = document.querySelector(`.magic-item-slot[data-slot-id="${slotId}"]`);
-    if (!slot) fail(`bindSlot: no ${slotId} slot`);
-    const sw = slot.querySelector('.slot-soulmeld-check');
-    if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
-    const n = slot.querySelector('.slot-sm-name');
-    n.value = name;
-    n.dispatchEvent(new Event('input', { bubbles: true }));
-    n.dispatchEvent(new Event('change', { bubbles: true }));
-    const b = slot.querySelector('.slot-sm-bound');
-    b.checked = true;
-    b.dispatchEvent(new Event('change', { bubbles: true }));
-    return slot;
-  }
-
-  regression('GR7: the rend keys off ANY claw, not just the soulmeld’s own',
-    async () => {
-      // This is the COMMON case and GR6 is the rare one. Girallon's rend is
-      // its ARMS bind and its claws are its TOTEM bind, and binding one
-      // soulmeld to two chakras at once requires the Totemist's Totem Chakra
-      // Bind at 11th level. Below that the two claws the rend keys off are
-      // someone else's — the book says so outright: "whether these attacks
-      // come from your girallon arms, a different soulmeld, your own innate
-      // abilities, or some other source".
-      //
-      // So it must work against a DIFFERENT damage profile. A racial 1d8 claw,
-      // not Girallon's own 1d4.
-      await newCharacter();
-      setAbilities({ STR: 18 });
-      fillWeaponRow(await firstAttackRow(),
-        { name: 'Claw (racial)', dice: '1d8', style: 'natural' });
       bindSlot('arms', 'Girallon Arms');
       set('sm-max-essentia', 8);
       window.recalcAll();
       await wait(250);
 
-      const rend = grantedRow('Rend');
-      if (!rend) fail('GR7: the arms bind grants no rend');
-      if (grantedRow('Claw')) {
-        fail('GR7: no soulmeld should be granting claws here — that is GR6’s '
-          + 'case, and it would mask the one this spec exists to cover');
+      const claw = grantedRow('Claw');
+      if (!claw) fail('GR6: the totem bind grants no claws');
+      if (grantedRow('Rend')) {
+        fail('GR6: the rend must not be an attack ROW — it takes no attack '
+          + 'roll and there is nothing to roll on that line');
       }
-      expect(rend.querySelector('.dmg-dice').value, '2d8',
-        'GR7: double the RACIAL claw’s 1d8, not a hard-coded 2d4');
-      expect(rend.querySelector('.dmg-total').textContent, '2d8+8',
-        'GR7: and double Strength');
-      expectIncludes(rend.querySelector('.atk-notes').value,
-        'Claw (racial)',
-        'GR7: the row names which claw it read, so a wrong pick is visible');
+      expect(claw.querySelector('.dmg-dice').value, '1d4', 'GR6: claw die');
+      const readout = claw.querySelector('.dmg-riders-readout').textContent;
+      expectIncludes(readout, 'rend 2d4+8',
+        'GR6: double the claw dice and double Strength, on the claw');
+      expectIncludes(readout, 'separate instance',
+        'GR6: and flagged as its own damage instance');
+      // Conditional, so it must never join the headline damage.
+      expect(claw.querySelector('.dmg-total').textContent, '1d4+4',
+        'GR6: the rend is NOT summed into the claw’s own damage');
+    });
+
+  regression('GR7: the rend rides ANY claw, and follows it when it is improved',
+    async () => {
+      // The common case, and GR6 is the rare one: Girallon's rend is its ARMS
+      // bind and its claws are its TOTEM bind, and binding one soulmeld to two
+      // chakras at once requires the Totemist's Totem Chakra Bind at 11th.
+      // Below that the claws are a racial one or another soulmeld's, exactly
+      // as the book says.
+      //
+      // It also has to follow the claw UP: Improved Natural Attack steps a
+      // 1d8 claw to 2d6, and the rend is double THAT, not double the printed
+      // value. That composition is why the rend resolves by reference.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      fillWeaponRow(await firstAttackRow(),
+        { name: 'Claw', dice: '1d8', style: 'natural' });
+      bindSlot('arms', 'Girallon Arms');
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const row = $('#attacks-container .attack-entry');
+      expectIncludes(row.querySelector('.dmg-riders-readout').textContent,
+        'rend 2d8+8',
+        'GR7: double the RACIAL 1d8 claw, not a hard-coded 2d4');
+
+      // Now step the claw up and the rend must follow.
+      Feats.addFeat('Improved Natural Attack (Claw)');
+      window.recalcAll();
+      await wait(250);
+      expect(row.querySelector('.dmg-dice-meld').textContent, '→ 2d6',
+        'GR7: Improved Natural Attack steps 1d8 to 2d6 (the MM progression)');
+      expectValue('#attacks-container .attack-entry .dmg-dice', '1d8',
+        'GR7: ...shown beside the box, never written into it');
+      expect(row.querySelector('.dmg-total').textContent, '2d6+4',
+        'GR7: the stepped die drives the total');
+      expectIncludes(row.querySelector('.dmg-riders-readout').textContent,
+        'rend 4d6+8',
+        'GR7: and the rend doubles the STEPPED die, not the printed one');
     });
 
   regression('GR8: a bind that improves WEAPONS reaches the player’s own rows',
