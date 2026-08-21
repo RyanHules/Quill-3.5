@@ -2906,9 +2906,22 @@ test('soulmeld granted: attack rows are namespaced and never overwrite', () => {
   const csrc = readSource('character.js');
   // The hand-edit handover is what makes this safe against the attack rows
   // already sitting in saved characters: one trusted edit and the row is the
-  // player's forever.
-  assert(/ev\.isTrusted[\s\S]{0,80}delete\s+div\.dataset\.fromClass/.test(csrc),
-    'a hand-edit must hand a managed attack row to the player permanently');
+  // player's forever. It MARKS the row rather than erasing its key — erasing
+  // made the row unrecognisable, so the next sync saw the attack as missing
+  // and created a second identical one (reported on Gorrash 2026-08-21).
+  assert(/ev\.isTrusted[\s\S]{0,80}dataset\.playerOwned\s*=/.test(csrc),
+    'a hand-edit must MARK a managed attack row as owned by the player');
+  assert(!/ev\.isTrusted[\s\S]{0,80}delete\s+div\.dataset\.fromClass/.test(csrc),
+    'the handover must not erase the key — that is what caused duplicates');
+  // ...and an owned row is neither overwritten nor removed.
+  assert(/if \(row\.dataset\.playerOwned\) return row;/.test(csrc),
+    'an owned attack row must never have its fields rewritten');
+  assert(/if \(row && !row\.dataset\.playerOwned\) row\.remove\(\);/.test(csrc),
+    'losing the source must not delete a row the player has taken over');
+  // The marker has to survive a reload, or the handover expires every time
+  // the sheet is opened.
+  assert(/playerOwned:\s*entry\.dataset\.playerOwned/.test(csrc),
+    'the ownership marker must round-trip through save/load');
 });
 
 test('soulmeld: conditional attack/damage rows never reach a weapon total', () => {

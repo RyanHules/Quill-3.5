@@ -729,18 +729,30 @@ const Character = (function () {
       // Power Attack / Combat Expertise, declared once in Combat Options and
       // paid by every attack this round. Heedless Charge moves Power Attack's
       // share onto AC instead, which CombatOptions resolves.
-      const enhAtk = int(entry.querySelector(".dmg-enh")?.value) || 0;
       const coPenalty = (typeof CombatOptions !== "undefined")
         ? CombatOptions.attackPenalty() : 0;
       // Soulmeld attack effects, filtered by this row's fighting style for the
       // same reason the damage side filters: Dread Carapace's penalty is a
       // natural-weapon penalty and must not touch a longsword.
-      let meldAtk = 0;
+      let meldAtk = 0, meldEnhAtk = 0;
       const rowStyle = entry.querySelector(".dmg-style")?.value || "one-hand";
       if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getWeaponMods) {
-        try { meldAtk = SoulmeldEffects.getWeaponMods(rowStyle, weaponName).attack || 0; }
-        catch (e) { meldAtk = 0; }
+        try {
+          const m = SoulmeldEffects.getWeaponMods(rowStyle, weaponName);
+          meldAtk = m.attack || 0;
+          // Kept OUT of the Meld term: an enhancement bonus is typed and does
+          // not stack with the weapon's own, so it belongs in Enh below where
+          // that rule is applied. Bundling it into an untyped "Meld" number
+          // both hid what kind of bonus it was and would have added it on top
+          // of a magic weapon's.
+          meldEnhAtk = m.enhAttack || 0;
+        } catch (e) { meldAtk = 0; meldEnhAtk = 0; }
       }
+      // HIGHEST enhancement wins, it does not sum: a +1 weapon and a soulmeld's
+      // +1 enhancement give +1. Declared here rather than earlier because it
+      // reads meldEnhAtk, which the block above produces.
+      const enhTyped = int(entry.querySelector(".dmg-enh")?.value) || 0;
+      const enhAtk = Math.max(enhTyped, meldEnhAtk);
       // Soulmeld binds that IMPROVE this weapon rather than adding to it —
       // Mauling Gauntlets doubling the threat range of "any melee weapon
       // wielded", Dread Carapace doubling it for "all natural attacks". Those
@@ -829,7 +841,13 @@ const Character = (function () {
       const enhEl = entry.querySelector(".atk-calc-enh");
       const enhTerm = entry.querySelector(".atk-calc-enh-term");
       const enhOp = entry.querySelector(".atk-calc-enh-op");
-      if (enhEl) enhEl.textContent = fmt(enhAtk);
+      if (enhEl) {
+        enhEl.textContent = fmt(enhAtk);
+        enhEl.title = meldEnhAtk && meldEnhAtk >= enhTyped
+          ? "Enhancement bonus from a soulmeld. Enhancement bonuses do not "
+            + "stack — the highest applies."
+          : "";
+      }
       if (enhTerm) enhTerm.style.display = enhAtk ? "" : "none";
       if (enhOp) enhOp.style.display = enhAtk ? "" : "none";
       entry.querySelector(".atk-calc-bab").textContent = fmt(bab1);
@@ -1036,11 +1054,22 @@ const Character = (function () {
     if (typeof DamageCalc !== "undefined") DamageCalc.attachRow(div, data.damageCalc || {});
     if (data.fromClass) {
       div.dataset.fromClass = data.fromClass;
-      // Any hand-edit to a managed field hands the row over to the player:
-      // the marker goes, and upsertClassAttack stops touching it. Same
-      // contract as every other auto-filled field on the sheet.
+      if (data.playerOwned) div.dataset.playerOwned = "1";
+      // Any hand-edit hands the row over to the player. It is marked OWNED
+      // rather than having its key erased, and the difference matters:
+      //
+      // erasing the key made the row unrecognisable, so the next sync saw the
+      // attack as missing and created a SECOND one. One keystroke on a
+      // soulmeld's claw row, then any essentia change or reload, and the
+      // character had two identical claws — which double-counts if you roll
+      // both. Reported on Gorrash 2026-08-21.
+      //
+      // Keeping the key preserves every property the erase was protecting:
+      // upsertClassAttack refuses to overwrite an owned row's fields and
+      // refuses to delete it when the source goes away. It just also knows the
+      // row is still THIS attack, so it never makes a rival for it.
       div.addEventListener("input", (ev) => {
-        if (ev.isTrusted) delete div.dataset.fromClass;
+        if (ev.isTrusted) div.dataset.playerOwned = "1";
       });
     }
     return div;
@@ -1066,12 +1095,37 @@ const Character = (function () {
     const container = $("#attacks-container");
     if (!container) return null;
     const esc = String(key).replace(/"/g, '\\"');
-    const row = container.querySelector(`.attack-entry[data-from-class="${esc}"]`);
+    let row = container.querySelector(`.attack-entry[data-from-class="${esc}"]`);
     if (!spec) {
-      if (row) row.remove();
+      // The source is gone. An OWNED row is the player's work and stays;
+      // anything else was ours to remove.
+      if (row && !row.dataset.playerOwned) row.remove();
       return null;
     }
-    if (!row) return addAttack(Object.assign({ fromClass: key }, spec));
+    if (!row) {
+      // ADOPT a matching unowned row before making a new one. This covers rows
+      // saved before ownership was tracked — their key was erased on the first
+      // edit, so they arrive unrecognisable, and creating a second identical
+      // attack beside one the player already has is exactly the bug this
+      // change exists to stop. Matched on the name we would have given it.
+      const want = String(spec.name || "").trim().toLowerCase();
+      if (want) {
+        for (const cand of container.querySelectorAll(".attack-entry")) {
+          if (cand.dataset.fromClass) continue;
+          const n = (cand.querySelector(".atk-name")?.value || "").trim().toLowerCase();
+          if (n !== want) continue;
+          cand.dataset.fromClass = key;
+          cand.dataset.playerOwned = "1";   // it was theirs before we found it
+          row = cand;
+          break;
+        }
+      }
+      if (!row) return addAttack(Object.assign({ fromClass: key }, spec));
+    }
+    // An owned row keeps every value the player put in it. It is still
+    // identified, so the sync will not duplicate it, but nothing here writes
+    // to it.
+    if (row.dataset.playerOwned) return row;
     // Refresh in place. Preserve the player's calculator settings (Other
     // modifier, the fill-bonus toggle) — those are theirs even on a managed row.
     const set = (sel, v) => {
@@ -1196,6 +1250,10 @@ const Character = (function () {
         // eldritch blast is still recognised as managed — without it, the
         // sync would add a SECOND row on the next class change.
         fromClass: entry.dataset.fromClass || "",
+        // Persisted so a reload knows the row is the player's. Without it the
+        // load looks like a fresh managed row, the sync overwrites their edits,
+        // and the handover silently expires every time they open the sheet.
+        playerOwned: entry.dataset.playerOwned === "1" || undefined,
       });
     });
 

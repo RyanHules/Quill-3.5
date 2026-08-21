@@ -4146,6 +4146,90 @@
         'GR13: ...to the claw as well');
     });
 
+  regression('GR14: an edited granted attack is never duplicated', async () => {
+    // Reported on Gorrash. The handover used to ERASE the row's key, which
+    // made it unrecognisable — so the next sync saw the attack as missing and
+    // created a SECOND identical claw. One keystroke plus any essentia change
+    // or reload, and the character had two, which double-counts if both get
+    // rolled. It now MARKS the row instead of erasing its identity.
+    await newCharacter();
+    setAbilities({ STR: 18 });
+    set('totem-sm-name', 'Landshark Boots');
+    const tb = $('#totem-sm-bound');
+    tb.checked = true;
+    tb.dispatchEvent(new Event('change', { bubbles: true }));
+    setIncarnumCapacity();
+    window.recalcAll();
+    await wait(250);
+    const pips = $$('#totem-essentia-pips .essentia-pip');
+    for (let i = 0; i < 2 && i < pips.length; i++) pips[i].click();
+    await wait(250);
+
+    const claws = () => $$('#attacks-container .attack-entry')
+      .filter(r => /Landshark/.test(r.querySelector('.atk-name').value));
+    expect(claws().length, 1, 'GR14: one granted claw to begin with');
+
+    // Take the row over, the way a real keystroke does.
+    const row = claws()[0];
+    row.dataset.playerOwned = '1';
+    row.querySelector('.atk-notes').value = 'mine';
+
+    // Reallocate essentia — the case that used to duplicate.
+    if (pips[2]) pips[2].click();
+    await wait(300);
+    expect(claws().length, 1,
+      'GR14: reallocating essentia must not create a rival row');
+    expect(claws()[0].querySelector('.atk-notes').value, 'mine',
+      'GR14: and the player edit survives');
+
+    // Unshaping must LEAVE an owned row rather than deleting their work.
+    set('totem-sm-name', '');
+    await wait(300);
+    expect(claws().length, 1,
+      'GR14: an owned row survives losing its soulmeld');
+  });
+
+  regression('GR15: a soulmeld enhancement bonus is TYPED, not a generic meld',
+    async () => {
+      // It was folded into the untyped "Meld" term, which hid what kind of
+      // bonus it was and would have ADDED it on top of a magic weapon's.
+      // Enhancement bonuses do not stack — the highest applies.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      set('totem-sm-name', 'Landshark Boots');
+      const tb = $('#totem-sm-bound');
+      tb.checked = true;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+      setIncarnumCapacity();
+      window.recalcAll();
+      await wait(250);
+      const pips = $$('#totem-essentia-pips .essentia-pip');
+      for (let i = 0; i < 3 && i < pips.length; i++) pips[i].click();
+      await wait(300);
+
+      const row = $('#attacks-container .attack-entry[data-from-class^="soulmeld:"]');
+      if (!row) fail('GR15: no granted claw row');
+      expect(row.querySelector('.atk-calc-enh').textContent, '+3',
+        'GR15: 3 essentia = a +3 ENHANCEMENT bonus, shown in the Enh term');
+      expect(row.querySelector('.atk-calc-meld').textContent, '+0',
+        'GR15: ...and not in the untyped Meld term');
+
+      // Non-stacking, in both directions.
+      const enh = row.querySelector('.dmg-enh');
+      enh.value = '1';
+      enh.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(150);
+      expect(row.querySelector('.atk-calc-enh').textContent, '+3',
+        'GR15: a +1 weapon does not add to a +3 soulmeld enhancement');
+      enh.value = '5';
+      enh.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(150);
+      expect(row.querySelector('.atk-calc-enh').textContent, '+5',
+        'GR15: ...and a +5 weapon wins instead');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers

@@ -313,14 +313,25 @@ const DamageCalc = (function () {
     // Soulmeld effects, filtered by what this weapon IS — Dread Carapace's
     // damage applies to natural weapons and to nothing else, so the style has
     // to be consulted before the number is allowed anywhere near the total.
-    let meld = 0;
+    let meld = 0, meldEnh = 0;
     if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getWeaponMods) {
-      try { meld = SoulmeldEffects.getWeaponMods(style[0], weaponName).damage || 0; }
-      catch (e) { meld = 0; }
+      try {
+        const m = SoulmeldEffects.getWeaponMods(style[0], weaponName);
+        meld = m.damage || 0;
+        // Enhancement is typed and does NOT stack with the weapon's own, so it
+        // goes to the Enh term rather than into this untyped total. It was
+        // being bundled into "Meld", which both obscured what kind of bonus it
+        // was and would have added it on top of a magic weapon's.
+        meldEnh = m.enhDamage || 0;
+      } catch (e) { meld = 0; meldEnh = 0; }
     }
     setTerm(row, '.dmg-meld', '.dmg-meld-term', '.dmg-meld-op', meld);
 
-    const flat = abilTotal + enh + pa + spec + meld + misc;
+    // HIGHEST enhancement applies, they do not sum. `.dmg-enh` stays the
+    // player's own field — the effective value shows in the attack row's Enh
+    // term and in this total, rather than being written into a box they own.
+    const enhEff = Math.max(enh, meldEnh);
+    const flat = abilTotal + enhEff + pa + spec + meld + misc;
     const typedDice = (row.querySelector('.dmg-dice').value || '').trim();
 
     // DAMAGE STEPS — effects that move the die UP the progression rather than

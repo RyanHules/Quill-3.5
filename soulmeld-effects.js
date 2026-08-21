@@ -1372,6 +1372,9 @@ const SoulmeldEffects = (function () {
     const isNatural = s.indexOf('natural') === 0;
     const isManufactured = !isNatural && s !== 'unarmed';
     let attack = 0, damage = 0;
+    // Enhancement is tracked apart and takes the HIGHEST, not the sum: several
+    // enhancement bonuses on one attack do not stack.
+    let enhAttack = 0, enhDamage = 0;
     const sources = [];
     const situational = [];
 
@@ -1439,10 +1442,22 @@ const SoulmeldEffects = (function () {
       // any other natural attack, and the +2 half reached nothing at all.
       else if (scope === 'bite') applies = isNatural && attackNameMatches(weaponName, 'bite');
       if (!applies) continue;
-      if (e.bonus_type === 'attack') attack += e.amount; else damage += e.amount;
+      // ENHANCEMENT is split out rather than folded into the untyped total.
+      // It is a TYPED bonus and does not stack with another enhancement bonus
+      // on the same attack — a +1 weapon and a soulmeld's +1 give +1, not +2 —
+      // so it has to reach the row's own Enh term, where that rule already
+      // lives, instead of being buried in a generic "Meld" number that adds.
+      const enh = String(e.bonus_category || '').toLowerCase() === 'enhancement';
+      if (e.bonus_type === 'attack') {
+        if (enh) enhAttack = Math.max(enhAttack, e.amount); else attack += e.amount;
+      } else if (enh) {
+        enhDamage = Math.max(enhDamage, e.amount);
+      } else {
+        damage += e.amount;
+      }
       sources.push(e);
     }
-    return { attack, damage, sources, situational };
+    return { attack, damage, enhAttack, enhDamage, sources, situational };
   }
 
   // ---- UI -----------------------------------------------------------------
