@@ -4322,6 +4322,50 @@
     await newCharacter();
   });
 
+  regression('AC2: a raging barbarian cannot use Combat Expertise', async () => {
+    if (typeof CombatOptions === 'undefined') fail('AC2: combat-options.js not loaded');
+    await newCharacter();
+    await waitForDb();
+    setAbilities({ DEX: 10 });
+    set('bab-1', '10');
+    await wait(300);
+    const acNum = (sel) => parseInt($(sel).textContent, 10) || 0;
+    const base = acNum('#ac-total');
+
+    set('co-combat-expertise', '5');
+    await wait(350);
+    window.recalcAll();
+    await wait(300);
+    expect(acNum('#ac-total'), base + 5, 'AC2: Combat Expertise applies normally');
+
+    // Rage's own text: "He can use any feat except Combat Expertise, item
+    // creation feats, and metamagic feats."
+    const rage = $('#rage-active');
+    if (!rage) fail('AC2: no #rage-active toggle');
+    rage.checked = true;
+    rage.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(500);
+    expect(CombatOptions.combatExpertise(), 0,
+      'AC2: the feat goes inert while raging');
+    expect(CombatOptions.attackPenalty(), 0,
+      'AC2: ...so its attack penalty stops applying too — you are not using it');
+
+    // THE GUARD that matters for trust: it goes INERT, it is not DELETED. A
+    // player who typed 5 must still see 5 in the box, and must be told why it
+    // did nothing.
+    expect($('#co-combat-expertise').value, '5',
+      'AC2: the declared value is preserved, not silently erased');
+    expectIncludes($('#co-readout').textContent, 'INERT while raging',
+      'AC2: and the readout says why');
+
+    rage.checked = false;
+    rage.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(500);
+    expect(CombatOptions.combatExpertise(), 5,
+      'AC2: ending the rage restores it');
+    await newCharacter();
+  });
+
   regression('SME2: soulmeld defences reach the right totals, and stay out of the wrong ones', async () => {
     if (typeof SoulmeldEffects === 'undefined') fail('SME2: soulmeld-effects.js not loaded');
     await newCharacter();

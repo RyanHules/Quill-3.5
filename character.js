@@ -571,6 +571,14 @@ const Character = (function () {
     // a race change, a soulmeld, an essentia pip and a template all move it.
     if (typeof Senses !== "undefined" && Senses.render) Senses.render();
 
+    // The combat-options readout depends on state OUTSIDE its own inputs — the
+    // Rage toggle makes a declared Combat Expertise inert — and its own
+    // listeners only fire for its own boxes, so it would otherwise sit stale
+    // saying a bonus applied when Rage had just switched it off.
+    if (typeof CombatOptions !== "undefined" && CombatOptions.refresh) {
+      CombatOptions.refresh();
+    }
+
     // Extra MAXIMUM hit points. Shown as "+N" beside the total the player
     // typed rather than folded into it, because the box is theirs: the sheet
     // does not know their rolled hit dice, so it can add to their number but

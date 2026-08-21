@@ -58,10 +58,28 @@ const CombatOptions = (function () {
     return Math.max(0, Math.min(intOf((byId('co-power-attack') || {}).value), Math.max(0, bab())));
   }
 
-  function combatExpertise() {
+  // What the player DECLARED, capped by the feat's own two limits. Kept
+  // separate from what is actually in force so the box can be clamped against
+  // the declaration rather than against a value Rage has zeroed — otherwise
+  // raging would silently erase a number the player typed.
+  function combatExpertiseTyped() {
     // "as much as -5" AND "may not exceed your base attack bonus" — both caps.
     return Math.max(0, Math.min(intOf((byId('co-combat-expertise') || {}).value),
                                 5, Math.max(0, bab())));
+  }
+
+  // A raging barbarian cannot use Combat Expertise. Rage's own text: "He can
+  // use any feat except Combat Expertise, item creation feats, and metamagic
+  // feats." So while Rage is ticked the declaration goes INERT rather than
+  // being deleted — the same treatment Heedless Charge gets below its
+  // threshold, and for the same reason: a player who typed a number is
+  // entitled to see that it did nothing, not to find it quietly gone.
+  function raging() {
+    return !!(byId('rage-active') || {}).checked;
+  }
+
+  function combatExpertise() {
+    return raging() ? 0 : combatExpertiseTyped();
   }
 
   function heedlessCharge() {
@@ -168,6 +186,12 @@ const CombatOptions = (function () {
         : `Power Attack ${pa}: −${pa} attack`);
     }
     if (ce) parts.push(`Combat Expertise ${ce}: −${ce} attack, +${ce} dodge AC`);
+    // Declared, but Rage forbids the feat outright — say so rather than
+    // showing nothing, which would read as "the number I typed did apply".
+    if (!ce && combatExpertiseTyped() && raging()) {
+      parts.push(`Combat Expertise ${combatExpertiseTyped()}: INERT while raging `
+                 + '— a barbarian in a rage cannot use Combat Expertise');
+    }
     if (heedlessCharge() && !heedlessActive()) {
       parts.push('Heedless Charge needs a Power Attack of 5 or more — inert');
     }
@@ -180,8 +204,13 @@ const CombatOptions = (function () {
     // as 6 while the box still claims 12.
     const paEl = byId('co-power-attack');
     if (paEl && paEl.value !== '' && intOf(paEl.value) !== pa) paEl.value = String(pa);
+    // Clamp against the DECLARED value, not the in-force one: while raging the
+    // in-force value is 0, and clamping to that would delete what they typed.
     const ceEl = byId('co-combat-expertise');
-    if (ceEl && ceEl.value !== '' && intOf(ceEl.value) !== ce) ceEl.value = String(ce);
+    const ceTyped = combatExpertiseTyped();
+    if (ceEl && ceEl.value !== '' && intOf(ceEl.value) !== ceTyped) {
+      ceEl.value = String(ceTyped);
+    }
   }
 
   function build() {
@@ -225,7 +254,8 @@ const CombatOptions = (function () {
 
   return {
     build, refresh, getState, getActiveACBonuses,
-    powerAttack, combatExpertise, heedlessCharge, heedlessActive,
+    powerAttack, combatExpertise, combatExpertiseTyped, raging,
+    heedlessCharge, heedlessActive,
     attackPenalty, acChange, damageBonus,
     collectData, loadData,
   };
