@@ -4273,6 +4273,94 @@
     await newCharacter();
   });
 
+  regression('SME2: soulmeld defences reach the right totals, and stay out of the wrong ones', async () => {
+    if (typeof SoulmeldEffects === 'undefined') fail('SME2: soulmeld-effects.js not loaded');
+    await newCharacter();
+    await waitForDb();
+    setAbilities({ DEX: 10 });          // mod 0, so the AC arithmetic is legible
+    set('char-level', '12');
+    set('sm-base-capacity', '5');
+    await wait(300);
+
+    const shape = async (slotId, name, bind) => {
+      const slot = $(`.magic-item-slot[data-slot-id="${slotId}"]`);
+      const inp = slot.querySelector('.slot-sm-name');
+      inp.value = name;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(800);
+      const cap = slot.querySelector('.slot-sm-extra-cap');
+      cap.value = '3';
+      cap.dispatchEvent(new Event('input', { bubbles: true }));
+      cap.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(600);
+      const pips = slot.querySelectorAll('.essentia-pips:not(.essentia-pips-2) .essentia-pip');
+      if (pips.length < 3) fail(`SME2: ${name} got ${pips.length} essentia pips, needed 3`);
+      pips[2].click();
+      await wait(400);
+      if (bind) {
+        const b = slot.querySelector('.slot-sm-bound');
+        b.checked = true;
+        b.dispatchEvent(new Event('change', { bubbles: true }));
+        await wait(400);
+      }
+    };
+
+    // Wormtail Belt: +2 enhancement NATURAL ARMOR, +1 per essentia -> +5 at 3.
+    await shape('waist', 'Wormtail Belt', false);
+    window.recalcAll();
+    await wait(400);
+
+    // THE GUARD this test exists for. Natural armor never applies against a
+    // touch attack. The first cut summed every soulmeld AC point into one
+    // untyped bucket that character.js adds to the full, touch AND flat-footed
+    // totals alike, so this read 15/15/15 and a touch attack was resolving
+    // against armour that does not stop it.
+    expect($('#ac-total').textContent, '15', 'SME2: +5 natural armor reaches normal AC');
+    expect($('#ac-touch').textContent, '10', 'SME2: ...and NOT touch AC');
+    expect($('#ac-flatfooted').textContent, '15', 'SME2: ...but does apply flat-footed');
+
+    // Frost Helm: cold resistance 5 per essentia -> 15, unconditional, so it
+    // belongs in the structured rider list rather than in a number only this
+    // module knows about.
+    await shape('head', 'Frost Helm', false);
+    window.recalcAll();
+    await wait(500);
+    const riders = Array.from(document.querySelectorAll('.defense-rider-row'))
+      .filter(r => (r.dataset.from || '').indexOf('soulmeld:') === 0)
+      .map(r => `${r.querySelector('.rider-kind').value}:${r.querySelector('.rider-amount').value}:${r.querySelector('.rider-type').value}`);
+    expect(riders.join(','), 'resistance:15:cold',
+      'SME2: an unconditional energy resistance becomes a real rider row');
+
+    // Wind Cloak's DR is "2/magic, +2 per essentia" but ONLY against ranged
+    // weapons. A structured DR row has nowhere to put that condition, so
+    // entering it flat would claim a defence the character does not have.
+    await shape('shoulders', 'Wind Cloak', false);
+    window.recalcAll();
+    await wait(500);
+    const drFromMeld = Array.from(document.querySelectorAll('.dr-entry-row'))
+      .filter(r => (r.dataset.from || '').indexOf('soulmeld:') === 0);
+    expect(drFromMeld.length, 0,
+      'SME2: a CONDITIONAL damage reduction must not become a flat DR row');
+    const skipped = SoulmeldEffects.getDefenseRiderSpec().conditional
+      .map(e => e.bonus_type);
+    expect(skipped.indexOf('damage_reduction') !== -1, true,
+      'SME2: ...and is reported as skipped rather than dropped silently');
+
+    // Unshaping retires the rows it owned — a rider nothing grants any more is
+    // worse than one that never appeared.
+    const head = $('.magic-item-slot[data-slot-id="head"] .slot-sm-name');
+    head.value = '';
+    head.dispatchEvent(new Event('input', { bubbles: true }));
+    head.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(900);
+    const stillThere = Array.from(document.querySelectorAll('.defense-rider-row'))
+      .filter(r => r.dataset.from === 'soulmeld:Frost Helm').length;
+    expect(stillThere, 0, 'SME2: unshaping retires the rider rows it granted');
+
+    await newCharacter();
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {

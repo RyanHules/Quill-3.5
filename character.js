@@ -45,6 +45,44 @@ const Character = (function () {
   // Render auto-derived situational AC modifiers (race/template) into
   // #ac-situational-auto — conditional dodge/deflection/… bonuses the player
   // applies at point of use.
+  // Spell resistance / miss chance contributed by shaped soulmelds, shown
+  // beside the manual box rather than written into it. Neither stacks, so the
+  // effective value is max(what you typed, best soulmeld source). A CONDITIONAL
+  // winner is shown and labelled rather than silently counted or silently
+  // dropped: Fellmist Robe's concealment really does not apply to an adjacent
+  // attacker, and Displacer Mantle's really does apply generally — the sheet
+  // cannot tell those apart, so it says which it is and lets the player judge.
+  function renderDerivedDefense() {
+    const SME = (typeof SoulmeldEffects !== "undefined") ? SoulmeldEffects : null;
+    const show = (elId, fieldId, best, unit, parseManual) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!best || !best.amount) { el.hidden = true; el.textContent = ""; return; }
+      const raw = (document.getElementById(fieldId) || {}).value;
+      const manual = parseManual(raw);
+      const effective = Math.max(manual, best.amount);
+      const beat = best.amount > manual;
+      el.hidden = false;
+      el.textContent = beat
+        ? `→ ${effective}${unit} (${best.from})${best.conditional ? " *" : ""}`
+        : `${best.from} grants ${best.amount}${unit}${best.conditional ? " *" : ""}`;
+      el.title = [
+        `${best.from}: ${best.amount}${unit}`,
+        best.conditional ? `CONDITIONAL — ${best.condition}` : "unconditional",
+        `does not stack; the highest single source applies (you have ${manual}${unit} typed in)`,
+      ].join("\n");
+    };
+    show("sr-effective", "spell-resistance",
+         SME && SME.getBestSpellResistance ? SME.getBestSpellResistance() : null,
+         "", (v) => parseInt(v, 10) || 0);
+    // The miss-chance box accepts "50/20" — several sources, highest wins — so
+    // the manual side is the max of its parts, not a parse of the whole string.
+    show("miss-chance-effective", "ac-miss-chance",
+         SME && SME.getBestMissChance ? SME.getBestMissChance() : null,
+         "%", (v) => String(v || "").split("/")
+           .reduce((m, p) => Math.max(m, parseInt(p, 10) || 0), 0));
+  }
+
   function renderSituationalAC(list) {
     const el = document.getElementById("ac-situational-auto");
     if (!el) return;
@@ -455,6 +493,14 @@ const Character = (function () {
     // Auto-derived situational AC modifiers (race/template), e.g. a dodge
     // bonus vs a specific creature type.
     renderSituationalAC(bonuses.acSituational || []);
+
+    // Spell resistance and miss chance from shaped soulmelds. Both are typed
+    // in by hand, and NEITHER STACKS — the single highest source applies (the
+    // miss-chance field says so itself: "50/20 → highest wins at 50"). So the
+    // effective figure is shown beside the box rather than written into it:
+    // the box is the player's, and a value that changes every time an essentia
+    // pip moves has no business overwriting what they typed.
+    renderDerivedDefense();
 
     // Saving throws
     [

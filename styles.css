@@ -366,6 +366,23 @@ textarea {
 
 .calc-field.big { font-size: 1.5rem;padding: 0.5rem 1rem;min-width: 60px;}
 
+/* A DERIVED value shown beside a field the player still owns. Spell resistance
+   and miss chance are typed in by hand, but a shaped soulmeld can also grant
+   them — and neither STACKS, the highest single source applies. Writing into
+   the input would fight the player's own typing and change under them every
+   time an essentia pip moved, so the effective figure sits next to the box
+   instead, deliberately quieter than a .calc-field because the box, not this,
+   is what they edit. */
+.derived-note {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  opacity: 0.85;
+  color: var(--calc-text);
+}
+.derived-note[hidden] { display: none; }
+
 /* === Ability Scores Table === */
 .ability-table { width: 100%;border-collapse: collapse;}
 

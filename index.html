@@ -544,7 +544,7 @@
           <div class="ac-secondary">
             <div class="field"><label>Touch AC</label><span id="ac-touch" class="calc-field">10</span></div>
             <div class="field"><label>Flat-Footed AC</label><span id="ac-flatfooted" class="calc-field">10</span></div>
-            <div class="field"><label>Spell Resistance</label><input type="number" id="spell-resistance" min="0"></div>
+            <div class="field"><label>Spell Resistance</label><input type="number" id="spell-resistance" min="0"><span id="sr-effective" class="derived-note" hidden></span></div>
             <!-- Legacy free-text DR. Structured DR rows live below; this box
                  holds only what could not be migrated automatically (a string
                  like "see SA" that is a pointer rather than a value), and
@@ -552,7 +552,7 @@
                  for every character. Kept so a migration can never silently
                  drop something a player typed. -->
             <div class="field legacy-dr-field" style="display:none" title="Unmigrated damage-reduction text. The structured DR rows below are the live field; move this across by hand and this box disappears."><label>DR (unmigrated text)</label><input type="text" id="damage-reduction" placeholder="e.g. 5/magic"></div>
-            <div class="field" title="Percentage chance an incoming attack misses entirely (before the to-hit roll is compared to AC). Sources: concealment (20%), total concealment (50%), incorporeal (50% vs non-magic), blink (50%), mirror image, displacement (50%), etc. Stack via the highest single source — they don't add. Enter as a percentage (e.g. 20 for 20%) or as multiple sources separated by / (e.g. 50/20 → highest wins at 50)."><label>Miss Chance %</label><input type="text" id="ac-miss-chance" value="" class="misc-expr" placeholder="e.g. 20 or 50/20"></div>
+            <div class="field" title="Percentage chance an incoming attack misses entirely (before the to-hit roll is compared to AC). Sources: concealment (20%), total concealment (50%), incorporeal (50% vs non-magic), blink (50%), mirror image, displacement (50%), etc. Stack via the highest single source — they don't add. Enter as a percentage (e.g. 20 for 20%) or as multiple sources separated by / (e.g. 50/20 → highest wins at 50)."><label>Miss Chance %</label><input type="text" id="ac-miss-chance" value="" class="misc-expr" placeholder="e.g. 20 or 50/20"><span id="miss-chance-effective" class="derived-note" hidden></span></div>
           </div>
           <!-- Structured defensive riders (defense-riders.js). Energy
                resistances / immunities / vulnerabilities used to land in the

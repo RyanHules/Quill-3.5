@@ -228,6 +228,11 @@
       (typeof ClassPicker !== "undefined" && ClassPicker.getActiveACBonuses) ? ClassPicker.getActiveACBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveACBonuses) ? Feats.getActiveACBonuses() : null,
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveACBonuses) ? TraitPicker.getActiveACBonuses() : null,
+      // Shaped soulmelds. Unlike the sources above these ALSO carry natural
+      // armor, which the shared categorizer drops by design — SoulmeldEffects
+      // adds those rows itself, because a soulmeld's natural armor is not in
+      // the #ac-natural field the way a race's is.
+      (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveACBonuses) ? SoulmeldEffects.getActiveACBonuses() : null,
     ]) {
       if (!src) continue;
       if (Array.isArray(src.items)) bonuses.acItems.push(...src.items);
@@ -278,13 +283,15 @@
       bonuses.ac += CombatOptions.getActiveBonuses().ac || 0;
     }
 
-    // Soulmeld effects: essentia invested in a shaped soulmeld, turned into
-    // numbers. Only the AC-ish targets arrive here; attack and damage are read
-    // per-weapon by the damage calculator, which needs to know what KIND of
-    // weapon it is before deciding whether a natural-only effect applies.
-    if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveBonuses) {
-      bonuses.ac += SoulmeldEffects.getActiveBonuses().ac || 0;
-    }
+    // Soulmeld AC now arrives TYPED, through acItems above, rather than as a
+    // lump in `bonuses.ac`. That bucket is added to the full, touch AND
+    // flat-footed totals alike, which was wrong three ways for soulmelds:
+    // natural armor (Totem Avatar, Wormtail Belt) inflated touch AC, an armor
+    // bonus (Ankheg Breastplate) did the same, and a dodge bonus (Riding
+    // Bracers) survived being flat-footed — the one bonus type you actually
+    // lose. Attack and damage are still read per-weapon by the damage
+    // calculator, which needs to know what KIND of weapon it is before
+    // deciding whether a natural-only effect applies.
 
     // Grapple-check feat bonus (Improved Grapple +4). Flat, folded into the
     // grapple total by character.js and shown as a labelled Feat component.

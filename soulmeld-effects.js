@@ -60,13 +60,25 @@
 // and +12 bite / +6 other natural damage — exactly the worked example the book
 // itself prints.
 //
-// WHAT REACHES A TOTAL AND WHAT ONLY DISPLAYS. attack, damage, ac and
-// natural_armor reach the sheet's numbers directly; skill, save and initiative
-// rows are handed to the sheet's own typed aggregators via the accessors at
-// the bottom. Everything else — energy resistance, DR, SR, turn resistance,
-// darkvision, miss chance, illumination, spell DC, caster level — is computed
-// and SHOWN but has no aggregator to land in yet; `unrouted()` lists them so
-// nothing pretends to have applied.
+// WHAT REACHES A TOTAL AND WHAT ONLY DISPLAYS. Each of these goes to the
+// sheet's OWN aggregator for that thing rather than to a private one here —
+// which is the dividend of using the canonical row shape:
+//
+//   attack / damage            per-weapon, via getWeaponMods
+//   ac / natural_armor         typed protItem rows into the AC onion, so 3.5
+//                              stacking and the touch / flat-footed flags
+//                              apply per bonus type
+//   skill / save / initiative  DND35.categorize*Bonuses, the same helpers that
+//                              fold in race, template, feat and trait bonuses
+//   energy_resistance / DR     DefenseRiders.applyFromSource, so they sit in
+//                              the structured rider list beside a race's
+//   spell_resistance           shown beside #spell-resistance (does not stack)
+//   miss_chance                shown beside #ac-miss-chance (highest wins)
+//
+// Still display-only, computed and SHOWN with no aggregator to land in: turn
+// resistance, darkvision, illumination, spell DC, spell damage, caster level,
+// confirm-critical, hit points, speed, grapple, ability checks. `unrouted()`
+// lists them so nothing pretends to have applied.
 const SoulmeldEffects = (function () {
   'use strict';
 
@@ -83,14 +95,14 @@ const SoulmeldEffects = (function () {
     ['initiative', 'initiative', true],
     ['ability_check', 'ability check', false],
     ['grapple', 'grapple', false],
-    ['energy_resistance', 'energy resistance', false],
-    ['damage_reduction', 'damage reduction', false],
-    ['spell_resistance', 'spell resistance', false],
+    ['energy_resistance', 'energy resistance', true],
+    ['damage_reduction', 'damage reduction', true],
+    ['spell_resistance', 'spell resistance', true],
     ['turn_resistance', 'turn resistance', false],
     ['hp', 'hit points', false],
     ['speed', 'speed', false],
     ['darkvision', 'darkvision (ft)', false],
-    ['miss_chance', 'miss chance (%)', false],
+    ['miss_chance', 'miss chance (%)', true],
     ['illumination', 'illumination (ft)', false],
     ['spell_dc', 'spell save DC', false],
     ['spell_damage', 'spell damage', false],
@@ -112,6 +124,9 @@ const SoulmeldEffects = (function () {
   const ROUTED = TYPES.filter(t => t[2]).map(t => t[0]);
   const LABEL = {};
   TYPES.forEach(t => { LABEL[t[0]] = t[1]; });
+
+  // Source-key prefix for the rows this module owns in DefenseRiders.
+  const RIDER_PREFIX = 'soulmeld:';
 
   function byId(id) { return document.getElementById(id); }
 
@@ -256,7 +271,10 @@ const SoulmeldEffects = (function () {
       soulmeld: sm.name,
       slot: sm.slot,
       essentia: sm.essentia,
-      routed: ROUTED.indexOf(row.bonus_type) !== -1,
+      // Per ROW, not per type: a conditional row reaches no total no matter
+      // how routable its type is, and the readout's "[display only]" tag
+      // should mean exactly "this number is not in any total".
+      routed: ROUTED.indexOf(row.bonus_type) !== -1 && !row.condition,
     });
     delete out.scaling;
     // Dice-valued scales have no integer amount at all; carry the rolled
@@ -307,19 +325,151 @@ const SoulmeldEffects = (function () {
     return computeAll().filter(r => !r.dice && ok(r));
   }
 
-  // Fed into app.js's collectActiveBonuses. AC and natural armor both land on
-  // the AC total, untyped. They are NOT handed to DND35.categorizeACBonuses:
-  // that categorizer deliberately drops natural-armor rows (the sheet routes
-  // natural armor through its own #ac-natural field), which would silently
-  // delete Totem Avatar's and Wormtail Belt's entire effect. Typed AC stacking
-  // for soulmelds is the next step, and needs that interaction resolved first.
-  function getActiveBonuses() {
-    let ac = 0;
-    for (const e of computeAll()) {
-      if (e.bonus_type === 'ac' || e.bonus_type === 'natural_armor') ac += e.amount;
+  // AC as TYPED protItem rows, not one untyped number.
+  //
+  // This is the fix for touch AC. The first cut summed every soulmeld AC point
+  // into `bonuses.ac`, which character.js adds to acTotal, touchAC AND
+  // flatFootedAC alike — so Totem Avatar's natural armor inflated touch AC
+  // (natural armor never applies against touch), Ankheg Breastplate's armor
+  // bonus did the same, and Riding Bracers' DODGE bonus survived being
+  // flat-footed, which is precisely the bonus you lose. Going through the
+  // protItem list instead means the AC onion applies 3.5 stacking and the
+  // touch/flat-footed flags per bonus type, exactly as it does for a worn item.
+  function getActiveACBonuses() {
+    const items = [];
+    const situational = [];
+    // Non-natural AC rows: the sheet's own categorizer already resolves type,
+    // touch and flat-footed, and routes condition-bearing rows to notes.
+    if (typeof DND35 !== 'undefined' && DND35.categorizeACBonuses) {
+      const c = DND35.categorizeACBonuses(flatRows());
+      items.push(...(c.items || []));
+      situational.push(...(c.situational || []));
     }
-    return { ac };
+    // Natural armor is skipped by that categorizer BY DESIGN — the sheet routes
+    // natural armor through its own #ac-natural field, so re-feeding a race's
+    // rows there would double-count. A soulmeld is not in that field, so its
+    // rows have to be added here or Totem Avatar and Wormtail Belt lose their
+    // entire effect.
+    for (const e of flatRows()) {
+      if (e.bonus_type !== 'natural_armor' || !e.amount) continue;
+      if (e.condition) {
+        situational.push({ type: 'Natural Armor', ac: e.amount,
+                           condition: e.condition, category: e.bonus_category,
+                           source: e.source });
+        continue;
+      }
+      items.push({
+        type: 'Natural Armor', ac: e.amount, touch: false, flatfooted: true,
+        // Both soulmeld sources are ENHANCEMENT bonuses to natural armor,
+        // which in 3.5 add to the creature's own natural armor rather than
+        // overlapping it — the same "increase to natural armor" the ability-AC
+        // rows model with their stack toggle. A plain (untyped) natural armor
+        // bonus would overlap, so the flag follows the category rather than
+        // being hardcoded.
+        stacks: String(e.bonus_category || '').toLowerCase() === 'enhancement',
+        source: e.source,
+      });
+    }
+    return { items, situational };
   }
+
+  // Energy resistance and damage reduction, in the shape
+  // DefenseRiders.applyFromSource consumes — so a soulmeld's fire resistance
+  // appears in the same structured rider list as a race's, tagged with where
+  // it came from, instead of being a number this module knows and nothing else
+  // does.
+  //
+  // UNCONDITIONAL rows only. A structured rider row has nowhere to put a
+  // condition (the module's own doc sends conditional riders to Defense Notes),
+  // and Wind Cloak's "DR 2/magic against RANGED weapons" entered as a flat row
+  // would claim a defence the character does not have. The skipped ones are
+  // returned so a caller can surface them rather than lose them.
+  // Grouped PER SOULMELD, keyed `soulmeld:<name>` to match race-picker's
+  // `race:<name>` convention — the marker ends up in the save file, where a
+  // name stays readable and a DB id would not.
+  function getDefenseRiderSpec() {
+    const bySource = new Map();
+    const conditional = [];
+    for (const e of flatRows()) {
+      if (!e.amount) continue;
+      const isER = e.bonus_type === 'energy_resistance';
+      const isDR = e.bonus_type === 'damage_reduction';
+      if (!isER && !isDR) continue;
+      if (e.condition) { conditional.push(e); continue; }
+      const key = `${RIDER_PREFIX}${e.soulmeld}`;
+      if (!bySource.has(key)) {
+        bySource.set(key, { resistances: [], damage_reduction: [] });
+      }
+      const spec = bySource.get(key);
+      if (isER) {
+        if (e.target) spec.resistances.push({ damage_type: e.target, amount: e.amount });
+      } else {
+        // A blank bypass means "nothing bypasses this" (DR X/—), which is the
+        // BEST kind of DR — so an unknown bypass must never arrive blank.
+        // Adamant Pauldrons, whose bypass depends on the wearer's alignment,
+        // carries that in its condition and is therefore skipped above.
+        spec.damage_reduction.push({ amount: e.amount, bypass: e.target || '',
+                                     stacks: false });
+      }
+    }
+    return { sources: Array.from(bySource, ([key, spec]) => ({ key, spec })),
+             conditional };
+  }
+
+  // Push the current riders into DefenseRiders, and retire any this character
+  // no longer has.
+  //
+  // NOT called from recalc, deliberately: applyFromSource ends in its own
+  // recalcAll, so driving it from inside a recalc would recurse. It runs from
+  // the same grid interactions that change essentia — which is where the
+  // change actually originates — and a signature guard makes a no-change pass
+  // free, so a pip click that alters nothing here costs nothing.
+  let lastRiderSig = null;
+
+  function syncDefenseRiders() {
+    if (typeof DefenseRiders === 'undefined' || !DefenseRiders.applyFromSource) return;
+    const { sources } = getDefenseRiderSpec();
+    const sig = JSON.stringify(sources);
+    if (sig === lastRiderSig) return;
+    lastRiderSig = sig;
+    const live = new Set(sources.map(s => s.key));
+    // Passing a null spec clears the key AND notifies; a bare clearSource
+    // would leave the sheet showing a rider the character just lost.
+    if (DefenseRiders.sourceKeys) {
+      for (const k of DefenseRiders.sourceKeys()) {
+        if (String(k).indexOf(RIDER_PREFIX) === 0 && !live.has(k)) {
+          DefenseRiders.applyFromSource(k, null);
+        }
+      }
+    }
+    for (const { key, spec } of sources) DefenseRiders.applyFromSource(key, spec);
+  }
+
+  // Spell resistance does NOT stack — the highest applies. Nor does a miss
+  // chance: the sheet's own field says so ("50/20 → highest wins at 50"). So
+  // these report the BEST single source rather than a sum, and the sheet shows
+  // the effective value BESIDE the manual field instead of writing into it — a
+  // box the player types in is the wrong home for a number that changes every
+  // time an essentia pip moves.
+  //
+  // A conditional winner is reported, not hidden, but flagged: Fellmist Robe's
+  // concealment genuinely does not apply to an adjacent attacker, and silently
+  // dropping it and silently counting it are both wrong.
+  function bestOf(type) {
+    let best = null;
+    for (const e of computeAll()) {
+      if (e.bonus_type !== type || e.dice) continue;
+      if (!e.amount) continue;
+      if (!best || e.amount > best.amount) {
+        best = { amount: e.amount, from: e.soulmeld,
+                 conditional: !!e.condition, condition: e.condition || null };
+      }
+    }
+    return best;
+  }
+
+  function getBestSpellResistance() { return bestOf('spell_resistance'); }
+  function getBestMissChance() { return bestOf('miss_chance'); }
 
   // ---- the sheet's own typed aggregators ----------------------------------
   //
@@ -512,6 +662,10 @@ const SoulmeldEffects = (function () {
       syncRendered(block, block.dataset.key);
       refreshReadout(block, block.dataset.key, find(block.dataset.key));
     });
+    // Energy resistance and DR live in DefenseRiders rather than in a total
+    // here, so they are pushed rather than pulled. Guarded against no-change
+    // passes inside syncDefenseRiders.
+    syncDefenseRiders();
   }
 
   // One delegated handler on the grid, matching how the ⓘ panels themselves
@@ -610,6 +764,7 @@ const SoulmeldEffects = (function () {
   function loadData(data) {
     const saved = (data && data._soulmeld_effects);
     store = (saved && typeof saved === 'object') ? JSON.parse(JSON.stringify(saved)) : {};
+    lastRiderSig = null;      // a different character: re-push, do not trust the cache
     // Blocks are rebuilt from the store, so drop any that equipment.js has
     // already re-rendered with stale contents.
     document.querySelectorAll('.sme-block').forEach(b => b.remove());
@@ -620,8 +775,11 @@ const SoulmeldEffects = (function () {
   return {
     build, attachBlocks, refreshAll,
     shaped, computeAll, unrouted, flatRows,
-    getActiveBonuses, getWeaponMods,
-    getActiveSaveBonuses, getActiveInitiativeBonuses, getActiveSkillBonuses,
+    getWeaponMods,
+    getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,
+    getActiveSkillBonuses,
+    getDefenseRiderSpec, syncDefenseRiders,
+    getBestSpellResistance, getBestMissChance,
     dbRowsFor,
     collectData, loadData,
     TYPES, APPLIES,
