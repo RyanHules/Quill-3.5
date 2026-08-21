@@ -142,29 +142,42 @@ const SoulmeldEffects = (function () {
   // BOOK-FILTERED, and a character who already has a soulmeld shaped should
   // not silently lose its effects because the book got unticked afterwards.
   let dbIndex = null;
+  let grantIndex = null;
 
   function loadDbRows() {
     if (dbIndex) return dbIndex;
     dbIndex = new Map();
+    grantIndex = new Map();
     try {
       if (typeof DB === 'undefined' || !DB.isLoaded || !DB.isLoaded()) {
         dbIndex = null;              // not ready yet — retry on the next call
+        grantIndex = null;
         return new Map();
       }
       const rows = DB.query(
-        "SELECT name, json_extract(data, '$.bonuses') AS bonuses "
+        "SELECT name, json_extract(data, '$.bonuses') AS bonuses, "
+        + "json_extract(data, '$.granted_abilities') AS granted "
         + "FROM entry WHERE type = 'soulmeld' "
-        + "AND json_extract(data, '$.bonuses') IS NOT NULL");
+        + "AND (json_extract(data, '$.bonuses') IS NOT NULL "
+        + "     OR json_extract(data, '$.granted_abilities') IS NOT NULL)");
       for (const r of rows) {
+        const key = String(r.name || '').toLowerCase();
         let parsed = [];
         try { parsed = JSON.parse(r.bonuses) || []; }
         catch (e) { parsed = []; }   // malformed row — treat as no effects
-        if (!Array.isArray(parsed) || !parsed.length) continue;
-        const key = String(r.name || '').toLowerCase();
-        if (!dbIndex.has(key)) dbIndex.set(key, parsed);
+        if (Array.isArray(parsed) && parsed.length && !dbIndex.has(key)) {
+          dbIndex.set(key, parsed);
+        }
+        let grants = [];
+        try { grants = JSON.parse(r.granted) || []; }
+        catch (e) { grants = []; }
+        if (Array.isArray(grants) && grants.length && !grantIndex.has(key)) {
+          grantIndex.set(key, grants);
+        }
       }
     } catch (e) {
       dbIndex = null;
+      grantIndex = null;
       return new Map();
     }
     return dbIndex;
@@ -172,6 +185,16 @@ const SoulmeldEffects = (function () {
 
   function dbRowsFor(name) {
     const idx = loadDbRows();
+    return idx.get(String(name || '').toLowerCase()) || [];
+  }
+
+  // The soulmeld's NON-numeric effects, straight from the DB. Unlike the bonus
+  // rows these are never player-edited: they are prose plus structure, and
+  // there is no small form that would let someone usefully retype a breath
+  // weapon. A correction in the DB therefore always reaches every character.
+  function dbGrantsFor(name) {
+    loadDbRows();
+    const idx = grantIndex || new Map();
     return idx.get(String(name || '').toLowerCase()) || [];
   }
 
@@ -306,20 +329,412 @@ const SoulmeldEffects = (function () {
   // Every row currently in force, resolved. A `bound` row contributes nothing
   // while the slot's bind box is unticked — that is the whole point of the
   // flag — and nothing when the slot's chakra isn't the one the row belongs to.
+  // Is this row/grant in force for this shaped soulmeld right now? Shared by
+  // the bonus rows and the granted abilities deliberately: they are gated on
+  // exactly the same thing, and two copies of this would drift the moment one
+  // of them learned something the other did not.
+  function inForce(item, sm, valid) {
+    if (!item) return false;
+    if (item.when !== 'bound') return true;
+    if (!sm.bound) return false;
+    const want = String(item.chakra || '').toLowerCase();
+    return !(want && valid.length && valid.indexOf(want) === -1);
+  }
+
   function computeAll() {
     const out = [];
     for (const sm of shaped()) {
       const valid = chakrasForSlot(sm.slot).map(c => String(c).toLowerCase());
       for (const row of rowsFor(sm.key, sm)) {
         if (!row || !row.bonus_type) continue;
-        if (row.when === 'bound') {
-          if (!sm.bound) continue;
-          const want = String(row.chakra || '').toLowerCase();
-          if (want && valid.length && valid.indexOf(want) === -1) continue;
-        }
+        if (!inForce(row, sm, valid)) continue;
         const r = resolve(row, sm);
         if (!r.amount && !r.dice) continue;
         out.push(r);
+      }
+    }
+    return out;
+  }
+
+  // ---- granted abilities: the half of a soulmeld that is not a number ------
+  //
+  // Roughly half of every soulmeld's printed text grants an ABILITY rather
+  // than a bonus — a bite attack, a breath weapon, flight, incorporeality.
+  // The DB now carries all 202 of them as `granted_abilities`, each tagged
+  // with the bind it comes from and, where the sheet can do something with it,
+  // a structured payload (see the sibling project's _soulmeld_granted_data.py).
+  //
+  // Gated identically to the bonus rows, which is the point: a Throat bind's
+  // breath weapon must not appear on a character bound at the totem.
+
+  function grantedAbilities() {
+    const out = [];
+    for (const sm of shaped()) {
+      const valid = chakrasForSlot(sm.slot).map(c => String(c).toLowerCase());
+      for (const g of dbGrantsFor(sm.name)) {
+        if (!inForce(g, sm, valid)) continue;
+        out.push(Object.assign({}, g, {
+          soulmeld: sm.name, slot: sm.slot, slotKey: sm.key,
+          essentia: sm.essentia,
+        }));
+      }
+    }
+    return out;
+  }
+
+  function grantedOfKind(kind) {
+    return grantedAbilities().filter(g => g.kind === kind);
+  }
+
+  function charSize() {
+    const el = byId('char-size');
+    return (el && el.value || 'Medium').trim();
+  }
+
+  // "1d4" × N  ->  "Nd4". Used for a per-essentia damage ramp and for riders.
+  function scaleDice(dice, times) {
+    const m = /^(\d+)d(\d+)$/.exec(String(dice || ''));
+    if (!m || !times) return null;
+    return `${parseInt(m[1], 10) * times}d${m[2]}`;
+  }
+
+  // A granted attack, resolved against the live character: its size band
+  // picked, its per-essentia damage scaled, and its fighting style chosen so
+  // the sheet's OWN Strength and Power Attack rules apply rather than a second
+  // set written here.
+  //
+  // Natural attacks get a natural style, so damage-calc.js supplies the
+  // Strength multiplier (×1 primary, ×½ secondary) and Power Attack per RAW.
+  // Everything else — touch attacks, rays, the spike volley, the trample —
+  // gets style `none` plus an EXPLICIT ability term, because those do not
+  // follow the natural-weapon rules and inheriting them would be wrong. A
+  // trample's 1½ Strength is printed in its own text, not derived from a grip.
+  function resolveAttack(g) {
+    const a = (g && g.attack) || {};
+    let dice = a.dice || null;
+    let diceNote = null;
+    if (!dice && a.dice_by_size) {
+      dice = a.dice_by_size[charSize()] || null;
+      if (!dice) {
+        // The book gives bands for some sizes only (Gorgon Mask prints Small
+        // and Medium and says larger or smaller "scales accordingly"). Say so
+        // rather than silently picking one.
+        diceNote = `the book states damage for ${Object.keys(a.dice_by_size)
+          .join(' / ')} — scale from the nearest for ${charSize()}`;
+      }
+    }
+    if (!dice && a.dice_per_essentia) {
+      dice = scaleDice(a.dice_per_essentia, g.essentia);
+      if (!dice) diceNote = `${a.dice_per_essentia} per point of essentia — `
+        + 'no essentia invested, so it deals nothing yet';
+    }
+
+    const isNatural = a.attack_kind === 'natural';
+    const style = !isNatural ? 'none'
+      : (a.role === 'secondary' ? 'natural-secondary' : 'natural');
+
+    // `auto` lets the fighting style drive the multiplier, which is right
+    // whenever the book's own multiplier IS the natural-weapon default — and
+    // is the only way a `primary_or_secondary` attack can work at all, since
+    // its multiplier follows whichever the player picks that round.
+    const abilityTerms = [];
+    if (a.ability) {
+      const followsStyle = isNatural
+        && (a.ability_mult == null || a.ability_mult === 1);
+      abilityTerms.push({
+        ability: a.ability.toUpperCase(),
+        mult: followsStyle ? 'auto'
+          : String(a.ability_mult == null ? 1 : a.ability_mult),
+      });
+    }
+
+    // DamageCalc's own rider shape — {amount, label, condition}, where
+    // `amount` holds dice OR a flat number. Emitting that rather than a
+    // private shape is what lets these drop straight into the damage row.
+    // A rider that scales with essentia and has none invested contributes
+    // nothing and is dropped, rather than showing as "0d4".
+    const riders = [];
+    const notesFromRiders = [];
+    for (const r of (a.riders || [])) {
+      let amount = '';
+      if (r.dice) {
+        amount = r.per_essentia ? (scaleDice(r.dice, g.essentia) || '') : r.dice;
+      } else if (r.amount != null) {
+        const n = r.per_essentia ? r.amount * g.essentia : r.amount;
+        amount = n ? String(n) : '';
+      }
+      if (!amount) {
+        // No number at all: a poison or a rider that only has prose. It is
+        // still real, so it rides along as a note rather than vanishing.
+        if (r.condition || r.note) {
+          notesFromRiders.push(r.condition || r.note);
+        }
+        continue;
+      }
+      // `condition` and `note` are NOT the same thing and must not be merged.
+      // A rider WITH a condition is listed separately and never summed into
+      // the headline damage — that is damage-calc.js's rule, and it is right:
+      // Unicorn Horn's "+1d6 against undead" is not damage the gore deals.
+      // But Kruthik Claws' acid rider is only annotated "with each claw
+      // attack", which is descriptive, not conditional — it applies to every
+      // swing. Passing that annotation as a condition made unconditional
+      // damage display as situational and silently dropped it from the total.
+      // The DB already draws the distinction; this keeps it.
+      riders.push({
+        amount,
+        label: r.damage_type || '',
+        condition: r.condition || '',
+      });
+      if (r.note) notesFromRiders.push(r.note);
+    }
+
+    const notes = notesFromRiders.slice();
+    if (a.count > 1) notes.push(`×${a.count}`);
+    if (a.count_per_essentia) notes.push('one per point of essentia');
+    if (a.role === 'primary_or_secondary') {
+      notes.push('your choice each round: primary at full attack bonus and '
+                 + 'full Strength, or secondary at -5 for half Strength');
+    }
+    if (a.role === 'mixed') notes.push(`${a.primary_count} primary, `
+                                       + `${a.secondary_count} secondary`);
+    if (a.role === 'only') notes.push('the only attack you may make that round');
+    if (a.reach_bonus_ft) notes.push(`reach +${a.reach_bonus_ft} ft`);
+    if (a.damage_as) notes.push(`damage as your ${a.damage_as}`);
+    if (a.damage_kind === 'ability_damage') notes.push('ability damage, not hit points');
+    if (a.action) notes.push(`${a.action} action`);
+    if (diceNote) notes.push(diceNote);
+    if (a.note) notes.push(a.note);
+    for (const om of (a.text_omits || [])) {
+      notes.push(om === 'ability'
+        ? 'the book states this damage with no Strength clause; the sheet '
+          + 'applies the default for a natural attack'
+        : `the book does not state the ${om}; the sheet assumes the default`);
+    }
+
+    const range = a.range_ft ? `${a.range_ft} ft`
+      : (a.range_increment_ft ? `${a.range_increment_ft} ft increment` : '');
+
+    return {
+      key: `${g.slotKey}|${a.name}`,
+      name: `${a.name} (${g.soulmeld})`,
+      dice: dice || '',
+      style, abilityTerms, riders,
+      count: a.count || 1,
+      attackKind: a.attack_kind,
+      type: a.damage_type || '',
+      range,
+      notes: notes.join('; '),
+      source: g.soulmeld,
+      essentia: g.essentia,
+    };
+  }
+
+  function grantedAttacks() {
+    return grantedOfKind('attack').map(resolveAttack);
+  }
+
+  // ---- granted attacks -> real attack rows ---------------------------------
+  //
+  // A soulmeld that grants claws is the most common reason a totemist has an
+  // attack line the sheet knows nothing about, so these become ROWS in the
+  // Attacks table rather than a sentence in a panel: name, damage dice,
+  // fighting style, ability terms and per-essentia riders, all filled.
+  //
+  // Managed exactly like the Warlock's eldritch blast row (character.js
+  // #upsertClassAttack): keyed, rewritten in place as essentia moves, removed
+  // when the soulmeld is unshaped or unbound — and the FIRST hand-edit hands
+  // the row to the player permanently, after which nothing here touches it
+  // again. That last property is what makes this safe against the 517 attack
+  // rows already sitting in saved characters.
+  //
+  // The key is namespaced `soulmeld:` so it can never collide with a class's.
+  const ATTACK_PREFIX = 'soulmeld:';
+  let lastAttackSig = null;
+
+  function syncGrantedAttacks() {
+    if (typeof Character === 'undefined' || !Character.upsertClassAttack) return;
+    const container = byId('attacks-container');
+    if (!container) return;
+
+    const want = grantedAttacks();
+    // Cheap no-change guard: this runs on every recalc, and rebuilding rows
+    // that have not moved would fight the player's cursor.
+    const sig = JSON.stringify(want);
+    const liveKeys = Array.from(
+      container.querySelectorAll('.attack-entry[data-from-class]'))
+      .map(el => el.dataset.fromClass)
+      .filter(k => k.indexOf(ATTACK_PREFIX) === 0);
+    const wantKeys = want.map(a => ATTACK_PREFIX + a.key);
+    const sameSet = liveKeys.length === wantKeys.length
+      && liveKeys.every(k => wantKeys.indexOf(k) !== -1);
+    if (sig === lastAttackSig && sameSet) return;
+    lastAttackSig = sig;
+
+    // Drop the rows for soulmelds that are no longer granting them. Only rows
+    // still carrying the marker — an edited one has become the player's and is
+    // deliberately left behind rather than deleted out from under them.
+    for (const key of liveKeys) {
+      if (wantKeys.indexOf(key) === -1) Character.upsertClassAttack(key, null);
+    }
+
+    for (const a of want) {
+      const key = ATTACK_PREFIX + a.key;
+      const row = Character.upsertClassAttack(key, {
+        name: a.name,
+        damage: '',              // the equation fills it if the player opts in
+        type: a.type,
+        range: a.range,
+        notes: a.notes,
+        calcAbility: (a.abilityTerms[0] && a.abilityTerms[0].ability) || 'STR',
+        damageCalc: {
+          dice: a.dice, style: a.style,
+          abilityTerms: a.abilityTerms, riders: a.riders,
+          // `fill damage` ON by default here, unlike every other attack row.
+          // The opt-in exists to protect hand-typed damage strings — 517 of
+          // them across the saved characters — and a row the SHEET just
+          // created has none to protect. Left off, a soulmeld's attack would
+          // appear with an empty Damage column, which reads as broken rather
+          // than as cautious. The player can untick it, and the first edit
+          // hands them the row outright.
+          auto: true,
+        },
+      });
+      // Refresh the EQUATION too. upsertClassAttack only rewrites the text
+      // fields, and a granted attack's dice and riders both move with essentia
+      // — Kruthik Claws at three pips is 1d6 plus 3d4 acid, at one pip 1d4.
+      if (row && row.dataset.fromClass === key
+          && typeof DamageCalc !== 'undefined' && DamageCalc.updateRow) {
+        DamageCalc.updateRow(row, {
+          dice: a.dice, style: a.style,
+          abilityTerms: a.abilityTerms, riders: a.riders,
+        });
+      }
+    }
+
+    // We have just rewritten dice and riders underneath a pass that already
+    // computed those rows, so their totals are one pass stale: moving an
+    // essentia pip visibly changed the acid rider from 3d4 to 4d4 while the
+    // total still read the old figure until something else happened to
+    // trigger a recalc. Ask for one.
+    //
+    // DamageCalc.recalcRow is deliberately NOT called directly here — it needs
+    // the bonus-aware `getAbilityMod` context that character.js builds inside
+    // its own loop, and inventing a second one would be a second answer to
+    // "what is this character's Strength". A full pass costs little and uses
+    // the real one.
+    //
+    // This cannot loop: recalcAll does not call refreshAll (nothing outside
+    // this module does), and the signature guard above returns early on the
+    // second visit even if something ever did.
+    recalc();
+  }
+
+  // Granted feats and class abilities, deduplicated by name: two soulmelds
+  // both granting Weapon Finesse is one Weapon Finesse.
+  function grantedFeats() {
+    const seen = new Map();
+    for (const g of grantedOfKind('feat')) {
+      if (!seen.has(g.feat)) seen.set(g.feat, { name: g.feat, froms: [] });
+      seen.get(g.feat).froms.push(g.soulmeld);
+    }
+    return Array.from(seen.values());
+  }
+
+  function grantedSpecials() {
+    const seen = new Map();
+    for (const g of grantedOfKind('special_ability')) {
+      const n = g.special_ability;
+      if (!seen.has(n)) seen.set(n, { name: n, froms: [], text: g.text });
+      seen.get(n).froms.push(g.soulmeld);
+    }
+    return Array.from(seen.values());
+  }
+
+  // ---- granted feats / class abilities -> the Feats tab -------------------
+  //
+  // Derived rows, exactly like bloodline.js's bonus feats: rebuilt from what
+  // is shaped and bound right now, marked so feats.js's collector skips them,
+  // and never persisted. Persisting would freeze a bind the player may since
+  // have moved, and the row would outlive unshaping the soulmeld.
+  let lastFeatSig = null;
+
+  function syncGrantedFeats() {
+    if (typeof Feats === 'undefined' || typeof Feats.addFeat !== 'function') {
+      return;
+    }
+    const featRoot = byId('feats-container');
+    const specRoot = byId('special-abilities-container');
+    if (!featRoot || !specRoot) return;
+
+    const feats = grantedFeats();
+    const specials = grantedSpecials();
+    const sig = JSON.stringify([feats, specials]);
+    if (sig === lastFeatSig) return;
+    lastFeatSig = sig;
+
+    featRoot.querySelectorAll('.feat-row[data-from-soulmeld="1"]')
+      .forEach(r => r.remove());
+    specRoot.querySelectorAll('.feat-row[data-from-soulmeld="1"]')
+      .forEach(r => r.remove());
+
+    const stamp = (root, sel) => {
+      const rows = root.querySelectorAll('.feat-row');
+      const row = rows[rows.length - 1];
+      if (!row) return;
+      row.dataset.fromSoulmeld = '1';
+      const ta = row.querySelector(sel);
+      if (ta) ta.dataset.fromSoulmeld = '1';
+    };
+
+    for (const f of feats) {
+      Feats.addFeat(f.name, {
+        sourceLabel: `${f.froms.join(', ')} (soulmeld)`,
+      });
+      stamp(featRoot, '.feat-entry');
+    }
+    for (const s of specials) {
+      Feats.addSpecialAbility(`${s.name} — ${s.froms.join(', ')} (soulmeld)`);
+      stamp(specRoot, '.special-ability-entry');
+    }
+  }
+
+  // Senses that cannot be a numeric range (low-light vision and its
+  // multiplier, see invisibility, true seeing, scent). The ones that DO have a
+  // range are `bonuses` rows and reach senses.js through computeAll already.
+  function grantedSenses() {
+    return grantedOfKind('sense').map((g) => {
+      const s = g.sense || {};
+      return {
+        sense: s.sense,
+        multiplier: s.multiplier || null,
+        range_ft: s.range_ft || null,
+        limited_to: s.limited_to || null,
+        note: s.note || g.text,
+        from: g.soulmeld,
+      };
+    });
+  }
+
+  // Movement modes a soulmeld grants outright — flight, a climb speed, a swim
+  // speed. NOT the same thing as a speed BONUS, which is a `bonuses` row with
+  // a mode; these create a mode the character does not otherwise have.
+  function grantedMovement() {
+    const out = [];
+    for (const g of grantedOfKind('movement')) {
+      for (const m of (g.movement || [])) {
+        let speed = m.speed_ft || 0;
+        if (m.per_essentia_ft) speed += m.per_essentia_ft * g.essentia;
+        out.push({
+          mode: m.mode,
+          speed,
+          fractionOfLand: m.fraction_of_land || null,
+          maneuverability: m.maneuverability || '',
+          activated: !!m.activated,
+          qualifier: g.qualifier || null,
+          note: m.note || '',
+          from: g.soulmeld,
+          text: g.text,
+        });
       }
     }
     return out;
@@ -536,11 +951,47 @@ const SoulmeldEffects = (function () {
   // hands to DND35.categorizeSpeedBonuses once. The rows already carry `mode`,
   // so they arrive in that categorizer's own vocabulary.
   function getActiveSpeedBonuses() {
-    return flatRows()
+    const out = flatRows()
       .filter(e => e.bonus_type === 'speed' && e.amount)
       .map(e => ({ bonus_type: 'speed', mode: e.mode || 'land', amount: e.amount,
                    bonus_category: e.bonus_category, condition: e.condition,
                    source: e.source }));
+
+    // Granted movement MODES — a flight speed, a climb speed, a swim speed.
+    // These are not bonuses to an existing mode, they create one the character
+    // does not otherwise have, which in this categorizer's vocabulary is a
+    // `set` rather than an `amount`. Emitting them in the SAME shape means
+    // they go through the same encumbrance and armor gates as a racial fly
+    // instead of needing a private path.
+    const land = parseInt((byId('speed-land') || {}).value, 10) || 0;
+    for (const m of grantedMovement()) {
+      let speed = m.speed;
+      if (!speed && m.fractionOfLand) speed = Math.ceil(land * m.fractionOfLand / 5) * 5;
+      if (!speed) continue;          // nothing invested yet, or no land speed
+      const row = {
+        bonus_type: 'speed', mode: m.mode, set: speed,
+        maneuver: m.maneuverability || null,
+        bonus_category: 'untyped',
+        source: `${m.from} (soulmeld)`,
+      };
+      // An ACTIVATED mode is a move action that must begin and end on solid
+      // ground — Pegasus Cloak's totem bind and Dragon Mantle's both say so.
+      // That is not a standing speed, so it carries its condition and lands in
+      // the categorizer's `situational` list rather than granting the mode
+      // outright. A character who cannot actually hover should not have the
+      // sheet quietly tell them they can.
+      if (m.activated || m.qualifier) {
+        const parts = [];
+        if (m.activated) parts.push('a move action, beginning and ending on a '
+                                    + 'solid surface');
+        if (m.qualifier) parts.push(`${m.qualifier} only`);
+        delete row.set;
+        row.amount = speed;
+        row.condition = parts.join('; ');
+      }
+      out.push(row);
+    }
+    return out;
   }
 
   // Ability-check bonuses that the book says ALSO cover that ability's skill
@@ -590,9 +1041,20 @@ const SoulmeldEffects = (function () {
     const isManufactured = !isNatural && s !== 'unarmed';
     let attack = 0, damage = 0;
     const sources = [];
+    const situational = [];
     for (const e of computeAll()) {
       if (e.bonus_type !== 'attack' && e.bonus_type !== 'damage') continue;
       if (e.dice) continue;                 // dice riders are not a flat mod
+      // A CONDITIONAL row reaches no total. `resolve()` has always said so —
+      // it sets routed:false on any row with a condition, and the readout tags
+      // it "[display only]" — but this function never checked, so every
+      // conditional attack/damage row was being added to every matching weapon
+      // anyway. Two live examples of how wrong that is: Rageclaws' "+2 morale
+      // while your hit point total is below 0" was in the character's ordinary
+      // attack bonus at full health, and Bloodtalons' "+1 per essentia WITH
+      // THE BLOODTALONS CLAW ATTACKS" was landing on every other natural
+      // weapon the character had. Surfaced as a note instead.
+      if (e.condition) { situational.push(e); continue; }
       const scope = e.applies_to || 'all';
       let applies;
       if (scope === 'all') applies = true;
@@ -606,7 +1068,7 @@ const SoulmeldEffects = (function () {
       if (e.bonus_type === 'attack') attack += e.amount; else damage += e.amount;
       sources.push(e);
     }
-    return { attack, damage, sources };
+    return { attack, damage, sources, situational };
   }
 
   // ---- UI -----------------------------------------------------------------
@@ -714,6 +1176,54 @@ const SoulmeldEffects = (function () {
     refreshReadout(block, key, sm);
   }
 
+  // The granted abilities for THIS slot, under the numeric effects. Only the
+  // ones actually in force: a Throat bind's breath weapon does not appear on a
+  // soulmeld bound at the totem, which is the whole reason the DB carries the
+  // bind each one came from.
+  //
+  // Each is tagged with what the sheet did with it, because "the sheet listed
+  // your breath weapon" and "the sheet gave you an attack row" are different
+  // promises and a player should not have to guess which they got.
+  const GRANT_TAG = {
+    attack: '→ attack row',
+    feat: '→ Feats tab',
+    special_ability: '→ Special Abilities',
+    sense: '→ Senses',
+    movement: '→ Speed',
+    ability: '',
+  };
+
+  function renderGranted(block, sm) {
+    let holder = block.querySelector('.sme-granted');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.className = 'sme-granted';
+      block.appendChild(holder);
+    }
+    if (!sm) { holder.innerHTML = ''; return; }
+    const mine = grantedAbilities()
+      .filter(g => g.slot === sm.slot && g.soulmeld === sm.name);
+    if (!mine.length) { holder.innerHTML = ''; return; }
+
+    const items = mine.map((g) => {
+      const tag = GRANT_TAG[g.kind] || '';
+      const qual = g.qualifier ? ` <i>(${esc(g.qualifier)} only)</i>` : '';
+      let detail = '';
+      if (g.kind === 'attack') {
+        const a = resolveAttack(g);
+        detail = ` <b>${esc(a.dice || '—')}</b>`
+          + (a.count > 1 ? ` ×${a.count}` : '');
+      }
+      return `<div class="sme-grant"><span class="sme-grant-text">`
+        + `${esc(g.text)}${qual}${detail}</span>`
+        + (tag ? `<span class="sme-grant-tag">${esc(tag)}</span>` : '')
+        + `</div>`;
+    }).join('');
+    holder.innerHTML =
+      `<div class="sme-granted-head">Granted — the parts that are not a number`
+      + `</div>${items}`;
+  }
+
   function refreshReadout(block, key, sm) {
     const out = block.querySelector('.sme-readout');
     if (!out) return;
@@ -734,6 +1244,7 @@ const SoulmeldEffects = (function () {
       ? `${sm.essentia} essentia → ${parts.join(', ')}`
       : `${sm.essentia} essentia → no effect rows`;
     if (mine.some(e => e.condition)) text += '   (* conditional — shown as a note, not added)';
+    renderGranted(block, sm);
     const storedName = nameFor(key);
     if (storedName && storedName !== sm.name) {
       text += ` ⚠ your edits here were written for ${storedName}; showing ${sm.name}'s book effects instead`;
@@ -752,6 +1263,11 @@ const SoulmeldEffects = (function () {
     // here, so they are pushed rather than pulled. Guarded against no-change
     // passes inside syncDefenseRiders.
     syncDefenseRiders();
+    // Granted attacks are pushed the same way, into the Attacks table, and
+    // granted feats / class abilities into the Feats tab. Both no-change
+    // guarded, for the same reason: this runs on every recalc.
+    syncGrantedAttacks();
+    syncGrantedFeats();
   }
 
   // One delegated handler on the grid, matching how the ⓘ panels themselves
@@ -861,6 +1377,8 @@ const SoulmeldEffects = (function () {
   return {
     build, attachBlocks, refreshAll,
     shaped, computeAll, unrouted, flatRows,
+    grantedAbilities, grantedAttacks, grantedFeats, grantedSpecials,
+    grantedSenses, grantedMovement, syncGrantedAttacks, syncGrantedFeats,
     getWeaponMods,
     getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,
     getActiveSkillBonuses,
@@ -869,7 +1387,7 @@ const SoulmeldEffects = (function () {
     getExtraHP, getGrappleBonus, getCasterLevelBonus, getSpellDCBonus,
     getSpellDamageBonus, getConfirmCritBonus,
     getActiveSpeedBonuses, getAbilitySkillBonuses,
-    dbRowsFor,
+    dbRowsFor, dbGrantsFor,
     collectData, loadData,
     TYPES, APPLIES,
   };

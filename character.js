@@ -981,15 +981,22 @@ const Character = (function () {
     return div;
   }
 
-  // Create / update / remove an attack row OWNED by a class feature (the
-  // Warlock's eldritch blast). Keyed by `fromClass` so level-up rewrites the
-  // same row instead of stacking duplicates, and removing the class takes the
-  // row with it. `spec` of null means "this class no longer grants it".
+  // Create / update / remove an attack row OWNED by something other than the
+  // player — a class feature (the Warlock's eldritch blast) or a shaped
+  // soulmeld (Kruthik Claws' two claws). Keyed by `fromClass` so a level-up or
+  // an essentia change rewrites the SAME row instead of stacking duplicates,
+  // and losing the source takes the row with it. `spec` of null means "this
+  // source no longer grants it".
   //
   // Only rows still carrying the marker are managed — once the player edits
   // one it's theirs, and a later level-up leaves it alone (it also stops
   // being removed with the class, which is the right trade: we never delete
   // something the player typed).
+  //
+  // The attribute is still `data-from-class` because saved characters carry it
+  // and renaming it would strand every managed row in every existing save. The
+  // KEY is namespaced instead — soulmeld rows use "soulmeld:<slot>|<attack>" —
+  // so the two owners can never collide over one row.
   function upsertClassAttack(key, spec) {
     const container = $("#attacks-container");
     if (!container) return null;

@@ -4679,6 +4679,31 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   opacity: 0.85; color: #cba;
 }
 
+/* Granted abilities — the half of a soulmeld that is not a number. Only the
+   ones in force for THIS slot's bind are listed, and each says where the sheet
+   put it, because "listed your breath weapon" and "gave you an attack row" are
+   different promises. */
+.sme-granted { margin-top: 0.4rem; }
+.sme-granted-head {
+  font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.04em;
+  opacity: 0.55; margin-bottom: 0.2rem;
+}
+.sme-grant {
+  display: flex; align-items: baseline; gap: 0.4rem;
+  padding: 0.12rem 0.3rem; margin-bottom: 0.12rem;
+  background: rgba(120, 160, 200, 0.07);
+  border-left: 2px solid #466;
+  border-radius: 0 2px 2px 0;
+  font-size: 0.84em; line-height: 1.35;
+}
+.sme-grant-text { flex: 1 1 auto; color: #cde; }
+.sme-grant-text b { color: #fd9; font-style: normal; }
+.sme-grant-text i { opacity: 0.7; }
+.sme-grant-tag {
+  flex: 0 0 auto; font-size: 0.82em; white-space: nowrap;
+  color: #8c9; opacity: 0.8;
+}
+
 /* Damage riders — flaming, holy, energy enhancements. */
 .damage-riders-row { flex-wrap: wrap; gap: 0.3rem; }
 .dmg-riders { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }

@@ -113,6 +113,20 @@ const Senses = (function () {
                e.soulmeld);
         }
       } catch (e) { /* likewise */ }
+      // ...and the senses that CANNOT be a number: low-light vision and its
+      // multiplier, see invisibility, true seeing, scent. Those have no range
+      // to put in an `amount`, so they arrive as granted abilities instead
+      // (2026-08-21). Two shapes, one destination — which is the right way
+      // round: the DB says what each sense IS, and this block is the single
+      // place that resolves them all against each other.
+      if (SoulmeldEffects.grantedSenses) {
+        try {
+          for (const s of SoulmeldEffects.grantedSenses()) {
+            push({ sense: s.sense, range_ft: s.range_ft,
+                   multiplier: s.multiplier, note: s.note }, s.from);
+          }
+        } catch (e) { /* likewise */ }
+      }
     }
     for (const m of manual) push(m, 'you');
     return out;

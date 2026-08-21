@@ -925,6 +925,12 @@ const Feats = (function () {
           // (class-picker.js#syncClassBonusFeats) — skip so they re-derive
           // on load rather than double-persisting.
           if (input.dataset.fromClassFeat === "1") return;
+          // Soulmeld-granted feats (Kruthik Claws' Weapon Finesse, Wormtail
+          // Belt's Awesome Blow) are DERIVED from what is shaped and bound
+          // right now (soulmeld-effects.js#syncGrantedFeats) — skip so they
+          // re-derive on load. Persisting them would freeze a bind the player
+          // may since have moved, and would survive unshaping the soulmeld.
+          if (input.dataset.fromSoulmeld === "1") return;
           data.feats.push(input.value);
         });
     }
@@ -935,6 +941,8 @@ const Feats = (function () {
           // Preserve the class-origin marker (see addSpecialAbility) so a
           // later class re-apply can dedupe its own entries. Plain user-typed
           // abilities stay as bare strings for backward-compat with old saves.
+          // Likewise derived, and for the same reason.
+          if (input.dataset.fromSoulmeld === "1") return;
           const fromClass = input.dataset.fromClass;
           data.specialAbilities.push(
             fromClass ? { text: input.value, fromClass } : input.value

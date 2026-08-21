@@ -2785,6 +2785,159 @@ test('class-picker: every meldshaper base class is in INCARNUM_CLASSES', (db) =>
     `\nFix: add each to INCARNUM_CLASSES in class-picker.js.`);
 });
 
+// ---- tests: soulmeld granted abilities + granted attacks ------------------
+//
+// The half of incarnum that is NOT a number (2026-08-21). Roughly half of
+// every soulmeld's printed text grants an ABILITY rather than a bonus, and for
+// a day those 198 authored notes were stamped onto nothing — they reached
+// neither the DB nor the sheet, while every soulmeld test stayed green. These
+// guard both halves of that: the data is in the blob, and the sheet routes it.
+
+test('soulmeld granted: the data reached the deployed blob', (db) => {
+  const rows = execAll(db,
+    "SELECT name, json_extract(data, '$.granted_abilities') AS g "
+    + "FROM entry WHERE type = 'soulmeld' "
+    + "AND json_extract(data, '$.granted_abilities') IS NOT NULL");
+  assertGE(rows.length, 85, 'granted_abilities stamped on the soulmelds');
+  let attacks = 0;
+  for (const r of rows) {
+    const items = JSON.parse(r.g || '[]');
+    for (const it of items) {
+      assert(it.text && it.kind,
+        `${r.name}: granted item missing text/kind — ${JSON.stringify(it)}`);
+      assert(it.when === 'shaped' || it.when === 'bound',
+        `${r.name}: bad when ${it.when}`);
+      // A bound item must name the bind it came from, or the sheet cannot
+      // tell a Throat bind's breath weapon from a Totem bind's bite.
+      if (it.when === 'bound') {
+        assert(it.chakra, `${r.name}: bound granted item with no chakra`);
+      }
+      if (it.kind === 'attack') attacks++;
+    }
+  }
+  assertGE(attacks, 30, 'granted ATTACKS are the headline case');
+});
+
+test('soulmeld granted: every attack can fill an attack row', (db) => {
+  const rows = execAll(db,
+    "SELECT name, json_extract(data, '$.granted_abilities') AS g "
+    + "FROM entry WHERE type = 'soulmeld' "
+    + "AND json_extract(data, '$.granted_abilities') IS NOT NULL");
+  const bad = [];
+  for (const r of rows) {
+    for (const it of JSON.parse(r.g || '[]')) {
+      if (it.kind !== 'attack') continue;
+      const a = it.attack || {};
+      if (!a.name) { bad.push(`${r.name}: unnamed attack`); continue; }
+      // Damage in SOME form, or an explicit statement of why there is none.
+      // A row the sheet cannot put a number in is worse than no row, because
+      // it looks like it worked.
+      const hasDamage = a.dice || a.dice_by_size || a.dice_per_essentia
+        || a.damage_as || a.damage_kind;
+      if (!hasDamage) bad.push(`${r.name}/${a.name}: states no damage`);
+      // primary_or_secondary is the book's own either/or and its Strength
+      // multiplier is not knowable until the player picks, so it must not
+      // carry one.
+      if (a.role === 'primary_or_secondary' && a.ability_mult != null) {
+        bad.push(`${r.name}/${a.name}: either-or attack fixes ability_mult`);
+      }
+    }
+  }
+  assert(bad.length === 0, bad.slice(0, 4).join('; '));
+});
+
+test('soulmeld granted: Kruthik Claws is wired end to end', (db) => {
+  // The worked example. Its totem bind grants two 1d6 claws plus Strength,
+  // with 1d4 acid PER POINT of essentia on each — which exercises the count,
+  // the ability term, and a per-essentia rider in one entry.
+  const row = execOne(db,
+    "SELECT json_extract(data, '$.granted_abilities') AS g "
+    + "FROM entry WHERE type = 'soulmeld' AND name = 'Kruthik Claws'");
+  const items = JSON.parse(row.g || '[]');
+  const claw = items.find(i => i.kind === 'attack');
+  assert(claw, 'Kruthik Claws grants an attack');
+  assertEq(claw.chakra, 'Totem');
+  assertEq(claw.attack.dice, '1d6');
+  assertEq(claw.attack.count, 2);
+  assertEq(claw.attack.ability, 'Str');
+  const rider = (claw.attack.riders || [])[0];
+  assert(rider && rider.dice === '1d4' && rider.per_essentia === true
+         && rider.damage_type === 'acid',
+    `expected a per-essentia 1d4 acid rider, got ${JSON.stringify(rider)}`);
+  // ...and its hands bind grants a real feat, by a name the DB resolves.
+  const feat = items.find(i => i.kind === 'feat');
+  assert(feat && feat.feat === 'Weapon Finesse', 'hands bind grants Weapon Finesse');
+  const f = execOne(db,
+    "SELECT name FROM entry WHERE type='feat' AND name = 'Weapon Finesse'");
+  assert(f, 'the granted feat name resolves to a real feat');
+});
+
+test('soulmeld granted: the sheet routes each kind somewhere', () => {
+  const src = readSource('soulmeld-effects.js');
+  assert(/granted_abilities/.test(src),
+    'soulmeld-effects must read granted_abilities from the DB');
+  // The bind gate is SHARED with the bonus rows. Two copies would drift the
+  // moment one of them learned something the other did not.
+  assert(/function inForce\(/.test(src)
+    && (src.match(/inForce\(/g) || []).length >= 3,
+    'the shaped/bound gate must be one shared helper, used by both paths');
+  for (const fn of ['grantedAttacks', 'grantedFeats', 'grantedSpecials',
+                    'grantedSenses', 'grantedMovement']) {
+    assert(new RegExp(`function ${fn}\\(`).test(src),
+      `soulmeld-effects must expose ${fn}`);
+  }
+  // Each destination is actually wired, not merely computed.
+  assert(/syncGrantedAttacks\(\)/.test(src) && /syncGrantedFeats\(\)/.test(src),
+    'granted attacks and feats must be pushed from refreshAll');
+  assert(/grantedSenses/.test(readSource('senses.js')),
+    'senses.js must consume the non-numeric granted senses');
+  assert(/grantedMovement\(\)/.test(src),
+    'granted movement must reach getActiveSpeedBonuses');
+  assert(/grantedAbilities/.test(readSource('live-publish.js')),
+    'the live bus must publish granted abilities');
+});
+
+test('soulmeld granted: attack rows are namespaced and never overwrite', () => {
+  const src = readSource('soulmeld-effects.js');
+  // The key must be namespaced, or a soulmeld row and a class row (the
+  // Warlock's eldritch blast) could collide over the same managed row.
+  assert(/ATTACK_PREFIX\s*=\s*'soulmeld:'/.test(src),
+    'granted attack rows must use a namespaced key');
+  const csrc = readSource('character.js');
+  // The hand-edit handover is what makes this safe against the attack rows
+  // already sitting in saved characters: one trusted edit and the row is the
+  // player's forever.
+  assert(/ev\.isTrusted[\s\S]{0,80}delete\s+div\.dataset\.fromClass/.test(csrc),
+    'a hand-edit must hand a managed attack row to the player permanently');
+});
+
+test('soulmeld: conditional attack/damage rows never reach a weapon total', () => {
+  // resolve() has always marked a conditional row routed:false ("in no
+  // total"), but getWeaponMods summed them anyway — so Rageclaws' "+2 morale
+  // while your hit point total is below 0" was in the character's ordinary
+  // attack bonus at full health, and Bloodtalons' "+1 per essentia WITH THE
+  // BLOODTALONS CLAW ATTACKS" landed on every other natural weapon.
+  const src = readSource('soulmeld-effects.js');
+  const fn = src.slice(src.indexOf('function getWeaponMods'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert(/if \(e\.condition\)/.test(body),
+    'getWeaponMods must skip conditional rows rather than summing them');
+  assert(/situational/.test(body),
+    'a skipped conditional must be surfaced, not silently dropped');
+});
+
+test('save: soulmeld-granted feat rows are derived, never persisted', () => {
+  // Same contract as bloodline bonus feats. Persisting them would freeze a
+  // bind the player may since have moved, and the row would outlive unshaping
+  // the soulmeld entirely.
+  const src = readSource('feats.js');
+  const collect = src.slice(src.indexOf('data.feats = []'),
+                            src.indexOf('data.languages'));
+  assertEq((collect.match(/fromSoulmeld/g) || []).length, 2,
+    'both the feat and special-ability collectors must skip derived '
+    + 'soulmeld rows');
+});
+
 // ---- tests: DB-side class metadata merge ---------------------------------
 //
 // Centralized 2026-05-15 from class-picker.js hand-coded maps into

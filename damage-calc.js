@@ -178,6 +178,47 @@ const DamageCalc = (function () {
     wire(entry);
   }
 
+  // Refresh a MANAGED row's equation in place — a soulmeld's granted attack,
+  // whose dice and riders both move when the player shifts an essentia pip
+  // (Kruthik Claws' claws carry 1d4 acid PER POINT, so three pips is 3d4).
+  //
+  // Every write is guarded on actually changing, and the ability terms and
+  // riders are rebuilt only when their signature differs. That matters because
+  // this runs on every recalc: rewriting the DOM unconditionally would eat a
+  // keystroke mid-edit and drop focus out of a half-typed field.
+  //
+  // The caller decides whether a row is still managed. Once the player edits
+  // one it is theirs, character.js drops the marker, and this is never called
+  // for it again.
+  function updateRow(entry, data) {
+    const row = entry && entry.querySelector('.damage-calc-row');
+    if (!row || !data) return;
+    const set = (sel, v) => {
+      const el = row.querySelector(sel);
+      if (el && v != null && el.value !== String(v)) el.value = String(v);
+    };
+    set('.dmg-dice', data.dice);
+    set('.dmg-style', data.style);
+
+    const terms = Array.isArray(data.abilityTerms) ? data.abilityTerms : [];
+    const termSig = terms.map(t => `${t.ability}:${t.mult}`).join(',');
+    const termHolder = row.querySelector('.dmg-abil-terms');
+    if (termHolder && termHolder.dataset.sig !== termSig) {
+      termHolder.dataset.sig = termSig;
+      termHolder.innerHTML = terms.map(abilityTermHtml).join('');
+    }
+
+    // `entry`, not `row` — the riders strip lives in the SIBLING riders row.
+    const riders = Array.isArray(data.riders) ? data.riders : [];
+    const riderSig = riders.map(r => `${r.amount}|${r.label}|${r.condition}`)
+      .join(',');
+    const riderHolder = entry.querySelector('.dmg-riders');
+    if (riderHolder && riderHolder.dataset.sig !== riderSig) {
+      riderHolder.dataset.sig = riderSig;
+      riderHolder.innerHTML = riders.map(riderHtml).join('');
+    }
+  }
+
   // Listeners go on the ENTRY, not on the damage row: the riders live in a
   // SIBLING row, so a listener bound to the damage row never sees the "+ rider"
   // button at all. (It rendered fine and did nothing, which is the failure mode
@@ -443,7 +484,7 @@ const DamageCalc = (function () {
   }
 
   return {
-    attachRow, recalcRow, collectRow, renderDamage, styleFor,
+    attachRow, updateRow, recalcRow, collectRow, renderDamage, styleFor,
     readRiders, riderText, publishRow,
     STYLES, ABILITIES,
   };
