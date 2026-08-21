@@ -4797,3 +4797,10 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .live-written {
   animation: live-written-flash 1.2s ease-out;
 }
+
+/* A soulmeld improving a weapon's threat range — shown beside the player's own
+   Critical box, never written into it. */
+.atk-crit-meld {
+  margin-left: 0.3rem; font-size: 0.82em; white-space: nowrap;
+  color: #fd9; opacity: 0.9;
+}

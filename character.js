@@ -736,10 +736,49 @@ const Character = (function () {
       // same reason the damage side filters: Dread Carapace's penalty is a
       // natural-weapon penalty and must not touch a longsword.
       let meldAtk = 0;
+      const rowStyle = entry.querySelector(".dmg-style")?.value || "one-hand";
       if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getWeaponMods) {
-        const style = entry.querySelector(".dmg-style")?.value || "one-hand";
-        try { meldAtk = SoulmeldEffects.getWeaponMods(style).attack || 0; }
+        try { meldAtk = SoulmeldEffects.getWeaponMods(rowStyle).attack || 0; }
         catch (e) { meldAtk = 0; }
+      }
+      // Soulmeld binds that IMPROVE this weapon rather than adding to it —
+      // Mauling Gauntlets doubling the threat range of "any melee weapon
+      // wielded", Dread Carapace doubling it for "all natural attacks". Those
+      // scopes existed for a day and reached nothing, because the only thing
+      // consulting them was the soulmelds' OWN granted attacks and none of
+      // those is a manufactured weapon.
+      //
+      // Shown BESIDE the player's Critical box, never written into it: that
+      // box is theirs, it is free text, and a derived value that overwrote a
+      // hand-typed "19-20/x2 (keen)" would destroy information the sheet
+      // cannot reconstruct. Same choice as spell resistance and miss chance.
+      const critMeldEl = entry.querySelector(".atk-crit-meld");
+      if (critMeldEl) {
+        let shown = "";
+        let why = "";
+        if (typeof SoulmeldEffects !== "undefined"
+            && SoulmeldEffects.getAttackRowModifiers) {
+          try {
+            const mods = SoulmeldEffects.getAttackRowModifiers(rowStyle)
+              .filter(m => m.threat_range_double);
+            if (mods.length) {
+              const critText = entry.querySelector(".atk-crit")?.value || "";
+              const doubled = SoulmeldEffects.doubleThreatRange(critText);
+              // These never stack with each other, so ONE applies however many
+              // are in force — doubling twice is not a rule 3.5 has.
+              const m = mods[0];
+              shown = doubled ? `→ ${doubled}` : "→ threat ×2";
+              why = `${m.soulmeld} doubles this weapon's threat range`
+                + (mods.length > 1
+                   ? ` (${mods.length} sources; they do not stack)` : "")
+                + (m.no_stack_with ? `. Does not stack with ${m.no_stack_with}.` : "")
+                + (doubled ? "" : " — enter a threat range to see the result.");
+            }
+          } catch (e) { shown = ""; }
+        }
+        critMeldEl.textContent = shown;
+        critMeldEl.title = why;
+        critMeldEl.style.display = shown ? "" : "none";
       }
       const total = bab1 + atkSizeMod + abilMod + misc + focus + enhAtk + coPenalty + meldAtk;
       // Crit CONFIRMATION. Deliberately NOT in `total` above: it applies only
@@ -958,7 +997,7 @@ const Character = (function () {
         <div class="field" style="flex:2"><label>Weapon</label><input type="text" class="atk-name" value="${data.name || ""}"></div>
         <div class="field"><label>Attack Bonus</label><input type="text" class="atk-bonus" value="${data.bonus || ""}"></div>
         <div class="field"><label>Damage</label><input type="text" class="atk-damage" value="${data.damage || ""}"></div>
-        <div class="field field-sm"><label>Critical</label><input type="text" class="atk-crit" value="${data.crit || ""}"></div>
+        <div class="field field-sm"><label>Critical</label><input type="text" class="atk-crit" value="${data.crit || ""}"><span class="atk-crit-meld" title="A soulmeld is improving this weapon's threat range. Shown beside your own Critical box rather than written into it — the box is yours." style="display:none"></span></div>
       </div>
       <div class="attack-row">
         <div class="field field-sm"><label>Range</label><input type="text" class="atk-range" value="${data.range || ""}"></div>

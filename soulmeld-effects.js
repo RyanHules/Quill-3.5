@@ -422,18 +422,97 @@ const SoulmeldEffects = (function () {
   }
 
   // Which modifiers apply to one granted attack.
+  // Does a scope cover a weapon being wielded THIS way? One function, used for
+  // both granted attacks and the player's own rows, because a modifier that
+  // says "all natural attacks" means the character's whole attack list and
+  // must not mean something narrower depending on which caller asked.
+  function scopeCoversStyle(scope, style) {
+    const s = String(style || '');
+    if (scope === 'all') return true;
+    if (scope === 'natural') return s.indexOf('natural') === 0;
+    if (scope === 'unarmed') return s === 'unarmed';
+    if (scope === 'manufactured') {
+      return s !== 'unarmed' && s.indexOf('natural') !== 0 && s !== 'none';
+    }
+    return false;                                  // 'own' is never style-based
+  }
+
   function modifiersFor(g) {
     const a = (g && g.attack) || {};
-    const isNatural = a.attack_kind === 'natural';
+    const style = a.attack_kind === 'natural' ? 'natural' : 'none';
     return activeModifiers().filter((m) => {
       if (m.scope === 'own') {
         return m.slotKey === g.slotKey && m.modifies_attack === a.name;
       }
-      if (m.scope === 'natural') return isNatural;
-      if (m.scope === 'manufactured') return false;   // no granted attack is
-      if (m.scope === 'unarmed') return false;        // manufactured/unarmed
-      return m.scope === 'all';
+      return scopeCoversStyle(m.scope, style);
     });
+  }
+
+  // The modifiers that apply to ANY attack row, chosen by how the weapon is
+  // being wielded. This is what lets Mauling Gauntlets' "any melee weapon
+  // wielded" and Dread Carapace's "all natural attacks" reach the player's own
+  // rows rather than only the ones a soulmeld granted — those scopes existed
+  // for a day and covered nothing, because the only consumer was the granted
+  // attacks and none of those is manufactured.
+  //
+  // `own`-scope modifiers are excluded by construction: they name an attack a
+  // specific soulmeld grants, and the player's rows are not that.
+  function getAttackRowModifiers(style) {
+    return activeModifiers().filter(
+      m => m.scope !== 'own' && scopeCoversStyle(m.scope, style));
+  }
+
+  // 3.5 doubles the SIZE of the threat range, not the multiplier: 20 becomes
+  // 19-20, 19-20 becomes 17-20, 18-20 becomes 15-20. Returns null when the
+  // text carries no parseable range, rather than assuming 20 — a blank
+  // Critical box on someone's homebrew entry is not a promise that it crits
+  // only on a natural 20.
+  function doubleThreatRange(critText) {
+    const t = String(critText || '').trim();
+    if (!t) return null;
+    const m = /^(\d+)\s*[-–]\s*(\d+)/.exec(t) || /^(\d+)/.exec(t);
+    if (!m) return null;
+    const low = parseInt(m[1], 10);
+    const high = m[2] ? parseInt(m[2], 10) : low;
+    if (!(high === 20 && low >= 2 && low <= 20)) return null;
+    const size = 20 - low + 1;
+    const newLow = 21 - size * 2;
+    if (newLow < 2) return null;                   // past a legal threat range
+    return `${newLow}-20`;
+  }
+
+  // A NON-soulmeld attack row that matches a referenced attack name — a racial
+  // claw, a hand-typed bite, another book's natural weapon. Word-boundary
+  // matched so "Claw" finds "Claw (racial)" and "Left claw" but not "Clawfoot
+  // Raptor Lance". Rows this module manages are skipped so a granted attack
+  // can never resolve against itself.
+  //
+  // Reads the damage row's dice where there is one, and otherwise the LEADING
+  // dice of the free-text damage box, because a player who never opened the
+  // equation still typed "1d6+4" and that 1d6 is the number the rule wants.
+  function findPlayerAttack(name) {
+    const container = byId('attacks-container');
+    if (!container || !name) return null;
+    const want = new RegExp(`\\b${String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    for (const row of container.querySelectorAll('.attack-entry')) {
+      const key = row.dataset.fromClass || '';
+      if (key.indexOf(ATTACK_PREFIX) === 0) continue;      // ours, not theirs
+      const rowName = (row.querySelector('.atk-name') || {}).value || '';
+      if (!want.test(rowName)) continue;
+      const styleEl = row.querySelector('.dmg-style');
+      const style = styleEl ? styleEl.value : '';
+      // A claw is a natural weapon. A row named "claw" set to two-handed is
+      // the player describing something else, and doubling it would be wrong.
+      if (style && style.indexOf('natural') !== 0) continue;
+      let dice = (row.querySelector('.dmg-dice') || {}).value || '';
+      if (!dice) {
+        const free = (row.querySelector('.atk-damage') || {}).value || '';
+        const m = /(\d+d\d+)/.exec(free);
+        dice = m ? m[1] : '';
+      }
+      if (dice) return { name: rowName.trim(), dice };
+    }
+    return null;
   }
 
   function resolveAttack(g, depth) {
@@ -511,7 +590,24 @@ const SoulmeldEffects = (function () {
       const ref = named.find(o => o.slotKey === g.slotKey)
         || named.find(o => o.soulmeld === g.soulmeld)
         || named[0];
-      if (ref && depth < 3) {
+      // ...and if NO soulmeld grants one, look at the character's own attack
+      // rows. This is the COMMON case, not the fallback: Girallon's rend comes
+      // from the arms bind and its claws from the totem bind, and binding one
+      // soulmeld to both chakras at once needs the Totemist's Totem Chakra
+      // Bind at 11th level. Below that, the two claws the rend keys off are
+      // normally a racial claw or another soulmeld's — which is exactly what
+      // the book says: "whether these attacks come from your girallon arms, a
+      // different soulmeld, your own innate abilities, or some other source".
+      if (!ref) {
+        const own = findPlayerAttack(a.damage_as);
+        if (own && own.dice) {
+          dice = a.damage_multiplier
+            ? (scaleDice(own.dice, a.damage_multiplier) || own.dice)
+            : own.dice;
+          diceNote = `double the damage of your ${own.name}`;
+        }
+      }
+      if (!dice && ref && depth < 3) {
         const base = resolveAttack(ref, depth + 1);
         if (base.dice) {
           dice = a.damage_multiplier
@@ -1494,7 +1590,7 @@ const SoulmeldEffects = (function () {
     shaped, computeAll, unrouted, flatRows,
     grantedEffects, grantedAttacks, grantedFeats, grantedSpecials,
     grantedSenses, grantedMovement, syncGrantedAttacks, syncGrantedFeats,
-    getWeaponMods,
+    getWeaponMods, getAttackRowModifiers, doubleThreatRange,
     getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,
     getActiveSkillBonuses,
     getDefenseRiderSpec, syncDefenseRiders,
