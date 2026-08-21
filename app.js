@@ -345,7 +345,47 @@
   // ============================================================
   // Recalculate everything (orchestrator)
   // ============================================================
+  // ---- batching ------------------------------------------------------------
+  //
+  // A full recalc is not cheap: it walks every ability, skill, save, attack row
+  // and aggregator on the sheet. Setting one field is fine, but an INBOUND
+  // WRITE from the live bus sets several at once, and each one dispatches an
+  // `input` event that the delegated handler turns into its own recalc — five
+  // fields cost six passes, five of which are thrown away by the sixth.
+  //
+  // So a caller that knows it is about to change several things can suspend
+  // recalculation and resume once. Anything that asks for a recalc while
+  // suspended is COALESCED, not dropped: `pending` remembers that someone
+  // wanted one, and resuming runs exactly one.
+  //
+  // The counter is a counter rather than a boolean so nesting cannot leave it
+  // stuck half-open, and every caller must use try/finally — a throw between
+  // suspend and resume would otherwise wedge the sheet in a state where
+  // nothing recalculates and everything still looks fine.
+  let recalcSuspended = 0;
+  let recalcPending = false;
+
+  function suspendRecalc() { recalcSuspended += 1; }
+
+  function resumeRecalc(runIfPending = true) {
+    recalcSuspended = Math.max(0, recalcSuspended - 1);
+    if (recalcSuspended > 0) return false;
+    const wanted = recalcPending;
+    recalcPending = false;
+    if (wanted && runIfPending) recalcAll();
+    return wanted;
+  }
+
+  // Run `fn` with recalculation suspended, then recalc ONCE if anything asked.
+  // try/finally is not optional here — see above.
+  function batchRecalc(fn) {
+    suspendRecalc();
+    try { return fn(); }
+    finally { resumeRecalc(); }
+  }
+
   function recalcAll() {
+    if (recalcSuspended > 0) { recalcPending = true; return; }
     const bonuses = collectActiveBonuses();
     const getModWithBonuses = (ability) => getAbilityMod(ability, bonuses.abilities);
 
@@ -980,6 +1020,9 @@
   // `window.recalcAll` and were silently relying on their input-event
   // dispatch instead; this makes that path live (idempotent recalc).
   window.recalcAll = recalcAll;
+  // Exposed for callers that change SEVERAL fields at once — today that is the
+  // live bus's inbound writes, which cost one recalc per field otherwise.
+  window.batchRecalc = batchRecalc;
 
   // Also recalc on change events (dropdowns, checkboxes)
   $("#char-size").addEventListener("change", recalcAll);

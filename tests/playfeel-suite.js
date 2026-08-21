@@ -4102,6 +4102,47 @@
     expect(flashed, true, 'LB1: a written field flashes (live-written class applied)');
   });
 
+  regression('LB1b: a multi-field write costs ONE recalc, not one per field',
+    async () => {
+      // app.js has a delegated `input` listener over the character / skills /
+      // equipment / spells / class-feature containers, so every field a write
+      // places used to trigger its own full pass: five fields cost SEVEN, six
+      // of them immediately superseded. `batchRecalc` coalesces them.
+      //
+      // This counts REAL passes by instrumenting Character.recalc, which every
+      // pass goes through — not by trusting a flag that says a batch happened.
+      if (!window.LiveCommands) fail('LB1b: live-commands.js not loaded');
+      if (typeof window.batchRecalc !== 'function') {
+        fail('LB1b: app.js exposes no batchRecalc — the coalescing is gone');
+      }
+      await newCharacter();
+      setAbilities({ STR: 14, CON: 12 });
+      set('hp-total', '40');
+      window.recalcAll();
+      await wait(120);
+
+      let passes = 0;
+      const orig = Character.recalc;
+      Character.recalc = function () { passes++; return orig.apply(this, arguments); };
+      try {
+        const r = LiveCommands.applyCommand({
+          id: 'pf-lb1b', source: 'playfeel', reason: 'LB1b',
+          fields: { 'hp.current': 21, 'hp.temp': 3, 'hp.nonlethal': 2,
+                    'xp': 1234, 'money.gp': 50 },
+        });
+        expect(r.applied.length, 5, 'LB1b: all five fields applied');
+        expect(passes, 1,
+          `LB1b: five fields must cost ONE recalc, got ${passes}`);
+      } finally {
+        Character.recalc = orig;
+      }
+
+      // The saving must not have cost the cascade. The echo is read AFTER the
+      // recalc, so a stale echo would mean the single pass ran too early.
+      expectValue('#hp-current', '21', 'LB1b: the write still landed');
+      expect($('#hp-current').value, '21', 'LB1b: and the DOM agrees');
+    });
+
   regression('LB2: the player outranks the rig — a focused field is refused, not overwritten', async () => {
     if (!window.LiveCommands) fail('LB2: live-commands.js not loaded');
     // The Character tab must be VISIBLE: focus() on an element inside a hidden

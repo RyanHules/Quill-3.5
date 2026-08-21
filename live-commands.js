@@ -238,6 +238,24 @@
   function applyCommand(cmd) {
     var applied = [], rejected = [], echo = {}, touched = [];
     var fields = (cmd && cmd.fields) || {};
+
+    // Place every field with recalculation SUSPENDED, then recalc once below.
+    //
+    // Each `write()` dispatches an `input` event, and app.js has a delegated
+    // listener over the character / skills / equipment / spells / class-feature
+    // containers that turns each one into a full recalc. Measured 2026-08-20: a
+    // five-field write cost SEVEN passes, six of them thrown away by the last.
+    // `batchRecalc` coalesces them — anything that asks while suspended sets a
+    // pending flag, and resuming runs exactly one.
+    //
+    // It uses try/finally internally, so a throw inside a write cannot leave
+    // the sheet suspended. That matters more than the saved passes: a wedged
+    // suspend would leave every number on the sheet silently frozen.
+    var batch = (typeof window.batchRecalc === 'function')
+      ? window.batchRecalc
+      : function (fn) { return fn(); };   // older page: behave as before
+
+    batch(function () {
     Object.keys(fields).forEach(function (field) {
       var target;
       try { target = resolve(field); } catch (e) { target = null; }
@@ -258,30 +276,33 @@
       touched.push({ field: field, target: target });
     });
 
-    // A final recalc after every field has landed.
-    //
-    // This is NOT the only recalc, and an earlier comment here claiming it was
-    // "one recalc for the whole batch" was wrong — measured 2026-08-20: app.js
-    // has a delegated `input` listener over the character / skills / equipment /
-    // spells / class-features tabs, so every `fire()` above already triggers a
-    // full recalc on its own. A five-field write costs SEVEN; a one-field write
-    // costs two. Every field this module can currently place lives inside one of
-    // those containers, which makes the call below redundant in practice today.
-    //
-    // It stays because it is the only thing that GUARANTEES the cascade: the
-    // delegated listener is scoped by tab container, so the first mapped field
-    // that lands outside one would otherwise write its value and quietly fail to
-    // recalculate — a snapshot with changed HP and unchanged saves, which is
-    // exactly the class of wrongness this whole bus exists to prevent. Cheap
-    // insurance, and idempotent.
-    //
-    // The redundancy is a real (small) cost on the hot path and is worth
-    // removing properly — see TODO. Not by deleting this line.
+    // Ask for the recalc from INSIDE the batch. Suspended, this only sets the
+    // pending flag, so resuming runs exactly ONE pass for the whole write
+    // instead of one for the batch plus one for this. Measured: five fields
+    // cost 7 passes before batching, 2 with the request outside, 1 here.
     if (applied.length) {
       try {
         if (typeof window.recalcAll === 'function') window.recalcAll();
       } catch (e) { stats.lastError = 'recalc: ' + e; }
     }
+    });
+
+    // A final recalc after every field has landed — and now, thanks to the
+    // batch above, the ONLY one.
+    //
+    // It used to be one of many. app.js has a delegated `input` listener over
+    // the character / skills / equipment / spells / class-features containers,
+    // so every write triggered its own full pass: five fields cost SEVEN,
+    // six of them immediately superseded. Suspending during the batch collapses
+    // that to one, and this is where it happens.
+    //
+    // It still GUARANTEES the cascade, which is the reason it exists and not
+    // merely an optimisation left over: the delegated listener is scoped by tab
+    // container, so the first mapped field that lands OUTSIDE one would write
+    // its value and quietly fail to recalculate — a snapshot with changed HP
+    // and unchanged saves, exactly the class of wrongness this bus exists to
+    // prevent. Do not delete it on the grounds that the batch already ran; the
+    // batch only coalesces recalcs that something ASKED for.
     touched.forEach(function (t) {
       try { echo[t.field] = t.target.read(); } catch (e) { echo[t.field] = null; }
       try { flash(t.target.el()); } catch (e) { /* cosmetic only */ }
