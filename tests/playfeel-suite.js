@@ -4230,6 +4230,106 @@
         'GR15: ...and a +5 weapon wins instead');
     });
 
+  regression('GR16: the enhancement shows on the DAMAGE row and publishes correctly',
+    async () => {
+      // It was always in the damage TOTAL, but nothing on the damage row said
+      // so: the attack row grew a visible "Enh +3" while the damage row's Enh
+      // is the player's own input box, which stays empty when the bonus comes
+      // from a soulmeld. "Applied to attack and not to damage" is exactly what
+      // that looks like, and is what Ryan reported.
+      //
+      // The display gap was also hiding a real defect — the publisher read the
+      // raw box, so `damage_structured.enhancement` said 0 beside a `rendered`
+      // of "1d6+7". Components that do not sum to the total next to them is
+      // precisely what that field exists to prevent.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      set('totem-sm-name', 'Landshark Boots');
+      const tb = $('#totem-sm-bound');
+      tb.checked = true;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+      setIncarnumCapacity();
+      window.recalcAll();
+      await wait(250);
+      const pips = $$('#totem-essentia-pips .essentia-pip');
+      for (let i = 0; i < 3 && i < pips.length; i++) pips[i].click();
+      await wait(300);
+
+      const row = $('#attacks-container .attack-entry[data-from-class^="soulmeld:"]');
+      if (!row) fail('GR16: no granted claw row');
+
+      expect(row.querySelector('.dmg-enh-meld').textContent, '+3',
+        'GR16: the damage row SHOWS the enhancement that applied');
+      expectValue('#attacks-container .attack-entry[data-from-class^="soulmeld:"] .dmg-enh', '',
+        'GR16: ...beside the player’s box, not written into it');
+      expect(row.querySelector('.dmg-total').textContent, '1d6+7',
+        'GR16: 1d6 + Str 4 + enhancement 3');
+
+      // And the published structure must agree with the string beside it.
+      if (typeof LivePublish !== 'undefined' && LivePublish.snapshot) {
+        const atk = (LivePublish.snapshot().attacks || [])
+          .find(a => /Landshark/.test(a.name || ''));
+        if (!atk || !atk.damage_structured) fail('GR16: the attack did not publish');
+        expect(atk.damage_structured.enhancement, 3,
+          'GR16: the published enhancement is the one that APPLIED, not the box');
+        expect(atk.damage_structured.rendered, '1d6+7',
+          'GR16: ...and it agrees with the rendered string');
+      }
+    });
+
+  regression('GR17: renaming a granted row detaches its own soulmeld’s bonus',
+    async () => {
+      // A KNOWN EDGE, pinned so that changing it is a decision rather than an
+      // accident. `applies_to_attack` matches by NAME: Landshark Boots' "+1
+      // enhancement per essentia with the landshark boots claw attacks" finds
+      // the row called "Claw (Landshark Boots)".
+      //
+      // Rename that row past recognition and the bonus stops applying. That is
+      // defensible — the row is the player's once edited and may now describe a
+      // different weapon entirely — but it is SILENT, which is the part worth
+      // knowing about. Dread Carapace's scope-wide bonus is unaffected, which
+      // is the discriminator: this is about the name-scoped bonus only.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      set('totem-sm-name', 'Landshark Boots');
+      const tb = $('#totem-sm-bound');
+      tb.checked = true;
+      tb.dispatchEvent(new Event('change', { bubbles: true }));
+      // Dread Carapace too, shaped, for the contrast.
+      bindSlot('torso', 'Dread Carapace');
+      const torso = document.querySelector('.magic-item-slot[data-slot-id="torso"]');
+      const tbound = torso.querySelector('.slot-sm-bound');
+      tbound.checked = false;
+      tbound.dispatchEvent(new Event('change', { bubbles: true }));
+      setIncarnumCapacity();
+      window.recalcAll();
+      await wait(250);
+      const pips = $$('#totem-essentia-pips .essentia-pip');
+      for (let i = 0; i < 3 && i < pips.length; i++) pips[i].click();
+      await wait(300);
+
+      const row = $('#attacks-container .attack-entry[data-from-class^="soulmeld:"]');
+      if (!row) fail('GR17: no granted claw row');
+      expect(row.querySelector('.atk-calc-enh').textContent, '+3',
+        'GR17: the name-scoped enhancement applies while the name matches');
+      expect(row.querySelector('.dmg-meld').textContent, '+1',
+        'GR17: and Dread Carapace’s scope-wide +1 applies too');
+
+      // Rename it past recognition — as a player taking the row over might.
+      row.dataset.playerOwned = '1';
+      const nameEl = row.querySelector('.atk-name');
+      nameEl.value = 'Rending Talons';
+      nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(200);
+
+      expect(row.querySelector('.atk-calc-enh').textContent, '+0',
+        'GR17: the NAME-scoped bonus detaches — known, silent, and deliberate');
+      expect(row.querySelector('.dmg-meld').textContent, '+1',
+        'GR17: the SCOPE-wide bonus still applies, because it never keyed on '
+        + 'the name');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers
