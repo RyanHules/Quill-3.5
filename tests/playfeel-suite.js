@@ -4418,6 +4418,61 @@
       expect(pips(), 5, 'GR19: a necrocarnum meld stacks the +1 on top');
     });
 
+  regression('GR20: an essentia pip moves a PULLED total with no other interaction',
+    async () => {
+      // Ryan, 2026-08-22, moving essentia on Gorrash: the wormtail belt's AC
+      // did not change until he edited an unrelated field.
+      //
+      // GR2 already covers a pip moving DAMAGE, and it passed throughout —
+      // that path is PUSHED (syncGrantedAttacks recalcs when the attack
+      // signature changes). AC, saves, initiative and grapple are PULLED:
+      // app.js reads getActiveACBonuses and friends during recalcAll, so they
+      // only move if something asks for a recalc, and the pip handler only
+      // refreshed the readouts. A meld whose whole contribution is pulled — a
+      // pure natural-armour one like the wormtail belt — therefore went stale.
+      //
+      // THE DISCRIMINATOR is that this spec calls no recalc of its own. SME2
+      // covers the same soulmeld and could not catch this, because it calls
+      // window.recalcAll() explicitly after shaping. Do not add one here.
+      await newCharacter();
+      await waitForDb();
+      setAbilities({ DEX: 10 });
+      set('char-level', '12');
+      await wait(300);
+
+      const slot = $('.magic-item-slot[data-slot-id="waist"]');
+      const check = slot.querySelector('.slot-soulmeld-check');
+      check.checked = true;
+      check.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      const inp = slot.querySelector('.slot-sm-name');
+      inp.value = 'Wormtail Belt';
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(800);
+
+      const pips = () => slot.querySelectorAll(
+        '.essentia-pips:not(.essentia-pips-2) .essentia-pip');
+      if (pips().length < 3) fail(`GR20: needed 3 pips, got ${pips().length}`);
+
+      // +2 enhancement natural armour at rest.
+      expect($('#ac-total').textContent, '12', 'GR20: AC before any essentia');
+
+      // ONE pip click, and then nothing else at all.
+      pips()[2].click();
+      await wait(500);
+      expect($('#ac-total').textContent, '15',
+        'GR20: +1 per essentia reaches AC on the pip click itself');
+      expect($('#ac-touch').textContent, '10',
+        'GR20: ...still never against a touch attack');
+
+      // And back down, so a stale-high value cannot pass either.
+      pips()[0].click();
+      await wait(500);
+      expect($('#ac-total').textContent, '12',
+        'GR20: clearing the essentia moves it back in the same pass');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers
@@ -5378,11 +5433,26 @@
     await waitForDb();
     setAbilities({ DEX: 10 });          // mod 0, so the AC arithmetic is legible
     set('char-level', '12');
-    set('sm-base-capacity', '5');
+    // NOT setting #sm-base-capacity: a synthetic `input` is not trusted, and
+    // the clear-on-user-edit listener only stands down for a TRUSTED event, so
+    // syncBaseCapacityFromLevel silently writes the level-12 value straight
+    // back over it. This spec used to set 5 and then quietly run on 3. It does
+    // not need a particular base — every shape() below adds 3 extra capacity,
+    // which is all the essentia any of them invests.
     await wait(300);
 
     const shape = async (slotId, name, bind) => {
       const slot = $(`.magic-item-slot[data-slot-id="${slotId}"]`);
+      // ENABLE the slot's soulmeld first. Without this the name and the pips
+      // are filled in on a slot that is not shaped, nothing reaches the
+      // character, and the whole scenario reads as a clean 10/10/10 — which is
+      // how this spec sat red while the feature underneath it worked.
+      const check = slot.querySelector('.slot-soulmeld-check');
+      if (!check.checked) {
+        check.checked = true;
+        check.dispatchEvent(new Event('change', { bubbles: true }));
+        await wait(250);
+      }
       const inp = slot.querySelector('.slot-sm-name');
       inp.value = name;
       inp.dispatchEvent(new Event('input', { bubbles: true }));

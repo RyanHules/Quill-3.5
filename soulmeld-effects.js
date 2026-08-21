@@ -1660,6 +1660,32 @@ const SoulmeldEffects = (function () {
     syncGrantedFeats();
   }
 
+  // refreshAll PUSHES (readouts, defense riders, granted attacks); the totals
+  // that soulmelds feed by being PULLED — AC, saves, initiative, grapple, which
+  // app.js reads via getActiveACBonuses and friends — only move when something
+  // calls recalcAll. Nothing did, so moving an essentia pip left AC sitting at
+  // its previous value until the player happened to edit an unrelated field
+  // (reported on Gorrash's wormtail belt, 2026-08-22).
+  //
+  // It LOOKED like it worked, which is why it survived: a soulmeld that grants
+  // an ATTACK updates fine, because syncGrantedAttacks recalcs when the attack
+  // signature changes. Only the melds whose whole contribution is pulled — a
+  // pure natural-armour meld like the wormtail belt — went stale, so the bug
+  // was invisible in exactly the tests that exercise granted attacks.
+  //
+  // Batched so this stays ONE recalc: refreshAll's own pushes can each ask for
+  // one, and the suspend/resume counter added for the live bus coalesces them
+  // rather than running a full pass per push.
+  //
+  // No loop: recalcAll pulls from this module but never calls refreshAll.
+  function refreshAndRecalc() {
+    if (typeof window.batchRecalc === 'function') {
+      window.batchRecalc(() => { refreshAll(); recalc(); });
+    } else {
+      refreshAll(); recalc();
+    }
+  }
+
   // One delegated handler on the grid, matching how the ⓘ panels themselves
   // are wired. Rooted at the GRID because the blocks are created lazily when a
   // panel is first opened — binding per block would miss every one made later.
@@ -1700,12 +1726,12 @@ const SoulmeldEffects = (function () {
       // soulmeld name — can change what these blocks should say. The readouts
       // used to refresh only when a panel was toggled, so an OPEN panel sat
       // showing the essentia count it had when you opened it.
-      setTimeout(refreshAll, 0);
+      setTimeout(refreshAndRecalc, 0);
     });
     const onEdit = (ev) => {
       const block = ev.target.closest('.sme-block');
       if (block) { syncBlock(block); recalc(); return; }
-      setTimeout(refreshAll, 0);   // a name/capacity field outside the block
+      setTimeout(refreshAndRecalc, 0);   // a name/capacity field outside the block
     };
     grid.addEventListener('input', onEdit);
     grid.addEventListener('change', onEdit);
