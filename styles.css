@@ -4804,3 +4804,10 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   margin-left: 0.3rem; font-size: 0.82em; white-space: nowrap;
   color: #fd9; opacity: 0.9;
 }
+
+/* A damage die stepped up by Improved Natural Attack or a soulmeld bind —
+   shown beside the player's own dice box, never written into it. */
+.dmg-dice-meld {
+  margin-left: 0.25rem; font-size: 0.82em; white-space: nowrap;
+  color: #fd9; opacity: 0.9;
+}

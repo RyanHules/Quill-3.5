@@ -860,6 +860,7 @@ const Character = (function () {
           getAbilityMod,
           expr,
           weaponSpec: bonuses.weaponSpec || {},
+          naturalAttackSteps: bonuses.naturalAttackSteps || {},
           matches: weaponFocusMatches,
         });
       }

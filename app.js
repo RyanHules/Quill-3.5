@@ -279,6 +279,14 @@
     bonuses.weaponSpec = (typeof Feats !== "undefined" && Feats.getWeaponSpecBonuses)
       ? Feats.getWeaponSpecBonuses() : {};
 
+    // Improved Natural Attack steps a chosen natural weapon's damage up the
+    // PHB/MM progression. Same weapon-name matching as the two above, and the
+    // same table a soulmeld bind uses when it says "as if you were one size
+    // category larger" — one rule, two sources.
+    bonuses.naturalAttackSteps =
+      (typeof Feats !== "undefined" && Feats.getNaturalAttackSteps)
+        ? Feats.getNaturalAttackSteps() : {};
+
     // Combat options (Power Attack / Combat Expertise / Heedless Charge). Only
     // the AC half arrives here: Combat Expertise's dodge bonus, less whatever
     // Power Attack penalty Heedless Charge moved onto AC. The attack and damage

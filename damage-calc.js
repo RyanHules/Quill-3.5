@@ -142,7 +142,7 @@ const DamageCalc = (function () {
     return `
       <div class="attack-row damage-calc-row" title="Damage equation: dice + ability modifiers + weapon enhancement + Power Attack + Weapon Specialization + other.">
         <span class="atk-calc-label">Dmg</span>
-        <span class="atk-calc-term"><input type="text" class="dmg-dice" placeholder="1d8" value="${esc(data.dice || '')}"></span>
+        <span class="atk-calc-term"><input type="text" class="dmg-dice" placeholder="1d8" value="${esc(data.dice || '')}"><span class="dmg-dice-meld" title="This weapon's damage die is being stepped up. Shown beside your own box rather than written into it." style="display:none"></span></span>
         <span class="atk-calc-term" title="How this weapon is being wielded. Drives BOTH the Strength multiplier and whether Power Attack applies — a light weapon gets no Power Attack damage at all."><select class="dmg-style">${styleOpts}</select></span>
         <span class="dmg-abil-terms">${terms.map(abilityTermHtml).join('')}</span>
         <button type="button" class="dmg-abil-add" title="Add another ability to damage">+ ability</button>
@@ -321,7 +321,66 @@ const DamageCalc = (function () {
     setTerm(row, '.dmg-meld', '.dmg-meld-term', '.dmg-meld-op', meld);
 
     const flat = abilTotal + enh + pa + spec + meld + misc;
-    const dice = (row.querySelector('.dmg-dice').value || '').trim();
+    const typedDice = (row.querySelector('.dmg-dice').value || '').trim();
+
+    // DAMAGE STEPS — effects that move the die UP the progression rather than
+    // adding to the total. Two sources, one rule and one table:
+    //
+    //   Improved Natural Attack  "increases by one step, as if the creature's
+    //                             size had increased by one category" (MM),
+    //                             per chosen natural weapon
+    //   a soulmeld bind          Totem Avatar's shoulders bind: "your natural
+    //                             weapons deal damage as if you were one size
+    //                             category larger"
+    //
+    // The soulmeld half already reached attacks a soulmeld GRANTED; this is
+    // what makes both halves reach a natural attack the player typed in.
+    //
+    // The stepped die is shown BESIDE the dice box and drives the total, but
+    // is never written into the box. That field is the player's, and
+    // overwriting it would make the improvement impossible to undo — worse,
+    // re-stepping an already-stepped value on the next pass would run the
+    // damage up the table one pass at a time.
+    const steps = [];
+    if (weaponName && ctx.naturalAttackSteps && style[0].indexOf('natural') === 0) {
+      for (const [k, v] of Object.entries(ctx.naturalAttackSteps)) {
+        if (ctx.matches(weaponName, k)) steps.push({ n: v, from: 'Improved Natural Attack' });
+      }
+    }
+    if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getAttackRowModifiers) {
+      try {
+        for (const m of SoulmeldEffects.getAttackRowModifiers(style[0])) {
+          const n = (m.damage_step || 0) + (m.size_step || 0);
+          if (n) steps.push({ n, from: m.soulmeld });
+        }
+      } catch (e) { /* a module that is not ready must not break the row */ }
+    }
+    let dice = typedDice;
+    const stepEl = entry.querySelector('.dmg-dice-meld');
+    if (stepEl) {
+      let shown = '', why = '';
+      const total = steps.reduce((t, s) => t + s.n, 0);
+      if (total && typedDice && typeof DND35 !== 'undefined' && DND35.stepWeaponDamage) {
+        const out = DND35.stepWeaponDamage(typedDice, total);
+        if (out.stepped) {
+          dice = out.dice;
+          shown = `→ ${out.dice}`;
+          why = `${typedDice} stepped up ${total > 1 ? total + ' steps' : 'one step'}`
+            + ` by ${steps.map(s => s.from).join(', ')}`;
+        } else {
+          // The progression does not cover this die (1d12, 2d10). Say so
+          // rather than silently leaving the damage unchanged, which looks
+          // identical to the improvement not applying.
+          shown = '→ ?';
+          why = `${steps.map(s => s.from).join(', ')} steps this damage up, but`
+            + ` the progression does not cover ${typedDice} — apply it by hand`;
+        }
+      }
+      stepEl.textContent = shown;
+      stepEl.title = why;
+      stepEl.style.display = shown ? '' : 'none';
+    }
+
     let text = renderDamage(dice, flat);
 
     // Riders. Unconditional ones join the line ("plus 1d6 fire"); conditional
@@ -332,10 +391,50 @@ const DamageCalc = (function () {
     const always = riders.filter(r => !r.condition);
     const sometimes = riders.filter(r => r.condition);
     if (always.length) text += ' plus ' + always.map(riderText).join(', ');
+    // Soulmeld riders — extra damage a bind puts ON this attack rather than
+    // granting an attack of its own. Girallon's rend is the case: no attack
+    // roll, fires because two claws already hit, and its damage is a DISTINCT
+    // INSTANCE rather than being bundled into the claw's, which is what
+    // matters when damage reduction is applied to each.
+    //
+    // Rendered into the readout beside the player's own riders instead of
+    // being inserted into their rider strip. That strip is theirs to edit; a
+    // derived row in it would be deleted by hand and come straight back, and
+    // would round-trip into the save as if the player had typed it.
+    const meldRiders = [];
+    if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getAttackRowRiders) {
+      try {
+        const strMod = ctx.getAbilityMod ? ctx.getAbilityMod('STR') : 0;
+        for (const r of SoulmeldEffects.getAttackRowRiders(
+            style[0], weaponName, dice, strMod)) {
+          meldRiders.push(
+            `${r.label ? r.label + ' ' : ''}${r.amount}`
+            + `${r.damageType ? ' ' + r.damageType : ''}`
+            + ` (${r.from}${r.separateInstance ? ', separate instance' : ''})`
+            + `${r.condition ? ' — ' + r.condition : ''}`);
+        }
+      } catch (e) { /* never break the row over a rider */ }
+    }
+
+    // ...and rules that attach to this attack without carrying a number:
+    // Worg Pelt's free trip on a bite hit, Sphinx Claws' full natural attack
+    // at the end of a charge. Those are not riders — a rider must state its
+    // damage — but they belong AT the attack rather than in a panel the
+    // player would have to go looking for mid-combat.
+    if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getAttackRowNotes) {
+      try {
+        for (const n of SoulmeldEffects.getAttackRowNotes(style[0], weaponName)) {
+          meldRiders.push(`${n.text} (${n.from})`);
+        }
+      } catch (e) { /* likewise */ }
+    }
+
     const readout = row.parentElement.querySelector('.dmg-riders-readout');
     if (readout) {
-      readout.textContent = sometimes.length
-        ? 'situational: ' + sometimes.map(riderText).join(', ') : '';
+      const parts = [];
+      if (sometimes.length) parts.push('situational: ' + sometimes.map(riderText).join(', '));
+      if (meldRiders.length) parts.push(meldRiders.join('; '));
+      readout.textContent = parts.join('   ');
     }
     row.querySelector('.dmg-total').textContent = text || '—';
 

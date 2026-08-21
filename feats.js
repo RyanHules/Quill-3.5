@@ -1182,6 +1182,30 @@ const Feats = (function () {
     return out;
   }
 
+  // Improved Natural Attack: "the damage for this natural weapon increases by
+  // one step, as if the creature's size had increased by one category". Per
+  // natural weapon, chosen at the time you take it, so it is keyed by weapon
+  // name exactly like Weapon Focus and Specialization — and stacks with itself
+  // if taken twice for the same attack form, which the MM allows.
+  //
+  // Returns {weaponname: steps}. The STEP TABLE is not here: it is
+  // DND35.stepWeaponDamage, shared with the soulmeld binds that step damage
+  // for their own reason ("as if you were one size category larger"). One
+  // table, because it is one rule wearing two hats, and the MM prints the same
+  // progression this feat and those binds both refer to.
+  function getNaturalAttackSteps() {
+    const out = {};
+    document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const m = text.match(/^\s*improved\s+natural\s+attack\s*\(([^)]+)\)/i);
+      if (!m) return;
+      const weapon = m[1].trim().toLowerCase();
+      if (weapon) out[weapon] = (out[weapon] || 0) + 1;
+    });
+    return out;
+  }
+
   function getWeaponSpecBonuses() {
     const out = {};
     document.querySelectorAll("#feats-container .feat-entry").forEach((ta) => {
@@ -1241,7 +1265,8 @@ const Feats = (function () {
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
-    getWeaponFocusBonuses, getWeaponSpecBonuses, getSpellFocusBonuses,
+    getWeaponFocusBonuses, getWeaponSpecBonuses, getNaturalAttackSteps,
+    getSpellFocusBonuses,
     getCritConfirmBonuses, getGrappleBonus,
     // Feat presence check for cross-module effect recognition (e.g. Serenity).
     hasFeat,

@@ -462,6 +462,99 @@ const SoulmeldEffects = (function () {
       m => m.scope !== 'own' && scopeCoversStyle(m.scope, style));
   }
 
+  // Does an attack row's name name this attack form? Word-start matching, so
+  // "Claw" finds "Claw", "Claw (racial)", "Left Claw" and "Claw (Kruthik
+  // Claws)" but not "Clawfoot Lance".
+  //
+  // Deliberately NOT a constructed RegExp. Building one from data means
+  // escaping the pattern, and writing that escape through a scripted edit is
+  // how this file ended up with a broken character class a moment ago — the
+  // rule in CLAUDE.md about escapes surviving three layers, arriving as a bug
+  // I could see. Plain string work has no such layer.
+  function attackNameMatches(rowName, formName) {
+    const hay = String(rowName || '').toLowerCase();
+    const need = String(formName || '').toLowerCase().trim();
+    if (!hay || !need) return false;
+    let from = 0;
+    for (;;) {
+      const at = hay.indexOf(need, from);
+      if (at === -1) return false;
+      const before = at === 0 ? ' ' : hay[at - 1];
+      if (!/[a-z0-9]/.test(before)) return true;      // starts a word
+      from = at + 1;
+    }
+  }
+
+  // Riders a soulmeld puts ON an attack the character already has, resolved
+  // against that attack's own dice and the character's Strength.
+  //
+  // Girallon's rend is the case: it takes no attack roll, it fires because two
+  // claws already hit, and it has no attack line of its own — so it is a rider
+  // on the claw, not an attack beside it. `separate_instance` records the one
+  // thing that distinguishes it from an ordinary rider: its damage is a
+  // distinct instance rather than being bundled into the claw's, which is what
+  // matters when damage reduction is applied.
+  //
+  // Every one of these carries a CONDITION, so nothing here is ever summed
+  // into a weapon's headline damage — they are listed beside it, which is
+  // already how damage-calc.js treats a conditional rider.
+  function getAttackRowRiders(style, weaponName, dice, strMod) {
+    const name = String(weaponName || '').toLowerCase();
+    const out = [];
+    for (const g of grantedOfKind('attack_rider')) {
+      const r = g.attack_rider || {};
+      if (!scopeCoversStyle(r.scope, style)) continue;
+      // `modifies_attack` narrows it further: the rend rides CLAWS, not every
+      // natural weapon the character owns.
+      if (r.modifies_attack && !attackNameMatches(name, r.modifies_attack)) {
+        continue;
+      }
+      let amount = '';
+      if (r.dice_as === 'self' && dice) {
+        amount = scaleDice(dice, r.multiplier || 1) || dice;
+      } else if (r.dice) {
+        amount = r.dice;
+      }
+      // "including double your Strength bonus" — the character's Strength, at
+      // the rider's own multiplier, NOT double whatever the ridden attack
+      // happened to apply (a secondary claw adds half Strength, and the rend
+      // still doubles the full bonus).
+      if (r.ability_multiplier && typeof strMod === 'number' && strMod) {
+        const bonus = Math.floor(strMod * r.ability_multiplier);
+        if (bonus) amount += (bonus > 0 ? '+' : '') + bonus;
+      }
+      if (!amount) continue;
+      out.push({
+        amount,
+        label: r.label || '',
+        damageType: r.damage_type || '',
+        condition: r.condition || '',
+        separateInstance: !!r.separate_instance,
+        note: r.note || '',
+        from: g.soulmeld,
+      });
+    }
+    return out;
+  }
+
+  // Rules that attach to an attack but carry no number — Worg Pelt's free trip
+  // on a bite hit, Sphinx Claws' full natural attack at the end of a charge.
+  // Matched exactly like riders, and shown at the row rather than left in a
+  // panel the player would have to go looking for mid-combat.
+  function getAttackRowNotes(style, weaponName) {
+    const name = String(weaponName || '').toLowerCase();
+    const out = [];
+    for (const g of grantedOfKind('attack_note')) {
+      const n = g.attack_note || {};
+      if (!scopeCoversStyle(n.scope, style)) continue;
+      if (n.modifies_attack && !attackNameMatches(name, n.modifies_attack)) {
+        continue;
+      }
+      out.push({ text: n.text, from: g.soulmeld });
+    }
+    return out;
+  }
+
   // 3.5 doubles the SIZE of the threat range, not the multiplier: 20 becomes
   // 19-20, 19-20 becomes 17-20, 18-20 becomes 15-20. Returns null when the
   // text carries no parseable range, rather than assuming 20 — a blank
@@ -934,11 +1027,22 @@ const SoulmeldEffects = (function () {
       for (const m of (g.movement || [])) {
         let speed = m.speed_ft || 0;
         if (m.per_essentia_ft) speed += m.per_essentia_ft * g.essentia;
+        // A bind that IMPROVES a mode rather than granting one — Airstep
+        // Sandals' feet bind makes its own flight PERFECT. Applied here so the
+        // published maneuverability and the auto-selected dropdown both get
+        // the improved value rather than the granted default.
+        let maneuver = m.maneuverability || '';
+        for (const mod of grantedOfKind('movement_modifier')) {
+          const mm = mod.movement_modifier || {};
+          if (mm.mode !== m.mode) continue;
+          if (mm.maneuverability) maneuver = mm.maneuverability;
+          if (mm.speed_ft) speed += mm.speed_ft;
+        }
         out.push({
           mode: m.mode,
           speed,
           fractionOfLand: m.fraction_of_land || null,
-          maneuverability: m.maneuverability || '',
+          maneuverability: maneuver,
           activated: !!m.activated,
           qualifier: g.qualifier || null,
           note: m.note || '',
@@ -1590,7 +1694,9 @@ const SoulmeldEffects = (function () {
     shaped, computeAll, unrouted, flatRows,
     grantedEffects, grantedAttacks, grantedFeats, grantedSpecials,
     grantedSenses, grantedMovement, syncGrantedAttacks, syncGrantedFeats,
-    getWeaponMods, getAttackRowModifiers, doubleThreatRange,
+    getWeaponMods, getAttackRowModifiers, getAttackRowRiders,
+    getAttackRowNotes,
+    doubleThreatRange,
     getActiveACBonuses, getActiveSaveBonuses, getActiveInitiativeBonuses,
     getActiveSkillBonuses,
     getDefenseRiderSpec, syncDefenseRiders,
