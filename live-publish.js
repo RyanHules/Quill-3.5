@@ -63,7 +63,13 @@
   //    effects that essentia is buying (rig ask 4). Essentia moves as a swift
   //    action and changes what every shaped meld does, so a consumer working
   //    from structural data alone narrates last round's character. Additive.
-  var SCHEMA = 5;
+  // 6: + `granted` on each shaped soulmeld — the half of incarnum that is not
+  //    a number: bite attacks, breath weapons, flight, granted feats, senses.
+  //    198 of these were authored a day before schema 5 and stamped onto
+  //    nothing, so they reached neither the DB nor this bus; the DB now carries
+  //    them and an ATTACK arrives with its damage already resolved for this
+  //    character at this essentia. Additive.
+  var SCHEMA = 6;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -240,6 +246,79 @@
   // `effects` is the payoff of the soulmeld work: every shaped soulmeld's
   // resolved bonuses, essentia already folded in, in the DB's canonical shape.
   // A consumer no longer has to know what Urskan Greaves does.
+  // A shaped soulmeld's granted (non-numeric) abilities, structured where the
+  // DB has structure for them. An ATTACK is emitted with its damage already
+  // resolved against this character — size band picked, per-essentia dice
+  // scaled, riders scaled — because that resolution is the whole premise of
+  // the bus: the consumer reads what the sheet computed rather than
+  // re-deriving 3.5 from the raw fields.
+  // "auto" is a UI state, not a value. It means "follow the fighting style",
+  // which is right in the DOM — a Strength term should track the grip rather
+  // than be re-set by hand — but it is useless to a consumer, who would have
+  // to re-implement the style table to know that a secondary natural attack
+  // adds half Strength. Schema 4 made exactly this fix for `damage_structured`
+  // after Vaire hit the half-Strength case; publishing "auto" here would have
+  // reintroduced it one field over.
+  function resolvedTerms(r) {
+    var mult = 1;
+    try {
+      if (typeof DamageCalc !== 'undefined' && DamageCalc.styleFor) {
+        mult = DamageCalc.styleFor(r.style)[2];
+      }
+    } catch (e) { /* fall back to x1 */ }
+    return (r.abilityTerms || []).map(function (t) {
+      var m = (t.mult == null || t.mult === 'auto') ? mult : parseFloat(t.mult);
+      return { ability: t.ability, mult: isNaN(m) ? 1 : m };
+    });
+  }
+
+  function grantedFor(s) {
+    try {
+      if (typeof SoulmeldEffects === 'undefined'
+          || !SoulmeldEffects.grantedAbilities) return [];
+      return SoulmeldEffects.grantedAbilities()
+        .filter(function (g) {
+          return g.soulmeld === s.name && g.slot === s.slot;
+        })
+        .map(function (g) {
+          var out = {
+            text: g.text, kind: g.kind,
+            when: g.when || 'shaped', chakra: g.chakra || null,
+            qualifier: g.qualifier || null
+          };
+          if (g.kind === 'attack' && SoulmeldEffects.grantedAttacks) {
+            var a = g.attack || {};
+            var r = null;
+            SoulmeldEffects.grantedAttacks().forEach(function (x) {
+              if (x.key === g.slotKey + '|' + a.name) r = x;
+            });
+            out.attack = {
+              name: a.name, count: a.count || 1,
+              attack_kind: a.attack_kind, role: a.role,
+              damage_type: a.damage_type || null,
+              // Resolved for THIS character at THIS essentia. `dice` is empty
+              // when the attack scales purely per point and none is invested,
+              // which is a real state and not a missing value.
+              dice: r ? (r.dice || null) : null,
+              ability_terms: r ? resolvedTerms(r) : [],
+              riders: r ? r.riders : [],
+              range: r ? (r.range || null) : null,
+              notes: r ? (r.notes || null) : null
+            };
+          } else if (g.kind === 'feat') {
+            out.feat = g.feat;
+          } else if (g.kind === 'special_ability') {
+            out.special_ability = g.special_ability;
+          } else if (g.kind === 'sense') {
+            out.sense = g.sense;
+          } else if (g.kind === 'movement') {
+            out.movement = g.movement;
+          }
+          return out;
+        });
+    } catch (e) { return []; }
+  }
+
   function incarnum() {
     try {
       if (typeof SoulmeldEffects === 'undefined' || !SoulmeldEffects.shaped) return null;
@@ -276,6 +355,13 @@
           return {
             name: s.name, slot: s.slot, bound: !!s.bound,
             essentia_invested: s.essentia,
+            // The half that is NOT a number — a breath weapon, a bite attack,
+            // flight, incorporeality. Schema 5 published only the numeric
+            // effects, so a rig could see "3d4 on a charge" but not "you have
+            // claws", which is exactly what a DM narrating a fight needs.
+            // Gated the same way the effects are: a Throat bind's cone is
+            // absent unless the meld is actually bound at the throat.
+            granted: grantedFor(s),
             effects: byKey[s.name + '\u0000' + s.slot] || []
           };
         })
