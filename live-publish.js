@@ -59,7 +59,11 @@
   //    party writes `3d6+.5*S` and `d4+.5*S`, and no consumer can recover a
   //    half-Strength secondary natural from that string. The verbatim string is
   //    still emitted and is still authoritative. Additive.
-  var SCHEMA = 4;
+  // 5: + `incarnum` — shaped soulmelds, the essentia in each, and the RESOLVED
+  //    effects that essentia is buying (rig ask 4). Essentia moves as a swift
+  //    action and changes what every shaped meld does, so a consumer working
+  //    from structural data alone narrates last round's character. Additive.
+  var SCHEMA = 5;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -212,6 +216,71 @@
       });
     });
     return out;
+  }
+
+  // Incarnum: what is shaped, where, how much essentia is in it, and what that
+  // is currently BUYING (rig ask 4).
+  //
+  // THE FAILURE THIS FIXES, in Vaire's own words: "there's a reason I've been
+  // moving that essentia around", dropped gently by Ryan while the rig ran his
+  // greaves wrong for two charges. Essentia moves as a swift action mid-combat
+  // and changes what every shaped soulmeld does, so a consumer narrating from
+  // structural data alone is narrating last round's character.
+  //
+  // OWNERSHIP NOTE, flagged rather than assumed. The pools block below is
+  // capacity-only because current/spent values belong to whoever narrates the
+  // change. Essentia is NOT that shape: it is not spent down by play, it is a
+  // configuration the player re-chooses, it lives on the sheet as clickable
+  // pips, and the sheet's own AC / skill / save math reads it. So the invested
+  // amount is published as CURRENT state next to the capacity, and there is
+  // still one writer. If the rig ever wants to move essentia itself, phase 2's
+  // write API is the route and that is a decision for Vaire, not a default
+  // taken here.
+  //
+  // `effects` is the payoff of the soulmeld work: every shaped soulmeld's
+  // resolved bonuses, essentia already folded in, in the DB's canonical shape.
+  // A consumer no longer has to know what Urskan Greaves does.
+  function incarnum() {
+    try {
+      if (typeof SoulmeldEffects === 'undefined' || !SoulmeldEffects.shaped) return null;
+      var shaped = SoulmeldEffects.shaped();
+      if (!shaped.length) return null;
+      var byKey = {};
+      (SoulmeldEffects.computeAll ? SoulmeldEffects.computeAll() : []).forEach(function (e) {
+        var k = e.soulmeld + '\u0000' + e.slot;
+        (byKey[k] = byKey[k] || []).push({
+          bonus_type: e.bonus_type, target: e.target || null,
+          amount: e.amount, bonus_category: e.bonus_category || null,
+          condition: e.condition || null,
+          applies_to: e.applies_to || null,
+          when: e.when || 'shaped', chakra: e.chakra || null,
+          dice: e.dice || null,
+          // False means the sheet computes and shows it but has nowhere to add
+          // it — the consumer may still want to narrate it.
+          reaches_a_total: !!e.routed
+        });
+      });
+      return {
+        capacity: {
+          base: intOf(cell(document, '#sm-base-capacity')),
+          max_soulmelds: intOf(cell(document, '#sm-max-soulmelds')),
+          max_essentia: intOf(cell(document, '#sm-max-essentia')),
+          max_binds: intOf(cell(document, '#sm-max-binds'))
+        },
+        in_use: {
+          shaped: intOf(cell(document, '#sm-count-shaped')),
+          essentia: intOf(cell(document, '#sm-count-essentia')),
+          binds: intOf(cell(document, '#sm-count-binds'))
+        },
+        soulmelds: shaped.map(function (s) {
+          return {
+            name: s.name, slot: s.slot, bound: !!s.bound,
+            essentia_invested: s.essentia,
+            effects: byKey[s.name + '\u0000' + s.slot] || []
+          };
+        })
+      };
+    } catch (e) { return null; }
   }
 
   // Daily pools: CAPACITY ONLY, deliberately.
@@ -406,7 +475,12 @@
       attacks: attacks(),
       skills: skills(),
       pools: pools(),
-      conditions: conditions()
+      conditions: conditions(),
+      // Null when nothing is shaped — an incarnum character with no melds up
+      // and a character who has never heard of incarnum are different states,
+      // but neither is one a consumer needs to distinguish, and null is the
+      // module's convention for "nothing here".
+      incarnum: incarnum()
     };
   }
 

@@ -201,6 +201,19 @@ const SoulmeldEffects = (function () {
   function push(out, key, slotId, nameEl, boundEl, pipsEl) {
     const name = (nameEl && nameEl.value || '').trim();
     if (!name) return;                       // an empty slot is not a soulmeld
+    // A body slot's soulmeld SWITCH is what makes it shaped, not the presence
+    // of a name. Switching it off hides the sub-area but deliberately does NOT
+    // clear the name or the pips (so you can toggle a meld off and back on
+    // without retyping it) — and gating on the name alone meant a switched-off
+    // soulmeld kept applying its effects. Caught by the live bus: the sheet's
+    // own counters read 0 shaped while this module still granted cold
+    // resistance 10. The totem slot has no such switch, so its own name is the
+    // gate there.
+    const slotEl = nameEl.closest && nameEl.closest('.magic-item-slot[data-slot-id]');
+    if (slotEl) {
+      const sw = slotEl.querySelector('.slot-soulmeld-check');
+      if (sw && !sw.checked) return;
+    }
     out.push({
       key, slot: slotId, name,
       bound: !!(boundEl && boundEl.checked),

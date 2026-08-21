@@ -7754,9 +7754,17 @@ test('source: no stray control bytes in any module (heredoc escape corruption)',
   // and every word boundary silently stopped matching. Parse-checking cannot
   // see it and neither can review.
   //
-  // So: a byte-level guard. NUL is allowed because lookup.js uses it
-  // deliberately as a composite-key separator (a byte that cannot occur in the
-  // data); nothing else below 0x20 belongs in source but tab, LF and CR.
+  // So: a byte-level guard. NOTHING below 0x20 belongs in source but tab, LF
+  // and CR.
+  //
+  // NUL used to be allowed here, because lookup.js used a raw one as a
+  // composite-key separator. That allowance was load-bearing in the wrong
+  // direction: on 2026-08-21 a raw NUL got into soulmeld-effects.js as a
+  // sentinel and this guard waved it through, because it could not tell a
+  // deliberate separator from a mangled escape. They are the same byte. The
+  // fix was to stop writing the byte at all — lookup.js and live-publish.js
+  // both spell it as a unicode escape now, which is identical at runtime and
+  // a reader — so the allowance is gone and the guard can be absolute.
   const files = fs.readdirSync(ROOT).filter(f => f.endsWith('.js'))
     .concat(fs.readdirSync(path.join(ROOT, 'tests'))
       .filter(f => f.endsWith('.js')).map(f => path.join('tests', f)));
@@ -7765,7 +7773,7 @@ test('source: no stray control bytes in any module (heredoc escape corruption)',
     const buf = fs.readFileSync(path.join(ROOT, rel));
     for (let i = 0; i < buf.length; i++) {
       const b = buf[i];
-      const allowed = b === 0x00 || b === 0x09 || b === 0x0a || b === 0x0d;
+      const allowed = b === 0x09 || b === 0x0a || b === 0x0d;
       if (b < 0x20 && !allowed) {
         offenders.push(`${rel}: 0x${b.toString(16)} at byte ${i} — ` +
           JSON.stringify(buf.slice(Math.max(0, i - 30), i + 15).toString('utf8')));
@@ -7934,45 +7942,6 @@ test('live: the tab refuses a field the player is editing', () => {
   assert(/notePublished/.test(src) && /notePublished/.test(readSource('live-publish.js')),
     'the ack doubles as a publish, so live-publish.js must be told or its ' +
     'watcher re-publishes identical content.');
-});
-
-// ---- source hygiene: no control characters in shipped JS -------------------
-//
-// A stray control byte in source is invisible in every direction you would
-// normally look: the file still parses, `node --check` is green, the app runs,
-// and reading the code shows nothing. It surfaces only as grep suddenly calling
-// the file "binary".
-//
-// This exists because it HAPPENED, twice, in two days and in two languages: a
-// `\b` written through a shell heredoc became 41 literal 0x08 bytes inside a
-// Python module's regexes (every word boundary silently stopped matching), and
-// a NUL sentinel intended as an escape was emitted as a raw NUL into
-// soulmeld-effects.js. The sibling DB project answered the first with a
-// byte-level test over its modules; this is the same guard for the sheet's JS,
-// because prose telling me to be careful has now failed to stop it three times.
-//
-// It lives in test_pickers because that is the suite that actually gets run.
-test('source: no shipped .js carries a control character', () => {
-  const ALLOWED = new Set([9, 10, 13]);          // tab, LF, CR
-  const files = fs.readdirSync(ROOT)
-    .filter(f => f.endsWith('.js'))
-    .concat(fs.readdirSync(path.join(ROOT, 'tests'))
-      .filter(f => f.endsWith('.js')).map(f => path.join('tests', f)));
-  const bad = [];
-  for (const rel of files) {
-    const buf = fs.readFileSync(path.join(ROOT, rel));
-    for (let i = 0; i < buf.length; i++) {
-      const b = buf[i];
-      if (b < 0x20 && !ALLOWED.has(b)) {
-        const line = buf.slice(0, i).toString('utf8').split('\n').length;
-        bad.push(`${rel}:${line} byte 0x${b.toString(16).padStart(2, '0')}`);
-        break;                                    // one report per file
-      }
-    }
-  }
-  assert(bad.length === 0,
-    `control characters in shipped source (invisible on read, and node --check `
-    + `will not catch them): ${bad.join(', ')}`);
 });
 
 // ---- runner ---------------------------------------------------------------
