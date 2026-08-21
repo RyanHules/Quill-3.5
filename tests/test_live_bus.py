@@ -472,9 +472,27 @@ def test_a_tab_releasing_its_claim_makes_the_character_absent():
     check("release: reads as ABSENT afterwards, not stale", st == 404, (st, body))
 
 
-def test_a_release_from_the_wrong_tab_is_refused():
-    # Otherwise a second tab could evict the first one's live snapshot simply by
-    # navigating away from a character it also had open.
+def test_a_release_drops_only_the_claim_it_names():
+    """Two tabs on one character; each may retire ITS OWN claim, and neither
+    can take the other's snapshot down with it.
+
+    REWRITTEN 2026-08-22 along with the rule it tests. This used to assert that
+    a release from the non-HOLDER (the tab that had not published most recently)
+    came back 409. That was over-broad and the hint said so out loud — "a
+    release only drops your own claim" was the refusal message for a tab doing
+    exactly that. tab-A's release could never have evicted anything, because
+    tab-B remained in the roster; the refusal instead left tab-A stuck in the
+    roster keeping the character `contested` for the whole 90-second stale
+    window with only one tab really on it.
+
+    THE SAFETY PROPERTY IS UNCHANGED AND STILL ASSERTED BELOW: a second tab
+    navigating away must not evict the first one's live snapshot. It is now
+    enforced by dropping only the named claim rather than by refusing the call,
+    so the assertion is "the snapshot survives", not "the call 409s". A genuine
+    stranger — a publisher holding no claim here — is still refused, and that
+    case is asserted too, because a rule that accepted anyone would pass the
+    survival check just as happily.
+    """
     a = snapshot("Contested"); a["publisher"] = "tab-A"
     b = snapshot("Contested"); b["publisher"] = "tab-B"
     call("PUT", "/api/live/active%2FContested", a)
@@ -486,25 +504,70 @@ def test_a_release_from_the_wrong_tab_is_refused():
           view.get("publishers"))
     check("contested: flagged", view.get("contested") is True, view)
 
-    # tab-A is no longer the holder (tab-B published last) and tab-B is still
-    # live, so tab-A's release must not drop the key.
+    # A STRANGER holds nothing here and is turned away.
+    st, body = call("DELETE", "/api/live/active%2FContested",
+                    {"publisher": "tab-NOBODY"})
+    check("contested: a stranger's release is refused", st == 409, (st, body))
+    st, view = call("GET", "/api/live/active%2FContested")
+    check("contested: ...and both claims are untouched",
+          st == 200 and sorted(view.get("publishers") or []) == ["tab-A", "tab-B"],
+          (st, view.get("publishers")))
+
+    # tab-A is not the holder (tab-B published last) but it DOES hold a claim,
+    # so it may retire it — and doing so must leave tab-B's snapshot standing.
     st, body = call("DELETE", "/api/live/active%2FContested",
                     {"publisher": "tab-A"})
-    check("contested: a non-holder release is refused", st == 409, (st, body))
+    check("contested: a non-holder may retire its OWN claim",
+          st == 200 and body.get("still_published_by") == 1, (st, body))
     st, view = call("GET", "/api/live/active%2FContested")
-    check("contested: the snapshot survives the refused release",
+    check("contested: THE SAFETY PROPERTY — the other tab's snapshot survives",
           st == 200, st)
+    check("contested: ...and only the departing tab is dropped",
+          view.get("publishers") == ["tab-B"], view.get("publishers"))
+    check("contested: ...so it is no longer contested",
+          view.get("contested") is False, view)
 
-    # The HOLDER may release, and the survivor keeps it open.
+    # The last claim standing retires the character.
     st, body = call("DELETE", "/api/live/active%2FContested",
                     {"publisher": "tab-B"})
-    check("contested: the holder may release", st == 200, (st, body))
-    check("contested: reports the survivor",
-          body.get("still_published_by") == 1, body)
-    st, view = call("GET", "/api/live/active%2FContested")
-    check("contested: still published by the other tab", st == 200, st)
-    check("contested: no longer contested",
-          view.get("contested") is False, view)
+    check("contested: the last release reports nobody left",
+          st == 200 and body.get("still_published_by") == 0, (st, body))
+    st, _ = call("GET", "/api/live/active%2FContested")
+    check("contested: and the character reads as ABSENT", st == 404, st)
+
+
+def test_a_release_must_name_its_publisher():
+    """An anonymous release is a 400, and it used to be worse than useless.
+
+    Against a NAMED record it changed nothing and answered `released: true` —
+    a response that lied about what had happened. Against a record with no
+    publisher on it, it EVICTED the character outright: an unowned release
+    taking a live snapshot off the bus, the same hole the ack path had. Both
+    verified before the fix; both asserted here.
+    """
+    named = snapshot("MustName"); named["publisher"] = "tab-A"
+    call("PUT", "/api/live/active%2FMustName", named)
+    st, body = call("DELETE", "/api/live/active%2FMustName", None)
+    check("anon-release: refused with a reason", st == 400, (st, body))
+    check("anon-release: ...that says what to send",
+          "publisher" in (body or {}).get("hint", ""), body)
+    st, _ = call("GET", "/api/live/active%2FMustName")
+    check("anon-release: the named record is untouched", st == 200, st)
+
+    # The eviction case: a record nobody ever claimed.
+    call("PUT", "/api/live/active%2FUnclaimed", snapshot("Unclaimed"))
+    st, body = call("DELETE", "/api/live/active%2FUnclaimed", None)
+    check("anon-release: refused on an UNOWNED record too", st == 400, (st, body))
+    st, _ = call("GET", "/api/live/active%2FUnclaimed")
+    check("anon-release: ...which is no longer evicted by it", st == 200, st)
+
+    # A NAMED release may still retire an unclaimed record — the rule costs no
+    # capability, it only requires you to say who you are.
+    st, body = call("DELETE", "/api/live/active%2FUnclaimed",
+                    {"publisher": "tab-Z"})
+    check("anon-release: a NAMED release still retires it",
+          st == 200 and body.get("still_published_by") == 0, (st, body))
+    call("DELETE", "/api/live/active%2FMustName", {"publisher": "tab-A"})
 
 
 def test_release_also_works_over_the_beacon_post_route():
@@ -556,16 +619,13 @@ def test_an_ack_publish_does_not_wipe_the_claim():
     check("ack-claim: ...and the ack's snapshot is the one stored",
           after["snapshot"]["hp"]["current"] == 7, f"got {after['snapshot']['hp']}")
 
-    # THE PROPERTY THAT ACTUALLY MATTERS, and the one the bug broke: an
-    # unowned release must not be able to take a live character off the bus.
-    # It is a no-op rather than a 409 — the refusal path is for a release
-    # naming a DIFFERENT tab, and an anonymous one names nobody to compare
-    # against — but either way the character survives, which it did not when
-    # the ack had just emptied the roster.
-    status, body = call("DELETE", "/api/live/" + q, None)
-    check("ack-claim: an unowned release does not evict — someone still holds it",
-          status == 200 and body.get("still_published_by") == 1,
-          f"got {status} {body}")
+    # THE PROPERTY THAT ACTUALLY MATTERS, and the one the bug broke: a release
+    # by someone who does not hold this character must not take it off the bus.
+    # Before the fix the ack had emptied the roster, so there was no claim left
+    # to check against and the eviction went through.
+    status, body = call("DELETE", "/api/live/" + q, {"publisher": "TAB-STRANGER"})
+    check("ack-claim: a stranger's release is refused after an ack",
+          status == 409, f"got {status} {body}")
     _, still = call("GET", "/api/live/" + q)
     check("ack-claim: ...so the character is still on the bus",
           still is not None and "snapshot" in (still or {}), f"got {still}")
@@ -640,10 +700,13 @@ def test_live_wait_parks_and_is_woken_by_a_publish():
 
 
 def test_live_wait_reports_a_release_so_a_panel_can_go_offline():
-    publish("active/Leaver", snapshot("Leaver"))
+    leaver = snapshot("Leaver")
+    leaver["publisher"] = "tab-Leaver"
+    publish("active/Leaver", leaver)
     _, before = call("GET", "/api/live-wait?wait=0")
     seq = before["seq"]
-    call("DELETE", "/api/live/" + urllib.request.quote("active/Leaver", safe=""))
+    call("DELETE", "/api/live/" + urllib.request.quote("active/Leaver", safe=""),
+         {"publisher": "tab-Leaver"})
     _, body = call("GET", f"/api/live-wait?since={seq}&wait=0")
     check("live-wait: a tab going away is REPORTED, not just a missing read",
           body["changed"] == [{"qualified": "active/Leaver", "event": "release"}],
@@ -729,7 +792,8 @@ def main():
                    test_poll_returns_empty_rather_than_hanging_forever,
                    test_qualified_names_with_slashes_survive_routing,
                    test_a_tab_releasing_its_claim_makes_the_character_absent,
-                   test_a_release_from_the_wrong_tab_is_refused,
+                   test_a_release_drops_only_the_claim_it_names,
+                   test_a_release_must_name_its_publisher,
                    test_release_also_works_over_the_beacon_post_route,
                    test_releasing_something_nobody_published_is_a_404,
                    test_an_ack_publish_does_not_wipe_the_claim,

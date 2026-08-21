@@ -974,10 +974,32 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         NOBODY has open. Staleness catches a tab that died; only the tab itself
         knows it deliberately moved on.
 
-        OWNERSHIP-CHECKED. A release naming a different publisher than the one
-        currently holding the key is REFUSED, not obeyed — otherwise a second
-        tab on the same character could evict the first one's live snapshot by
-        navigating away from it.
+        OWNERSHIP-CHECKED, and the rule is simply: a release drops the claim of
+        the publisher it NAMES, and nothing else. The snapshot goes only when
+        that was the last claim. Everything below follows from that sentence.
+
+        A RELEASE MUST NAME ITS PUBLISHER (400 otherwise). You cannot drop a
+        claim you will not identify, and the alternative was not harmless: an
+        anonymous release used to EVICT any record that had no publisher on it,
+        which is the same unowned-eviction hole the ack path had. Against a
+        named record it was worse than useless — it changed nothing and
+        answered `released: true`, so the response lied about what happened.
+        Every real client already names itself (see LivePublish's release()).
+
+        A STRANGER — a publisher that holds no claim here — is refused 409
+        rather than quietly no-op'd, so a caller with a stale idea of what it
+        owns hears about it.
+
+        WHAT THIS DELIBERATELY NO LONGER REFUSES: a release from a tab that
+        holds a claim but is not the most recent publisher. The old check
+        compared against the single `holder` field and turned that case away
+        with the hint "a release only drops your own claim" — which is exactly
+        what the caller was trying to do. Two tabs on one character, the older
+        one navigates away, and its release bounced; it then sat in the roster
+        keeping the character `contested` for the full 90-second stale window
+        with nobody actually on it. Dropping only the named claim is already
+        safe — the others keep the snapshot standing — so the refusal was
+        guarding something the roster logic guards by construction.
         """
         key = self._live_key_for(prefix)
         if key is None:
@@ -989,22 +1011,34 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             payload = {}
         publisher = (payload or {}).get("publisher") or None
+        if not publisher:
+            return self._send_json(400, {
+                "error": "a release must name its publisher",
+                "qualified": key,
+                "hint": "send {\"publisher\": \"<your tab id>\"}; a release "
+                        "drops the claim it names and nothing else",
+            })
         now = time.monotonic()
         with _LIVE_LOCK:
             rec = _LIVE.get(key)
             if not rec:
                 return self._send_json(404, {
                     "error": "no live snapshot", "qualified": key})
-            holder = rec.get("publisher")
-            others = {p: t for p, t in (rec.get("publishers") or {}).items()
-                      if p != publisher and now - t <= LIVE_STALE_AFTER_SEC}
-            if holder and publisher and holder != publisher and others:
+            roster = {p: t for p, t in (rec.get("publishers") or {}).items()
+                      if now - t <= LIVE_STALE_AFTER_SEC}
+            # A stranger holds nothing here, so there is nothing for it to
+            # drop. Say so instead of reporting a release that did not happen.
+            # An empty roster is NOT a stranger case — nobody has claimed this
+            # record, so a named release may retire it.
+            if roster and publisher not in roster:
                 return self._send_json(409, {
-                    "error": "not the current publisher",
+                    "error": "not a publisher of this character",
                     "qualified": key,
-                    "hint": "another tab is publishing this character; a "
-                            "release only drops your own claim",
+                    "publishers": sorted(roster),
+                    "hint": "a release drops only the claim it names, and this "
+                            "one holds none here",
                 })
+            others = {p: t for p, t in roster.items() if p != publisher}
             if others:
                 # Someone else still has it open. Drop only this publisher from
                 # the roster and leave the snapshot standing.
