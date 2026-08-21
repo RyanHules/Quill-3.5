@@ -324,6 +324,12 @@
         snap = window.LivePublish.snapshot();
         if (window.LivePublish.notePublished) window.LivePublish.notePublished(snap);
         snap.published_at = new Date().toISOString();
+        // AFTER notePublished, exactly as the publish path stamps it after
+        // taking the fingerprint: including the tab id (or a clock) in the
+        // fingerprint would make every comparison differ and defeat the
+        // no-change guard. Naming ourselves keeps this tab's claim fresh —
+        // an unnamed ack used to wipe the claim roster outright.
+        if (window.LivePublish.tabId) snap.publisher = window.LivePublish.tabId();
       }
     } catch (e) { stats.lastError = 'snapshot: ' + e; }
 

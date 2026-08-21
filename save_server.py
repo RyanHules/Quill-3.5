@@ -257,6 +257,42 @@ _LIVE_PUB_EVENTS = []
 LIVE_EVENT_LOG_MAX = 256
 
 
+def _live_store(key, snapshot, publisher):
+    """Store a published snapshot, CARRYING THE CLAIM FORWARD.
+
+    The one place the registry record is built, because there are two ways to
+    publish — a tab's own PUT, and the ack that a tab sends after applying an
+    inbound write — and they must agree about the claim roster. They did not:
+    the ack replaced the whole record, so `publisher` and `publishers` were
+    dropped on every inbound write and the ownership check in
+    `_api_delete_live` had nothing to check against until the tab's next
+    heartbeat. In that window any release could evict a live character, which
+    is the exact thing that check exists to prevent (verified 2026-08-22, not
+    inferred: publisher went 'TAB-A' -> None across an ack, and an unowned
+    release then took the character off the bus).
+
+    A merge, not a replace: an ack that names nobody keeps whoever held the
+    claim, rather than clearing it.
+    """
+    now = time.monotonic()
+    with _LIVE_LOCK:
+        prev = _LIVE.get(key) or {}
+        seen = dict(prev.get("publishers") or {})
+        if publisher:
+            seen[publisher] = now
+            # Forget publishers that have gone quiet past the stale window; a
+            # tab that closed an hour ago must not make this character look
+            # contested forever.
+            seen = {p: t for p, t in seen.items()
+                    if now - t <= LIVE_STALE_AFTER_SEC}
+        _LIVE[key] = {
+            "snapshot": snapshot,
+            "received_at": now,
+            "publisher": publisher or prev.get("publisher"),
+            "publishers": seen,
+        }
+
+
 def _live_note_event(qualified, event):
     """Record a live-registry change and wake every parked consumer.
 
@@ -921,26 +957,9 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._send_json(400, {"error": "invalid JSON: %s" % e})
         if not isinstance(payload, dict):
             return self._send_json(400, {"error": "expected a JSON object"})
-        now = time.monotonic()
         # Who published this. A stable per-TAB id, minted once per page load and
         # sent with every publish — see the CLAIM/LEASE note above _LIVE.
-        publisher = payload.get("publisher") or None
-        with _LIVE_LOCK:
-            prev = _LIVE.get(key) or {}
-            seen = dict(prev.get("publishers") or {})
-            if publisher:
-                seen[publisher] = now
-                # Forget publishers that have gone quiet past the stale window;
-                # a tab that closed an hour ago must not make this character
-                # look contested forever.
-                seen = {p: t for p, t in seen.items()
-                        if now - t <= LIVE_STALE_AFTER_SEC}
-            _LIVE[key] = {
-                "snapshot": payload,
-                "received_at": now,
-                "publisher": publisher,
-                "publishers": seen,
-            }
+        _live_store(key, payload, payload.get("publisher") or None)
         _live_note_event(key, "publish")
         self.send_response(204)
         self.end_headers()
@@ -1362,8 +1381,11 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return
         snapshot = payload.get("snapshot")
         if isinstance(snapshot, dict):
-            with _LIVE_LOCK:
-                _LIVE[key] = {"snapshot": snapshot, "received_at": time.monotonic()}
+            # Through the SAME store as a PUT, so the claim survives. The ack
+            # snapshot carries `publisher` when the tab stamps it; when it does
+            # not, _live_store keeps whoever already held the claim rather than
+            # clearing it.
+            _live_store(key, snapshot, snapshot.get("publisher") or None)
             # The ack IS a publish — it carries the post-recalc snapshot — so a
             # consumer must hear about it, or an inbound write would move the
             # sheet without ever waking the panel watching it.

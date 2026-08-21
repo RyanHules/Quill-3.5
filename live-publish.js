@@ -750,6 +750,10 @@
       var q = (window.AppState && window.AppState.currentQualifiedName) || null;
       return snapshot(q);
     },
+    // This tab's publisher id, so live-commands.js can stamp the snapshot it
+    // acks with. An ack IS a publish, and one that names nobody leaves the
+    // server carrying the claim forward on trust instead of refreshing it.
+    tabId: function () { return TAB_ID; },
     // live-commands.js publishes THROUGH its ack (the server stores the
     // snapshot the ack carries, so a writer gets back exactly what a reader
     // would). Recording it here keeps the change-watcher from turning around

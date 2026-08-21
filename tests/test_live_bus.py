@@ -527,6 +527,61 @@ def test_releasing_something_nobody_published_is_a_404():
           st == 404, (st, body))
 
 
+def test_an_ack_publish_does_not_wipe_the_claim():
+    """An ack IS a publish, and it used to REPLACE the registry record.
+
+    That dropped `publisher`/`publishers`, so between an inbound write and the
+    tab's next heartbeat the ownership check in _api_delete_live had nothing to
+    check against and ANY release could evict a live character — the exact
+    thing that check exists to prevent. The suite never looked, which is why it
+    survived; these are the two directions it must hold in.
+    """
+    key = "active/Claimant"
+    q = urllib.request.quote(key, safe="")
+    snap = snapshot("Claimant")
+    snap["publisher"] = "TAB-A"
+    publish(key, snap)
+    _, before = call("GET", "/api/live/" + q)
+    check("ack-claim: a normal publish records the claim",
+          before.get("publisher") == "TAB-A" and before.get("publishers") == ["TAB-A"],
+          f"got {before.get('publisher')} / {before.get('publishers')}")
+
+    # An ack that does NOT name itself must not clear the claim.
+    call("POST", "/api/live-ack/" + q,
+         {"snapshot": snapshot("Claimant", hp_current=7), "results": []})
+    _, after = call("GET", "/api/live/" + q)
+    check("ack-claim: an UNNAMED ack carries the existing claim forward",
+          after.get("publisher") == "TAB-A" and after.get("publishers") == ["TAB-A"],
+          f"got {after.get('publisher')} / {after.get('publishers')}")
+    check("ack-claim: ...and the ack's snapshot is the one stored",
+          after["snapshot"]["hp"]["current"] == 7, f"got {after['snapshot']['hp']}")
+
+    # THE PROPERTY THAT ACTUALLY MATTERS, and the one the bug broke: an
+    # unowned release must not be able to take a live character off the bus.
+    # It is a no-op rather than a 409 — the refusal path is for a release
+    # naming a DIFFERENT tab, and an anonymous one names nobody to compare
+    # against — but either way the character survives, which it did not when
+    # the ack had just emptied the roster.
+    status, body = call("DELETE", "/api/live/" + q, None)
+    check("ack-claim: an unowned release does not evict — someone still holds it",
+          status == 200 and body.get("still_published_by") == 1,
+          f"got {status} {body}")
+    _, still = call("GET", "/api/live/" + q)
+    check("ack-claim: ...so the character is still on the bus",
+          still is not None and "snapshot" in (still or {}), f"got {still}")
+
+    # And a NAMED ack refreshes the roster rather than adding a phantom.
+    acked = snapshot("Claimant", hp_current=5)
+    acked["publisher"] = "TAB-A"
+    call("POST", "/api/live-ack/" + q, {"snapshot": acked, "results": []})
+    _, named = call("GET", "/api/live/" + q)
+    check("ack-claim: a NAMED ack keeps one publisher, not two",
+          named.get("publishers") == ["TAB-A"] and named.get("contested") is False,
+          f"got {named.get('publishers')} contested={named.get('contested')}")
+
+    call("DELETE", "/api/live/" + q, {"publisher": "TAB-A"})
+
+
 # ---- consumer long-poll (/api/live-wait, 2026-08-22) ----------------------
 #
 # The mirror of the command channel: live-commands is how a TAB waits for work,
@@ -677,6 +732,7 @@ def main():
                    test_a_release_from_the_wrong_tab_is_refused,
                    test_release_also_works_over_the_beacon_post_route,
                    test_releasing_something_nobody_published_is_a_404,
+                   test_an_ack_publish_does_not_wipe_the_claim,
                    test_live_wait_without_a_baseline_asks_for_a_resync,
                    test_live_wait_returns_immediately_when_already_behind,
                    test_live_wait_parks_and_is_woken_by_a_publish,
