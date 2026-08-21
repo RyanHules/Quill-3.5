@@ -424,18 +424,25 @@ const Skills = (function () {
     // Class-feature skill bonuses (Druid Nature Sense, …) — same shape.
     const classSkill = (typeof ClassPicker !== "undefined" && ClassPicker.getActiveSkillBonuses)
       ? ClassPicker.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    // Shaped soulmelds. Same shape again, because the rows are the DB's
+    // canonical `bonuses` with the invested essentia already folded into
+    // `amount` — Acrobat Boots at 3 essentia is +8 Balance/Escape Artist/
+    // Jump/Tumble, and it changes the moment a pip is clicked.
+    const meldSkill = (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveSkillBonuses)
+      ? SoulmeldEffects.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
     const racialSituational = [].concat(
       Array.isArray(raceSkill.situational) ? raceSkill.situational : [],
       Array.isArray(tmplSkill.situational) ? tmplSkill.situational : [],
       Array.isArray(featSkill.situational) ? featSkill.situational : [],
       Array.isArray(classSkill.situational) ? classSkill.situational : [],
+      Array.isArray(meldSkill.situational) ? meldSkill.situational : [],
       Array.isArray(traitSkill.situational) ? traitSkill.situational : []);
 
     // Ensure a subtype row exists for any Craft/Perform/Profession-specific
     // structured bonus so the bonus has somewhere to land (Gnome "+2 Craft
     // (alchemy)"); reconcile auto-created rows when their source is removed.
     const directBonusKeys = new Set();
-    [raceSkill, tmplSkill, featSkill, classSkill, bloodlineSkill, traitSkill].forEach((s) => {
+    [raceSkill, tmplSkill, featSkill, classSkill, bloodlineSkill, meldSkill, traitSkill].forEach((s) => {
       if (s && s.direct) Object.keys(s.direct).forEach((k) => directBonusKeys.add(k));
     });
     syncBonusSubtypes(directBonusKeys);
@@ -559,6 +566,9 @@ const Skills = (function () {
       // Class-feature skill bonuses (Druid Nature Sense, …), untyped.
       const classBonus = (classSkill.direct[blKey] || 0)
         + (blBaseKey ? (classSkill.direct[blBaseKey] || 0) : 0) + (classSkill.global || 0);
+      // Shaped-soulmeld skill bonuses, essentia already folded in.
+      const meldBonus = (meldSkill.direct[blKey] || 0)
+        + (blBaseKey ? (meldSkill.direct[blBaseKey] || 0) : 0) + (meldSkill.global || 0);
       // UA trait/flaw skill bonuses — full name + subtype-base match, untyped.
       const traitBonus = (traitSkill.direct[blKey] || 0)
         + (blBaseKey ? (traitSkill.direct[blBaseKey] || 0) : 0) + (traitSkill.global || 0);
@@ -578,7 +588,7 @@ const Skills = (function () {
       const total = abilityMod + ranks + misc + penalty + synergyBonus
         + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + speedBonus
         + moveSkillBonus
-        + raceBonus + tmplBonus + featBonus + classBonus + traitBonus;
+        + raceBonus + tmplBonus + featBonus + classBonus + meldBonus + traitBonus;
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");
@@ -638,6 +648,9 @@ const Skills = (function () {
              "Skill bonus granted by a feat");
         chip(classBonus, "class", "160,190,120",
              "Skill bonus from a class feature");
+        chip(meldBonus, "soulmeld", "120,160,220",
+             "Skill bonus from a shaped soulmeld, scaled by the essentia "
+             + "invested in it");
         if (traitOnly === null) {
           chip(traitBonus, "trait", "190,130,160",
                "Skill bonus from a UA trait or flaw");

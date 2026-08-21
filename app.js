@@ -200,6 +200,10 @@
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveSaveBonuses) ? TraitPicker.getActiveSaveBonuses() : null,
       // Worn magic items (Cloak of Resistance, etc.) — resistance/luck/… save bonuses.
       (typeof Equipment !== "undefined" && Equipment.getActiveSaveBonuses) ? Equipment.getActiveSaveBonuses() : null,
+      // Shaped soulmelds — the rows are the DB's canonical `bonuses` with the
+      // invested essentia already folded into `amount`, so they arrive here in
+      // exactly the shape every other source uses.
+      (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveSaveBonuses) ? SoulmeldEffects.getActiveSaveBonuses() : null,
     ]) {
       if (!src) continue;
       if (src.direct) {
@@ -241,6 +245,10 @@
       (typeof ClassPicker !== "undefined" && ClassPicker.getActiveInitiativeBonuses) ? ClassPicker.getActiveInitiativeBonuses() : null,
       (typeof Feats !== "undefined" && Feats.getActiveInitiativeBonuses) ? Feats.getActiveInitiativeBonuses() : null,
       (typeof TraitPicker !== "undefined" && TraitPicker.getActiveInitiativeBonuses) ? TraitPicker.getActiveInitiativeBonuses() : null,
+      // Bluesteel Bracers is the whole reason: +2 insight initiative while
+      // shaped. (Its arms bind extends the same bonus to allies, which
+      // DND35.flatBonusRowOk drops from the character's own total by scope.)
+      (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveInitiativeBonuses) ? SoulmeldEffects.getActiveInitiativeBonuses() : null,
     ]) {
       if (!src) continue;
       if (Array.isArray(src.direct)) bonuses.initiativeTyped.push(...src.direct);

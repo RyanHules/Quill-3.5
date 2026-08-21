@@ -748,5 +748,14 @@
     hint.textContent = `(soulmeld chakra: ${sm.chakra})`;
   }
 
+  // Exposed for soulmeld-effects.js, which needs the slot↔chakra map to tell
+  // whether a `when: 'bound'` effect row belongs to the chakra this slot
+  // actually is — 55 of the 94 soulmelds bind to more than one, with a
+  // different effect in each. Shared rather than copied: a second copy of this
+  // map is a second thing to keep true.
+  window.SoulmeldPicker = Object.assign(window.SoulmeldPicker || {}, {
+    SLOT_TO_CHAKRAS,
+  });
+
   DB.ready.then((db) => { if (db) init(); });
 })();

@@ -4186,39 +4186,49 @@
     await wait(300);
     expect(SoulmeldEffects.shaped()[0].essentia, 5, 'SME1: five essentia invested');
 
-    // Open the panel so its effects block exists, then state the soulmeld's
-    // rules: +1 damage / -1 attack base, and the same again per essentia,
-    // natural weapons only.
+    // NOTHING is typed in. The effects come from the DB's structured
+    // `bonuses` on the soulmeld itself, so shaping it is the whole input.
+    const dbRows = SoulmeldEffects.dbRowsFor('Dread Carapace');
+    if (!dbRows.length) fail('SME1: Dread Carapace carries no DB bonus rows');
+
+    // MoI's own example: 5 essentia gives -6 attack, and +12 damage with a
+    // bite or +6 with another natural weapon. If this ever reads +5/-5 the
+    // base point (the soulmeld's own, before any essentia) has been dropped.
+    const computed = SoulmeldEffects.computeAll();
+    const pick = (type, scope) => computed.find(
+      e => e.bonus_type === type && (e.applies_to || 'all') === scope);
+    expect(pick('damage', 'natural').amount, 6,
+      'SME1: +6 damage at 5 essentia — the book\'s worked example');
+    expect(pick('damage', 'bite').amount, 12,
+      'SME1: +12 with a bite, which the same example gives');
+    expect(pick('attack', 'natural').amount, -6,
+      'SME1: -6 attack at 5 essentia');
+
+    // The panel renders those same rows, editable, without having created them.
     $('.slot-totem details').open = true;
     const panel = $('.slot-totem details > .slot-sm-info');
     if (panel.hidden) $('.slot-totem .btn-sm-info').click();
     await wait(300);
     const block = $('.slot-totem .sme-block');
     if (!block) fail('SME1: no effects block in the soulmeld panel');
-    block.querySelector('.sme-add').click();
-    block.querySelector('.sme-add').click();
-    await wait(200);
-    const rows = block.querySelectorAll('.sme-row');
-    const fill = (r, base, per, target) => {
-      r.querySelector('.sme-base').value = base;
-      r.querySelector('.sme-per').value = per;
-      r.querySelector('.sme-target').value = target;
-      r.querySelector('.sme-applies').value = 'natural';
-    };
-    fill(rows[0], 1, 1, 'damage');
-    fill(rows[1], -1, -1, 'attack');
-    rows[1].querySelector('.sme-note').dispatchEvent(new Event('input', { bubbles: true }));
-    await wait(300);
+    if (!block.querySelectorAll('.sme-row').length)
+      fail('SME1: the panel shows no rows for a soulmeld the DB has effects for');
 
-    // MoI's own example: 5 essentia gives -6 attack and +6 damage with a
-    // non-bite natural weapon. If this ever reads +5/-5 the base point (the
-    // soulmeld's own, before any essentia) has been dropped.
-    const computed = SoulmeldEffects.computeAll();
-    expect(computed.length, 2, 'SME1: two effects computed');
-    expect(computed.find(e => e.target === 'damage').value, 6,
-      'SME1: +6 damage at 5 essentia — the book\'s worked example');
-    expect(computed.find(e => e.target === 'attack').value, -6,
-      'SME1: -6 attack at 5 essentia');
+    // THE CHAKRA GUARD. Dread Carapace's spell resistance is on its HEART
+    // bind. Shaped in the TOTEM slot and bound, it must NOT apply — a bound
+    // row belongs to one chakra, and 55 of the 94 soulmelds bind to several
+    // with a different effect in each.
+    const boundBox = $('#totem-sm-bound');
+    if (boundBox) {
+      boundBox.checked = true;
+      boundBox.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+      expect(SoulmeldEffects.computeAll().some(e => e.bonus_type === 'spell_resistance'),
+        false, 'SME1: a Heart-bind effect must not fire in the Totem chakra');
+      boundBox.checked = false;
+      boundBox.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(250);
+    }
 
     // It must reach the weapon — and ONLY a weapon it applies to.
     const row = $('.attack-entry');
@@ -4247,10 +4257,17 @@
     window.recalcAll();
     await wait(150);
     const blob = appCollect();
-    expect(!!blob._soulmeld_effects['totem:0'], true, 'SME1: effects are saved');
+    // Unedited effects are NOT saved into the character — they are the book's,
+    // read live from the DB. That is the point: a correction to the data
+    // reaches every character instead of being frozen into each blob at the
+    // moment the soulmeld was first shaped.
+    const savedRows = (blob._soulmeld_effects || {})['totem:0'];
+    expect(!savedRows || !savedRows.rows.length, true,
+      'SME1: an unedited soulmeld stores nothing — the DB is the source');
     appLoad(blob);
     await wait(900);
-    expect(SoulmeldEffects.computeAll().length, 2, 'SME1: and survive a reload');
+    expect(SoulmeldEffects.computeAll().some(e => e.bonus_type === 'attack' && e.amount === -6),
+      true, 'SME1: and the effects survive a reload anyway, from the DB');
     expect($('.attack-entry .dmg-total').textContent, '1d6+10',
       'SME1: with the derived total intact');
     await newCharacter();
