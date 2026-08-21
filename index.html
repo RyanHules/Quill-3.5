@@ -511,7 +511,11 @@
           <div id="combat-options" class="combat-options">
             <span class="co-label" title="Declared once on your action and applied to every attack this round.">Combat options</span>
             <div class="field field-sm" title="Power Attack: subtract this from all melee attack rolls, add it to melee damage. Capped at your BAB. Two-handed doubles the damage; a light or off-hand weapon gets none (natural weapons are an exception and do get it)."><label>Power Attack</label><input type="number" id="co-power-attack" min="0" placeholder="0"></div>
-            <div class="field field-sm" title="Combat Expertise: subtract this from your attack roll and gain the same as a DODGE bonus to AC. Capped at 5 and at your BAB. Attack and AC only — it does NOT affect damage."><label>Combat Expertise</label><input type="number" id="co-combat-expertise" min="0" max="5" placeholder="0"></div>
+            <!-- No hard `max` here: the ceiling is min(5, BAB) normally but
+                 BAB alone with Improved Combat Expertise, so it is computed in
+                 combat-options.js and the box is clamped visibly instead. A
+                 static max="5" would have blocked the feat outright. -->
+            <div class="field field-sm" title="Combat Expertise: subtract this from your attack roll and gain the same as a DODGE bonus to AC. Capped at 5 and at your BAB — or at BAB alone if you have Improved Combat Expertise. Attack and AC only: it does NOT affect damage. A raging barbarian cannot use it at all."><label>Combat Expertise</label><input type="number" id="co-combat-expertise" min="0" placeholder="0"></div>
             <label class="co-toggle" title="Shock Trooper's Heedless Charge: on a charge, with a Power Attack of 5 or more, assign the Power Attack attack-roll penalty to your AC instead. It MOVES the penalty — damage is unchanged."><input type="checkbox" id="co-heedless-charge"> Heedless Charge</label>
             <div id="co-readout" class="co-readout"></div>
           </div>

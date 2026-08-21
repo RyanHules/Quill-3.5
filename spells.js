@@ -2192,6 +2192,118 @@ const Spells = (function () {
     el.appendChild(document.createTextNode(" " + note));
   }
 
+  // ---- raging: spellcasting is off, with two printed exceptions ------------
+  //
+  // Rage's own text: "...nor can he cast spells or activate magic items that
+  // require a command word, spell trigger, or spell completion."
+  //
+  // Ryan expected there to be an exception, "because of course there has to be
+  // one; this is 3.5". There are TWO, and they are shaped differently, which is
+  // why this is not a single boolean:
+  //
+  //   Rage Mage (Complete Warrior), Spell Rage: "A rage mage can cast spells
+  //     while in a rage, as long as the spell's casting time is no more than 1
+  //     full round." Blanket — any of her spellcasting works, subject to that
+  //     casting-time limit and to being in a SPELL rage specifically.
+  //   Champion of Gwynharwyf (BoED), Furious Casting (Ex): "a champion of
+  //     Gwynharwyf can cast her champion spells even while raging. If she has
+  //     another spellcasting class, she cannot cast spells from that class
+  //     while raging, only the spells that she gains from her champion levels."
+  //     PER CLASS — the champion panel stays live and every other one does not.
+  //
+  // So the overlay is per-panel, and the exception is looked up per-panel too.
+  const RAGE_CASTERS = {
+    'rage mage': 'blanket',
+    'champion of gwynharwyf': 'own-class-only',
+  };
+
+  function appliedClassNames() {
+    const out = [];
+    try {
+      if (typeof ClassPicker === 'undefined') return out;
+      const sides = [];
+      if (typeof ClassPicker.getState === 'function') sides.push(...ClassPicker.getState());
+      if (typeof ClassPicker.isGestalt === 'function' && ClassPicker.isGestalt()
+          && typeof ClassPicker.getStateB === 'function') {
+        sides.push(...ClassPicker.getStateB());
+      }
+      for (const c of sides) {
+        const n = String((c && (c.className || c.name)) || '').trim().toLowerCase();
+        if (n) out.push(n);
+      }
+    } catch (e) { /* a picker mid-load must not disable the whole tab */ }
+    return out;
+  }
+
+  function panelTabName(panel) {
+    const m = /^caster-(\d+)$/.exec(panel.id || '');
+    if (!m) return '';
+    const btn = document.querySelector(
+      `#spells-tab-bar .inner-tab[data-caster-idx="${m[1]}"]`);
+    return btn ? btn.textContent : '';
+  }
+
+  // Why THIS panel is or is not shut off while raging.
+  function ragePanelState(panel) {
+    const raging = !!(document.getElementById('rage-active') || {}).checked;
+    if (!raging) return null;
+    const classes = appliedClassNames();
+    // A caster panel's identity is its TAB NAME — set from the class when the
+    // panel is added and renameable by double-click. There is no class field on
+    // the panel itself, so match against the tab button's text.
+    const panelClass = String(panelTabName(panel) || '').trim().toLowerCase();
+
+    for (const name of classes) {
+      const kind = RAGE_CASTERS[name];
+      if (!kind) continue;
+      if (kind === 'blanket') {
+        return { blocked: false,
+                 note: 'Rage Mage: you can cast while raging, but only spells '
+                     + 'with a casting time of 1 full round or less, and only '
+                     + 'during a spell rage.' };
+      }
+      // own-class-only: this panel survives ONLY if it IS that class.
+      if (panelClass && panelClass.indexOf(name) !== -1) {
+        return { blocked: false,
+                 note: 'Furious Casting: champion of Gwynharwyf spells work '
+                     + 'while raging. Spells from your other classes do not.' };
+      }
+    }
+    return { blocked: true,
+             note: 'Rage: "nor can he cast spells or activate magic items that '
+                 + 'require a command word, spell trigger, or spell completion."' };
+  }
+
+  function renderRageOverlay(panel) {
+    const state = ragePanelState(panel);
+    let veil = panel.querySelector('.sc-rage-veil');
+    if (!state || !state.blocked) {
+      if (veil) veil.remove();
+      panel.classList.remove('sc-raging');
+      // A permitted-while-raging panel still says WHY it is permitted.
+      let ok = panel.querySelector('.sc-rage-ok');
+      if (state && state.note) {
+        if (!ok) {
+          ok = document.createElement('div');
+          ok.className = 'sc-rage-ok';
+          panel.insertBefore(ok, panel.firstChild);
+        }
+        ok.textContent = state.note;
+      } else if (ok) { ok.remove(); }
+      return;
+    }
+    const ok = panel.querySelector('.sc-rage-ok');
+    if (ok) ok.remove();
+    panel.classList.add('sc-raging');
+    if (!veil) {
+      veil = document.createElement('div');
+      veil.className = 'sc-rage-veil';
+      panel.insertBefore(veil, panel.firstChild);
+    }
+    veil.innerHTML = '<span class="sc-rage-veil-title">Disabled — Raging</span>'
+      + `<span class="sc-rage-veil-why">${String(state.note).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`;
+  }
+
   // Caster level / save DC / spell damage contributed by shaped soulmelds.
   // Each is a chip beside the field it modifies, never written into it — see
   // the call site for why. Conditional sources are shown and labelled rather
@@ -2290,6 +2402,7 @@ const Spells = (function () {
       // only and Arcane Focus' damage is arcane-only — both conditions ride
       // along in the tooltip rather than being silently generalised.
       renderCasterChips(panel);
+      renderRageOverlay(panel);
       const maxLevel = int(panel.querySelector(".spell-slots-table")?.dataset.maxLevel || 9);
 
       // Classes whose "spells" never allow saving throws (Artificer

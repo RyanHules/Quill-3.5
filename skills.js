@@ -430,6 +430,30 @@ const Skills = (function () {
     // Jump/Tumble, and it changes the moment a pip is clicked.
     const meldSkill = (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveSkillBonuses)
       ? SoulmeldEffects.getActiveSkillBonuses() : { direct: {}, global: 0, situational: [] };
+    // SKILLS A RAGING BARBARIAN CANNOT USE. Rage's own text, verbatim:
+    //
+    //   "While raging, a barbarian cannot use any Charisma-, Dexterity-, or
+    //    Intelligence-based skills (except Balance, Escape Artist, Intimidate,
+    //    and Ride), the Concentration skill, or any abilities that require
+    //    patience or concentration..."
+    //
+    // Struck through rather than zeroed, matching how Combat Expertise is
+    // handled in combat-options: the number the player worked out stays
+    // visible and correct, it is just marked unusable right now. Zeroing would
+    // destroy information to communicate a temporary state.
+    //
+    // Concentration is listed SEPARATELY from the ability clause because it is
+    // a Constitution-based skill — the ability rule alone would not catch it.
+    const raging = !!($("#rage-active") || {}).checked;
+    const RAGE_SKILL_EXEMPT = new Set(["balance", "escape artist", "intimidate", "ride"]);
+    const rageBlocks = (skillName, abilityKey) => {
+      if (!raging) return false;
+      const n = String(skillName || "").toLowerCase();
+      if (n === "concentration") return true;
+      if (RAGE_SKILL_EXEMPT.has(n)) return false;
+      return abilityKey === "CHA" || abilityKey === "DEX" || abilityKey === "INT";
+    };
+
     // ABILITY-CHECK bonuses that the book says also cover that ability's SKILL
     // checks — Sphinx Claws' "+1 on Strength checks and Strength-based skill
     // checks" reaches Climb, Jump and Swim. The DB carries an explicit
@@ -611,6 +635,21 @@ const Skills = (function () {
         + equipBonus + ifamBonus + bloodlineBonus + sizeBonus + speedBonus
         + moveSkillBonus
         + raceBonus + tmplBonus + featBonus + classBonus + meldBonus + traitBonus;
+
+      // Mark the row unusable if Rage forbids this skill. The number stays —
+      // it is still correct, you just cannot make the check right now.
+      const blocked = rageBlocks(skillName, abilityKey);
+      row.classList.toggle("skill-rage-blocked", blocked);
+      if (blocked) {
+        row.title = 'Cannot be used while raging — Rage: "a barbarian cannot '
+          + 'use any Charisma-, Dexterity-, or Intelligence-based skills '
+          + '(except Balance, Escape Artist, Intimidate, and Ride), the '
+          + 'Concentration skill, or any abilities that require patience or '
+          + 'concentration".';
+      } else if (row.title && row.title.indexOf("Cannot be used while raging") === 0) {
+        row.removeAttribute("title");
+      }
+
       const abilityModEl = row.querySelector(".skill-ability-mod");
       if (abilityModEl) abilityModEl.textContent = fmt(abilityMod);
       const totalEl = row.querySelector(".skill-total");

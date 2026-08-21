@@ -58,14 +58,31 @@ const CombatOptions = (function () {
     return Math.max(0, Math.min(intOf((byId('co-power-attack') || {}).value), Math.max(0, bab())));
   }
 
-  // What the player DECLARED, capped by the feat's own two limits. Kept
-  // separate from what is actually in force so the box can be clamped against
-  // the declaration rather than against a value Rage has zeroed — otherwise
-  // raging would silently erase a number the player typed.
+  // Improved Combat Expertise (Complete Warrior; Int 13, Combat Expertise, BAB
+  // +6) lifts the +5 ceiling and leaves only the BAB one: "the number you
+  // subtract from your attack roll and add to your AC can be any number that
+  // does not exceed your base attack bonus", with its own `normal` line
+  // spelling out what it replaces — "With Combat Expertise, the number can be
+  // no greater than +5."
+  function hasImprovedCombatExpertise() {
+    return !!(typeof Feats !== 'undefined' && Feats.hasFeat
+              && Feats.hasFeat('Improved Combat Expertise'));
+  }
+
+  function combatExpertiseCap() {
+    const byBab = Math.max(0, bab());
+    return hasImprovedCombatExpertise() ? byBab : Math.min(5, byBab);
+  }
+
+  // What the player DECLARED, capped by the feat's own limits: "as much as -5"
+  // AND "may not exceed your base attack bonus", unless Improved Combat
+  // Expertise has removed the first. Kept separate from what is actually IN
+  // FORCE so the input box can be clamped against the declaration rather than
+  // against a value Rage has zeroed — otherwise raging would silently erase a
+  // number the player typed.
   function combatExpertiseTyped() {
-    // "as much as -5" AND "may not exceed your base attack bonus" — both caps.
     return Math.max(0, Math.min(intOf((byId('co-combat-expertise') || {}).value),
-                                5, Math.max(0, bab())));
+                                combatExpertiseCap()));
   }
 
   // A raging barbarian cannot use Combat Expertise. Rage's own text: "He can
@@ -254,7 +271,8 @@ const CombatOptions = (function () {
 
   return {
     build, refresh, getState, getActiveACBonuses,
-    powerAttack, combatExpertise, combatExpertiseTyped, raging,
+    powerAttack, combatExpertise, combatExpertiseTyped, combatExpertiseCap,
+    hasImprovedCombatExpertise, raging,
     heedlessCharge, heedlessActive,
     attackPenalty, acChange, damageBonus,
     collectData, loadData,

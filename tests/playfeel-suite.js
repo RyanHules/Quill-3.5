@@ -4366,6 +4366,61 @@
     await newCharacter();
   });
 
+  regression('AC3: raging blocks the right skills, and only those', async () => {
+    await newCharacter();
+    await waitForDb();
+    await wait(300);
+    const rowFor = (label) => {
+      for (const tr of $$('#skills-body-left tr, #skills-body-right tr')) {
+        const n = tr.querySelector('.skill-name');
+        if (n && n.textContent.trim() === label) return tr;
+      }
+      return null;
+    };
+    const blocked = (label) => {
+      const tr = rowFor(label);
+      if (!tr) fail(`AC3: no skill row for ${label}`);
+      return tr.classList.contains('skill-rage-blocked');
+    };
+
+    const rage = $('#rage-active');
+    if (!rage) fail('AC3: no #rage-active toggle');
+    rage.checked = true;
+    rage.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(600);
+
+    // Rage: "cannot use any Charisma-, Dexterity-, or Intelligence-based
+    // skills (except Balance, Escape Artist, Intimidate, and Ride), the
+    // Concentration skill..."
+    expect(blocked('Hide'), true, 'AC3: a DEX skill is blocked');
+    expect(blocked('Bluff'), true, 'AC3: a CHA skill is blocked');
+    expect(blocked('Search'), true, 'AC3: an INT skill is blocked');
+    // The four named exemptions.
+    expect(blocked('Balance'), false, 'AC3: Balance is exempt');
+    expect(blocked('Escape Artist'), false, 'AC3: Escape Artist is exempt');
+    expect(blocked('Intimidate'), false, 'AC3: Intimidate is exempt');
+    expect(blocked('Ride'), false, 'AC3: Ride is exempt');
+    // Concentration is CON-based, so the ability clause alone would MISS it —
+    // the rule names it separately and so must the code.
+    expect(blocked('Concentration'), true,
+      'AC3: Concentration is blocked despite being CON-based');
+    // Everything else is untouched.
+    expect(blocked('Climb'), false, 'AC3: a STR skill is unaffected');
+    expect(blocked('Listen'), false, 'AC3: a WIS skill is unaffected');
+
+    // The number is struck through, NOT destroyed.
+    const hide = rowFor('Hide');
+    const shown = hide.querySelector('.skill-total').textContent;
+    expect(/^[+-]?\d+$/.test(shown.trim()) || shown.trim() === 'NR', true,
+      'AC3: the total is still a real value, just struck through');
+
+    rage.checked = false;
+    rage.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(600);
+    expect(blocked('Hide'), false, 'AC3: ending the rage clears it');
+    await newCharacter();
+  });
+
   regression('SME2: soulmeld defences reach the right totals, and stay out of the wrong ones', async () => {
     if (typeof SoulmeldEffects === 'undefined') fail('SME2: soulmeld-effects.js not loaded');
     await newCharacter();

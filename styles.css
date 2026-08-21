@@ -425,6 +425,37 @@ textarea {
 }
 .ability-check-from { font-size: 0.68rem; opacity: 0.65; }
 
+/* === Raging: skills you cannot use === */
+/* Struck through, not zeroed. The total is still correct — you simply cannot
+   make the check while raging — so destroying the number to communicate a
+   temporary state would lose real information. */
+.skill-rage-blocked .skill-name,
+.skill-rage-blocked .skill-total {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+.skill-rage-blocked { background: rgba(190,90,70,0.07); }
+
+/* === Raging: spellcasting disabled === */
+/* A banner rather than a modal or a disabled-input sweep: the panel's contents
+   stay readable and editable (you may well be planning the round AFTER the
+   rage), it is just unmistakable that you cannot cast right now. */
+.sc-rage-veil {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem;
+  background: rgba(190,90,70,0.16); border: 1px solid rgba(190,90,70,0.55);
+  border-radius: var(--radius); padding: 0.4rem 0.6rem; margin-bottom: 0.5rem;
+}
+.sc-rage-veil-title { font-weight: 700; letter-spacing: 0.02em; }
+.sc-rage-veil-why { font-size: 0.75rem; opacity: 0.8; font-style: italic; }
+.sc-raging .spell-header { opacity: 0.55; }
+/* The permitted case says why it is permitted — an exception that looks like
+   an oversight is as bad as a missing rule. */
+.sc-rage-ok {
+  background: rgba(120,180,120,0.14); border: 1px solid rgba(120,180,120,0.45);
+  border-radius: var(--radius); padding: 0.3rem 0.55rem; margin-bottom: 0.5rem;
+  font-size: 0.75rem; font-style: italic;
+}
+
 /* === Ability Scores Table === */
 .ability-table { width: 100%;border-collapse: collapse;}
 
