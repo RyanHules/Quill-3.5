@@ -527,6 +527,131 @@ def test_releasing_something_nobody_published_is_a_404():
           st == 404, (st, body))
 
 
+# ---- consumer long-poll (/api/live-wait, 2026-08-22) ----------------------
+#
+# The mirror of the command channel: live-commands is how a TAB waits for work,
+# live-wait is how a READER waits for news. The properties worth pinning are
+# the three OUTCOMES staying distinct — something changed, nothing changed, and
+# you fell too far behind — because collapsing the third into the second is the
+# silent-data-loss failure the sequence number exists to prevent.
+
+def test_live_wait_without_a_baseline_asks_for_a_resync():
+    status, body = call("GET", "/api/live-wait?wait=0")
+    check("live-wait: no `since` returns immediately", status == 200,
+          f"got {status}")
+    check("live-wait: ...and says RESYNC rather than 'nothing changed'",
+          body and body.get("resync") is True and body.get("changed") == [],
+          f"got {body}")
+    check("live-wait: ...handing back a sequence to tail from",
+          body and isinstance(body.get("seq"), int), f"got {body}")
+
+
+def test_live_wait_returns_immediately_when_already_behind():
+    _, before = call("GET", "/api/live-wait?wait=0")
+    seq = before["seq"]
+    publish("active/Waiter", snapshot("Waiter"))
+    status, body = call("GET", f"/api/live-wait?since={seq}&wait=0")
+    check("live-wait: a publish moves the sequence", body["seq"] > seq,
+          f"{seq} -> {body}")
+    check("live-wait: ...and names what changed",
+          body["changed"] == [{"qualified": "active/Waiter", "event": "publish"}],
+          f"got {body['changed']}")
+    check("live-wait: ...without asking for a resync", body["resync"] is False,
+          f"got {body}")
+
+
+def test_live_wait_parks_and_is_woken_by_a_publish():
+    _, before = call("GET", "/api/live-wait?wait=0")
+    seq = before["seq"]
+    out = {}
+
+    def reader():
+        out["t0"] = time.monotonic()
+        out["status"], out["body"] = call("GET", f"/api/live-wait?since={seq}&wait=10")
+        out["elapsed"] = time.monotonic() - out["t0"]
+
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
+    time.sleep(0.4)                      # let it actually park
+    check("live-wait: the reader is still parked, not spinning", t.is_alive())
+    publish("active/Woken", snapshot("Woken"))
+    t.join(timeout=10)
+    check("live-wait: a publish WAKES the parked reader", not t.is_alive())
+    check("live-wait: ...promptly, rather than at the timeout",
+          out.get("elapsed", 99) < 5, f"took {out.get('elapsed')}s")
+    check("live-wait: ...with the event that woke it",
+          any(e["qualified"] == "active/Woken" and e["event"] == "publish"
+              for e in out["body"]["changed"]), f"got {out.get('body')}")
+
+
+def test_live_wait_reports_a_release_so_a_panel_can_go_offline():
+    publish("active/Leaver", snapshot("Leaver"))
+    _, before = call("GET", "/api/live-wait?wait=0")
+    seq = before["seq"]
+    call("DELETE", "/api/live/" + urllib.request.quote("active/Leaver", safe=""))
+    _, body = call("GET", f"/api/live-wait?since={seq}&wait=0")
+    check("live-wait: a tab going away is REPORTED, not just a missing read",
+          body["changed"] == [{"qualified": "active/Leaver", "event": "release"}],
+          f"got {body['changed']}")
+
+
+def test_live_wait_timing_out_is_not_a_resync():
+    _, before = call("GET", "/api/live-wait?wait=0")
+    seq = before["seq"]
+    status, body = call("GET", f"/api/live-wait?since={seq}&wait=1")
+    check("live-wait: an idle window returns empty", body["changed"] == [],
+          f"got {body}")
+    check("live-wait: ...and NOT resync — nothing happened is not data loss",
+          body["resync"] is False, f"got {body}")
+
+
+def test_live_wait_falling_off_the_log_demands_a_resync():
+    """THE GUARD THIS ENDPOINT NEEDS MOST.
+
+    A bounded event log means a reader that blips for long enough cannot be
+    told what it missed. It must be told THAT it missed, or it treats a
+    truncated list as the whole story — the exact gap the sequence number is
+    supposed to close. Overflows the log rather than mocking it.
+    """
+    for i in range(ss.LIVE_EVENT_LOG_MAX + 20):
+        publish("active/Flood%d" % (i % 5), snapshot("Flood%d" % (i % 5)))
+    _, now = call("GET", "/api/live-wait?wait=0")
+    status, body = call("GET", "/api/live-wait?since=1&wait=0")
+    check("live-wait: a reader far behind the log gets RESYNC",
+          body["resync"] is True, f"got resync={body.get('resync')}")
+    check("live-wait: ...and the current sequence to restart from",
+          body["seq"] == now["seq"], f"got {body['seq']} vs {now['seq']}")
+    # And the negative control: a reader INSIDE the log is not told to resync.
+    _, fresh = call("GET", "/api/live-wait?wait=0")
+    publish("active/Flood0", snapshot("Flood0"))
+    _, body2 = call("GET", f"/api/live-wait?since={fresh['seq']}&wait=0")
+    check("live-wait: ...but a reader still inside the log is NOT",
+          body2["resync"] is False and body2["changed"], f"got {body2}")
+
+
+def test_live_wait_rejects_a_nonsense_since():
+    status, body = call("GET", "/api/live-wait?since=banana&wait=0")
+    check("live-wait: a non-numeric `since` is a 400, not a silent 0",
+          status == 400, f"got {status} {body}")
+
+
+def test_live_wait_filters_by_qualified():
+    publish("active/Mine", snapshot("Mine"))
+    _, before = call("GET", "/api/live-wait?wait=0")
+    seq = before["seq"]
+    publish("active/Theirs", snapshot("Theirs"))
+    status, body = call(
+        "GET", f"/api/live-wait?since={seq}&qualified=active%2FMine&wait=1")
+    check("live-wait: a filtered reader ignores another character's publish",
+          body["changed"] == [], f"got {body['changed']}")
+    publish("active/Mine", snapshot("Mine"))
+    _, body2 = call(
+        "GET", f"/api/live-wait?since={seq}&qualified=active%2FMine&wait=0")
+    check("live-wait: ...and does see its own",
+          any(e["qualified"] == "active/Mine" for e in body2["changed"]),
+          f"got {body2['changed']}")
+
+
 def main():
     global BASE
     server = ss.CharacterSheetServer(("127.0.0.1", 0), ss.CharacterSheetHandler)
@@ -551,7 +676,15 @@ def main():
                    test_a_tab_releasing_its_claim_makes_the_character_absent,
                    test_a_release_from_the_wrong_tab_is_refused,
                    test_release_also_works_over_the_beacon_post_route,
-                   test_releasing_something_nobody_published_is_a_404]:
+                   test_releasing_something_nobody_published_is_a_404,
+                   test_live_wait_without_a_baseline_asks_for_a_resync,
+                   test_live_wait_returns_immediately_when_already_behind,
+                   test_live_wait_parks_and_is_woken_by_a_publish,
+                   test_live_wait_reports_a_release_so_a_panel_can_go_offline,
+                   test_live_wait_timing_out_is_not_a_resync,
+                   test_live_wait_rejects_a_nonsense_since,
+                   test_live_wait_filters_by_qualified,
+                   test_live_wait_falling_off_the_log_demands_a_resync]:
             fn()
     finally:
         server.shutdown()

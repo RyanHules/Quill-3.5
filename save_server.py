@@ -228,6 +228,53 @@ LIVE_WRITE_TIMEOUT_MAX = 30.0
 # timeout or the connection dies under the poll rather than returning empty.
 LIVE_POLL_MAX_SEC = 25.0
 
+# CONSUMER long-poll (2026-08-22, asked for by Vaire). The mirror of the command
+# channel above: that one is how a TAB waits for work, this is how a READER
+# waits for news, so a party panel updates the instant a character republishes
+# instead of polling on a timer.
+#
+# Its own condvar, NOT _LIVE_LOCK and not the command one. Not _LIVE_LOCK for
+# the reason written above that: a 25-second park holding the snapshot lock
+# would stall every publish and read. Not the command condvar either, because
+# every publish would then wake every tab's command poll to discover it has
+# nothing to do.
+#
+# The event log is guarded by this condvar ALONE, so a parked reader never
+# needs the snapshot lock and the two locks are never held at once — there is
+# no lock ORDER to get wrong. Publishers mutate _LIVE under _LIVE_LOCK, release
+# it, and only then record the event. A reader may therefore wake and re-read a
+# state slightly NEWER than the event that woke it, which is harmless: the
+# event says "something changed", not what.
+_LIVE_PUB_COND = threading.Condition()
+_LIVE_PUB_SEQ = [0]
+# A bounded log, and the bound is the interesting part. A monotonic sequence
+# only closes the reconnect gap if the events are still THERE — a reader whose
+# `since` has fallen off the end must be told to RESYNC, distinguishably from
+# "nothing changed", or it silently misses everything that scrolled past, which
+# is the exact failure the sequence exists to prevent. Same rule as `stale`
+# meaning ABSENT rather than empty: an unknown must never present as a nothing.
+_LIVE_PUB_EVENTS = []
+LIVE_EVENT_LOG_MAX = 256
+
+
+def _live_note_event(qualified, event):
+    """Record a live-registry change and wake every parked consumer.
+
+    Call AFTER releasing _LIVE_LOCK. `event` is "publish" or "release" — a tab
+    going away matters to a reader as much as a new snapshot does, because it
+    is what flips a character to offline on the panel.
+    """
+    with _LIVE_PUB_COND:
+        _LIVE_PUB_SEQ[0] += 1
+        _LIVE_PUB_EVENTS.append({
+            "seq": _LIVE_PUB_SEQ[0],
+            "qualified": qualified,
+            "event": event,
+        })
+        if len(_LIVE_PUB_EVENTS) > LIVE_EVENT_LOG_MAX:
+            del _LIVE_PUB_EVENTS[:len(_LIVE_PUB_EVENTS) - LIVE_EVENT_LOG_MAX]
+        _LIVE_PUB_COND.notify_all()
+
 # Fields a consumer may write, as (pattern, kind, description). The pattern is
 # matched against the DOTTED PATH OF THE PUBLISHED SNAPSHOT — a consumer reads
 # `snapshot["hp"]["current"]` and writes `"hp.current"`, so the read and write
@@ -760,6 +807,10 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             return self._api_live_writable()
         if self.path.startswith("/api/live-commands/"):
             return self._api_live_commands()
+        # Parsed path, not the raw one: this endpoint is always called WITH a
+        # query string, so an equality test against self.path never matches.
+        if urllib.parse.urlparse(self.path).path == "/api/live-wait":
+            return self._api_live_wait()
         if self.path.startswith("/api/live/"):
             return self._api_get_live()
         if self._is_index_request():
@@ -890,6 +941,7 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
                 "publisher": publisher,
                 "publishers": seen,
             }
+        _live_note_event(key, "publish")
         self.send_response(204)
         self.end_headers()
 
@@ -939,13 +991,16 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
                 # the roster and leave the snapshot standing.
                 rec["publishers"] = others
                 rec["publisher"] = sorted(others, key=lambda p: -others[p])[0]
-                return self._send_json(200, {
-                    "released": True, "qualified": key,
-                    "still_published_by": len(others),
-                })
-            _LIVE.pop(key, None)
+                still = len(others)
+            else:
+                _LIVE.pop(key, None)
+                still = 0
+        # Only a release that actually took the character OFF the bus is news.
+        # One of two tabs closing changes nothing a reader can see.
+        if still == 0:
+            _live_note_event(key, "release")
         return self._send_json(200, {"released": True, "qualified": key,
-                                     "still_published_by": 0})
+                                     "still_published_by": still})
 
     def _api_get_live(self):
         key = self._live_key()
@@ -1169,6 +1224,88 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
                     "snapshot before deciding.",
         })
 
+    def _api_live_wait(self):
+        """A CONSUMER long-polls here for news. The mirror of live-commands.
+
+            GET /api/live-wait?since=<seq>[&qualified=<q>][&wait=<sec>]
+
+        Returns {"seq", "changed": [{"qualified", "event"}], "resync"}.
+
+        THREE OUTCOMES, and keeping them distinct is the whole point:
+
+          changed non-empty        here is what you missed, in order
+          changed empty, resync    you fell too far behind (or have no
+                                   baseline) — refetch everything; do NOT
+                                   read this as "nothing happened"
+          changed empty, no resync genuinely nothing happened; re-arm
+
+        Omitting `since` is the no-baseline case: it returns the current
+        sequence immediately with resync set, so a reader's first call gives it
+        a number to tail from rather than parking it against an unknown.
+        """
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+
+        def _first(name):
+            got = query.get(name)
+            return got[0] if got else None
+
+        raw_since = _first("since")
+        since = None
+        if raw_since is not None:
+            try:
+                since = int(raw_since)
+            except (TypeError, ValueError):
+                return self._send_json(400, {
+                    "error": "since must be an integer sequence number"})
+            if since < 0:
+                return self._send_json(400, {"error": "since must not be negative"})
+        want = _first("qualified")
+        try:
+            wait = float(_first("wait") or LIVE_POLL_MAX_SEC)
+        except (TypeError, ValueError):
+            wait = LIVE_POLL_MAX_SEC
+        wait = max(0.0, min(LIVE_POLL_MAX_SEC, wait))
+
+        deadline = time.monotonic() + wait
+        with _LIVE_PUB_COND:
+            while True:
+                cur = _LIVE_PUB_SEQ[0]
+                if since is None:
+                    # No baseline. Hand back the current sequence and say so.
+                    return self._send_json(200, {
+                        "seq": cur, "changed": [], "resync": True,
+                        "poll_max_seconds": LIVE_POLL_MAX_SEC,
+                    })
+                if since < cur:
+                    oldest = _LIVE_PUB_EVENTS[0]["seq"] if _LIVE_PUB_EVENTS else cur + 1
+                    # `since` older than the log means events were dropped. The
+                    # reader cannot be told what it missed, so it is told THAT
+                    # it missed rather than being handed a partial list that
+                    # looks complete.
+                    lost = since < oldest - 1
+                    changed = [
+                        {"qualified": e["qualified"], "event": e["event"]}
+                        for e in _LIVE_PUB_EVENTS
+                        if e["seq"] > since and (want is None or e["qualified"] == want)
+                    ]
+                    if changed or lost or want is None:
+                        return self._send_json(200, {
+                            "seq": cur, "changed": changed, "resync": lost,
+                            "poll_max_seconds": LIVE_POLL_MAX_SEC,
+                        })
+                    # A filtered reader whose character saw nothing keeps
+                    # waiting rather than spinning on other people's events —
+                    # but it takes the new sequence with it, so it does not
+                    # re-scan the same span every time round.
+                    since = cur
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return self._send_json(200, {
+                        "seq": _LIVE_PUB_SEQ[0], "changed": [], "resync": False,
+                        "poll_max_seconds": LIVE_POLL_MAX_SEC,
+                    })
+                _LIVE_PUB_COND.wait(remaining)
+
     def _api_live_commands(self):
         """A tab long-polls here for work. Returns instantly when work waits."""
         key = self._live_key_for("/api/live-commands/")
@@ -1227,6 +1364,10 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         if isinstance(snapshot, dict):
             with _LIVE_LOCK:
                 _LIVE[key] = {"snapshot": snapshot, "received_at": time.monotonic()}
+            # The ack IS a publish — it carries the post-recalc snapshot — so a
+            # consumer must hear about it, or an inbound write would move the
+            # sheet without ever waking the panel watching it.
+            _live_note_event(key, "publish")
         results = payload.get("results")
         if not isinstance(results, list):
             results = []
