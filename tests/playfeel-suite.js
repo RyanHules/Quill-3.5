@@ -3590,6 +3590,20 @@
     row.querySelector('.dmg-style').dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Incarnum capacity. TWO different fields, and only one of them makes pips:
+  //   #sm-base-capacity  the per-soulmeld essentia CAP — this is what
+  //                      equipment.js#getCapacity reads to build the pips
+  //   #sm-max-essentia   the character's whole essentia POOL, a separate
+  //                      number that does not affect any slot's pip count
+  // Setting only the pool renders no pips at all, silently, which is how GR9
+  // first failed. One helper so the distinction is made once.
+  function setIncarnumCapacity(perSoulmeld = 4, pool = 8) {
+    set('sm-base-capacity', perSoulmeld);
+    set('sm-max-essentia', pool);
+    set('sm-max-soulmelds', 4);
+    set('sm-max-binds', 2);
+  }
+
   // Bind a soulmeld into a named body slot (not the totem).
   function bindSlot(slotId, name) {
     const slot = document.querySelector(`.magic-item-slot[data-slot-id="${slotId}"]`);
@@ -3893,6 +3907,122 @@
         'GR8: Dread Carapace doubles "all natural attacks" — 20 becomes 19-20');
       expect(rows[0].querySelector('.atk-crit-meld').textContent, '',
         'GR8: ...and must not touch the greatsword');
+    });
+
+  regression('GR9: granted flight fills the maneuverability box and then lets go',
+    async () => {
+      // Auto-filled from whatever granted the flight, but EDITABLE, because the
+      // granted value is a default and not a law — Improved Flight raises it a
+      // step and the sheet has no way to know.
+      //
+      // The trusted-keystroke half cannot be driven from here: a synthetic
+      // event cannot set `isTrusted`, and `isTrusted` IS the guard. So this
+      // asserts the two halves that ARE testable — it fills and marks itself,
+      // and once the marker is gone a recalc never touches it again — plus the
+      // save round-trip, which is what makes the handover survive a reload.
+      await newCharacter();
+      bindSlot('shoulders', 'Pegasus Cloak');   // fly 10 ft per essentia, average
+      setIncarnumCapacity();
+      window.recalcAll();
+      await wait(200);
+      const slot = document.querySelector('.magic-item-slot[data-slot-id="shoulders"]');
+      const pips = slot.querySelectorAll('.essentia-pip');
+      for (let i = 0; i < 3 && i < pips.length; i++) pips[i].click();
+      await wait(250);
+      window.recalcAll();
+      await wait(150);
+
+      const man = $('#speed-fly-maneuver');
+      expect(man.value, 'average', 'GR9: filled from the soulmeld that grants the flight');
+      expect(man.dataset.fromSpeed != null, true, 'GR9: and marked as auto-filled');
+      expect($('#speed-fly-current').textContent, '30',
+        'GR9: 3 essentia at 10 ft each');
+
+      // The marker must PERSIST, or a loaded character reads as player-owned
+      // and the box freezes at whatever it held when saved.
+      expect(Character.collectData()._flyManeuverAuto, true,
+        'GR9: the auto-fill marker round-trips');
+
+      // Post-handover: the marker is gone (a real keystroke deletes it) and the
+      // player's choice must survive every subsequent recalc.
+      delete man.dataset.fromSpeed;
+      man.value = 'perfect';
+      window.recalcAll();
+      await wait(150);
+      expect(man.value, 'perfect',
+        'GR9: once handed over, a recalc must not overwrite the player');
+      expect(!!Character.collectData()._flyManeuverAuto, false,
+        'GR9: ...and it saves as theirs, not as auto-filled');
+    });
+
+  regression('GR10: a bind that attaches a RULE shows it at the attack', async () => {
+    // Worg Pelt's hands bind lets a bite hit trip for free. No number, so it
+    // is not a rider — an attack_rider must state its damage — but it is a
+    // rule the player needs AT the attack rather than in a panel they would
+    // have to go looking for mid-combat.
+    await newCharacter();
+    setAbilities({ STR: 16 });
+    fillWeaponRow(await firstAttackRow(),
+      { name: 'Bite', dice: '1d6', style: 'natural' });
+    bindSlot('hands', 'Worg Pelt');
+    window.recalcAll();
+    await wait(250);
+
+    const row = $('#attacks-container .attack-entry');
+    expectIncludes(row.querySelector('.dmg-riders-readout').textContent,
+      'free trip attempt',
+      'GR10: the trip rule reaches the Bite row');
+    expectIncludes(row.querySelector('.dmg-riders-readout').textContent,
+      'Worg Pelt', 'GR10: ...and says which soulmeld put it there');
+
+    // Scoped to BITES. A note that shows on every attack proves nothing.
+    $('#btn-add-attack').click();
+    await wait(250);
+    const rows = $$('#attacks-container .attack-entry');
+    const claw = rows[rows.length - 1];
+    fillWeaponRow(claw, { name: 'Claw', dice: '1d4', style: 'natural' });
+    window.recalcAll();
+    await wait(200);
+    expect(claw.querySelector('.dmg-riders-readout').textContent, '',
+      'GR10: the bite-only rule must not appear on a claw');
+  });
+
+  regression('GR11: a bind can improve a movement mode it already granted',
+    async () => {
+      // Airstep Sandals grants flight with GOOD maneuverability while shaped;
+      // its feet bind makes that same flight PERFECT. A modifier on a mode
+      // rather than a grant of one — the movement twin of the attack
+      // modifiers, and inert until now.
+      await newCharacter();
+      const slot = document.querySelector('.magic-item-slot[data-slot-id="feet"]');
+      const sw = slot.querySelector('.slot-soulmeld-check');
+      if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+      const n = slot.querySelector('.slot-sm-name');
+      n.value = 'Airstep Sandals';
+      n.dispatchEvent(new Event('input', { bubbles: true }));
+      n.dispatchEvent(new Event('change', { bubbles: true }));
+      const b = slot.querySelector('.slot-sm-bound');
+      b.checked = false;
+      b.dispatchEvent(new Event('change', { bubbles: true }));
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const flyOf = () => (SoulmeldEffects.grantedMovement()
+        .find(m => m.mode === 'fly') || {});
+      expect(flyOf().maneuverability, 'good',
+        'GR11: shaped, the sandals fly with GOOD maneuverability');
+
+      b.checked = true;
+      b.dispatchEvent(new Event('change', { bubbles: true }));
+      window.recalcAll();
+      await wait(250);
+      expect(flyOf().maneuverability, 'perfect',
+        'GR11: the feet bind upgrades that same flight to PERFECT');
+      // It is an ACTIVATED flight (a move action, beginning and ending on a
+      // solid surface), so it must NOT grant a standing fly speed.
+      expect(flyOf().activated, true,
+        'GR11: still a move action, not a standing speed');
     });
 
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
