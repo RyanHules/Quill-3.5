@@ -233,6 +233,11 @@
       // adds those rows itself, because a soulmeld's natural armor is not in
       // the #ac-natural field the way a race's is.
       (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getActiveACBonuses) ? SoulmeldEffects.getActiveACBonuses() : null,
+      // Combat Expertise (a DODGE bonus — stacks, applies to touch, lost when
+      // flat-footed) and the Power Attack penalty Heedless Charge moves onto
+      // AC (untyped, applies everywhere). Two rows, because netting them made
+      // flat-footed AC wrong.
+      (typeof CombatOptions !== "undefined" && CombatOptions.getActiveACBonuses) ? CombatOptions.getActiveACBonuses() : null,
     ]) {
       if (!src) continue;
       if (Array.isArray(src.items)) bonuses.acItems.push(...src.items);
@@ -279,9 +284,14 @@
     // Power Attack penalty Heedless Charge moved onto AC. The attack and damage
     // halves are read directly by their own calculators, which need the raw
     // numbers rather than a sum.
-    if (typeof CombatOptions !== "undefined" && CombatOptions.getActiveBonuses) {
-      bonuses.ac += CombatOptions.getActiveBonuses().ac || 0;
-    }
+    // Combat options now arrive TYPED, through acItems above — see
+    // CombatOptions.getActiveACBonuses for why netting them into one number
+    // was wrong. What REMAINS in `bonuses.ac` is deliberate and correct: Rage's
+    // "-2 penalty to Armor Class" and the condition penalties (Blinded -2,
+    // Cowering -2, Stunned -2, Pinned -4, Squeezing -4) are all UNTYPED
+    // penalties in their own printed text, and an untyped penalty applies to
+    // normal, touch and flat-footed AC alike — which is exactly what this
+    // bucket does. They are not oversights left behind.
 
     // Soulmeld AC now arrives TYPED, through acItems above, rather than as a
     // lump in `bonuses.ac`. That bucket is added to the full, touch AND

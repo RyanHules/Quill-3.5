@@ -114,8 +114,45 @@ const CombatOptions = (function () {
   // Fed into app.js's collectActiveBonuses so Combat Expertise's dodge bonus
   // and Heedless Charge's AC cost reach the AC total the same way every other
   // programmatic bonus does.
-  function getActiveBonuses() {
-    return { ac: acChange() };
+  // AC as TYPED protItem rows for the Defense Onion, replacing the single
+  // netted number this used to hand over (2026-08-21).
+  //
+  // WHY NETTING WAS WRONG. `acChange()` is Combat Expertise MINUS the Power
+  // Attack penalty Heedless Charge moved onto AC — but those two are different
+  // kinds of modifier, and the book is explicit about both:
+  //
+  //   Combat Expertise (PHB): "add the same number (+5 or less) as a DODGE
+  //     bonus to your Armor Class". And the Dodge feat states the general rule
+  //     the type carries: "A condition that makes you lose your Dexterity bonus
+  //     to Armor Class (if any) also makes you lose dodge bonuses." So it
+  //     applies to touch AC and is LOST when flat-footed.
+  //   Heedless Charge (Shock Trooper, Complete Warrior): "you can assign any
+  //     portion of the attack roll penalty from Power Attack to your Armor
+  //     Class instead, up to a maximum equal to your base attack bonus." No
+  //     type — so it is an untyped penalty and applies to every AC.
+  //
+  // Netting them hid that difference. Combat Expertise 5 with Heedless Charge 5
+  // came through as 0, which is right for normal AC and WRONG flat-footed: you
+  // lose the dodge bonus and still take the penalty, so flat-footed AC should
+  // be -5. Two rows, correctly flagged, and the onion resolves it.
+  //
+  // Not included, deliberately: the charge's OWN -2 to AC, which the same
+  // Heedless Charge text mentions ("in addition to normal charge modifiers
+  // (which give you a -2 penalty to AC ...)"). That is a condition of charging,
+  // not a combat option, and belongs to whoever is tracking the round.
+  function getActiveACBonuses() {
+    const items = [];
+    const ce = combatExpertise();
+    if (ce) {
+      items.push({ type: 'Dodge', ac: ce, touch: true, flatfooted: false,
+                   stacks: true, source: 'Combat Expertise' });
+    }
+    const moved = heedlessActive() ? powerAttack() : 0;
+    if (moved) {
+      items.push({ type: 'Untyped', ac: -moved, touch: true, flatfooted: true,
+                   stacks: true, source: 'Heedless Charge (Shock Trooper)' });
+    }
+    return { items, situational: [] };
   }
 
   // ---- UI -----------------------------------------------------------------
@@ -187,7 +224,7 @@ const CombatOptions = (function () {
   }
 
   return {
-    build, refresh, getState, getActiveBonuses,
+    build, refresh, getState, getActiveACBonuses,
     powerAttack, combatExpertise, heedlessCharge, heedlessActive,
     attackPenalty, acChange, damageBonus,
     collectData, loadData,

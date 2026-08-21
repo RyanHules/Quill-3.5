@@ -4273,6 +4273,55 @@
     await newCharacter();
   });
 
+  regression('AC1: Combat Expertise is a DODGE bonus, and Heedless Charge is not', async () => {
+    if (typeof CombatOptions === 'undefined') fail('AC1: combat-options.js not loaded');
+    await newCharacter();
+    await waitForDb();
+    setAbilities({ DEX: 10 });          // mod 0, so the arithmetic is legible
+    set('bab-1', '10');                 // enough BAB for a 5-point Power Attack
+    await wait(300);
+
+    const acNum = (sel) => parseInt($(sel).textContent, 10) || 0;
+    const base = { total: acNum('#ac-total'), touch: acNum('#ac-touch'),
+                   ff: acNum('#ac-flatfooted') };
+
+    // Combat Expertise 5. PHB: "add the same number (+5 or less) as a DODGE
+    // bonus to your Armor Class"; the Dodge feat carries the type's rule — "A
+    // condition that makes you lose your Dexterity bonus to Armor Class (if
+    // any) also makes you lose dodge bonuses."
+    set('co-combat-expertise', '5');
+    await wait(400);
+    window.recalcAll();
+    await wait(300);
+    expect(acNum('#ac-total'), base.total + 5,
+      'AC1: Combat Expertise reaches normal AC');
+    expect(acNum('#ac-touch'), base.touch + 5,
+      'AC1: ...and touch AC, because a dodge bonus applies to touch');
+    expect(acNum('#ac-flatfooted'), base.ff,
+      'AC1: ...but NOT flat-footed AC — a dodge bonus is lost with your Dex bonus');
+
+    // Now add Heedless Charge (Shock Trooper): "you can assign any portion of
+    // the attack roll penalty from Power Attack to your Armor Class instead".
+    // No type is given, so it is an UNTYPED penalty and applies everywhere.
+    //
+    // THE GUARD. These used to be netted into one number, so +5 dodge with a
+    // -5 moved penalty came through as 0 — right for normal AC and wrong
+    // flat-footed, where you lose the dodge and keep the penalty.
+    set('co-power-attack', '5');
+    const hc = $('#co-heedless-charge');
+    hc.checked = true;
+    hc.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(400);
+    window.recalcAll();
+    await wait(300);
+    expect(acNum('#ac-total'), base.total,
+      'AC1: +5 dodge and -5 untyped net out on normal AC');
+    expect(acNum('#ac-flatfooted'), base.ff - 5,
+      'AC1: but flat-footed loses the dodge and KEEPS the penalty — the bug netting hid');
+
+    await newCharacter();
+  });
+
   regression('SME2: soulmeld defences reach the right totals, and stay out of the wrong ones', async () => {
     if (typeof SoulmeldEffects === 'undefined') fail('SME2: soulmeld-effects.js not loaded');
     await newCharacter();
