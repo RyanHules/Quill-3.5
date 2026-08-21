@@ -52,7 +52,14 @@
   //    vulnerabilities / fast_healing / regeneration in the DB's own shapes,
   //    plus `notes_may_contain_riders` and a parsed view of DR beside the
   //    verbatim string. Additive: every schema-2 field is still emitted.
-  var SCHEMA = 3;
+  // 4: + `damage_structured` on each attack row — dice, fighting style with
+  //    BOTH multipliers it implies, per-ability terms with their multiplier
+  //    RESOLVED (never the UI's "auto"), and the folded flat total. This is the
+  //    field Vaire asked for after removing his `S` substitution: the live
+  //    party writes `3d6+.5*S` and `d4+.5*S`, and no consumer can recover a
+  //    half-Strength secondary natural from that string. The verbatim string is
+  //    still emitted and is still authoritative. Additive.
+  var SCHEMA = 4;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -125,7 +132,13 @@
         // damage this weapon deals sometimes, and folding it into the headline
         // figure would overstate every swing against everything else. Roll it
         // when the condition holds; the sheet is not in a position to know.
-        damage_riders: damageRiders(row)
+        damage_riders: damageRiders(row),
+        // The structured form of `damage` above, so a consumer never has to
+        // parse "3d6+.5*S". Published ALONGSIDE the string, never instead of
+        // it — the string is what the player typed and stays authoritative.
+        // Null when the module is absent, for the same reason damage_riders is:
+        // "not modelled" and "none" must not share a representation.
+        damage_structured: damageStructured(row)
       });
     });
     return out;
@@ -134,6 +147,13 @@
   // Null rather than [] when the module is absent, for the same reason the
   // defensive riders omit their keys: "not modelled" and "none" are different
   // statements and must not share a representation.
+  function damageStructured(row) {
+    try {
+      if (typeof DamageCalc === 'undefined' || !DamageCalc.publishRow) return null;
+      return DamageCalc.publishRow(row);
+    } catch (e) { return null; }
+  }
+
   function damageRiders(row) {
     try {
       if (typeof DamageCalc === 'undefined' || !DamageCalc.readRiders) return null;

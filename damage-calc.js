@@ -366,9 +366,85 @@ const DamageCalc = (function () {
     };
   }
 
+  // ---- publishing to the live bus -----------------------------------------
+  //
+  // The structured damage field Vaire asked for (2026-08-20 mail). The bus
+  // publishes `.atk-damage` verbatim, and a consumer cannot reliably recover
+  // structure from it: the live party writes `3d6+.5*S` and `d4+.5*S`, and a
+  // consumer substituting `S` with full Strength gets secondary naturals wrong.
+  // He removed his substitution and multiplies by hand; this is what stops him
+  // having to.
+  //
+  // READS WHAT THE SHEET ALREADY COMPUTED rather than recomputing it. Every
+  // value below is lifted from the span recalcRow just wrote. That is the whole
+  // premise of the bus — two implementations of 3.5 damage math would diverge,
+  // which is the bug that started this — and it means the multiplier arrives
+  // RESOLVED. `mult: "auto"` is a UI convenience meaning "follow the fighting
+  // style"; publishing that string would hand the consumer the same problem in
+  // a new costume, so the resolved number goes out alongside it.
+  //
+  // Published ALONGSIDE the verbatim string, never instead of it: the string is
+  // what the player typed and stays authoritative.
+  function publishRow(entry) {
+    const row = entry.querySelector('.damage-calc-row');
+    if (!row) return null;
+    const styleKey = row.querySelector('.dmg-style').value || 'one-hand';
+    const [, styleLabel, strMultDefault, paMult] = styleFor(styleKey);
+    const readTerm = (sel) => {
+      const el = row.querySelector(sel);
+      if (!el) return 0;
+      const n = parseInt(String(el.textContent || '').trim(), 10);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const abilityTerms = Array.from(row.querySelectorAll('.dmg-abil-term')).map((t) => {
+      const declared = t.querySelector('.dmg-abil-mult').value || 'auto';
+      const valEl = t.querySelector('.dmg-abil-val');
+      const v = parseInt(String((valEl && valEl.textContent) || '').trim(), 10);
+      return {
+        ability: t.querySelector('.dmg-abil').value || 'STR',
+        // The number that actually applied, and what the player chose.
+        multiplier: (declared === 'auto') ? strMultDefault : parseFloat(declared),
+        multiplier_follows_style: declared === 'auto',
+        // Already floored — 3.5 rounds a fractional ability bonus to damage
+        // DOWN, and does it AFTER multiplying.
+        value: Number.isFinite(v) ? v : 0,
+      };
+    });
+    const enh = num(row.querySelector('.dmg-enh').value);
+    const misc = num(row.querySelector('.dmg-misc').value);
+    const abilityTotal = abilityTerms.reduce((a, t) => a + (t.value || 0), 0);
+    const powerAttack = readTerm('.dmg-pa');
+    const weaponSpec = readTerm('.dmg-spec');
+    const soulmeld = readTerm('.dmg-meld');
+    return {
+      dice: (row.querySelector('.dmg-dice').value || '').trim() || null,
+      style: styleKey,
+      style_label: styleLabel,
+      // Both multipliers the style implies, because the second one is the one
+      // people forget: a light weapon gets NO Power Attack damage at all.
+      strength_multiplier: strMultDefault,
+      power_attack_multiplier: paMult,
+      ability_terms: abilityTerms,
+      enhancement: enh,
+      power_attack: powerAttack,
+      weapon_specialization: weaponSpec,
+      soulmeld: soulmeld,
+      misc: misc,
+      // Everything that is not dice, summed the way the sheet sums it.
+      flat_total: abilityTotal + enh + powerAttack + weaponSpec + soulmeld + misc,
+      // What the sheet renders, for a consumer that just wants the line.
+      rendered: (row.querySelector('.dmg-total') || {}).textContent || null,
+      // Whether the equation is DRIVING the free-text box. Unticked, the string
+      // is the player's own and this structure describes an equation they are
+      // not using — which a consumer needs to know before trusting it over the
+      // string.
+      drives_damage_field: !!row.querySelector('.dmg-auto-cb')?.checked,
+    };
+  }
+
   return {
     attachRow, recalcRow, collectRow, renderDamage, styleFor,
-    readRiders, riderText,
+    readRiders, riderText, publishRow,
     STYLES, ABILITIES,
   };
 })();
