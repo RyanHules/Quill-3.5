@@ -3771,6 +3771,131 @@
         'GR6: and double Strength — 18 gives +4, doubled to +8');
     });
 
+  // The FIRST attack row, creating one if the sheet has none. `#btn-new`
+  // empties the attacks container outright, so a fresh character has zero rows
+  // — the blank one exists only on an untouched page load. Assuming it is
+  // there is how both of these specs first died.
+  async function firstAttackRow() {
+    let row = $('#attacks-container .attack-entry');
+    if (!row) {
+      $('#btn-add-attack').click();
+      await wait(250);
+      row = $('#attacks-container .attack-entry');
+    }
+    if (!row) fail('firstAttackRow: could not create an attack row');
+    return row;
+  }
+
+  // Fill an attack row as a weapon of the player's own.
+  function fillWeaponRow(row, { name, crit, dice, style }) {
+    row.querySelector('.atk-name').value = name;
+    if (crit != null) row.querySelector('.atk-crit').value = crit;
+    if (dice != null) row.querySelector('.dmg-dice').value = dice;
+    row.querySelector('.dmg-style').value = style;
+    ['.atk-name', '.atk-crit', '.dmg-dice'].forEach(sel =>
+      row.querySelector(sel).dispatchEvent(new Event('input', { bubbles: true })));
+    row.querySelector('.dmg-style').dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Bind a soulmeld into a named body slot (not the totem).
+  function bindSlot(slotId, name) {
+    const slot = document.querySelector(`.magic-item-slot[data-slot-id="${slotId}"]`);
+    if (!slot) fail(`bindSlot: no ${slotId} slot`);
+    const sw = slot.querySelector('.slot-soulmeld-check');
+    if (sw && !sw.checked) { sw.checked = true; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+    const n = slot.querySelector('.slot-sm-name');
+    n.value = name;
+    n.dispatchEvent(new Event('input', { bubbles: true }));
+    n.dispatchEvent(new Event('change', { bubbles: true }));
+    const b = slot.querySelector('.slot-sm-bound');
+    b.checked = true;
+    b.dispatchEvent(new Event('change', { bubbles: true }));
+    return slot;
+  }
+
+  regression('GR7: the rend keys off ANY claw, not just the soulmeld’s own',
+    async () => {
+      // This is the COMMON case and GR6 is the rare one. Girallon's rend is
+      // its ARMS bind and its claws are its TOTEM bind, and binding one
+      // soulmeld to two chakras at once requires the Totemist's Totem Chakra
+      // Bind at 11th level. Below that the two claws the rend keys off are
+      // someone else's — the book says so outright: "whether these attacks
+      // come from your girallon arms, a different soulmeld, your own innate
+      // abilities, or some other source".
+      //
+      // So it must work against a DIFFERENT damage profile. A racial 1d8 claw,
+      // not Girallon's own 1d4.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      fillWeaponRow(await firstAttackRow(),
+        { name: 'Claw (racial)', dice: '1d8', style: 'natural' });
+      bindSlot('arms', 'Girallon Arms');
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const rend = grantedRow('Rend');
+      if (!rend) fail('GR7: the arms bind grants no rend');
+      if (grantedRow('Claw')) {
+        fail('GR7: no soulmeld should be granting claws here — that is GR6’s '
+          + 'case, and it would mask the one this spec exists to cover');
+      }
+      expect(rend.querySelector('.dmg-dice').value, '2d8',
+        'GR7: double the RACIAL claw’s 1d8, not a hard-coded 2d4');
+      expect(rend.querySelector('.dmg-total').textContent, '2d8+8',
+        'GR7: and double Strength');
+      expectIncludes(rend.querySelector('.atk-notes').value,
+        'Claw (racial)',
+        'GR7: the row names which claw it read, so a wrong pick is visible');
+    });
+
+  regression('GR8: a bind that improves WEAPONS reaches the player’s own rows',
+    async () => {
+      // `manufactured` and `unarmed` scopes reached nothing for a day: the
+      // only consumer was the soulmelds' own granted attacks, and none of
+      // those is a manufactured weapon. Mauling Gauntlets' arms bind doubles
+      // the threat range of "any melee weapon wielded" — the player's rows.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      const row = await firstAttackRow();
+      fillWeaponRow(row, { name: 'Greatsword', crit: '19-20/x2', dice: '2d6',
+                           style: 'two-hand' });
+      bindSlot('arms', 'Mauling Gauntlets');
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const chip = row.querySelector('.atk-crit-meld');
+      expect(chip.textContent, '→ 17-20',
+        'GR8: 3.5 doubles the SIZE of the threat range — 19-20 has two numbers, '
+        + 'so it becomes four');
+      // The player's own box must be untouched: it is free text and may carry
+      // information the sheet cannot reconstruct.
+      expectValue('#attacks-container .attack-entry .atk-crit', '19-20/x2',
+        'GR8: the improvement is shown BESIDE the Critical box, not written in');
+
+      // And the scope has to be real in both directions, or "it applies to
+      // everything" would pass this test just as well.
+      $('#btn-add-attack').click();
+      await wait(250);
+      const rows = $$('#attacks-container .attack-entry');
+      const nat = rows[rows.length - 1];
+      fillWeaponRow(nat, { name: 'Bite', crit: '20/x2', style: 'natural' });
+      window.recalcAll();
+      await wait(200);
+      expect(nat.querySelector('.atk-crit-meld').textContent, '',
+        'GR8: a MANUFACTURED-scope bind must not touch a natural attack');
+
+      // Swap to a natural-scope bind and the mirror must hold.
+      bindSlot('arms', 'Dread Carapace');
+      window.recalcAll();
+      await wait(250);
+      expect(nat.querySelector('.atk-crit-meld').textContent, '→ 19-20',
+        'GR8: Dread Carapace doubles "all natural attacks" — 20 becomes 19-20');
+      expect(rows[0].querySelector('.atk-crit-meld').textContent, '',
+        'GR8: ...and must not touch the greatsword');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers
