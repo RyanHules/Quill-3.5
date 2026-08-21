@@ -44,6 +44,10 @@ PUT    /api/live/<qualified>    -> an open tab publishes its RESOLVED
 GET    /api/live/<qualified>    -> {"qualified", "age_seconds", "stale",
                                     "stale_after_seconds", "snapshot"}
                                    or 404 when no tab is publishing it
+DELETE /api/live/<qualified>    -> a tab RELEASES its claim (it closed,
+                                   reloaded, or swapped characters).
+                                   Ownership-checked: a release naming a
+                                   different publisher is refused 409.
 GET    /api/live                -> summary of every live character
                                    (no snapshots; cheap to poll)
 
@@ -137,6 +141,21 @@ _FLAGS_LOCK = threading.Lock()
 # losing it on restart is correct behaviour, not a limitation. Persisting
 # it would manufacture exactly the failure this design is built to avoid:
 # a stale snapshot that still looks authoritative.
+#
+# CLAIM / RELEASE closes the hole staleness cannot (2026-08-21). Staleness
+# catches a tab that DIED. It cannot catch a tab that deliberately moved on:
+# swap a tab from Kell to Gorrash and Kell's snapshot sits here looking
+# perfectly fresh for another 90 seconds, and a consumer reading it narrates
+# numbers for a character nobody has open. Only the tab knows it swapped, so
+# the tab says so — every publish carries a per-tab `publisher` id, and a tab
+# DELETEs its claim on swap, reload and close. Releases are ownership-checked
+# so a second tab cannot evict the first.
+#
+# TWO TABS ON ONE CHARACTER IS REPORTED, NOT RESOLVED. `contested` names every
+# publisher currently live on a key. They normally compute identical numbers —
+# same save, same math — but not if one has unsaved edits, and this process
+# cannot tell which is right. A consumer that knows it is reading a contested
+# character can say so; one silently handed the last writer's view cannot.
 #
 # STALENESS IS THE SAFETY PROPERTY. A closed tab leaves a snapshot sitting
 # here looking perfectly fine. Every read therefore reports `age_seconds`
@@ -827,6 +846,15 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
             # an hour ago still has a snapshot that reads perfectly.
             "stale": age > LIVE_STALE_AFTER_SEC,
             "stale_after_seconds": LIVE_STALE_AFTER_SEC,
+            # Which tab is publishing this, and whether more than one is.
+            # CONTESTED is reported rather than resolved: two tabs on one
+            # character normally compute the same numbers, but not if one has
+            # unsaved edits, and the server cannot tell which is right. A
+            # consumer that knows it is reading a contested character can say
+            # so; one that is silently handed the last writer's view cannot.
+            "publisher": rec.get("publisher"),
+            "publishers": sorted((rec.get("publishers") or {}).keys()),
+            "contested": len(rec.get("publishers") or {}) > 1,
             "snapshot": rec["snapshot"],
         }
 
@@ -843,10 +871,81 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         if not isinstance(payload, dict):
             return self._send_json(400, {"error": "expected a JSON object"})
         now = time.monotonic()
+        # Who published this. A stable per-TAB id, minted once per page load and
+        # sent with every publish — see the CLAIM/LEASE note above _LIVE.
+        publisher = payload.get("publisher") or None
         with _LIVE_LOCK:
-            _LIVE[key] = {"snapshot": payload, "received_at": now}
+            prev = _LIVE.get(key) or {}
+            seen = dict(prev.get("publishers") or {})
+            if publisher:
+                seen[publisher] = now
+                # Forget publishers that have gone quiet past the stale window;
+                # a tab that closed an hour ago must not make this character
+                # look contested forever.
+                seen = {p: t for p, t in seen.items()
+                        if now - t <= LIVE_STALE_AFTER_SEC}
+            _LIVE[key] = {
+                "snapshot": payload,
+                "received_at": now,
+                "publisher": publisher,
+                "publishers": seen,
+            }
         self.send_response(204)
         self.end_headers()
+
+    def _api_delete_live(self, prefix="/api/live/"):
+        """A tab RELEASES its claim — it closed, reloaded, or switched away.
+
+        This is the fix for the read-side hole the staleness contract cannot
+        close on its own: a tab that swaps from Kell to Gorrash leaves Kell's
+        snapshot sitting in the map looking perfectly fresh for the next 90
+        seconds, and a consumer reading it narrates numbers for a character
+        NOBODY has open. Staleness catches a tab that died; only the tab itself
+        knows it deliberately moved on.
+
+        OWNERSHIP-CHECKED. A release naming a different publisher than the one
+        currently holding the key is REFUSED, not obeyed — otherwise a second
+        tab on the same character could evict the first one's live snapshot by
+        navigating away from it.
+        """
+        key = self._live_key_for(prefix)
+        if key is None:
+            return self._send_json(400, {"error": "bad live key"})
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length > 0 else b""
+        try:
+            payload = json.loads(raw) if raw.strip() else {}
+        except (ValueError, json.JSONDecodeError):
+            payload = {}
+        publisher = (payload or {}).get("publisher") or None
+        now = time.monotonic()
+        with _LIVE_LOCK:
+            rec = _LIVE.get(key)
+            if not rec:
+                return self._send_json(404, {
+                    "error": "no live snapshot", "qualified": key})
+            holder = rec.get("publisher")
+            others = {p: t for p, t in (rec.get("publishers") or {}).items()
+                      if p != publisher and now - t <= LIVE_STALE_AFTER_SEC}
+            if holder and publisher and holder != publisher and others:
+                return self._send_json(409, {
+                    "error": "not the current publisher",
+                    "qualified": key,
+                    "hint": "another tab is publishing this character; a "
+                            "release only drops your own claim",
+                })
+            if others:
+                # Someone else still has it open. Drop only this publisher from
+                # the roster and leave the snapshot standing.
+                rec["publishers"] = others
+                rec["publisher"] = sorted(others, key=lambda p: -others[p])[0]
+                return self._send_json(200, {
+                    "released": True, "qualified": key,
+                    "still_published_by": len(others),
+                })
+            _LIVE.pop(key, None)
+        return self._send_json(200, {"released": True, "qualified": key,
+                                     "still_published_by": 0})
 
     def _api_get_live(self):
         key = self._live_key()
@@ -1150,6 +1249,11 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        # `navigator.sendBeacon` can only POST, and it is the only request that
+        # reliably survives a page unload — which is exactly when a tab most
+        # needs to release its claim. Same handler as the DELETE.
+        if self.path.startswith("/api/live-release/"):
+            return self._api_delete_live(prefix="/api/live-release/")
         # /api/move is the atomic rename / folder-move endpoint —
         # used by the library modal's "→ active" / "→ library"
         # buttons. Lives at a separate URL (not under /api/saves/)
@@ -1192,6 +1296,11 @@ class CharacterSheetHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         if self.path.startswith("/api/saves/"):
             return self._api_delete_save()
+        # A tab releasing its live claim (it closed, reloaded, or swapped to a
+        # different character). Ordered after /api/saves/ because both are
+        # DELETEs and the prefixes are distinct.
+        if self.path.startswith("/api/live/"):
+            return self._api_delete_live()
         self.send_error(405, "method not allowed")
 
     # ---- API: per-save GET/PUT/DELETE ----------------------------------

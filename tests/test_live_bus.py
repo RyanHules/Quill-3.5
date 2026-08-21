@@ -436,6 +436,97 @@ def test_qualified_names_with_slashes_survive_routing():
           status == 200 and (data or {}).get("qualified") == key, f"{status} {data}")
 
 
+
+# ---------------------------------------------------------------------------
+# CLAIM / RELEASE (2026-08-21)
+#
+# Staleness catches a tab that DIED. It cannot catch one that deliberately
+# moved on: swap a tab from Kell to Gorrash and Kell's snapshot sits on the
+# server looking perfectly fresh for another 90 seconds, and anything reading
+# it narrates numbers for a character nobody has open. Only the tab knows it
+# swapped, so it says so — and the server has to believe the right tab.
+# ---------------------------------------------------------------------------
+
+def test_a_tab_releasing_its_claim_makes_the_character_absent():
+    snap = snapshot("Swapper")
+    snap["publisher"] = "tab-A"
+    st, _ = call("PUT", "/api/live/active%2FSwapper", snap)
+    check("release: publish accepted", st == 204, st)
+    st, view = call("GET", "/api/live/active%2FSwapper")
+    check("release: readable before release", st == 200, st)
+    check("release: names its publisher",
+          view.get("publisher") == "tab-A", view.get("publisher"))
+    check("release: a single publisher is not contested",
+          view.get("contested") is False, view.get("contested"))
+
+    st, body = call("DELETE", "/api/live/active%2FSwapper",
+                    {"publisher": "tab-A"})
+    check("release: accepted", st == 200, (st, body))
+    check("release: reports nobody left",
+          body.get("still_published_by") == 0, body)
+
+    # 404, not a stale-looking snapshot. "Nobody has this open" and "here are
+    # some numbers" must never look the same — the same contract a never-opened
+    # character gets.
+    st, body = call("GET", "/api/live/active%2FSwapper")
+    check("release: reads as ABSENT afterwards, not stale", st == 404, (st, body))
+
+
+def test_a_release_from_the_wrong_tab_is_refused():
+    # Otherwise a second tab could evict the first one's live snapshot simply by
+    # navigating away from a character it also had open.
+    a = snapshot("Contested"); a["publisher"] = "tab-A"
+    b = snapshot("Contested"); b["publisher"] = "tab-B"
+    call("PUT", "/api/live/active%2FContested", a)
+    call("PUT", "/api/live/active%2FContested", b)
+
+    st, view = call("GET", "/api/live/active%2FContested")
+    check("contested: both publishers listed",
+          sorted(view.get("publishers") or []) == ["tab-A", "tab-B"],
+          view.get("publishers"))
+    check("contested: flagged", view.get("contested") is True, view)
+
+    # tab-A is no longer the holder (tab-B published last) and tab-B is still
+    # live, so tab-A's release must not drop the key.
+    st, body = call("DELETE", "/api/live/active%2FContested",
+                    {"publisher": "tab-A"})
+    check("contested: a non-holder release is refused", st == 409, (st, body))
+    st, view = call("GET", "/api/live/active%2FContested")
+    check("contested: the snapshot survives the refused release",
+          st == 200, st)
+
+    # The HOLDER may release, and the survivor keeps it open.
+    st, body = call("DELETE", "/api/live/active%2FContested",
+                    {"publisher": "tab-B"})
+    check("contested: the holder may release", st == 200, (st, body))
+    check("contested: reports the survivor",
+          body.get("still_published_by") == 1, body)
+    st, view = call("GET", "/api/live/active%2FContested")
+    check("contested: still published by the other tab", st == 200, st)
+    check("contested: no longer contested",
+          view.get("contested") is False, view)
+
+
+def test_release_also_works_over_the_beacon_post_route():
+    # navigator.sendBeacon can only POST, and it is the only request that
+    # reliably survives a page unload — which is precisely when a tab most
+    # needs to release. Same handler, different verb.
+    snap = snapshot("Unloader"); snap["publisher"] = "tab-Z"
+    call("PUT", "/api/live/active%2FUnloader", snap)
+    st, body = call("POST", "/api/live-release/active%2FUnloader",
+                    {"publisher": "tab-Z"})
+    check("beacon release: accepted", st == 200, (st, body))
+    st, _ = call("GET", "/api/live/active%2FUnloader")
+    check("beacon release: character is absent", st == 404, st)
+
+
+def test_releasing_something_nobody_published_is_a_404():
+    st, body = call("DELETE", "/api/live/active%2FNeverWasHere",
+                    {"publisher": "tab-A"})
+    check("release: unknown key is 404, not a silent success",
+          st == 404, (st, body))
+
+
 def main():
     global BASE
     server = ss.CharacterSheetServer(("127.0.0.1", 0), ss.CharacterSheetHandler)
@@ -456,7 +547,11 @@ def main():
                    test_a_claimed_but_unacked_write_is_reported_unknown,
                    test_two_writes_do_not_cross,
                    test_poll_returns_empty_rather_than_hanging_forever,
-                   test_qualified_names_with_slashes_survive_routing]:
+                   test_qualified_names_with_slashes_survive_routing,
+                   test_a_tab_releasing_its_claim_makes_the_character_absent,
+                   test_a_release_from_the_wrong_tab_is_refused,
+                   test_release_also_works_over_the_beacon_post_route,
+                   test_releasing_something_nobody_published_is_a_404]:
             fn()
     finally:
         server.shutdown()

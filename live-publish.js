@@ -570,6 +570,52 @@
     };
   }
 
+  // THIS TAB'S IDENTITY, minted once per page load.
+  //
+  // Staleness tells a consumer a tab DIED. It cannot tell it a tab deliberately
+  // moved on: swap this tab from Kell to Gorrash and Kell's snapshot sits on
+  // the server looking perfectly fresh for another 90 seconds, and anything
+  // reading it narrates numbers for a character nobody has open. Only the tab
+  // knows it swapped, so the tab has to say so — which needs a stable name to
+  // say it under, and one the server can ownership-check so a second tab on the
+  // same character cannot evict the first.
+  //
+  // Per PAGE LOAD, not per character: a reload is a new tab as far as any
+  // consumer is concerned, and the old id going quiet is exactly right.
+  var TAB_ID = (function () {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    } catch (e) { /* fall through */ }
+    return 'tab-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+  })();
+
+  // The character this tab last published under, so a swap can release it.
+  var claimed = null;
+
+  // Release a claim. Fire-and-forget by design: this runs on pagehide, where a
+  // promise chain is not guaranteed to survive, and a release that fails to
+  // arrive costs nothing worse than the 90-second staleness we already had.
+  function release(qualified) {
+    if (!qualified) return;
+    var body = JSON.stringify({ publisher: TAB_ID });
+    try {
+      // sendBeacon survives the page going away, which a fetch may not. It can
+      // only POST, so the DELETE path is used when the page is still alive and
+      // the beacon is the unload fallback.
+      if (document.visibilityState === 'hidden' && navigator.sendBeacon) {
+        navigator.sendBeacon(
+          '/api/live-release/' + encodeURIComponent(qualified), body);
+        return;
+      }
+      fetch('/api/live/' + encodeURIComponent(qualified), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: body,
+        keepalive: true
+      }).catch(function () { /* standalone server, or already gone */ });
+    } catch (e) { /* never let a release break the sheet */ }
+  }
+
   // `isHeartbeat` republishes identical content on purpose: the server's
   // freshness clock is what tells a consumer this tab still exists, so a quiet
   // tab must keep saying so.
@@ -583,12 +629,21 @@
     // under a guessed key would be worse than silence.
     if (!qualified) { stats.skipped++; return; }
 
+    // Swapped character: let go of the old one BEFORE claiming the new, so a
+    // consumer never sees this tab holding two at once.
+    if (claimed && claimed !== qualified) {
+      release(claimed);
+      lastFingerprint = null;      // different character: never suppress as "no change"
+    }
+    claimed = qualified;
+
     var snap, fingerprint, body;
     try {
       snap = snapshot(qualified);
       fingerprint = JSON.stringify(snap);
       if (!isHeartbeat && fingerprint === lastFingerprint) return;  // no change
       snap.published_at = new Date().toISOString();
+      snap.publisher = TAB_ID;
       body = JSON.stringify(snap);
     } catch (e) {
       stats.failed++; stats.lastError = 'serialize: ' + e; return;
@@ -625,6 +680,17 @@
       return r;
     };
     installed = true;
+
+    // Let go when the page goes away. `pagehide` rather than `beforeunload`:
+    // it fires for the back/forward cache too, and beforeunload does not fire
+    // at all on mobile. Without this a closed tab holds its claim until the
+    // 90-second staleness clock expires — which is the very window this whole
+    // claim mechanism exists to shorten.
+    try {
+      window.addEventListener('pagehide', function () {
+        try { release(claimed); } catch (e) { /* going away anyway */ }
+      });
+    } catch (e) { /* no window events: nothing to release from */ }
 
     // WATCH THE STATE, DON'T TRUST A NOTIFICATION. This is the load-bearing
     // mechanism, and it exists because the two obvious hooks both turned out
