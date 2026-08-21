@@ -738,7 +738,7 @@ const Character = (function () {
       let meldAtk = 0;
       const rowStyle = entry.querySelector(".dmg-style")?.value || "one-hand";
       if (typeof SoulmeldEffects !== "undefined" && SoulmeldEffects.getWeaponMods) {
-        try { meldAtk = SoulmeldEffects.getWeaponMods(rowStyle).attack || 0; }
+        try { meldAtk = SoulmeldEffects.getWeaponMods(rowStyle, weaponName).attack || 0; }
         catch (e) { meldAtk = 0; }
       }
       // Soulmeld binds that IMPROVE this weapon rather than adding to it —

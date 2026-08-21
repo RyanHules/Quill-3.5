@@ -315,7 +315,7 @@ const DamageCalc = (function () {
     // to be consulted before the number is allowed anywhere near the total.
     let meld = 0;
     if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getWeaponMods) {
-      try { meld = SoulmeldEffects.getWeaponMods(style[0]).damage || 0; }
+      try { meld = SoulmeldEffects.getWeaponMods(style[0], weaponName).damage || 0; }
       catch (e) { meld = 0; }
     }
     setTerm(row, '.dmg-meld', '.dmg-meld-term', '.dmg-meld-op', meld);

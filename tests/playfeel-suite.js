@@ -4092,6 +4092,60 @@
         'GR12: an ordinary unarmed strike is neither manufactured nor natural');
     });
 
+  regression('GR13: Dread Carapace reaches natural attacks — the book’s worked example',
+    async () => {
+      // A REGRESSION I caused and Ryan caught on Gorrash. `condition` was
+      // doing three jobs at once, and one of them was restating the scope
+      // ("when using a claw or other natural attack" on a row that already
+      // says applies_to='natural'). The day the sheet started correctly
+      // refusing to sum conditional rows into a weapon's total, those rows
+      // stopped working — including the one the module documents as its
+      // worked example.
+      //
+      // The book prints the numbers, so the test uses them: at 5 essentia,
+      // +12 with a bite, +6 with any other natural attack, -6 to hit.
+      await newCharacter();
+      setAbilities({ STR: 18 });
+      bindSlot('torso', 'Dread Carapace');
+      // Unbind: every one of these is a SHAPED effect, not a bind.
+      const torso = document.querySelector('.magic-item-slot[data-slot-id="torso"]');
+      const bound = torso.querySelector('.slot-sm-bound');
+      bound.checked = false;
+      bound.dispatchEvent(new Event('change', { bubbles: true }));
+      setIncarnumCapacity(6, 8);
+      window.recalcAll();
+      await wait(200);
+
+      const mk = async (name) => {
+        $('#btn-add-attack').click();
+        await wait(200);
+        const rows = $$('#attacks-container .attack-entry');
+        const r = rows[rows.length - 1];
+        fillWeaponRow(r, { name, dice: '1d6', style: 'natural' });
+        return r;
+      };
+      const bite = await mk('Bite');
+      const claw = await mk('Claw');
+
+      const pips = torso.querySelectorAll('.essentia-pip');
+      for (let i = 0; i < 5 && i < pips.length; i++) pips[i].click();
+      await wait(250);
+      window.recalcAll();
+      await wait(150);
+
+      expect(bite.querySelector('.dmg-meld').textContent, '+12',
+        'GR13: +2 and +2/point with a bite = +12 at 5 essentia');
+      expect(claw.querySelector('.dmg-meld').textContent, '+6',
+        'GR13: +1 and +1/point with another natural attack = +6');
+      // The bite row SUPERSEDES the natural row rather than stacking with it —
+      // the book says "+2 with a bite OR +1 with another natural attack". 18
+      // would be the double-count.
+      expect(bite.querySelector('.atk-calc-meld').textContent, '-6',
+        'GR13: and the natural-weapon attack penalty applies to both');
+      expect(claw.querySelector('.atk-calc-meld').textContent, '-6',
+        'GR13: ...to the claw as well');
+    });
+
   // ---- LB: live resolved-state bus, inbound half (phase 2, 2026-08-20) ----
   //
   // THE SPLIT WITH tests/test_live_bus.py IS DELIBERATE, and each suite covers

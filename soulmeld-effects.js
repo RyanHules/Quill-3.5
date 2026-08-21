@@ -1367,13 +1367,31 @@ const SoulmeldEffects = (function () {
   // Per-weapon attack/damage modifiers, filtered by what the weapon IS. The
   // caller passes the row's fighting style; `natural` covers both the primary
   // and secondary natural styles, and `bite` is narrower still.
-  function getWeaponMods(style) {
+  function getWeaponMods(style, weaponName) {
     const s = String(style || '');
     const isNatural = s.indexOf('natural') === 0;
     const isManufactured = !isNatural && s !== 'unarmed';
     let attack = 0, damage = 0;
     const sources = [];
     const situational = [];
+
+    // A BITE-scoped row SUPERSEDES its own soulmeld's natural-scoped row of the
+    // same kind; it does not stack with it. Dread Carapace prints "+2 points of
+    // damage with a bite OR +1 with another natural attack", and its natural
+    // row means "another natural attack" — the book's own worked example is
+    // "+12 bite / +6 other natural" at 5 essentia, which is 12, not 18.
+    //
+    // Specificity, scoped per soulmeld and per bonus_type, so one soulmeld's
+    // bite row can never suppress a different soulmeld's natural row.
+    const bitesFor = new Set();
+    if (attackNameMatches(weaponName, 'bite')) {
+      for (const e of computeAll()) {
+        if (e.applies_to === 'bite' && !e.condition && !e.dice) {
+          bitesFor.add(e.soulmeld + '::' + e.bonus_type);
+        }
+      }
+    }
+
     for (const e of computeAll()) {
       if (e.bonus_type !== 'attack' && e.bonus_type !== 'damage') continue;
       if (e.dice) continue;                 // dice riders are not a flat mod
@@ -1387,15 +1405,39 @@ const SoulmeldEffects = (function () {
       // THE BLOODTALONS CLAW ATTACKS" was landing on every other natural
       // weapon the character had. Surfaced as a note instead.
       if (e.condition) { situational.push(e); continue; }
+      // `applies_to_attack` narrows a row to ONE attack this soulmeld grants,
+      // by name — "with the sphinx claws" means the claws the soulmeld gives
+      // you, not every natural weapon you own.
+      //
+      // This scope used to be written as a CONDITION, which put it in an
+      // impossible position: applied, it leaked onto every natural weapon;
+      // skipped (once conditional rows were correctly kept out of totals), it
+      // vanished. As a scope it lands exactly where it belongs. A row that
+      // names an attack and finds no matching row applies to nothing, which is
+      // right — the attack is not on the sheet.
+      if (e.applies_to_attack
+          && !attackNameMatches(weaponName, e.applies_to_attack)) {
+        continue;
+      }
       const scope = e.applies_to || 'all';
+      if (scope === 'natural'
+          && bitesFor.has(e.soulmeld + '::' + e.bonus_type)) {
+        continue;                    // superseded by this soulmeld's bite row
+      }
       let applies;
       if (scope === 'all') applies = true;
       else if (scope === 'natural') applies = isNatural;
       else if (scope === 'manufactured') applies = isManufactured;
-      // "bite" is a specific natural attack the sheet cannot identify from the
-      // style alone, so it is NOT applied automatically — it would be wrong on
-      // every claw. It shows in the readout and the player adds it by hand.
-      else if (scope === 'bite') applies = false;
+      // "bite" is a specific natural attack, and the STYLE cannot identify one
+      // — every natural weapon shares a style, so applying it there would be
+      // wrong on every claw. It used to be dropped for that reason. The
+      // weapon's NAME can identify one, and now reaches this function, so a
+      // bite-scoped row lands on a row called "Bite" (or "Bite (racial)", or
+      // "Dragon head bite") and on nothing else.
+      //
+      // Dread Carapace is the case: it gives +2 damage with a bite and +1 with
+      // any other natural attack, and the +2 half reached nothing at all.
+      else if (scope === 'bite') applies = isNatural && attackNameMatches(weaponName, 'bite');
       if (!applies) continue;
       if (e.bonus_type === 'attack') attack += e.amount; else damage += e.amount;
       sources.push(e);
