@@ -467,8 +467,14 @@ const DamageCalc = (function () {
     if (typeof SoulmeldEffects !== 'undefined' && SoulmeldEffects.getAttackRowRiders) {
       try {
         const strMod = ctx.getAbilityMod ? ctx.getAbilityMod('STR') : 0;
+        // The row's flat components, passed SPLIT rather than as `flat`.
+        // A rider that scales "the damage of this weapon" must be able to
+        // tell an enhancement bonus from Strength (which it applies at its
+        // own multiplier) and from Power Attack (which it does not apply at
+        // all) — pre-summing them here would make that impossible there.
         for (const r of SoulmeldEffects.getAttackRowRiders(
-            style[0], weaponName, dice, strMod)) {
+            style[0], weaponName, dice, strMod,
+            { enh: enhEff, spec: spec, meld: meld, misc: misc, pa: pa })) {
           meldRiders.push(
             `${r.label ? r.label + ' ' : ''}${r.amount}`
             + `${r.damageType ? ' ' + r.damageType : ''}`

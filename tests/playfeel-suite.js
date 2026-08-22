@@ -3862,6 +3862,88 @@
         'GR7: and the rend doubles the STEPPED die, not the printed one');
     });
 
+  regression('GR21: the rend doubles the claw’s DAMAGE, not just its die',
+    async () => {
+      // report rmt4iutrr-44if. "Double claw damage including double your
+      // Strength bonus" — and a +2 claw deals 1d4+2 before Strength, so the
+      // rend deals 2d4+4 from the enhancement alone. Until now only the DIE
+      // was scaled and every flat component of the ridden row was dropped, so
+      // an enhanced claw's rend was identical to an unenhanced one's.
+      //
+      // Three assertions, and the third is the one that earns its keep: the
+      // positive, the mirror (it goes away again), and the exclusion. A test
+      // asserting only "the number went up" passes just as happily against an
+      // implementation that adds the enhancement unconditionally, or one that
+      // sweeps in Power Attack too.
+      await newCharacter();
+      setAbilities({ STR: 18 });                 // +4, doubled by the rend = +8
+      fillWeaponRow(await firstAttackRow(),
+        { name: 'Claw', dice: '1d4', style: 'natural' });
+      bindSlot('arms', 'Girallon Arms');
+      set('sm-max-essentia', 8);
+      window.recalcAll();
+      await wait(250);
+
+      const row = $('#attacks-container .attack-entry');
+      const readout = () => row.querySelector('.dmg-riders-readout').textContent;
+
+      expectIncludes(readout(), 'rend 2d4+8',
+        'GR21: baseline — no enhancement, so double dice + double Strength');
+
+      // +2 enhancement on the claw. The rend doubles it: +8 becomes +12.
+      const enh = row.querySelector('.dmg-enh');
+      enh.value = '2';
+      enh.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(250);
+      expectIncludes(readout(), 'rend 2d4+12',
+        'GR21: a +2 claw deals 1d4+2, so the rend deals 2d4+4 on top of the '
+        + 'doubled Strength — +8 becomes +12');
+      expect(row.querySelector('.dmg-total').textContent, '1d4+6',
+        'GR21: and the claw itself is still 1d4+4+2, unchanged by any of this');
+
+      // MIRROR. Take it away and it must go away — an implementation that
+      // wrote the bonus in once and never recomputed passes the line above.
+      enh.value = '';
+      enh.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(250);
+      expectIncludes(readout(), 'rend 2d4+8',
+        'GR21: mirror — remove the enhancement and the rend drops back');
+
+      // The player's "Other" box DOES ride — they have said the claw deals it.
+      const misc = row.querySelector('.dmg-misc');
+      misc.value = '3';
+      misc.dispatchEvent(new Event('input', { bubbles: true }));
+      window.recalcAll();
+      await wait(250);
+      expectIncludes(readout(), 'rend 2d4+14',
+        'GR21: the player’s Other box is claw damage too, so it doubles');
+      misc.value = '';
+      misc.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // EXCLUSION. Power Attack is a choice made when you swing, and the rend
+      // takes no attack roll of its own, so it must NOT ride. This is the
+      // assertion that fails if someone "simplifies" the split flatParts back
+      // into the row's single `flat` total, which is exactly the tempting
+      // refactor. `.dmg-pa` is a READOUT, not an input — Power Attack is
+      // declared once in Combat Options and multiplied by the row's style.
+      set('co-power-attack', 5);
+      window.recalcAll();
+      await wait(250);
+      const paApplied = parseInt(
+        (row.querySelector('.dmg-pa').textContent || '0').replace('+', ''), 10) || 0;
+      // Guarded rather than asserted blind: if this build gives a natural
+      // weapon no Power Attack, `paApplied` is 0 and asserting "the rend did
+      // not change" would pass for the wrong reason — nothing was added
+      // anywhere. The guard keeps the check honest instead of vacuous.
+      if (paApplied > 0) {
+        expectIncludes(readout(), 'rend 2d4+8',
+          'GR21: Power Attack does NOT ride the rend — the rend makes no '
+          + `attack roll (the claw itself took +${paApplied})`);
+      }
+    });
+
   regression('GR8: a bind that improves WEAPONS reaches the player’s own rows',
     async () => {
       // `manufactured` and `unarmed` scopes reached nothing for a day: the

@@ -516,8 +516,13 @@ const SoulmeldEffects = (function () {
   // Every one of these carries a CONDITION, so nothing here is ever summed
   // into a weapon's headline damage — they are listed beside it, which is
   // already how damage-calc.js treats a conditional rider.
-  function getAttackRowRiders(style, weaponName, dice, strMod) {
+  // `flatParts` carries the ridden row's own flat damage components, split
+  // out rather than pre-summed, because they are NOT all treated alike —
+  // see the "double claw damage" comment below. Optional: an older caller
+  // that omits it gets the previous dice-and-Strength behaviour.
+  function getAttackRowRiders(style, weaponName, dice, strMod, flatParts) {
     const name = String(weaponName || '').toLowerCase();
+    const fp = flatParts || {};
     const out = [];
     for (const g of grantedOfKind('attack_rider')) {
       const r = g.attack_rider || {};
@@ -527,20 +532,50 @@ const SoulmeldEffects = (function () {
       if (r.modifies_attack && !attackNameMatches(name, r.modifies_attack)) {
         continue;
       }
+      const mult = r.multiplier || 1;
       let amount = '';
       if (r.dice_as === 'self' && dice) {
-        amount = scaleDice(dice, r.multiplier || 1) || dice;
+        amount = scaleDice(dice, mult) || dice;
       } else if (r.dice) {
         amount = r.dice;
       }
+
+      // "DOUBLE CLAW DAMAGE" means the claw's damage, not just its die
+      // (report rmt4iutrr-44if). A +2 claw deals 1d4+2 before Strength, so
+      // the rend deals 2d4+4 — and until now it dealt 2d4, because only the
+      // die was scaled and every flat component of the ridden row was
+      // dropped on the floor.
+      //
+      // What rides, and why each:
+      //   enh   enhancement bonus — part of what the claw deals, every swing
+      //   spec  Weapon Specialization — likewise, a flat damage bonus
+      //   meld  a soulmeld's own damage bonus to the claw
+      //   misc  the player's "Other" box; they have said the claw deals it
+      //
+      // What does NOT ride:
+      //   Strength — handled just below at the rider's OWN multiplier, on
+      //     purpose. "Including double your Strength bonus" means the
+      //     character's full bonus doubled, not double whatever the ridden
+      //     attack applied; a secondary claw adds half Strength and the rend
+      //     still doubles the full amount.
+      //   Power Attack — a choice made when you swing, and the rend takes no
+      //     attack roll of its own. Excluding it is a rules JUDGEMENT rather
+      //     than a reading, and it is flagged as such: if the table rules the
+      //     other way, add `pa` to the sum below and nothing else changes.
+      const ridable = (fp.enh || 0) + (fp.spec || 0) + (fp.meld || 0)
+                    + (fp.misc || 0);
+      let bonus = Math.floor(ridable * mult);
+
       // "including double your Strength bonus" — the character's Strength, at
       // the rider's own multiplier, NOT double whatever the ridden attack
       // happened to apply (a secondary claw adds half Strength, and the rend
       // still doubles the full bonus).
       if (r.ability_multiplier && typeof strMod === 'number' && strMod) {
-        const bonus = Math.floor(strMod * r.ability_multiplier);
-        if (bonus) amount += (bonus > 0 ? '+' : '') + bonus;
+        bonus += Math.floor(strMod * r.ability_multiplier);
       }
+      // One combined term, so the readout says "2d4+12" rather than
+      // "2d4+4+8" — the player is reading this mid-combat.
+      if (bonus) amount += (bonus > 0 ? '+' : '') + bonus;
       if (!amount) continue;
       out.push({
         amount,
