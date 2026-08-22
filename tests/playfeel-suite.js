@@ -1018,6 +1018,48 @@
       'ADV2: and the divine half is untouched by an arcane reallocation');
   });
 
+  regression('ADV3: Sublime Chord overrides ALL arcane caster levels', async () => {
+    // report rmt4jl5z0-3qpq. CArc p.87: the sublime chord's caster level "for
+    // her sublime chord spells, AS WELL AS FOR SPELLS SHE GAINS FROM ANY
+    // OTHER ARCANE SPELLCASTING CLASS, is equal to her sublime chord level
+    // plus her level in one chosen arcane spellcasting class".
+    //
+    // Bard 8 / Wizard 2 / Sublime Chord 5, stacking with the Bard (highest):
+    // caster level 13, on the Bard panel AND the Wizard panel.
+    await newCharacter();
+    await applyClass('Bard', 8);
+    await applyClass('Wizard', 2);
+    await applyClass('Sublime Chord', 5);
+    await wait(400);
+
+    const panelFor = (name) =>
+      [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .find(pp => (pp.querySelector('.caster-notes')?.value || '').trim() === name);
+    const clOf = (name) => panelFor(name)?.querySelector('.sc-caster-level')?.value ?? null;
+
+    expect(clOf('Bard'), '13',
+      'ADV3: the BARD casts at sublime chord 5 + bard 8, not at 8');
+    expect(clOf('Wizard'), '13',
+      'ADV3: "any other arcane spellcasting class" reaches the Wizard too');
+
+    // CASTER LEVEL ONLY. The clause everyone drops: slots and spells known
+    // still come from the base class's own level. A Bard 8 has a Bard 8's
+    // 4th-level slots, not a Bard 13's — and if this ever routes through
+    // effectiveSpellLevel instead of an override, this is what catches it.
+    // Bard 8's printed row is [3, 3, 3, 1, -, ...]: one 3rd-level slot and
+    // NOTHING at 4th. A Bard 13 would have 4th-level slots, so if this ever
+    // routes through effectiveSpellLevel instead of an override, both of
+    // these move.
+    const bard = panelFor('Bard');
+    const rowFor = (lvl) => [...bard.querySelectorAll('.spell-slots-table tbody tr')]
+      .find(r => r.querySelector('[data-lvl]')?.getAttribute('data-lvl') === String(lvl));
+    expect(rowFor(3)?.querySelector('.sc-per-day')?.value || '0', '1',
+      'ADV3: a Bard 8 gets one 3rd-level slot per day');
+    expect(rowFor(4)?.querySelector('.sc-per-day')?.value || '0', '0',
+      'ADV3: ...and NO 4th-level slots — the CL override must not inflate '
+      + 'slots the way advancement would');
+  });
+
   regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
     // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
     // progression feeds the synthesis (it fills Side A's empty L6 here), and

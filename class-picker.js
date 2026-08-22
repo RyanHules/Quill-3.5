@@ -3298,6 +3298,10 @@
       }
     }
     applyUrPriestCasterLevel();
+    // After Ur-Priest, and after every normal per-class CL has been written:
+    // this one overrides OTHER classes' panels, so it must see their settled
+    // values rather than race them.
+    applySublimeChordCasterLevel();
   }
 
   // Ur-Priest caster level (report rmseczjok). Complete Divine: "add the
@@ -3332,6 +3336,73 @@
       if (clEl.value !== cl) {
         clEl.value = cl;
         clEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+  }
+
+  // SUBLIME CHORD (CArc p.87) — a caster-level OVERRIDE, not advancement.
+  //
+  // report rmt4jl5z0-3qpq. The printed text:
+  //
+  //   "The sublime chord's caster level for her sublime chord spells, AS
+  //    WELL AS FOR SPELLS SHE GAINS FROM ANY OTHER ARCANE SPELLCASTING
+  //    CLASS, is equal to her sublime chord level plus her level in one
+  //    chosen arcane spellcasting class she belonged to before adding this
+  //    prestige class."
+  //
+  // Two things follow, and both are easy to get wrong:
+  //
+  // 1. It reaches EVERY arcane panel, not just the sublime chord's own. A
+  //    Bard 8 / Sublime Chord 5 casts her BARD spells at caster level 13.
+  //    (The DB's condensed `description` for this feature says only "CL =
+  //    sublime chord + chosen arcane class" and omits the clause entirely —
+  //    building from it would have shipped half the rule. The verbatim
+  //    raw_text is the authority.)
+  //
+  // 2. It is CASTER LEVEL ONLY. It must not run through effectiveSpellLevel,
+  //    which also re-derives slots and spells known from the base class's
+  //    table — a Bard 8 with a sublime chord still has a Bard 8's slots, she
+  //    just casts them at 13. Hence an override pass after the normal CL is
+  //    written, exactly like Ur-Priest above.
+  //
+  // The "one chosen" class is auto-resolved to the character's HIGHEST-level
+  // other arcane class. That is not a guess dressed as a default: caster
+  // level is monotonically good, so the highest is always the optimal choice
+  // and there is no build in which a player wants less. If a reason to
+  // choose otherwise ever appears, this is where the picker goes.
+  function sublimeChordStackTarget(scEntry) {
+    let best = null;
+    for (const e of classPool()) {
+      if (e === scEntry || !e.classId || !e.className) continue;
+      if (/sublime chord/i.test(e.className)) continue;
+      const t = getClassType(e.className);
+      const ts = Array.isArray(t) ? t : [t];
+      if (!ts.includes('arcane')) continue;
+      if (!best || (Number(e.level) || 0) > (Number(best.level) || 0)) best = e;
+    }
+    return best;
+  }
+
+  function applySublimeChordCasterLevel() {
+    for (const sc of classPool()) {
+      if (!sc.className || !/sublime chord/i.test(sc.className)) continue;
+      const stack = sublimeChordStackTarget(sc);
+      // No pre-existing arcane class means nothing to stack with; the sublime
+      // chord's own level stands rather than being silently doubled.
+      const cl = (Number(sc.level) || 0) + (stack ? (Number(stack.level) || 0) : 0);
+      for (const e of classPool()) {
+        if (!e.classId || !e.className) continue;
+        const t = getClassType(e.className);
+        const ts = Array.isArray(t) ? t : [t];
+        const isSelf = /sublime chord/i.test(e.className);
+        if (!isSelf && !ts.includes('arcane')) continue;   // divine is untouched
+        const panel = findExistingCasterPanel('spellcasting', e.className);
+        const clEl = panel && panel.querySelector('.sc-caster-level');
+        if (!clEl) continue;
+        if (clEl.value !== String(cl)) {
+          clEl.value = String(cl);
+          clEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
       }
     }
   }
