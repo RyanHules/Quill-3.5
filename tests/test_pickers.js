@@ -8305,6 +8305,60 @@ test('live: the tab refuses a field the player is editing', () => {
     'watcher re-publishes identical content.');
 });
 
+// ---- tests: special-ability rows reach rules + borrowed creatures ---------
+// (report rmszywe3s-92a6)
+
+test('specials: the glossary rules a stat-block quality resolves to exist', (db) => {
+  // The resolver matches the stripped label EXACTLY, either as printed or
+  // with the MM's Ex/Su qualifier. Both spellings are represented in the DB,
+  // so both paths need a fixture.
+  for (const name of ['Tremorsense', 'Scent', 'Darkvision', 'Improved Grab',
+                      'Fast Healing', 'Regeneration', 'Frightful Presence',
+                      'Turn Resistance', 'Swallow Whole', 'Trample']) {
+    const row = execOne(db,
+      "SELECT name FROM entry WHERE type='rule' AND name = ? COLLATE NOCASE "
+      + "LIMIT 1", [name]);
+    assert(row, `no rule entry named "${name}" — the ⓘ panel on a special ` +
+      `quality would fall through to "custom or homebrew"`);
+  }
+  // Rake is printed WITH its qualifier and only resolves via that path.
+  const rake = execOne(db,
+    "SELECT name FROM entry WHERE type='rule' AND name LIKE 'Rake (%' LIMIT 1");
+  assert(rake && /^Rake \((?:Ex|Su|Sp)\)$/i.test(rake.name),
+    `expected a "Rake (Ex)"-shaped rule, got ${rake && rake.name}`);
+});
+
+test('specials: a borrowed creature ability has structure to show', (db) => {
+  // Ryan's own case: an Illithid Savant with "[Umber Hulk] Confusing Gaze".
+  const row = execOne(db,
+    "SELECT json_extract(data, '$.special_abilities') AS sa FROM entry "
+    + "WHERE type='creature' AND name='Umber Hulk' LIMIT 1");
+  assert(row && row.sa, 'Umber Hulk must carry special_abilities');
+  const sa = JSON.parse(row.sa);
+  const gaze = sa.find(a => /confusing gaze/i.test(a.name || ''));
+  assert(gaze, 'Umber Hulk must have Confusing Gaze');
+  assert(gaze.kind, 'the ability must carry its Ex/Su/Sp kind — that tag is ' +
+    'half of what a DM needs at the table');
+  assert((gaze.description || '').length > 20,
+    'and its rules text, not just the name');
+});
+
+test('specials: the rule resolver is exact, not a prefix match', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'feats.js'), 'utf8');
+  assert(/renderBorrowedCreatureRules/.test(src) &&
+         /renderRuleAbilityRules/.test(src),
+    'both new resolvers must be wired into renderAbilityRules');
+  // A bare `name LIKE 'X (%'` handed "Spell-like abilities" the 3.0
+  // "Spell-Like Abilities (Divine)" rule — a different rule about deities.
+  assert(/\(\?:Ex\|Su\|Sp\|Ps\)/.test(src),
+    'the qualifier fallback must be anchored to Ex/Su/Sp/Ps, or it matches ' +
+    'any parenthesised rule that happens to start with the same words');
+  // Chopping trailing WORDS until something matches would hand "Rage of the
+  // Ancients" the Rage rule.
+  assert(/\/\\d\/\.test\(last\)/.test(src),
+    'only numeric / unit tokens may be stripped from the label');
+});
+
 // ---- tests: a trait that extends a sense (report rmt3eud3k-612c) ----------
 
 test('senses: Nightsighted carries a structured darkvision extension', (db) => {

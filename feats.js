@@ -542,14 +542,112 @@ const Feats = (function () {
     // 4. Skill trick (a real, self-contained `entry` row).
     const trick = renderSkillTrickRules(text);
     if (trick) return trick;
-    // 5. Fallback for custom / homebrew abilities with no DB match.
+    // 5. An ability BORROWED from a named creature: `[Umber Hulk] Confusing
+    //    Gaze`. Same bracket idiom the class-picker stamps, minus the level —
+    //    an Illithid Savant's devoured abilities, a polymorph's, a DM's
+    //    grant. Runs after the race-scoped resolvers so a race that is also a
+    //    creature keeps its own text.
+    const borrowed = renderBorrowedCreatureRules(text);
+    if (borrowed) return borrowed;
+    // 6. A named RULE: "Tremorsense 60 ft." is the Tremorsense rule, and a
+    //    special quality copied out of a stat block is usually one of the
+    //    ~50 MM/DMG glossary rules.
+    const rule = renderRuleAbilityRules(text);
+    if (rule) return rule;
+    // 7. Fallback for custom / homebrew abilities with no DB match.
     return {
       html: '<i style="opacity:.7">No rules text found in database — this ' +
         'looks like a custom or homebrew ability. (Class features, racial ' +
-        'traits, creature abilities, and skill tricks resolve ' +
-        'automatically.)</i>',
+        'traits, creature abilities, skill tricks, glossary rules, and ' +
+        '<b>[Creature] Ability</b> all resolve automatically.)</i>',
       entryId: null,
     };
+  }
+
+  // `[Umber Hulk] Confusing Gaze` → that creature's own special ability.
+  // Deliberately NOT the same parse as parseAbilityPrefix: that one requires
+  // a level (`[Wizard 5] Bonus feat`) because a class feature is always
+  // acquired at one. A creature grant has no level.
+  function renderBorrowedCreatureRules(text) {
+    const m = String(text || "").split(/\r?\n/)[0]
+      .match(/^\[([^\]]+?)\]\s*(.+)$/);
+    if (!m) return null;
+    const creature = m[1].trim();
+    const ability = m[2].trim();
+    if (!creature || !ability) return null;
+    return renderCreatureAbilityRules(ability, { creature, explicit: true });
+  }
+
+  // A special quality copied out of a stat block ("Tremorsense 60 ft.",
+  // "Improved grab", "Scent") against the rules glossary. The DB has ~50 of
+  // these as type='rule' entries from the MM + DMG glossary sweep.
+  //
+  // Matching is EXACT on the stripped name, never a substring: a homebrew
+  // ability whose name merely contains a rule word should fall through to
+  // the honest "no rules text" fallback rather than being handed someone
+  // else's rules.
+  function renderRuleAbilityRules(text) {
+    const first = String(text || "").split(/\r?\n/)[0];
+    // Take the label: up to the first colon or em-dash, minus the (Ex)/(Su)/
+    // (Sp) qualifier and any trailing measurement ("60 ft.", "10/evil",
+    // "3/day", "5 hp") — the stat block's numbers, not the rule's name.
+    let name = first.split(/[:—]/)[0]
+      .replace(/\((?:Ex|Su|Sp|Ps)\)/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Drop trailing tokens that are the stat block's NUMBERS rather than part
+    // of the rule's name — "60 ft.", "1d6+2", "10/evil", "19", "3/day". Only
+    // numeric-looking or unit tokens are dropped, never a real word: chopping
+    // words back until something matches would hand "Rage of the Ancients"
+    // the Rage rule, which is worse than no answer at all.
+    const UNIT = /^(?:ft\.?|feet|foot|miles?|hp|hd|rounds?|minutes?|hours?|days?|squares?|per)$/i;
+    const words = name.split(" ");
+    while (words.length > 1) {
+      const last = words[words.length - 1];
+      if (/\d/.test(last) || UNIT.test(last.replace(/[.,]/g, ""))) words.pop();
+      else break;
+    }
+    name = words.join(" ").replace(/[\s,]+$/, "").trim();
+    if (name.length < 3) return null;
+    const row = DB.queryOne(
+      "SELECT id, name, source, version, " +
+      "  json_extract(data, '$.description') AS description, " +
+      "  json_extract(data, '$.body')        AS body, " +
+      "  json_extract(data, '$.raw_text')    AS raw_text " +
+      "FROM entry WHERE type='rule' AND name = ? COLLATE NOCASE " +
+      "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END, length(name) " +
+      "LIMIT 1", [name]);
+    // The MM prints several of these with their Ex/Su qualifier in the name
+    // ("Tremorsense (Ex)", "Paralysis (Ex or Su)"); accept that spelling too.
+    // ONLY that spelling: a bare `name LIKE 'X (%'` handed "Spell-like
+    // abilities" the 3.0 "Spell-Like Abilities (Divine)" rule from Faiths and
+    // Pantheons, which is a different rule about deities.
+    let row2 = row;
+    if (!row2) {
+      const cands = DB.query(
+        "SELECT id, name, source, version, " +
+        "  json_extract(data, '$.description') AS description, " +
+        "  json_extract(data, '$.body')        AS body, " +
+        "  json_extract(data, '$.raw_text')    AS raw_text " +
+        "FROM entry WHERE type='rule' AND name LIKE ? COLLATE NOCASE " +
+        "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END, length(name)",
+        [name + " (%"]) || [];
+      const qualifier = new RegExp(
+        "^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+        "\\s*\\((?:Ex|Su|Sp|Ps)(?:\\s+or\\s+(?:Ex|Su|Sp|Ps))?\\)$", "i");
+      row2 = cands.find(r => qualifier.test(r.name || "")) || null;
+    }
+    if (!row2) return null;
+    const verBadge = (window.VersionBadge ? VersionBadge.html(row2.version) : "");
+    const bits = [`<b>${escapeHtml(row2.name)}</b>${verBadge}` +
+      ` <span style="opacity:.7">(rule${row2.source ? " — " +
+        escapeHtml(row2.source) : ""})</span>`];
+    const bodyText = row2.raw_text || row2.body || row2.description;
+    if (bodyText) {
+      bits.push(window.RichText
+        ? RichText.formatFeatureText(bodyText) : escapeHtml(bodyText));
+    }
+    return { html: bits.join("<br>"), entryId: row2.id };
   }
 
   // Normalize an ability label for fuzzy name matching: lowercase, drop
@@ -734,9 +832,14 @@ const Feats = (function () {
     return out;
   }
 
-  function renderCreatureAbilityRules(text) {
+  function renderCreatureAbilityRules(text, opts) {
+    opts = opts || {};
+    // `opts.creature` names the creature explicitly — an ability BORROWED
+    // from something that isn't your race (`[Umber Hulk] Confusing Gaze`, an
+    // Illithid Savant's devoured knowledge). Without it we resolve against
+    // the character's own race, as before.
     const raceInput = document.getElementById("char-race");
-    const crName = (raceInput && raceInput.value || "").trim()
+    const crName = opts.creature || (raceInput && raceInput.value || "").trim()
       .replace(/\s*\(3\.0\)\s*$/, "")
       .replace(/\s*\(3\.5\)\s*$/, "");
     if (!crName) return null;
@@ -758,7 +861,16 @@ const Feats = (function () {
       "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1",
       [crName]
     );
-    if (!row) return null;
+    // Falling through silently is right when we GUESSED the creature from the
+    // race field; when the player named it in brackets it is an answer they
+    // asked for, so say what failed.
+    if (!row) {
+      return opts.explicit ? {
+        html: `<i style="opacity:.7">Creature "${escapeHtml(crName)}" not ` +
+          `found in the database.</i>`,
+        entryId: null,
+      } : null;
+    }
     const parseArr = (s) => {
       try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; }
       catch (e) { return []; }
@@ -866,6 +978,23 @@ const Feats = (function () {
       return { html: bits.join("<br>"), entryId: null };
     }
 
+    if (opts.explicit) {
+      // The creature resolved and the ability did not. Name both, and list
+      // what the creature DOES have — the usual cause is a spelling the stat
+      // block words differently.
+      const have = detailed.map(d => d && d.name).filter(Boolean)
+        .concat(known).slice(0, 12);
+      return {
+        html: `<i style="opacity:.7">No ability matching ` +
+          `"${escapeHtml(text.split(/\r?\n/)[0])}" on ` +
+          `${escapeHtml(row.name)}.</i>` +
+          (have.length
+            ? `<br><span style="opacity:.6">It has: ` +
+              `${escapeHtml(have.join(", "))}</span>`
+            : ""),
+        entryId: null,
+      };
+    }
     return null;
   }
 
