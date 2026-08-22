@@ -4861,3 +4861,17 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   margin-left: 0.25rem; font-size: 0.82em; white-space: nowrap;
   color: #fd9; opacity: 0.9;
 }
+
+/* Save bonus that is DERIVED from worn gear (cloak of resistance, periapt).
+   Sits beside the player's Magic box rather than in it — the value is already
+   in the total via the typed-bonus stack, and writing it into an input the
+   player owns would make it look hand-entered and would outlive the item.
+   Same idiom as .dmg-enh-meld on the damage row. Report rmsrtdp1q-bud9. */
+.save-magic-derived {
+  margin-left: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--accent, #7a9);
+  opacity: 0.85;
+  cursor: help;
+  white-space: nowrap;
+}

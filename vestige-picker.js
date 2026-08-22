@@ -321,16 +321,30 @@
     function bind() {
       const v = vestigeIndex.get(vesIn.value.trim().toLowerCase());
       if (!v) return;
-      // Reuse the user-facing "+ Add Vestige" button so spells.js
-      // wires the row's events. Then prefill the new row's name; the
-      // existing event-delegated autocomplete then fills the rest.
-      const addBtn = panel.querySelector('.bind-add-vestige');
-      if (!addBtn) return;
-      addBtn.click();
-      const rows = panel.querySelectorAll('.vestige-entry');
-      const last = rows[rows.length - 1];
-      if (!last) return;
-      const nameInp = last.querySelector('.vestige-name');
+      // Take over an EMPTY vestige entry if there is one, the way the feat
+      // picker reuses a blank feat row (report rmszworfj-3ehb). A binding
+      // panel opens with a blank row, so binding your first vestige used to
+      // append a second one and leave the empty one sitting above it.
+      //
+      // "Empty" means the NAME is blank — that is the row's identity. A row
+      // where someone has typed a level or a DC but no name is still an
+      // unfilled row waiting for a vestige, and those values are preserved
+      // by writing only the name here and letting the existing
+      // event-delegated autocomplete fill the rest.
+      const blank = [...panel.querySelectorAll('.vestige-entry')].find(
+        row => !(row.querySelector('.vestige-name')?.value || '').trim());
+      let target = blank;
+      if (!target) {
+        // Reuse the user-facing "+ Add Vestige" button so spells.js wires
+        // the row's events.
+        const addBtn = panel.querySelector('.bind-add-vestige');
+        if (!addBtn) return;
+        addBtn.click();
+        const rows = panel.querySelectorAll('.vestige-entry');
+        target = rows[rows.length - 1];
+      }
+      if (!target) return;
+      const nameInp = target.querySelector('.vestige-name');
       if (!nameInp) return;
       nameInp.value = v.name;
       nameInp.dispatchEvent(new Event('input', { bubbles: true }));

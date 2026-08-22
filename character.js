@@ -641,6 +641,53 @@ const Character = (function () {
         ? DND35.stackBonuses(typedList).total : 0;
       const total = int($(`#${prefix}-base`).value) + abilityMod + stacked;
       $(`#${prefix}-total`).textContent = fmt(total);
+
+      // Show the resistance bonus DERIVED from worn items (a cloak of
+      // resistance, a periapt) beside the Magic box (report rmsrtdp1q-bud9).
+      //
+      // The maths was never wrong: the item's bonus already reaches the total
+      // through saveTyped, which is also what makes two resistance bonuses
+      // correctly NOT stack. What was wrong is that the total then did not
+      // add up from the columns the player can see — the +2 arrived from
+      // nowhere.
+      //
+      // Shown BESIDE the box rather than written into it, the same way the
+      // soulmeld enhancement chip sits beside the damage box. Writing it in
+      // would make a derived value look player-typed, and it would keep
+      // granting the bonus after the cloak came off. (It would not even
+      // change the total: the Magic box is itself typed `resistance`, so the
+      // two would collapse to the higher one.)
+      const chip = $(`#${prefix}-magic-derived`);
+      if (chip) {
+        const derived = ((bonuses.saveTyped && bonuses.saveTyped[prefix]) || [])
+          .filter(b => b && Number(b.amount) > 0);
+        // Report the one that WINS its type, not the sum — that is what the
+        // total actually used.
+        const best = new Map();
+        for (const b of derived) {
+          const cat = b.bonus_category || 'untyped';
+          if (cat === 'untyped') continue;          // untyped stack; not a single winner
+          const cur = best.get(cat);
+          if (!cur || Number(b.amount) > Number(cur.amount)) best.set(cat, b);
+        }
+        const parts = [...best.values()]
+          .sort((a, b) => Number(b.amount) - Number(a.amount));
+        if (parts.length) {
+          const top = parts[0];
+          chip.textContent = `+${top.amount}`;
+          chip.title = parts
+            .map(b => `+${b.amount} ${b.bonus_category}` +
+                      (b.source ? ` (${b.source})` : ''))
+            .join('\n') +
+            '\n\nAlready included in the total. Shown here because it is ' +
+            'derived from your gear, not typed into the Magic box.';
+          chip.style.display = '';
+        } else {
+          chip.textContent = '';
+          chip.title = '';
+          chip.style.display = 'none';
+        }
+      }
     });
     // Auto-derived situational save modifiers (race/template), tagged per
     // save where the data names/implies one; general ones grouped separately.
