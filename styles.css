@@ -1975,11 +1975,29 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   flex-shrink: 0;
 }
 .audit-dismiss:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+/* Mute (this KIND of issue) sits beside dismiss (this one issue). */
+.audit-mute {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  cursor: pointer;
+  font-size: 0.8em;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+.audit-mute:hover { background: rgba(255, 255, 255, 0.08); }
 .audit-dismissed-bar {
   padding: 0.4rem 0.7rem;
   border-top: 1px solid var(--border);
   text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
 }
+.audit-unmute,
 .audit-show-dismissed {
   background: none;
   border: 1px solid var(--border);
@@ -1989,6 +2007,7 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
   cursor: pointer;
   font-size: 0.85em;
 }
+.audit-unmute:hover,
 .audit-show-dismissed:hover { color: var(--text); }
 
 /* === Conditions tracker === */

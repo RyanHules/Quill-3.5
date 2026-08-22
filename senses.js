@@ -102,6 +102,13 @@ const Senses = (function () {
       try { for (const s of RacePicker.getActiveSenses()) push(s, s.source || 'race'); }
       catch (e) { /* a picker that is not ready must not break the block */ }
     }
+    // UA traits: Nightsighted is a `plus_ft` row, so it lands on top of
+    // whatever darkvision the race already gave — 60 becomes 70, and it
+    // stays right if the race changes underneath it.
+    if (typeof TraitPicker !== 'undefined' && TraitPicker.getActiveSenses) {
+      try { for (const s of TraitPicker.getActiveSenses()) push(s, s.source || 'trait'); }
+      catch (e) { /* likewise */ }
+    }
     // Soulmelds express a sense as a bonus row (`bonus_type:'darkvision'`)
     // because that is the shape the rest of their effects use; translate it
     // here rather than making the DB carry a second shape for one case.
@@ -137,9 +144,12 @@ const Senses = (function () {
   function resolved() {
     const best = new Map();
     const extend = new Map();
+    const extendFrom = new Map();      // sense -> [source, …] of the extenders
     for (const r of collect()) {
       if (r.plus_ft) {
         extend.set(r.sense, (extend.get(r.sense) || 0) + r.plus_ft);
+        if (!extendFrom.has(r.sense)) extendFrom.set(r.sense, []);
+        extendFrom.get(r.sense).push(r.from);
         continue;
       }
       const cur = best.get(r.sense);
@@ -160,8 +170,23 @@ const Senses = (function () {
     }
     for (const [sense, plus] of extend) {
       const row = best.get(sense);
-      if (row) { row.range_ft = (row.range_ft || 0) + plus; row.extended = plus; }
-      else best.set(sense, { sense, range_ft: plus, froms: ['(extension only)'] });
+      // Same provenance rule as the best-of above: the thing that ADDED the
+      // ten feet has to appear in the source list, or the chip says
+      // "darkvision 70 (Dwarf)" and a dwarf has 60.
+      const who = extendFrom.get(sense) || [];
+      if (row) {
+        row.range_ft = (row.range_ft || 0) + plus;
+        row.extended = plus;
+        row.froms = row.froms.concat(who);
+      } else {
+        // An extension with nothing to extend. Nightsighted's own text says
+        // you must already have racial darkvision, so this is a build error
+        // rather than a 10-foot darkvision — say so instead of quietly
+        // inventing a sense.
+        best.set(sense, { sense, range_ft: plus, extended: plus,
+                          note: 'extends a sense you do not have',
+                          froms: who.length ? who : ['(extension only)'] });
+      }
     }
     return Array.from(best.values());
   }

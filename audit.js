@@ -24,13 +24,40 @@
 //             base specifically per the player's note).
 //   info    — advisory: spells prepared == max (no flex room).
 //
-// Dismissed issues persist via `Audit.collectData/loadData`
-// (`{ auditDismissed: [id, …] }`).
+// Dismissed issues — and muted issue FAMILIES — persist via
+// `Audit.collectData/loadData` (`{ auditDismissed: [id, …],
+// auditMuted: [family, …] }`).
 
 const Audit = (function () {
   // Dismissed issue IDs survive across recalc but are wiped on
   // new-character / load. Sealed as a Set for cheap membership tests.
   const dismissed = new Set();
+
+  // Muted issue FAMILIES — "stop telling me this KIND of thing about this
+  // character" (report rmszxyryb-l93o, filed against the every-slot-filled
+  // advisory). Dismissing by id only silences one caster at one level, so a
+  // wizard who deliberately preps to the brim has to dismiss it nine times,
+  // and again for every new caster. A family mute is the toggle that asks
+  // for. Persisted alongside the dismissals.
+  const muted = new Set();
+
+  // An issue id is `family:instance…` — "caster:prepared-full:Wizard:3"
+  // mutes as "caster:prepared-full". Ids of only two segments
+  // ("m7:hp-not-set") are already whole families.
+  function familyOf(issue) {
+    if (issue.family) return issue.family;
+    const parts = String(issue.id || '').split(':');
+    return parts.length > 2 ? parts.slice(0, 2).join(':') : String(issue.id || '');
+  }
+
+  // Human-readable names for the mute bar. Unlisted families fall back to
+  // their id fragment, which is ugly but never wrong.
+  const FAMILY_LABELS = {
+    'caster:prepared-full': 'prepared list fills every slot',
+    'caster:over-prepared': 'over-prepared',
+    'caster:over-used': 'more slots used than available',
+    'caster:over-known': 'over the spells-known cap',
+  };
 
   let triggerBtn = null;
   let popoverEl = null;
@@ -359,8 +386,8 @@ const Audit = (function () {
       }
     }
 
-    // Filter out dismissed.
-    return issues.filter(i => !dismissed.has(i.id));
+    // Filter out dismissed instances and muted families.
+    return issues.filter(i => !dismissed.has(i.id) && !muted.has(familyOf(i)));
   }
 
   // ---- History-derived checks ---------------------------------------
@@ -697,6 +724,8 @@ const Audit = (function () {
       const items = list.map(i =>
         `<li class="audit-item audit-item-${sev}">` +
         `<span class="audit-msg">${escapeHtml(i.message)}</span>` +
+        `<button class="audit-mute" data-family="${escapeHtml(familyOf(i))}" ` +
+        `title="Stop showing this KIND of issue for this character">🔕</button>` +
         `<button class="audit-dismiss" data-id="${escapeHtml(i.id)}" ` +
         `title="Dismiss this issue for this character">×</button>` +
         `</li>`).join('');
@@ -716,23 +745,48 @@ const Audit = (function () {
         dismiss(btn.dataset.id);
       });
     });
+    popoverEl.querySelectorAll('.audit-mute').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mute(btn.dataset.family);
+      });
+    });
     bindDismissedToggle();
   }
 
   function renderDismissedToggle() {
-    if (!dismissed.size) return '';
-    return `<div class="audit-dismissed-bar">` +
-      `<button class="audit-show-dismissed" type="button">` +
-      `${dismissed.size} dismissed — re-enable</button></div>`;
+    const bars = [];
+    if (dismissed.size) {
+      bars.push(`<button class="audit-show-dismissed" type="button">` +
+        `${dismissed.size} dismissed — re-enable</button>`);
+    }
+    // Muted families are listed by NAME, not just counted: a silenced check
+    // the user can't see the name of is a check they can't decide to turn
+    // back on.
+    for (const fam of muted) {
+      bars.push(`<button class="audit-unmute" type="button" ` +
+        `data-family="${escapeHtml(fam)}">` +
+        `muted: ${escapeHtml(FAMILY_LABELS[fam] || fam)} — unmute</button>`);
+    }
+    if (!bars.length) return '';
+    return `<div class="audit-dismissed-bar">${bars.join('')}</div>`;
   }
 
   function bindDismissedToggle() {
     const btn = popoverEl?.querySelector('.audit-show-dismissed');
-    if (!btn) return;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dismissed.clear();
-      refresh();
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dismissed.clear();
+        refresh();
+      });
+    }
+    popoverEl?.querySelectorAll('.audit-unmute').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        muted.delete(b.dataset.family);
+        refresh();
+      });
     });
   }
 
@@ -740,6 +794,12 @@ const Audit = (function () {
 
   function dismiss(id) {
     dismissed.add(id);
+    refresh();
+  }
+
+  function mute(family) {
+    if (!family) return;
+    muted.add(family);
     refresh();
   }
 
@@ -752,12 +812,16 @@ const Audit = (function () {
   // ---- Save / Load --------------------------------------------------
 
   function collectData() {
-    return { auditDismissed: [...dismissed] };
+    return { auditDismissed: [...dismissed], auditMuted: [...muted] };
   }
 
   function loadData(d) {
     dismissed.clear();
     for (const id of (d?.auditDismissed || [])) dismissed.add(id);
+    // Defensive default: a save written before mutes existed simply has
+    // none, and every check stays on.
+    muted.clear();
+    for (const fam of (d?.auditMuted || [])) muted.add(fam);
     refresh();
   }
 
@@ -775,5 +839,9 @@ const Audit = (function () {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { build, refresh, collect, dismiss, collectData, loadData };
+  // familyOf is exported for the regression suite: the mute is only as good
+  // as the family the id derives to, and that derivation is the part a
+  // future id-format change would silently break.
+  return { build, refresh, collect, dismiss, mute, familyOf,
+           collectData, loadData };
 })();

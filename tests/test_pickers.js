@@ -8305,6 +8305,85 @@ test('live: the tab refuses a field the player is editing', () => {
     'watcher re-publishes identical content.');
 });
 
+// ---- tests: a trait that extends a sense (report rmt3eud3k-612c) ----------
+
+test('senses: Nightsighted carries a structured darkvision extension', (db) => {
+  const row = execOne(db,
+    "SELECT json_extract(data, '$.senses') AS senses FROM entry "
+    + "WHERE type = 'trait' AND name = 'Nightsighted (Trait)'");
+  assert(row && row.senses, 'Nightsighted must carry a senses row — the ' +
+    'sheet reads the structure, not the benefit prose');
+  const senses = JSON.parse(row.senses);
+  assertEq(senses.length, 1);
+  assertEq(senses[0].sense, 'darkvision');
+  // plus_ft, NOT range_ft: the trait's own text requires you to already have
+  // darkvision, so it EXTENDS. As a range it would be a 10-foot darkvision
+  // that always loses the best-of and shows up as nothing.
+  assertEq(senses[0].plus_ft, 10);
+  assert(senses[0].range_ft === undefined,
+    'a range_ft here would resolve best-of and silently do nothing');
+});
+
+test('senses: the trait picker feeds the Senses block', () => {
+  const tp = fs.readFileSync(path.join(ROOT, 'trait-picker.js'), 'utf8');
+  const sn = fs.readFileSync(path.join(ROOT, 'senses.js'), 'utf8');
+  assert(/function getActiveSenses\(\)/.test(tp) &&
+         /getActiveSenses,/.test(tp),
+    'TraitPicker must expose getActiveSenses');
+  assert(/Array\.isArray\(d\.senses\)/.test(tp),
+    'it must read the entry\'s senses field, not match trait names — a ' +
+    'hand-kept list of sense-granting traits is the registry that rots');
+  assert(/TraitPicker\.getActiveSenses/.test(sn),
+    'senses.js must collect from the trait picker');
+  // The extender has to appear in the chip's provenance, or the chip reads
+  // "darkvision 70 (Dwarf)" and a dwarf has 60.
+  assert(/extendFrom/.test(sn),
+    'the source of a plus_ft extension must reach the rendered row');
+});
+
+// ---- tests: audit family mutes (report rmszxyryb-l93o) --------------------
+
+test('save: audit mutes round-trip and survive an older save', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'audit.js'), 'utf8');
+  assert(/auditMuted:\s*\[\.\.\.muted\]/.test(src),
+    'collectData must emit auditMuted or the toggle dies on reload');
+  assert(/d\?\.auditMuted\s*\|\|\s*\[\]/.test(src),
+    'loadData must default auditMuted — a save written before mutes ' +
+    'existed must load with every check on, not throw');
+  assert(/!muted\.has\(familyOf\(i\)\)/.test(src),
+    'collect() must actually consult the mute set');
+});
+
+test('audit: a muted family covers every caster and level of that check', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'audit.js'), 'utf8');
+  const fakeDocument = {
+    getElementById: () => null, querySelector: () => null,
+    querySelectorAll: () => [], addEventListener: () => {},
+    createElement: () => ({ style: {}, classList: { add() {} },
+      setAttribute() {}, appendChild() {}, addEventListener() {} }),
+    body: { appendChild: () => {} },
+  };
+  const A = new Function('window', 'document',
+    src + '\nreturn Audit;')({}, fakeDocument);
+  // Mute is per-FAMILY on purpose: dismissing by id silences ONE caster at
+  // ONE level, which is what made the every-slot-filled advisory feel
+  // untoggleable — a wizard would have dismissed it nine times.
+  assertEq(A.familyOf({ id: "caster:prepared-full:Wizard:1" }),
+    'caster:prepared-full');
+  assertEq(A.familyOf({ id: "caster:prepared-full:Cleric:9" }),
+    'caster:prepared-full');
+  // Two-segment ids are already whole families.
+  assertEq(A.familyOf({ id: 'm7:hp-not-set' }), 'm7:hp-not-set');
+  // Different checks must NOT collapse into one family.
+  assert(A.familyOf({ id: 'caster:over-prepared:Wizard:1' }) !==
+         A.familyOf({ id: 'caster:prepared-full:Wizard:1' }),
+    'muting the advisory must not also silence the real over-prep error');
+  // The check the report was filed against emits exactly this id shape.
+  assert(/id: `caster:prepared-full:\$\{caster\.name\}:\$\{level\}`/.test(src),
+    'the prepared-full id shape changed — familyOf and its label need to ' +
+    'change with it');
+});
+
 // ---- tests: creature criteria in the lookup (report rmsur3jhq-gtgo) -------
 //
 // "filter creatures by various criteria (HD, CR, etc) … helpful for spells

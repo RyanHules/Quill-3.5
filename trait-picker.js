@@ -357,6 +357,25 @@ const TraitPicker = (function () {
     return merged;
   }
 
+  // Senses granted or EXTENDED by an applied trait / flaw, in the canonical
+  // DB shape the races use ({sense, range_ft|multiplier|plus_ft}). Read
+  // straight off the entry rather than matched by name here: Nightsighted is
+  // the only one in UA today, and a hand-kept list of which traits touch
+  // senses is exactly the registry that rots when the next book lands.
+  // Consumed by senses.js, which resolves ranges best-of and applies the
+  // plus_ft extensions on top of the winner. (Report rmt3eud3k-612c.)
+  function getActiveSenses() {
+    const out = [];
+    for (const a of applied) {
+      const d = resolveData(a);
+      if (!d || !Array.isArray(d.senses)) continue;
+      for (const s of d.senses) {
+        if (s && s.sense) out.push(Object.assign({}, s, { source: a.name }));
+      }
+    }
+    return out;
+  }
+
   // Initiative bonuses (typed onion feed, mirrors getActiveSaveBonuses).
   // Replaced the old unconditional scalar 2026-07-05 when the initiative
   // aggregator landed — app.js now stacks the typed list cross-source.
@@ -434,6 +453,7 @@ const TraitPicker = (function () {
     getActiveSaveBonuses,
     getActiveACBonuses,
     getActiveInitiativeBonuses,
+    getActiveSenses,
     _rebuildCatalog: buildCatalog,
   };
   window.TraitPicker = api;
