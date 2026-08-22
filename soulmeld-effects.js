@@ -551,6 +551,12 @@ const SoulmeldEffects = (function () {
       //   spec  Weapon Specialization — likewise, a flat damage bonus
       //   meld  a soulmeld's own damage bonus to the claw
       //   misc  the player's "Other" box; they have said the claw deals it
+      //   pa    Power Attack — ADJUDICATED by Ryan, 2026-08-22: it rides, and
+      //     it doubles with everything else. I had excluded it on the reading
+      //     that power attack is a choice made when you swing while the rend
+      //     takes no attack roll of its own. His call, and it is the simpler
+      //     rule: the rend deals double the claw's damage, and on a round you
+      //     power-attacked, the claw's damage includes it.
       //
       // What does NOT ride:
       //   Strength — handled just below at the rider's OWN multiplier, on
@@ -558,12 +564,8 @@ const SoulmeldEffects = (function () {
       //     character's full bonus doubled, not double whatever the ridden
       //     attack applied; a secondary claw adds half Strength and the rend
       //     still doubles the full amount.
-      //   Power Attack — a choice made when you swing, and the rend takes no
-      //     attack roll of its own. Excluding it is a rules JUDGEMENT rather
-      //     than a reading, and it is flagged as such: if the table rules the
-      //     other way, add `pa` to the sum below and nothing else changes.
       const ridable = (fp.enh || 0) + (fp.spec || 0) + (fp.meld || 0)
-                    + (fp.misc || 0);
+                    + (fp.misc || 0) + (fp.pa || 0);
       let bonus = Math.floor(ridable * mult);
 
       // "including double your Strength bonus" — the character's Strength, at

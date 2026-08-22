@@ -4015,6 +4015,11 @@
       // sweeps in Power Attack too.
       await newCharacter();
       setAbilities({ STR: 18 });                 // +4, doubled by the rend = +8
+      // Fighter 5 for BAB. Power Attack caps at BAB, so on a class-less
+      // character `co-power-attack` resolves to 0 no matter what is typed —
+      // which silently skipped this test's Power Attack assertion entirely
+      // when it was first written. A guard that never fires is not a guard.
+      await applyClass('Fighter', 5);
       fillWeaponRow(await firstAttackRow(),
         { name: 'Claw', dice: '1d4', style: 'natural' });
       bindSlot('arms', 'Girallon Arms');
@@ -4060,26 +4065,30 @@
       misc.value = '';
       misc.dispatchEvent(new Event('input', { bubbles: true }));
 
-      // EXCLUSION. Power Attack is a choice made when you swing, and the rend
-      // takes no attack roll of its own, so it must NOT ride. This is the
-      // assertion that fails if someone "simplifies" the split flatParts back
-      // into the row's single `flat` total, which is exactly the tempting
-      // refactor. `.dmg-pa` is a READOUT, not an input — Power Attack is
-      // declared once in Combat Options and multiplied by the row's style.
+      // POWER ATTACK RIDES, and doubles with everything else (adjudicated by
+      // Ryan, 2026-08-22). I had originally excluded it, reasoning that power
+      // attack is a choice made when you swing while the rend takes no attack
+      // roll; his call is the simpler rule — the rend deals double the claw's
+      // damage, and on a round you power-attacked, that damage includes it.
+      //
+      // `.dmg-pa` is a READOUT, not an input: Power Attack is declared once in
+      // Combat Options and multiplied by the row's fighting style, so the test
+      // reads back what actually applied rather than assuming the declared 5.
       set('co-power-attack', 5);
       window.recalcAll();
       await wait(250);
       const paApplied = parseInt(
         (row.querySelector('.dmg-pa').textContent || '0').replace('+', ''), 10) || 0;
-      // Guarded rather than asserted blind: if this build gives a natural
-      // weapon no Power Attack, `paApplied` is 0 and asserting "the rend did
-      // not change" would pass for the wrong reason — nothing was added
-      // anywhere. The guard keeps the check honest instead of vacuous.
-      if (paApplied > 0) {
-        expectIncludes(readout(), 'rend 2d4+8',
-          'GR21: Power Attack does NOT ride the rend — the rend makes no '
-          + `attack roll (the claw itself took +${paApplied})`);
-      }
+      // Asserted, not guarded. With BAB 5 behind it, Power Attack MUST reach
+      // this row — if it does not, the scenario has stopped exercising the
+      // thing and I want that loud rather than quietly green.
+      expect(paApplied, 5,
+        'GR21: Power Attack must actually apply to the claw (BAB 5, natural '
+        + 'primary is ×1) — otherwise the assertion below tests nothing');
+      expectIncludes(readout(), `rend 2d4+${8 + 2 * paApplied}`,
+        `GR21: Power Attack rides the rend and doubles — the claw took `
+        + `+${paApplied}, so the rend gains +${2 * paApplied} on top of the `
+        + `doubled Strength`);
     });
 
   regression('GR8: a bind that improves WEAPONS reaches the player’s own rows',
