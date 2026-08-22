@@ -21,7 +21,7 @@ const Equipment = (function () {
     // sits under a renamed item.
     tr.innerHTML = `
       <td><input type="text" class="gear-name" value="${data.name || ""}" placeholder="Item name"></td>
-      <td><input type="text" class="gear-location" value="${data.location || ""}" placeholder="Location"></td>
+      <td><input type="text" class="gear-location" value="${data.location || ""}" placeholder="Location" list="container-options"></td>
       <td><input type="number" class="gear-weight" value="${data.weight || ""}" min="0" step="0.1" style="width:70px"></td>
       <td class="gear-actions">
         <button type="button" class="btn-feat-info gear-info-btn" title="Show item rules" aria-expanded="false">ⓘ</button>
@@ -30,6 +30,11 @@ const Equipment = (function () {
     `;
     tbody.appendChild(tr);
     tr.querySelector(".gear-weight").addEventListener("input", recalcWeight);
+    // Stowing an item in a container moves its weight off the character, and
+    // renaming a container changes what is stowed in it — both are weight
+    // events even though neither touches a weight box.
+    tr.querySelector(".gear-location").addEventListener("input", recalcWeightAndCascade);
+    tr.querySelector(".gear-name").addEventListener("input", recalcWeightAndCascade);
     tr.querySelector(".gear-info-btn").addEventListener("click", () => toggleGearRules(tr));
     tr.querySelector(".gear-remove-btn").addEventListener("click", () => removeGearRow(tr));
     // Collapse the rules panel whenever the user edits the item name.
@@ -1229,10 +1234,61 @@ const Equipment = (function () {
   // ============================================================
   // Weight recalculation
   // ============================================================
-  function recalcWeight() {
+  // Every extradimensional container the character is carrying, as
+  // {name, limit, volume, …, contents} — see containers.js. Containers are
+  // looked for in BOTH lists: a bag of holding is slotless, so it lands in
+  // Possessions for one player and in the Magic Items grid for the next.
+  function findContainers() {
+    if (typeof Containers === "undefined") return [];
+    const out = [];
+    const consider = (name) => {
+      const d = Containers.describe(name);
+      if (d && !out.some((c) => Containers.norm(c.name) === Containers.norm(d.name))) {
+        out.push(Object.assign({ contents: 0, items: [] }, d));
+      }
+    };
+    $$("#gear-body tr.gear-row").forEach((row) =>
+      consider(row.querySelector(".gear-name")?.value));
+    $$("#magic-items-container .magic-item-entry").forEach((entry) =>
+      consider(entry.querySelector(".mi-name")?.value));
+    return out;
+  }
+
+  // THE carried-weight calculation. One implementation, because there used to
+  // be two: character.js summed the same rows again to pick the load category,
+  // and the two copies had already disagreed twice — once over coin weight
+  // (the display counted it, encumbrance did not) and once over magic-item
+  // weight (neither did). Both were found as bugs and patched in parallel,
+  // which is the tell. Containers would have made it three: the display would
+  // have stopped counting a stowed chain shirt while the load category kept
+  // counting it, and nothing would have said so.
+  //
+  // Returns { total, containers } — the containers carry what was excluded, so
+  // the caller can show its work.
+  function carriedWeight() {
     let totalWeight = 0;
+    // A row stowed in an extradimensional container does not weigh anything
+    // to the character — "regardless of what is put into the bag, it weighs a
+    // fixed amount" — so its weight goes to the container's load instead of
+    // the carried total. The container's own row still counts, which is the
+    // whole point of the item.
+    const containers = findContainers();
     $$("#gear-body tr.gear-row").forEach((row) => {
-      totalWeight += parseFloat(row.querySelector(".gear-weight")?.value) || 0;
+      const w = parseFloat(row.querySelector(".gear-weight")?.value) || 0;
+      const loc = row.querySelector(".gear-location")?.value || "";
+      const name = row.querySelector(".gear-name")?.value || "";
+      const holder = containers.find((c) =>
+        Containers.sameContainer(loc, c.name)
+        // A container cannot be inside itself; that would zero its own weight.
+        && !Containers.sameContainer(name, c.name));
+      if (holder) {
+        holder.contents += w;
+        holder.items.push(name || "(unnamed)");
+        row.classList.add("gear-stowed");
+        return;
+      }
+      row.classList.remove("gear-stowed");
+      totalWeight += w;
     });
     totalWeight += parseFloat($("#armor-weight").value) || 0;
     totalWeight += parseFloat($("#shield-weight").value) || 0;
@@ -1254,7 +1310,81 @@ const Equipment = (function () {
     const coinCount = ["money-cp", "money-sp", "money-gp", "money-pp"]
       .reduce((sum, id) => sum + (parseInt($(`#${id}`)?.value) || 0), 0);
     totalWeight += coinCount / 50;
-    $("#total-weight").textContent = totalWeight.toFixed(1);
+    return { total: totalWeight, containers };
+  }
+
+  // Compute AND display. Returns what it computed, so character.js's recalc
+  // can drive the load category off the same call instead of a second one —
+  // which is also what keeps the container readout from going stale after a
+  // structural change (addGearRow + recalcAll fires no input event, so a
+  // display that only refreshed on `input` showed the previous contents).
+  function recalcWeight() {
+    const result = carriedWeight();
+    $("#total-weight").textContent = result.total.toFixed(1);
+    renderContainers(result.containers);
+    syncContainerDatalist(result.containers);
+    return result;
+  }
+
+  // One line per container under the Possessions table. It exists because the
+  // alternative is a Total Weight that quietly ignores half the inventory: a
+  // player who cannot see WHAT stopped counting has no way to tell the
+  // feature from a bug.
+  function renderContainers(containers) {
+    const host = $("#container-summary");
+    if (!host) return;
+    if (!containers.length) {
+      host.innerHTML = "";
+      host.style.display = "none";
+      return;
+    }
+    host.innerHTML = containers.map((c) => {
+      const over = c.limit != null && c.contents > c.limit;
+      const load = c.limit != null
+        ? `${c.contents.toFixed(1)} / ${c.limit} lb.`
+        : `${c.contents.toFixed(1)} lb. (no weight limit)`;
+      const warn = over
+        ? ` <b class="container-over">OVER by ${(c.contents - c.limit).toFixed(1)} lb.` +
+          (c.rupture ? " — an overloaded bag of holding ruptures and its contents are lost" : "") +
+          `</b>`
+        : "";
+      const assumed = c.assumedType
+        ? ` <span class="container-note">(no type given — read as ${escapeHtml(c.typeName)}; ` +
+          `write e.g. "Bag of Holding (Type III)")</span>`
+        : "";
+      const vol = c.volume
+        ? ` <span class="container-note">· volume limit ${escapeHtml(c.volume)}, ` +
+          `not tracked</span>`
+        : "";
+      const items = c.items.length
+        ? ` <span class="container-note">· holding ${c.items.length} ` +
+          `item${c.items.length === 1 ? "" : "s"}</span>`
+        : ` <span class="container-note">· empty — put its name in a row's ` +
+          `Location to stow it</span>`;
+      return `<div class="container-line${over ? " container-line-over" : ""}">` +
+        `<b>${escapeHtml(c.name)}</b>: ${load}${warn}${assumed}${items}${vol}</div>`;
+    }).join("");
+    host.style.display = "";
+  }
+
+  // Offer the character's own containers as completions in every Location
+  // box, so stowing something is discoverable without knowing the convention.
+  function syncContainerDatalist(containers) {
+    let dl = document.getElementById("container-options");
+    if (!dl) {
+      dl = document.createElement("datalist");
+      dl.id = "container-options";
+      document.body.appendChild(dl);
+    }
+    const want = containers.map((c) => c.name).join(" | ");
+    if (dl.dataset.names === want) return;      // no churn while typing
+    dl.dataset.names = want;
+    dl.innerHTML = "";
+    for (const c of containers) {
+      const opt = document.createElement("option");
+      opt.value = c.name;      // no `label` — Firefox renders it as the text
+      dl.appendChild(opt);
+    }
   }
 
   // A STRUCTURAL change that alters carried weight (removing a gear row or a
@@ -1703,7 +1833,11 @@ const Equipment = (function () {
   // ============================================================
   return {
     addGearRow, addMagicItem, buildMagicItemSlots, removeMagicItem,
-    recalcWeight, getProtectiveItems, getActiveBonuses, getSkillBonuses,
+    recalcWeight,
+    // The ONE carried-weight calculation — character.js's load category reads
+    // it rather than summing the same rows a second time.
+    carriedWeight,
+    getProtectiveItems, getActiveBonuses, getSkillBonuses,
     getActiveSaveBonuses,
     updatePaperDoll, collectData, loadData,
     // Exposed so other item surfaces (e.g. the Magic Items list) can

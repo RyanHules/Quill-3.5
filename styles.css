@@ -2010,6 +2010,30 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .audit-unmute:hover,
 .audit-show-dismissed:hover { color: var(--text); }
 
+/* === Extradimensional containers (bag of holding & friends) === */
+.container-summary {
+  margin-top: 0.5rem;
+  font-size: 0.85em;
+}
+.container-line {
+  padding: 0.2rem 0.4rem;
+  border-left: 3px solid rgba(106, 138, 170, 0.6);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 0.2rem;
+  border-radius: 0 3px 3px 0;
+}
+.container-line-over {
+  border-left-color: rgba(200, 90, 90, 0.8);
+  background: rgba(200, 90, 90, 0.08);
+}
+.container-over { color: #e08585; }
+.container-note { opacity: 0.6; }
+/* A row whose weight is riding in a container rather than on the character. */
+tr.gear-stowed .gear-weight {
+  opacity: 0.55;
+  font-style: italic;
+}
+
 /* === Conditions tracker === */
 .conditions-grid {
   display: flex;

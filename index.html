@@ -915,6 +915,11 @@
               <tr><td colspan="2" style="text-align:right"><strong>Total Weight Carried:</strong></td><td><span id="total-weight" class="calc-field">0</span></td><td></td></tr>
             </tfoot>
           </table>
+          <!-- Extradimensional containers (containers.js): one line per bag
+               of holding / haversack / portable hole the character carries,
+               with what is stowed in it and whether that is over its limit.
+               Hidden until there is one. -->
+          <div id="container-summary" class="container-summary" style="display:none"></div>
           <button id="btn-add-gear" class="btn-add">+ Add Item</button>
           <div class="field" style="margin-top:0.5rem"><label>Possessions Notes</label><textarea id="possessions-notes" rows="2" placeholder="Additional rules, item properties, etc."></textarea></div>
         </section>
@@ -1088,6 +1093,11 @@
       // the parsed data reached only one sentence in the race panel. Loads
       // after defense-riders because it sits directly under it.
       'senses.js',
+      // Extradimensional containers (bag of holding & friends). Pure
+      // lookup/matching, no DOM — equipment.js asks it whether a Possessions
+      // row is a container and whether a Location names one, so it must load
+      // before the first recalcWeight.
+      'containers.js',
       // Combat options (Power Attack / Combat Expertise / Heedless Charge) and
       // the per-weapon damage equation that reads them. character.js loads
       // EARLIER and calls into both — that is fine, and deliberately noted

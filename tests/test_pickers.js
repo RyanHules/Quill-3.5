@@ -5229,10 +5229,14 @@ test('save: Equipment gear readers scope to .gear-row (skip rules panels)', () =
   assert(/#gear-body tr\.gear-row/.test(eq),
     "equipment.js recalcWeight should scope its gear-weight scan to " +
     "`#gear-body tr.gear-row`.");
+  // character.js no longer scans gear at all (2026-08-22): encumbrance reads
+  // Equipment.carriedWeight(), so the scoping requirement applies to the one
+  // scan that remains. Asserted as an ABSENCE here, and as a positive in
+  // 'rebuild-killer: the load category and the displayed total are ONE calc'.
   const ch = readSource('character.js');
-  assert(/#gear-body tr\.gear-row/.test(ch),
-    "character.js encumbrance scan should scope to " +
-    "`#gear-body tr.gear-row`.");
+  assert(!/\$\$\(\s*['"]#gear-body tr['"]\s*\)/.test(ch),
+    "character.js must not iterate gear rows — an unscoped scan would " +
+    "match the rules-panel rows, and it should not be scanning at all.");
 });
 
 test('feats: Special Abilities ⓘ resolves creature abilities (renderCreatureAbilityRules)', () => {
@@ -5961,22 +5965,75 @@ test('save: class-skill checkbox tracks current class + prior markers (2026-06-1
     'build-timeline.js: does not dispatch build-timeline-changed.');
 });
 
-test('rebuild-killer: money weight counted in character.js load calc', () => {
-  // Pre-2026-05-17 character.js summed gear + armor + shield but
-  // skipped money. equipment.js wrote the (money-inclusive) total to
-  // #total-weight, then character.js overwrote it with a money-less
-  // number — and the load category itself was money-less. Guard the
-  // coinCount addition so the load penalty actually reflects coins.
-  // (Static grep rather than function-body extract — the recalc
-  // signature has a default param object literal that confuses the
-  // brace-matching helper.)
-  const src = readSource('character.js');
-  assert(/money-cp/.test(src),
-    'character.js: no reference to #money-cp / coin fields — ' +
-    'coin weight is not folded into the load-category calculation.');
-  assert(/coinCount\s*\/\s*50/.test(src),
-    'character.js: coin-to-weight conversion (coinCount / 50) ' +
-    'missing — PHB says 50 coins of any type weigh 1 lb.');
+test('rebuild-killer: the load category and the displayed total are ONE calc', () => {
+  // Pre-2026-05-17 character.js summed gear + armor + shield but skipped
+  // money: equipment.js wrote the money-inclusive total to #total-weight and
+  // character.js computed the load tier from a money-less one. Pre-2026-05-18
+  // neither counted magic items. Both were patched in two places at once,
+  // which is not a fix — it is a coincidence with an expiry date, and
+  // extradimensional containers (2026-08-22) were about to be the third
+  // divergence. There is now ONE implementation and character.js calls it.
+  const ch = readSource('character.js');
+  assert(/Equipment\.carriedWeight\(\)/.test(ch),
+    'character.js: the load category must read Equipment.carriedWeight(), ' +
+    'not re-sum the rows.');
+  assert(!/coinCount\s*\/\s*50/.test(ch),
+    'character.js: a second coin-weight term is back — that is the ' +
+    'duplicate this guard exists to keep out.');
+  assert(!/#gear-body tr\.gear-row[^]{0,200}gear-weight/.test(ch),
+    'character.js: a second gear-weight sum is back.');
+  // …and the one implementation still counts everything it used to.
+  const eq = readSource('equipment.js');
+  assert(/function carriedWeight\(\)/.test(eq),
+    'equipment.js must expose the single carriedWeight() calculation');
+  assert(/money-cp/.test(eq) && /coinCount\s*\/\s*50/.test(eq),
+    'equipment.js: coin weight missing — PHB, 50 coins of any type = 1 lb.');
+  assert(/armor-weight/.test(eq) && /shield-weight/.test(eq),
+    'equipment.js: armor / shield weight missing from the one calc.');
+  assert(/carriedWeight,/.test(eq),
+    'equipment.js: carriedWeight must be exported for character.js to call.');
+});
+
+test('containers: a stowed row leaves the carried total, and only that', () => {
+  const eq = readSource('equipment.js');
+  const co = readSource('containers.js');
+  // "Regardless of what is put into the bag, it weighs a fixed amount" — the
+  // contents leave the character's load, the BAG does not.
+  assert(/holder\.contents \+= w;/.test(eq) && /return;/.test(eq),
+    'equipment.js: a stowed row must add to the container and skip the total');
+  assert(/!Containers\.sameContainer\(name, c\.name\)/.test(eq),
+    'a container listed as being inside itself would zero its own weight — ' +
+    'that guard must stay');
+  // The type matters: an unlabelled bag must read as the SMALLEST, so it
+  // warns early rather than silently permitting a Type IV load.
+  assert(/c\.types\[0\]/.test(co),
+    'containers.js: an untyped bag of holding must fall back to Type I');
+  // Capacity comes from the DB's own table, not from memory.
+  assert(/bag of holding types/i.test(co) && /json_extract\(data, '\$\.tables'\)/.test(co),
+    'containers.js: bag capacities must be read from the DMG table in the DB');
+  // Volume is NOT modelled and must say so rather than implying it is fine.
+  assert(/not tracked/.test(eq),
+    'the readout must say the volume limit is not tracked');
+});
+
+test('containers: the DB still carries the Bag of Holding capacity table', (db) => {
+  const row = execOne(db,
+    "SELECT json_extract(data, '$.tables') AS t FROM entry "
+    + "WHERE type IN ('item','gear') AND name = 'Bag of Holding' LIMIT 1");
+  assert(row && row.t, 'Bag of Holding must carry its types table');
+  const tbl = (JSON.parse(row.t) || []).find(
+    x => /bag of holding types/i.test(x.caption || ''));
+  assert(tbl, 'the "Bag of Holding Types" table is what containers.js reads');
+  assert(tbl.rows.length === 4, `expected 4 bag types, got ${tbl.rows.length}`);
+  // The columns containers.js keys off, by the names it matches on.
+  for (const want of ['bag type', 'bag weight', 'contents weight', 'contents volume']) {
+    assert(tbl.columns.some(c => new RegExp(want, 'i').test(c)),
+      `column matching "${want}" missing — containers.js reads it by name`);
+  }
+  // Type I is the fallback for an unlabelled bag; its limit is the one a
+  // player is most likely to be warned against.
+  assert(/250/.test(tbl.rows[0].join(' ')),
+    'Type I should carry a 250 lb. contents limit');
 });
 
 test('rebuild-killer: magic-item weight counted in both weight calcs', () => {
@@ -5986,15 +6043,18 @@ test('rebuild-killer: magic-item weight counted in both weight calcs', () => {
   // (5 lb) or other worn magic items silently dropped off the load
   // — the displayed Total Weight + the load-category penalty BOTH
   // ignored them. Both calcs must scan #magic-items-container.
-  for (const file of ['equipment.js', 'character.js']) {
-    const src = readSource(file);
+  // Since 2026-08-22 there is ONE calc (equipment.js#carriedWeight) and
+  // character.js calls it — so the magic-item term only has to exist once,
+  // and the guard above proves character.js does not sum anything itself.
+  {
+    const src = readSource('equipment.js');
     assert(/#magic-items-container.*\.magic-item-entry/.test(src) ||
            /magic-items-container[^]*magic-item-entry/.test(src),
-      `${file}: weight calc does not sum .mi-weight inputs from ` +
+      `equipment.js: weight calc does not sum .mi-weight inputs from ` +
       `#magic-items-container — magic-item weight silently drops off ` +
       `encumbrance.`);
     assert(/\.mi-weight/.test(src),
-      `${file}: no .mi-weight selector in source — magic-item ` +
+      `equipment.js: no .mi-weight selector in source — magic-item ` +
       `weight column is not consulted by the weight calc.`);
   }
   // Live recalc trigger on edit: the .mi-weight input listener must

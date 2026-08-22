@@ -279,30 +279,27 @@ const Character = (function () {
     const rawCapacity = DND35.getCarryingCapacity(strScore);
     const carryMult = sizeData.carryMult || 1;
     const capacity = rawCapacity.map(v => Math.floor(v * carryMult));
-    let totalWeight = 0;
-    // Scope to `tr.gear-row` — the collapsible item-rules panel rows
-    // (`tr.gear-rules-row`) carry no .gear-weight input.
-    $$("#gear-body tr.gear-row").forEach((row) => {
-      totalWeight += parseFloat(row.querySelector(".gear-weight")?.value) || 0;
-    });
-    totalWeight += parseFloat($("#armor-weight").value) || 0;
-    totalWeight += parseFloat($("#shield-weight").value) || 0;
-    // Magic items: every .magic-item-entry has its own weight input.
-    // Same gap as the coin-weight fix below — encumbrance ignored
-    // magic-item weight entirely until 2026-05-18 (a +5 plate cloak
-    // and other worn magic items silently dropped off the load).
-    // Mirrors equipment.js#recalcWeight's same line.
-    $$("#magic-items-container .magic-item-entry").forEach((entry) => {
-      totalWeight += parseFloat(entry.querySelector(".mi-weight")?.value) || 0;
-    });
-    // Coin weight — per PHB, 50 coins of any type weigh 1 lb. Without
-    // this the load category ignored money entirely (gear summary
-    // showed it, but the displayed total + encumbrance penalty used a
-    // money-less number — easy to overload a character without
-    // realizing). Mirrors equipment.js#recalcWeight's same line.
-    const coinCount = ["money-cp", "money-sp", "money-gp", "money-pp"]
-      .reduce((sum, id) => sum + (parseInt($(`#${id}`)?.value) || 0), 0);
-    totalWeight += coinCount / 50;
+    // Carried weight comes from Equipment.carriedWeight() — the SINGLE
+    // implementation (equipment.js). This used to be a second copy of the
+    // same sum, and the copies disagreed twice: coin weight was in the
+    // display total and not in the load category (2026-05-17), and
+    // magic-item weight was in neither (2026-05-18). Both were fixed by
+    // editing two places at once, which is not a fix, it is a coincidence
+    // waiting to lapse. Extradimensional containers (2026-08-22) would have
+    // been the third: the display would have stopped counting a stowed chain
+    // shirt while encumbrance kept counting it.
+    // recalcWeight() rather than carriedWeight(): it computes the same thing
+    // and also refreshes the Total Weight box and the container readout, so a
+    // structural change that only goes through recalcAll (adding a gear row,
+    // loading a character) repaints them too.
+    const carried = (typeof Equipment !== "undefined" && Equipment.recalcWeight)
+      ? Equipment.recalcWeight() : null;
+    if (!carried && !recalc._warnedNoEquipment) {
+      recalc._warnedNoEquipment = true;
+      console.warn("[character] Equipment.carriedWeight unavailable — load " +
+        "category is computing against 0 lb.");
+    }
+    const totalWeight = carried ? carried.total : 0;
     const loadCategory = DND35.getLoadCategory(totalWeight, capacity);
     // "Ignore encumbrance" toggle short-circuits load-based penalties
     // — used for Dwarves (speed unaffected by load), monks at their
@@ -986,8 +983,9 @@ const Character = (function () {
     $("#carry-offground").textContent = `${capacity[2] * 2} lb.`;
     $("#carry-drag").textContent = `${capacity[2] * 5} lb.`;
 
-    // Total gear weight display
-    $("#total-weight").textContent = totalWeight.toFixed(1);
+    // Total gear weight display is written by Equipment.recalcWeight above —
+    // writing it again here is what produced the 2026-05-17 money bug, where
+    // equipment.js's money-inclusive total was overwritten by a money-less one.
   }
 
   // ============================================================

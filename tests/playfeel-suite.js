@@ -2450,6 +2450,60 @@
       'LOAD: removing the magic item drops Medium -> Light with no field edit');
   });
 
+  // Report rmstjnqxs-ectk — a bag of holding's contents leave the character's
+  // load, the bag does not. The property that needs DRIVING rather than
+  // grepping is that the DISPLAYED total and the LOAD CATEGORY agree: they
+  // were two separate sums until 2026-08-22, and a stowed item would have
+  // vanished from one and not the other.
+  regression('BAG: a stowed item leaves the total AND the load tier together', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('BAG: DB not loaded — re-run once [DB] Loaded appears.');
+    const loadText = () => (document.getElementById('load-category') || {}).textContent.trim();
+    const total = () => document.getElementById('total-weight').textContent;
+    set('str-score', '10');            // Light <= 33 lb, Medium 34-66
+    document.getElementById('gear-body').innerHTML = '';
+    document.getElementById('magic-items-container').innerHTML = '';
+    window.recalcAll();
+    await wait(50);
+
+    Equipment.addGearRow({ name: 'Anvil', location: 'backpack', weight: 40 });
+    window.recalcAll();
+    await wait(50);
+    expect(total(), '40.0', 'BAG: 40 lb carried (setup)');
+    expect(loadText(), 'Medium', 'BAG: 40 lb -> Medium (setup)');
+
+    // Stow it. Both numbers must move, and they must move together.
+    Equipment.addGearRow({ name: 'Bag of Holding (Type I)', location: '', weight: 15 });
+    const anvil = $$('#gear-body tr.gear-row')[0];
+    anvil.querySelector('.gear-location').value = 'Bag of Holding';
+    anvil.querySelector('.gear-location').dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(80);
+    expect(total(), '15.0', 'BAG: only the bag itself weighs anything now');
+    expect(loadText(), 'Light',
+      'BAG: the LOAD TIER agrees with the total — the two-sums bug would ' +
+      'leave this Medium');
+
+    // And the bag reports what it is carrying, including over its limit.
+    const summary = () => document.getElementById('container-summary').textContent;
+    if (!/40\.0 \/ 250 lb/.test(summary())) {
+      fail('BAG: the readout must show what was excluded — got: ' + summary());
+    }
+    Equipment.addGearRow({ name: 'Lead Bricks', location: 'Bag of Holding', weight: 300 });
+    window.recalcAll();
+    await wait(80);
+    if (!/OVER by 90\.0 lb/.test(summary())) {
+      fail('BAG: overloading a Type I past 250 lb must warn — got: ' + summary());
+    }
+    expect(total(), '15.0', 'BAG: an overloaded bag still weighs its 15 lb');
+
+    // A container listed inside itself must not zero its own weight.
+    const bagRow = $$('#gear-body tr.gear-row')[1];
+    bagRow.querySelector('.gear-location').value = 'Bag of Holding';
+    bagRow.querySelector('.gear-location').dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(80);
+    expect(total(), '15.0', 'BAG: a bag inside itself still weighs 15 lb');
+  });
+
   // The power-picker's Class filter is injected async into psionics panels and
   // was never part of the saved panel data, so it reset on reload (rmsnd87u6).
   // spells.js now persists caster.ppClass + stamps panel.dataset.ppClass, and
