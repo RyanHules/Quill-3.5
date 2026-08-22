@@ -2325,7 +2325,6 @@ test('lookup: DB spell_like_abilities all render without object leak', (db) => {
 const CLASS_PICKER_SRC = fs.readFileSync(
   path.join(ROOT, 'class-picker.js'), 'utf8'
 );
-
 // Pull the keys from HARDCODED_ADVANCERS and SPELLCASTING_TYPE without
 // requiring class-picker.js as a module (it's an IIFE).
 function extractObjectKeys(src, varName) {
@@ -2354,6 +2353,15 @@ const SPELLCASTING_TYPE_KEYS = extractObjectKeys(
 );
 const CASTER_STYLE_KEYS = extractObjectKeys(
   CLASS_PICKER_SRC, '_FALLBACK_CASTER_STYLE'
+);
+// The non-spell advancement pillars. The wiring audit below covers these
+// too — it used to check the spell pillar only, which is how Hellfire
+// Warlock stayed unwired while the suite ran green (2026-08-22).
+const INVOCATION_ADVANCERS_KEYS = extractObjectKeys(
+  CLASS_PICKER_SRC, '_FALLBACK_INVOCATION_ADVANCERS'
+);
+const MYSTERY_ADVANCERS_KEYS = extractObjectKeys(
+  CLASS_PICKER_SRC, '_FALLBACK_MYSTERY_ADVANCERS'
 );
 
 // Extract `KEY: 'value'` pairs from an object literal in source. Returns
@@ -2465,6 +2473,83 @@ test('class-picker: every advancer PrC is wired (Source A regex or HARDCODED_ADV
     `\nFix: either add the canonical "+1 level of existing X spellcasting ` +
     `class" marker to that PrC's class_table.special at the DB level ` +
     `(preferred), or register the PrC in HARDCODED_ADVANCERS in ` +
+    `class-picker.js.`);
+});
+
+// The same audit for the INVOCATION and MYSTERY pillars, which the one
+// above cannot see. Added 2026-08-22, after Hellfire Warlock turned out to
+// be unwired while the suite ran 348-green.
+//
+// It needed to be a separate test rather than a widening, because the audit
+// above misses this class of PrC in FOUR independent ways and each fix would
+// have collateral:
+//
+//   1. it reads `class_table.special`; Hellfire Warlock's advancement text
+//      lives in `class_table.spells_per_day`
+//   2. CANONICAL_MARKER's vocabulary is arcane|divine|manifesting|psionic;
+//      the text says "existing INVOKING class"
+//   3. SPELL_NOUN has "spells known" but not "invocations known" /
+//      "invoker level"
+//   4. ADVANCE_VERB allows exactly ONE token after "as if" — so it matches
+//      "as if she gained a level" but NOT "as if you HAD also gained a
+//      level", which is what the Invoking feature actually says
+//
+// Loosening (4) in place would surface the 39-PrC spell-pillar backlog the
+// test above deliberately defers, turning one real bug into a red suite
+// nobody can land. So: narrow scope, correct vocabulary, real assertion.
+test('class-picker: every invocation/mystery advancer PrC is wired', (db) => {
+  const rows = execAll(db,
+    "SELECT name, " +
+    "json_extract(data, '$.class_table')            AS table_json, " +
+    "json_extract(data, '$.class_features')         AS features_json, " +
+    "json_extract(data, '$.invocation_advancement') AS inv_adv, " +
+    "json_extract(data, '$.mystery_advancement')    AS myst_adv " +
+    "FROM entry WHERE type = 'prc'");
+
+  // Deliberately permissive about what follows "as if" — this is the
+  // fix for miss (4), scoped to the two pillars so it cannot resurface
+  // the spell-pillar backlog.
+  const ADVANCE_VERB = new RegExp(
+    'as if (?:(?:you|she|he|they|it) )?(?:had )?(?:also )?gained? a level' +
+    '|as if leveling in' +
+    '|\\+\\s*1\\s*level\\s+of\\s+(?:your\\s+|her\\s+|his\\s+)?existing' +
+    '|advances? (?:your |her |his )?(?:invocation|mystery|shadowcast)',
+    'i'
+  );
+  const INVOCATION_NOUN =
+    /existing invoking|invoking class|invocations? known|invoker level/i;
+  const MYSTERY_NOUN =
+    /existing (?:shadowcasting|mystery)|mysteries known|mystery level/i;
+
+  const missed = [];
+  for (const r of rows) {
+    let features = [], table = [];
+    try { features = JSON.parse(r.features_json || '[]'); } catch (e) {}
+    try { table = JSON.parse(r.table_json || '[]'); } catch (e) {}
+    // The WHOLE table, every column — not `.special` alone. That single
+    // choice is miss (1), and it is the one that would silently recur.
+    const text = features.map(f => (f.name || '') + ' ' + (f.description || ''))
+      .join(' ') + ' ' + JSON.stringify(table);
+
+    if (!ADVANCE_VERB.test(text)) continue;
+
+    if (INVOCATION_NOUN.test(text) &&
+        r.inv_adv == null && !INVOCATION_ADVANCERS_KEYS.has(r.name)) {
+      missed.push(`${r.name} (invocation pillar)`);
+    }
+    if (MYSTERY_NOUN.test(text) &&
+        r.myst_adv == null && !MYSTERY_ADVANCERS_KEYS.has(r.name)) {
+      missed.push(`${r.name} (mystery pillar)`);
+    }
+  }
+
+  assert(missed.length === 0,
+    `${missed.length} PrC(s) advance the invocation/mystery pillar but ` +
+    `aren't wired:\n  ` + missed.sort().join('\n  ') +
+    `\nFix: add the PrC to INVOCATION_ADVANCEMENT_METADATA / ` +
+    `MYSTERY_ADVANCEMENT_METADATA in the DB project's _class_metadata.py ` +
+    `and rebuild (preferred), or register it in ` +
+    `_FALLBACK_INVOCATION_ADVANCERS / _FALLBACK_MYSTERY_ADVANCERS in ` +
     `class-picker.js.`);
 });
 
