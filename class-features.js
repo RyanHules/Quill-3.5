@@ -117,6 +117,20 @@ const ClassFeatures = (function () {
       // Clean '|'-joined replaced-feature names (drives the class-picker
       // strikethrough); may be empty on legacy saves / hand-added rows.
       replacesFeatures: meta.replacesFeatures ? String(meta.replacesFeatures) : '',
+      // Base-save progression override, when the variant changes them
+      // (UA's Savage Bard / Bardic Sage). Shape: {fort,ref,will} with
+      // 'good'/'poor' values; read by class-picker's progFor at totals time.
+      saveProgressions: (meta.saveProgressions && typeof meta.saveProgressions === 'object')
+        ? meta.saveProgressions : null,
+      // {add:[...], remove:[...]} of class-skill names, for the 11 UA
+      // variants that change the list. Same delta-only contract.
+      classSkillChanges: (meta.classSkillChanges && typeof meta.classSkillChanges === 'object')
+        ? meta.classSkillChanges : null,
+      // Scalar progression overrides. Stored as-is; consumers decide.
+      babProgression: meta.babProgression ? String(meta.babProgression) : '',
+      hitDie: meta.hitDie != null && meta.hitDie !== '' ? Number(meta.hitDie) : null,
+      skillPointsPerLevel: meta.skillPointsPerLevel != null && meta.skillPointsPerLevel !== ''
+        ? Number(meta.skillPointsPerLevel) : null,
       // What the customization grants — shown so the row isn't just a name.
       grants: meta.grants ? String(meta.grants) : '',
       source: meta.source ? String(meta.source) : '',

@@ -192,6 +192,11 @@ const ClassVariants = (function () {
       + "json_extract(data, '$.class')         AS class_field, "
       + "json_extract(data, '$.level')         AS level, "
       + "json_extract(data, '$.replaces')      AS replaces, "
+      + "json_extract(data, '$.save_progressions') AS save_progressions, "
+      + "json_extract(data, '$.class_skill_changes') AS class_skill_changes, "
+      + "json_extract(data, '$.bab_progression')  AS bab_progression, "
+      + "json_extract(data, '$.hit_die')          AS hit_die, "
+      + "json_extract(data, '$.skill_points_per_level') AS skill_points_per_level, "
       + "json_extract(data, '$.prerequisites') AS prerequisite, "
       + "json_extract(data, '$.benefit')       AS benefit, "
       + "json_extract(data, '$.description')   AS description "
@@ -393,6 +398,11 @@ const ClassVariants = (function () {
            data-level="${escapeHtml(effLevel ?? '')}"
            data-replaces="${escapeHtml(ri.display)}"
            data-replaces-features="${escapeHtml(ri.features.join('|'))}"
+           data-save-progressions="${escapeHtml(r.save_progressions || '')}"
+           data-class-skill-changes="${escapeHtml(r.class_skill_changes || '')}"
+           data-bab-progression="${escapeHtml(r.bab_progression || '')}"
+           data-hit-die="${escapeHtml(r.hit_die != null ? String(r.hit_die) : '')}"
+           data-skill-points-per-level="${escapeHtml(r.skill_points_per_level != null ? String(r.skill_points_per_level) : '')}"
            data-grants="${escapeHtml(grants)}"
            data-source="${escapeHtml(r.source ?? '')}">
         <details>
@@ -507,6 +517,38 @@ const ClassVariants = (function () {
     });
   }
 
+  // `data-*` values are strings, so the override crosses the DOM as JSON.
+  // Returns null for anything unusable rather than a half-parsed object — a
+  // malformed override must leave the character's saves exactly as they were.
+  function parseSaveProgressions(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    try {
+      const o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return null;
+      const out = {};
+      for (const k of ['fort', 'ref', 'will']) {
+        if (typeof o[k] === 'string' && o[k]) out[k] = o[k];
+      }
+      return Object.keys(out).length ? out : null;
+    } catch (e) { return null; }
+  }
+
+  // Same JSON-across-the-DOM boundary as the save override, and the same
+  // refusal to half-parse: a malformed delta must leave the class-skill list
+  // exactly as the base class had it.
+  function parseSkillChanges(raw) {
+    if (!raw) return null;
+    const o = (typeof raw === 'object') ? raw : (() => {
+      try { return JSON.parse(raw); } catch (e) { return null; }
+    })();
+    if (!o || typeof o !== 'object') return null;
+    const clean = (v) => Array.isArray(v)
+      ? v.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()) : [];
+    const add = clean(o.add), remove = clean(o.remove);
+    return (add.length || remove.length) ? { add, remove } : null;
+  }
+
   function appendToCustomizations(meta) {
     // The Class Features tab now hosts a structured customizations
     // list; class-features.js owns the data model + de-dupe logic.
@@ -525,6 +567,11 @@ const ClassVariants = (function () {
       // Clean list of actually-replaced feature names (for the strikethrough);
       // '|'-joined in the dataset. Distinct from the prose `replaces` display.
       replacesFeatures: meta.replacesFeatures || '',
+      saveProgressions: parseSaveProgressions(meta.saveProgressions),
+      classSkillChanges: parseSkillChanges(meta.classSkillChanges),
+      babProgression: meta.babProgression || '',
+      hitDie: meta.hitDie || null,
+      skillPointsPerLevel: meta.skillPointsPerLevel || null,
       grants:   meta.grants || '',
       source:   meta.source || '',
       notes:    '',

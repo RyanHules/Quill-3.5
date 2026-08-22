@@ -892,6 +892,38 @@
     document.addEventListener('class-customizations-changed', () => {
       refresh();
       renderClassList();
+      // An applied variant can change the NUMBERS too, not just which
+      // features are struck through — base saves, BAB, and the class-skill
+      // list (report rmsrsfz51-2grp and its family).
+      //
+      // Without this the override was computed correctly and displayed
+      // nowhere: aggregateTotals already returned the Savage Bard's fort 6 /
+      // ref 2 while #fort-base still read the standard bard's 2 / 6, because
+      // the base-save fields are only written when a class is applied or
+      // removed. Adding a variant is neither.
+      try { applyAggregatesToSheet(); } catch (e) { /* never break on a variant */ }
+      try {
+        // RE-DERIVE, don't top up. applyClassSkills only ever ADDS a source,
+        // so on its own it cannot express either half of a variant's delta:
+        // a skill the variant REMOVES was already ticked when the class was
+        // applied, and a skill it ADDS would survive removing the variant.
+        // Stripping the class first makes the list a pure function of
+        // (class + currently-applied variants), so it is correct in both
+        // directions and after any number of toggles.
+        //
+        // Safe because removeClassSkills only touches boxes this class
+        // sourced — a hand-ticked skill has no `classSkillSources` and a
+        // pinned one is explicitly preserved.
+        for (const e of classPool()) {
+          if (!e.className) continue;
+          removeClassSkills(e.className);
+          applyClassSkills(e.className);
+        }
+        reconcileCurrentClassSkills();
+      } catch (e) { /* likewise */ }
+      if (typeof window.recalcAll === 'function') {
+        try { window.recalcAll(); } catch (e) { /* likewise */ }
+      }
     });
 
     // Bloodline-changed: the bloodline contributes a level segment to the
@@ -1015,6 +1047,50 @@
   }
 
   // Sum levels by progression category per attribute.
+  // An entry's progression WITH any applied alternate-class-feature override
+  // layered on. Report rmsrsfz51-2grp: a Savage Bard has good Fortitude and
+  // poor Reflex where a standard bard has the reverse (UA: "Base Save Bonuses:
+  // A savage bard has good Fortitude and Will saves, but has poor Reflex
+  // saves"), and taking the variant changed nothing.
+  //
+  // ACF application already exists and already persists — class-variants
+  // pre-extracts the replaced-feature list, the customization rows round-trip
+  // through collectData, and the class-picker strikes through the features an
+  // applied variant replaces. What none of it touched was the NUMBERS: no
+  // consumer ever asked an ACF about a progression. This is that half.
+  //
+  // Resolved at READ time rather than written into `e.prog`, because prog is
+  // persisted and "the saved BAB/saves are authoritative" — baking an override
+  // in would make it survive removing the variant, which is the sticky-field
+  // failure this file has been bitten by before.
+  function progFor(entry) {
+    const base = entry.prog || {};
+    if (!entry.className) return base;
+    let overrides = null;
+    try {
+      if (typeof ClassFeatures !== 'undefined' &&
+          typeof ClassFeatures.getCustomizations === 'function') {
+        const matches = (typeof ClassVariants !== 'undefined' &&
+                         typeof ClassVariants.matchesClass === 'function')
+          ? ClassVariants.matchesClass
+          : (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+        for (const c of ClassFeatures.getCustomizations()) {
+          if (!matches(entry.className, c.class)) continue;
+          if (c.saveProgressions) {
+            overrides = Object.assign({}, overrides, c.saveProgressions);
+          }
+          // BAB rides the same object: the Cloistered Cleric drops to poor,
+          // the Battle Sorcerer takes the cleric's average progression.
+          if (c.babProgression) {
+            overrides = Object.assign({}, overrides, { bab: c.babProgression });
+          }
+        }
+      }
+    } catch (e) { /* a variant must never break the totals */ }
+    if (!overrides) return base;
+    return Object.assign({}, base, overrides);
+  }
+
   function levelGroups(entries) {
     const g = {
       bab:  { good: 0, avg: 0, poor: 0 },
@@ -1024,10 +1100,11 @@
     };
     for (const e of entries) {
       const lvl = e.level;
-      const bc = babCategory(e.prog.bab);   if (bc) g.bab[bc] += lvl;
-      const fc = saveCategory(e.prog.fort); if (fc) g.fort[fc] += lvl;
-      const rc = saveCategory(e.prog.ref);  if (rc) g.ref[rc]  += lvl;
-      const wc = saveCategory(e.prog.will); if (wc) g.will[wc] += lvl;
+      const p = progFor(e);
+      const bc = babCategory(p.bab);   if (bc) g.bab[bc] += lvl;
+      const fc = saveCategory(p.fort); if (fc) g.fort[fc] += lvl;
+      const rc = saveCategory(p.ref);  if (rc) g.ref[rc]  += lvl;
+      const wc = saveCategory(p.will); if (wc) g.will[wc] += lvl;
     }
     return g;
   }
@@ -1101,7 +1178,7 @@
   function expandTrack(entries) {
     const out = [];
     for (const e of (entries || [])) {
-      const p = e.prog || {};
+      const p = progFor(e);          // ACF save overrides apply on both tracks
       const cat = {
         bab:  babCategory(p.bab),
         fort: saveCategory(p.fort),
@@ -5621,9 +5698,44 @@
     return arr;
   }
 
+  // The class-skill list a class actually grants, with any applied
+  // alternate-class-feature delta layered on (report rmsrsfz51-2grp's family:
+  // 11 UA variants change the list). Removals run before adds, so a variant
+  // that swaps one skill for another — "Replace Diplomacy with Bluff" — lands
+  // as both, in either authoring order.
+  //
+  // "Knowledge (all)" needs no special handling: findSkillCheckboxesForSpec
+  // already resolves the whole all/any/individually family to every Knowledge
+  // row, so the token passes straight through as an ordinary spec and the
+  // Cloistered Cleric picks up a new subtype the day one is added.
+  function classSkillsWithVariants(className, skills) {
+    let out = Array.isArray(skills) ? skills.slice() : [];
+    try {
+      if (typeof ClassFeatures === 'undefined' ||
+          typeof ClassFeatures.getCustomizations !== 'function') return out;
+      const matches = (typeof ClassVariants !== 'undefined' &&
+                       typeof ClassVariants.matchesClass === 'function')
+        ? ClassVariants.matchesClass
+        : (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+      const norm = (s) => String(s || '').trim().toLowerCase();
+      for (const c of ClassFeatures.getCustomizations()) {
+        const chg = c.classSkillChanges;
+        if (!chg || !matches(className, c.class)) continue;
+        for (const rem of (chg.remove || [])) {
+          const k = norm(rem);
+          out = out.filter(s => norm(s) !== k);
+        }
+        for (const add of (chg.add || [])) {
+          if (!out.some(s => norm(s) === norm(add))) out.push(add);
+        }
+      }
+    } catch (e) { /* a variant must never break class-skill application */ }
+    return out;
+  }
+
   function applyClassSkills(className) {
-    const skills = getClassSkills(className);
-    if (!skills) return;
+    const skills = classSkillsWithVariants(className, getClassSkills(className));
+    if (!skills || !skills.length) return;
     for (const spec of skills) {
       for (const cb of findSkillCheckboxesForSpec(spec)) {
         const sources = (cb.dataset.classSkillSources || '')

@@ -922,6 +922,129 @@
       'GE4: Mystic Theurge advances the Side-B Cleric to CL 10');
   });
 
+  regression('ACF1: an applied variant changes the NUMBERS, both ways', async () => {
+    // report rmsrsfz51-2grp. ACF application already existed and already
+    // persisted — the class-picker strikes through the features an applied
+    // variant replaces. What no consumer ever did was ask an ACF about a
+    // PROGRESSION, and no ACF carried one.
+    //
+    // UA: "A savage bard has good Fortitude and Will saves, but has poor
+    // Reflex saves" (a standard bard is the reverse), "loses Decipher Script
+    // and Speak Language as class skills", "adds Survival".
+    //
+    // The REMOVAL half of each is what earns this test. Applying a variant
+    // only ever added before: a skill the variant removes was already ticked
+    // when the class was applied, and a skill it adds survived taking the
+    // variant back off. So every assertion below is made three times — base,
+    // applied, and removed.
+    await newCharacter();
+    await applyClass('Bard', 8);
+    await wait(400);
+
+    const tick = (name) => {
+      const tr = [...document.querySelectorAll('#tab-skills tr[data-skill-index]')]
+        .find(r => (r.querySelector('.skill-name')?.textContent || '').trim() === name);
+      return tr?.querySelector('.skill-class-check')?.checked ?? null;
+    };
+    const snap = () => ({
+      fort: $('#fort-base')?.value, ref: $('#ref-base')?.value,
+      will: $('#will-base')?.value,
+      survival: tick('Survival'), decipher: tick('Decipher Script'),
+    });
+
+    const base = snap();
+    expect(base.fort, '2', 'ACF1: a standard Bard 8 has poor Fortitude');
+    expect(base.ref,  '6', 'ACF1: ...and good Reflex');
+    expect(base.decipher, true, 'ACF1: ...with Decipher Script a class skill');
+    expect(base.survival, false, 'ACF1: ...and Survival not one');
+
+    const rows = DB.query(
+      "SELECT name, json_extract(data,'$.class') cls, " +
+      "json_extract(data,'$.save_progressions') sp, " +
+      "json_extract(data,'$.class_skill_changes') cs " +
+      "FROM entry WHERE type='acf' AND name LIKE '%Savage Bard%'");
+    if (!rows.length) fail('ACF1: the Savage Bard ACF is missing from the DB');
+    const a = rows[0];
+    if (!a.sp || !a.cs) {
+      fail('ACF1: Savage Bard carries no structured override — the DB half ' +
+           'of this fix is missing, and the sheet half cannot be tested');
+    }
+    ClassFeatures.addCustomization({
+      kind: 'ACF', name: a.name, class: a.cls,
+      saveProgressions: JSON.parse(a.sp), classSkillChanges: JSON.parse(a.cs),
+    });
+    await wait(900);
+
+    const on = snap();
+    expect(on.fort, '6', 'ACF1: the savage bard has GOOD Fortitude');
+    expect(on.ref,  '2', 'ACF1: ...and POOR Reflex');
+    expect(on.will, '6', 'ACF1: ...Will unchanged (the delta names only what moves)');
+    expect(on.survival, true,  'ACF1: Survival becomes a class skill');
+    expect(on.decipher, false, 'ACF1: Decipher Script stops being one');
+
+    // MIRROR. Everything returns — the list must be a pure function of
+    // (class + applied variants), not an accumulation of edits.
+    const domRows = document.querySelectorAll('#class-customizations-list .cf-customization');
+    ClassFeatures.removeCustomization(domRows[0].dataset.custIdx);
+    await wait(900);
+    const off = snap();
+    expect(off.fort, '2', 'ACF1: removing the variant restores poor Fortitude');
+    expect(off.ref,  '6', 'ACF1: ...and good Reflex');
+    expect(off.survival, false, 'ACF1: ...and Survival is no longer a class skill');
+    expect(off.decipher, true,  'ACF1: ...and Decipher Script is one again');
+  });
+
+  regression('SPT1: a slash-string spells/day progression still opens a panel', async () => {
+    // report rmsupgxx2-auk8. A Spellthief NEVER got a spellcasting panel, at
+    // any level — not just at 4th. The class prints its progression as a
+    // slash-delimited STRING in class_table ("0/-/-/-") where every other
+    // class uses a list, and both ends of the pipeline dropped it:
+    // normalize_schema only iterates lists, and the sheet's
+    // getSpellcastingDataAtLevel returns null for any non-array (a guard
+    // written for advancer PrCs whose spells_per_day is prose).
+    //
+    // Fixed by coercing the string to a list in the DB rather than teaching
+    // this side to read both shapes. The report's "check other classes with
+    // delayed-start spellcasting" turned up exactly one more: Fatemaker.
+    await newCharacter();
+    const panels = () =>
+      [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .map(p => (p.querySelector('.caster-notes')?.value || '').trim());
+    const perDay = (cls, lvl) => {
+      const p = [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .find(pp => (pp.querySelector('.caster-notes')?.value || '').trim() === cls);
+      const row = [...(p?.querySelectorAll('.spell-slots-table tbody tr') || [])]
+        .find(r => r.querySelector('[data-lvl]')?.getAttribute('data-lvl') === String(lvl));
+      return row?.querySelector('.sc-per-day')?.value || '';
+    };
+
+    // 3rd: the printed row is all dashes, so NO panel. This is the negative
+    // half — a fix that just always opens a panel would pass the rest.
+    await applyClass('Spellthief', 3);
+    await wait(300);
+    expect(panels().includes('Spellthief'), false,
+      'SPT1: a Spellthief 3 cannot cast, so no panel');
+
+    // 4th: "0/-/-/-" — zero base slots, which is REAL data, not absence. A
+    // spellthief's spells come from Charisma bonus slots (CAdv footnote), so
+    // 0 must open the panel rather than read as "no casting".
+    await applyClass('Spellthief', 4);
+    await wait(300);
+    expect(panels().includes('Spellthief'), true,
+      'SPT1: a Spellthief 4 gets a spellcasting panel');
+    expect(perDay('Spellthief', 1), '0',
+      'SPT1: ...with zero BASE 1st-level slots, exactly as printed');
+
+    // 10th: "1/1/-/-" — proves the columns line up (index 1 == 1st level,
+    // no cantrip column) rather than being off by one.
+    await applyClass('Spellthief', 10);
+    await wait(300);
+    expect(perDay('Spellthief', 1), '1', 'SPT1: Spellthief 10 has one 1st-level slot');
+    expect(perDay('Spellthief', 2), '1', 'SPT1: ...and one 2nd-level slot');
+    expect(perDay('Spellthief', 0), '',
+      'SPT1: ...and no cantrips — the leading column is a dash, not a slot');
+  });
+
   regression('PSI1: a psionics panel shows only the power levels it can reach', async () => {
     // report rmssl68sl-at73. The Max Power Level FIELD was already correct;
     // the panel around it was built with `data.maxLevel || 9` and never
