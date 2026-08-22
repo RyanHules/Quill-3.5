@@ -8305,6 +8305,212 @@ test('live: the tab refuses a field the player is editing', () => {
     'watcher re-publishes identical content.');
 });
 
+// ---- tests: creature criteria in the lookup (report rmsur3jhq-gtgo) -------
+//
+// "filter creatures by various criteria (HD, CR, etc) … helpful for spells
+// like planar ally". The criteria are query syntax (`cr:<=6 type:outsider`),
+// so they run through the same rankResults seam the recall harness uses.
+
+function loadLookupModule(db) {
+  const dbStub = {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+    queryOne: (sql, params) => execOne(db, sql, params),
+    ready: Promise.resolve(),
+  };
+  const win = { DB: dbStub };
+  const doc = {
+    readyState: 'loading',
+    addEventListener: () => {}, removeEventListener: () => {},
+    querySelector: () => null, getElementById: () => null,
+    createElement: () => ({ style: {}, classList: { add() {}, toggle() {} },
+      setAttribute() {}, appendChild() {}, addEventListener() {} }),
+    body: { appendChild: () => {} },
+  };
+  const src = fs.readFileSync(path.join(ROOT, 'lookup.js'), 'utf8');
+  const fn = new Function('window', 'document', 'DB',
+    src + '\n;return window.Lookup;');
+  return fn(win, doc, dbStub);
+}
+
+test('lookup: cr: + type: filters to creatures that actually match', (db) => {
+  const L = loadLookupModule(db);
+  const out = L.rankResults('cr:<=6 type:outsider');
+  assertNotEmpty(out, 'cr:<=6 type:outsider returned nothing');
+  // Match on (name, source), not name alone: Githyanki is printed twice —
+  // Humanoid in the MM, Outsider in Manual of the Planes — so a name-only
+  // re-query reads back the wrong printing and accuses the filter of a bug
+  // it didn't commit.
+  const crOf = (name, source) => execOne(db,
+    "SELECT cr, creature_type FROM entry "
+    + "WHERE type='creature' AND name = ? AND source = ? LIMIT 1",
+    [name, source]);
+  for (const e of out.slice(0, 40)) {
+    assertEq(e.type, 'creature', `${e.name} is not a creature`);
+    const row = crOf(e.name, e.source);
+    if (!row) continue;
+    assert(/outsider/i.test(row.creature_type || ''),
+      `${e.name} is not an outsider (${row.creature_type})`);
+  }
+  // The case that motivated it: a CR-4 outsider you could call with planar ally.
+  assert(out.some(e => e.name === 'Hound Archon'),
+    'Hound Archon (CR 4, Outsider) should be reachable via cr:<=6 type:outsider');
+});
+
+test('lookup: a dragon with a per-age CR ladder is NOT lost by cr:', (db) => {
+  const L = loadLookupModule(db);
+  // Black Dragon prints "Wyrmling 3; … great wyrm 22" — one entry, twelve
+  // CRs. Treating that as a span is what keeps it findable; a parse that
+  // gives up on it would silently drop every dragon out of a CR search.
+  const low = L.rankResults('cr:<=4 black dragon');
+  assert(low.some(e => e.name === 'Black Dragon'),
+    'Black Dragon should match cr:<=4 (its wyrmling is CR 3)');
+  const high = L.rankResults('cr:>=20 black dragon');
+  assert(high.some(e => e.name === 'Black Dragon'),
+    'Black Dragon should match cr:>=20 (its great wyrm is CR 22)');
+  const between = L.rankResults('cr:23-24 black dragon');
+  assert(!between.some(e => e.name === 'Black Dragon'),
+    'Black Dragon tops out at CR 22 — cr:23-24 must not match it');
+});
+
+test('lookup: hd: and size: read the printed values', (db) => {
+  const L = loadLookupModule(db);
+  const hd = L.rankResults('hd:<=2 type:animal');
+  assertNotEmpty(hd, 'hd:<=2 type:animal returned nothing');
+  for (const e of hd.slice(0, 25)) assertEq(e.type, 'creature', `${e.name}`);
+  // "Medium" must reach the 46 rows printed as "Medium-size" too — the
+  // hyphenated spelling is a printing variant, not a different size.
+  const med = L.rankResults('size:medium banshee');
+  assert(med.some(e => e.name === 'Banshee'),
+    'Banshee is "Medium-size" and must match size:medium');
+});
+
+test('lookup: a creature criterion restricts the search to creatures', (db) => {
+  const L = loadLookupModule(db);
+  // "fire" hits spells, feats, items, creatures. With a criterion attached
+  // it must be creatures only — otherwise the filter reads as advisory.
+  const out = L.rankResults('fire cr:<=10');
+  assertNotEmpty(out, 'fire cr:<=10 returned nothing');
+  for (const e of out) assertEq(e.type, 'creature', `${e.name} leaked through`);
+});
+
+test('lookup: type: still means ENTRY type for real entry types', (db) => {
+  const L = loadLookupModule(db);
+  const spells = L.rankResults('type:spell fireball');
+  assertNotEmpty(spells, 'type:spell fireball returned nothing');
+  assert(spells.every(e => e.type === 'spell'),
+    'type:spell must keep filtering by entry type, not creature type');
+});
+
+// ---- tests: repeatable feats (report rmszyon9j-b34a) ----------------------
+//
+// The picker refused to add a feat whose name was already in the Feats list,
+// which made the second Toughness / Skill Focus / Weapon Focus unreachable.
+// There is no `repeatable` flag in the DB — the fact is in the book's prose —
+// so feat-picker reads the prose, and this is the guard on that reading.
+//
+// Both directions are checked against the REAL corpus, because the failure
+// mode is not "the regex doesn't match" but "it matches something else":
+// Twin Spell's "the spell takes effect twice", Dauntless's "you may NOT
+// select this feat more than once", Stunning Fist's "no more than once per
+// round". A one-directional test sails through all three.
+
+function loadFeatPickerRepeat() {
+  const src = fs.readFileSync(path.join(ROOT, 'feat-picker.js'), 'utf8');
+  const fakeWindow = { DB: { ready: { then: () => {} } } };
+  const fakeDocument = {
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+  };
+  const fn = new Function('window', 'document', 'DB',
+    src + '\nreturn window.FeatPicker;');
+  return fn(fakeWindow, fakeDocument, fakeWindow.DB);
+}
+
+// Pull a feat's prose the same way fullFeatRow does, so the test reads what
+// the picker reads.
+function featProse(db, name) {
+  return execOne(db,
+    "SELECT name, "
+    + "json_extract(data, '$.benefit')     AS benefit, "
+    + "json_extract(data, '$.special')     AS special, "
+    + "json_extract(data, '$.description') AS description "
+    + "FROM entry WHERE type = 'feat' AND name = ? "
+    + "ORDER BY CASE version WHEN '3.5' THEN 0 ELSE 1 END LIMIT 1", [name]);
+}
+
+test('feat-picker: repeatable feats are recognised from the book prose', (db) => {
+  const FP = loadFeatPickerRepeat();
+  assert(FP && typeof FP.isRepeatableFeat === 'function',
+    'feat-picker must expose isRepeatableFeat');
+  // Every one of these says so in print, in a different way: "gain this feat
+  // multiple times", "gain <Name> multiple times", "take this feat more than
+  // once", "take the <Name> feat multiple times", "can be taken twice",
+  // "up to four times".
+  for (const name of ['Toughness', 'Skill Focus', 'Weapon Focus', 'Spell Focus',
+                      'Extra Turning', 'Extra Contacts', 'Arcane Disciple',
+                      'Shield Specialization', 'Martial Study', 'Sandskimmer',
+                      'Illithid Grapple', 'Aberration Blood',
+                      'Planar Touchstone', 'Melee Weapon Mastery']) {
+    const row = featProse(db, name);
+    assert(row, `${name} missing from the DB — test fixture is stale`);
+    assert(FP.isRepeatableFeat(row, name),
+      `${name} should read as repeatable`);
+  }
+});
+
+test('feat-picker: one-shot feats are NOT repeatable (the traps)', (db) => {
+  const FP = loadFeatPickerRepeat();
+  const traps = {
+    'Improved Initiative': 'plain one-shot feat',
+    'Power Attack': 'plain one-shot feat',
+    'Dodge': 'plain one-shot feat',
+    'Dauntless': 'says you may NOT select it more than once',
+    'Greater Resiliency': 'says you may not take it more than once',
+    'Primary Contact': 'says it cannot be taken more than once',
+    'Twin Spell': 'the SPELL takes effect twice, not the feat',
+    'Twin Power': 'the POWER takes effect twice',
+    'Hibernate': 'heals twice your level',
+    'Azure Talent': 'points equal to twice the essentia',
+    'Stunning Fist': 'no more than once per round — a rate limit',
+    'Combat Reflexes': 'opportunist not more than once per round',
+    'Great Cleave': 'strike multiple times when you fell a foe',
+  };
+  for (const [name, why] of Object.entries(traps)) {
+    const row = featProse(db, name);
+    assert(row, `${name} missing from the DB — test fixture is stale`);
+    assert(!FP.isRepeatableFeat(row, name),
+      `${name} must NOT read as repeatable (${why})`);
+  }
+});
+
+test('feat-picker: the repeatable set is a minority of the corpus', (db) => {
+  const FP = loadFeatPickerRepeat();
+  const rows = execAll(db,
+    "SELECT DISTINCT name, "
+    + "json_extract(data, '$.benefit')     AS benefit, "
+    + "json_extract(data, '$.special')     AS special, "
+    + "json_extract(data, '$.description') AS description "
+    + "FROM entry WHERE type = 'feat'");
+  const hits = rows.filter(r => FP.isRepeatableFeat(r, r.name));
+  // ~266 of 2,316 rows today. The band is wide enough to absorb new books
+  // and narrow enough that a regex that starts matching everything (or
+  // nothing) turns this red instead of silently changing the picker.
+  assert(hits.length >= 180 && hits.length <= 400,
+    `expected ~266 repeatable feat rows, got ${hits.length} of ${rows.length}`);
+});
+
+test('feat-picker: the dedupe refusal is now conditional on repeatability', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'feat-picker.js'), 'utf8');
+  assert(/already in Feats list/.test(src),
+    'the refusal must still exist for genuinely one-shot feats');
+  assert(/if \(copies\) \{[\s\S]{0,200}isRepeatableFeat/.test(src),
+    'the refusal must be gated on isRepeatableFeat — otherwise the second ' +
+    'Toughness is unreachable from the picker again');
+});
+
 // ---- runner ---------------------------------------------------------------
 
 (async function main() {

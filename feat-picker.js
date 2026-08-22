@@ -202,6 +202,69 @@
     return row;
   }
 
+  // ---- Repeatable feats ---------------------------------------------
+  // Some feats are explicitly takeable more than once — Toughness, Skill
+  // Focus, Weapon Focus, Extra Turning, 266 of them. The picker used to
+  // refuse any name already in the Feats list, so the SECOND copy was
+  // unreachable from the picker and had to be hand-typed.
+  //
+  // The DB carries no `repeatable` flag: the fact lives in the book's own
+  // prose ("You can gain this feat multiple times"). So we read the prose,
+  // with a deliberately narrow rule — a take-VERB whose OBJECT is the feat
+  // itself. That object test is what separates "you can take this feat
+  // twice" from Twin Spell's "the spell takes effect twice"; the negation
+  // test keeps "you may NOT select this feat more than once" (Dauntless,
+  // Greater Resiliency, Primary Contact) out; and the rate-limit test
+  // keeps "no more than once per round" (Stunning Fist, Combat Reflexes)
+  // out. Checked against all 2,316 feat rows, both directions — the
+  // known-answer set lives in tests/test_pickers.js.
+  const REPEAT_PHRASE =
+    /\b(?:multiple times|more than once|twice|up to (?:two|three|four|five|six|\d+) times)\b/i;
+  const TAKE_VERB =
+    /\b(?:gain|gains|gained|take|takes|taken|select|selects|selected|choose|chooses|chosen|acquire|acquires)\b/gi;
+  const NEGATION = /\b(?:not|never|cannot|can't)\b/i;
+  // "more than once per round" / "twice as long" are rate limits on USING
+  // the feat, not permission to take it again.
+  const RATE_LIMIT =
+    /^(?:more than once|twice)\s+(?:per|in|on|against|a\b|each|as)/i;
+
+  function escapeRe(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function isRepeatableText(text, name) {
+    // The verb's object must be the feat: nothing, "it", "this/the feat",
+    // or the feat's own name ("You can gain Extra Turning multiple times").
+    const objRe = new RegExp(
+      '^(?:it|(?:this|the|a|an)?\\s*(?:' + escapeRe(name || '') +
+      ')?\\s*(?:bonus\\s+)?(?:feat)?s?)$', 'i');
+    for (const sent of String(text || '').split(/(?<=[.!?])\s+/)) {
+      const m = REPEAT_PHRASE.exec(sent);
+      if (!m) continue;
+      const head = sent.slice(0, m.index);
+      // Last take-verb before the phrase.
+      TAKE_VERB.lastIndex = 0;
+      let v = null, mm;
+      while ((mm = TAKE_VERB.exec(head))) v = mm;
+      if (!v) continue;
+      const gap = head.slice(v.index + v[0].length).trim()
+        .replace(/,+$/, '').trim();
+      if (!objRe.test(gap)) continue;
+      if (RATE_LIMIT.test(sent.slice(m.index))) continue;
+      if (NEGATION.test(head.slice(Math.max(0, v.index - 30), v.index))) continue;
+      return true;
+    }
+    return false;
+  }
+
+  // `full` is a fullFeatRow() result (or null for a homebrew / unmatched
+  // name, which is treated as NOT repeatable — we have no text to read).
+  function isRepeatableFeat(full, name) {
+    if (!full) return false;
+    return ['special', 'benefit', 'description'].some(
+      k => isRepeatableText(full[k], name || full.name));
+  }
+
   function init() {
     const feats = document.querySelector('#tab-feats .section');
     const addBtn = document.getElementById('btn-add-feat');
@@ -218,9 +281,11 @@
     // `(N)` count suffix on each option still surfaces relative size.
     const sortedTypes = [...typeIndex.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]));
-    // Top tags only — keep the list tractable (>=5 feats per tag).
+    // Every tag — see the note in spell-picker.js. The old `>= 5` floor hid
+    // 46 of the 185 feat tags (dragonmark, tattoo, action-point, the four
+    // tob-* discipline tags), which is exactly the set a player would think
+    // to type.
     const sortedTags = [...tagCounts.entries()]
-      .filter(([, c]) => c >= 5)
       .sort((a, b) => a[0].localeCompare(b[0]));
 
     // Collapsible: the lookup is mostly used at level-up, so default it
@@ -490,13 +555,19 @@
       // fully custom ("homebrew") entries through unchanged.
       const entry = featIndex.get(typed.toLowerCase());
       const text = entry ? entry.displayName : typed;
-      // Dedup vs existing feat-entries (case-insensitive whole-text match).
+      // Dedup vs existing feat-entries (case-insensitive whole-text match)
+      // — UNLESS the book says the feat may be taken more than once, in
+      // which case a second copy is exactly what the player wants.
       const existing = Array.from(
         document.querySelectorAll('#feats-container .feat-entry')
       ).map(t => (t.value || '').trim().toLowerCase());
-      if (existing.includes(text.toLowerCase())) {
-        flash(`"${text}" already in Feats list.`, '#aa8');
-        return;
+      const copies = existing.filter(v => v === text.toLowerCase()).length;
+      if (copies) {
+        const full = entry ? fullFeatRow(entry.primary.feat_id) : null;
+        if (!isRepeatableFeat(full, text)) {
+          flash(`"${text}" already in Feats list.`, '#aa8');
+          return;
+        }
       }
       // Reuse the first empty row if there is one (so an initial blank
       // row added by app.js doesn't get left behind). Rebuild it through
@@ -514,7 +585,10 @@
       // did — downstream listeners are delegated off `input`.
       row?.querySelector('.feat-entry')
         ?.dispatchEvent(new Event('input', { bubbles: true }));
-      flash(`Added "${text}" to Feats.`, '#7a9');
+      flash(copies
+        ? `Added "${text}" again (copy ${copies + 1} — this feat may be ` +
+          `taken more than once).`
+        : `Added "${text}" to Feats.`, '#7a9');
     });
   }
 
@@ -523,6 +597,11 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+
+  // Exposed so the repeatability rule can be exercised headlessly against
+  // the real feat corpus (tests/test_pickers.js) rather than only through
+  // the button that consumes it.
+  window.FeatPicker = { isRepeatableFeat, isRepeatableText };
 
   DB.ready.then((db) => {
     if (db) init();

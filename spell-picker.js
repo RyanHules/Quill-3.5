@@ -381,8 +381,14 @@
     // the user can scan to a specific tag (Compulsion / Fear / etc.)
     // rather than scrubbing past whatever happens to be most common.
     // Counts stay in the option label as `(N)` for relative-size cues.
+    // EVERY tag, not just the common ones (report rmt1jde3r-heq3). The old
+    // `>= 20` floor hid 32 of the 108 spell tags — teleportation, darkness,
+    // charm, language-dependent — so typing them found nothing and the
+    // filter read as broken rather than as narrow. The widget's own
+    // dropdown is capped at 30 rows and sorted by count, so the browse
+    // experience is unchanged; what changes is that a tag you can name is
+    // now a tag you can reach.
     const sortedTags = [...spellTagCounts.entries()]
-      .filter(([, c]) => c >= 20)
       .sort((a, b) => a[0].localeCompare(b[0]));
     const wrap = document.createElement('div');
     wrap.className = 'spell-picker';
@@ -865,62 +871,33 @@
     // autocomplete (which requires typing); the result list shows
     // everything matching the filter even before they type. The user
     // can click a result to load it into the spell input + info panel.
+    // The chip wall itself is `PickerResults` — the same helper every
+    // other picker uses. It was extracted FROM this file in May 2026 but
+    // spell-picker kept its own inline copy, so the two drifted: the
+    // show-all button that landed in the shared helper never reached the
+    // picker most likely to blow past 100 matches. Mounted into the
+    // existing `.sp-results` slot so the wall keeps its place above the
+    // info panel.
+    const results = (typeof PickerResults !== 'undefined')
+      ? PickerResults.attach(picker, {
+          mount: picker.querySelector('.sp-results'),
+          chipClassName: 'sp-result-chip',
+          onPick: (name) => {
+            spellInput.value = name;
+            updateInfoPanel();
+            spellInput.focus();
+          },
+        })
+      : null;
+
     function renderResults() {
-      const resultsEl = picker.querySelector('.sp-results');
-      if (!resultsEl) return;
-      // Filter the chip list by the typed spell name (case-insensitive
-      // substring match), so the chips track what the user is actually
-      // looking for. Without this, the chip wall sat between the picker
-      // inputs and the info panel showing whatever spell the user
-      // ultimately typed — making the picker awkward to use as a
-      // narrowing-down tool.
-      const typedRaw = spellInput.value.trim();
-      const typed = typedRaw.toLowerCase();
-      const allNames = Array.from(currentByName.keys())
-        .map(k => currentByName.get(k).name)
-        .sort((a, b) => a.localeCompare(b));
-      const names = typed
-        ? allNames.filter(n => n.toLowerCase().includes(typed))
-        : allNames;
-      if (names.length === 0) {
-        // If the typed name filter killed every match, surface that
-        // explicitly rather than hiding the panel (so the user knows
-        // they're filtering, not that nothing matches the class/level).
-        if (typed && allNames.length > 0) {
-          resultsEl.innerHTML =
-            `<div style="opacity:0.7">${allNames.length} match` +
-            `${allNames.length === 1 ? '' : 'es'} from filter — none ` +
-            `contain "${escapeHtml(typedRaw)}". Clear or shorten the ` +
-            `spell-name field to widen.</div>`;
-          resultsEl.style.display = 'block';
-          return;
-        }
-        resultsEl.style.display = 'none';
-        resultsEl.innerHTML = '';
-        return;
-      }
-      // Cap at 100 to keep the DOM lean. The full count is shown in the
-      // header so the user knows there's more if they narrow further.
-      const cap = 100;
-      const shown = names.slice(0, cap);
-      const truncated = names.length > cap;
-      const chipStyle = 'display:inline-block;padding:0.18rem 0.5rem;' +
-        'margin:0.12rem;border:1px solid rgba(255,255,255,0.18);' +
-        'border-radius:3px;background:rgba(255,255,255,0.04);' +
-        'color:#cde;cursor:pointer;font-size:0.85em;line-height:1.2;' +
-        'font-family:inherit';
-      const chips = shown.map(n =>
-        `<button type="button" class="sp-result-chip" style="${chipStyle}" ` +
-        `data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`
-      ).join('');
-      const matchSuffix = typed
-        ? ` containing &quot;${escapeHtml(typedRaw)}&quot;`
-        : '';
-      const header = truncated
-        ? `<div style="opacity:0.7;margin-bottom:0.25rem">Showing ${cap} of ${names.length} matches${matchSuffix} — narrow further to see more</div>`
-        : `<div style="opacity:0.7;margin-bottom:0.25rem">${names.length} match${names.length === 1 ? '' : 'es'}${matchSuffix}</div>`;
-      resultsEl.innerHTML = header + `<div>${chips}</div>`;
-      resultsEl.style.display = 'block';
+      if (!results) return;
+      // The typed spell name narrows the chips too, so the wall tracks
+      // what the user is actually looking for rather than sitting
+      // between the picker inputs and the info panel showing everything.
+      const allNames = Array.from(currentByName.values())
+        .map(s => s.name);
+      results.render(allNames, { typedFilter: spellInput.value.trim() });
     }
 
     function updateInfoPanel() {
@@ -1020,16 +997,11 @@
     // class/level-narrowed counts on first render.
     refreshTagCounts();
 
-    // Result-chip clicks: fill the spell input + show the info panel.
-    // Event-delegated so chips re-rendered on every refreshSpellList
-    // still wire up. The chip carries the spell name in data-name.
-    picker.addEventListener('click', (ev) => {
-      const chip = ev.target.closest('.sp-result-chip');
-      if (!chip) return;
-      spellInput.value = chip.dataset.name || chip.textContent;
-      updateInfoPanel();
-      spellInput.focus();
-    });
+    // Result-chip clicks are handled by the PickerResults handle above
+    // (its own delegated listener on `.sp-results`), which fills the
+    // spell input + info panel through the `onPick` callback. The
+    // duplicate listener that used to live here fired a second time on
+    // every chip click once the wall moved to the shared helper.
 
     // ---- Class auto-detect from caster notes -----------------------
     // The class-picker prefills each spellcasting panel's

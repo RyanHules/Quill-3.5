@@ -217,31 +217,42 @@
       'padding:0.5rem; margin-bottom:0.5rem; ' +
       'background:rgba(255,255,255,0.04); border-left:3px solid #6a8aaa; ' +
       'border-radius:3px;';
+    // Everything lives inside a <details> so the whole picker folds away
+    // (report rmt028rg2-9zot). A binder picks vestiges at dawn and then
+    // plays the rest of the day with them bound, so the bar — filters,
+    // 60-odd chips and the info panel — is dead weight for most of a
+    // session. Open by default: it is still the way you bind.
     wrap.innerHTML = `
-      <div style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
-        <div class="field field-sm" style="width:5.5rem">
-          <label>Level</label>
-          <input type="text" class="vp-level" placeholder="1-8 or ≤N"
-                 title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
+      <details class="vp-details" open>
+        <summary style="cursor:pointer;user-select:none;opacity:0.85;
+                        font-size:0.9em">Vestige picker</summary>
+        <div class="vp-body" style="margin-top:0.4rem">
+          <div style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
+            <div class="field field-sm" style="width:5.5rem">
+              <label>Level</label>
+              <input type="text" class="vp-level" placeholder="1-8 or ≤N"
+                     title="Exact level (e.g. 3) or range (<=3, >=2, <5).&#10;Leave empty for all levels.">
+            </div>
+            <div class="field" style="flex:1 1 12rem;min-width:10rem">
+              <label>Tags</label>
+              <div class="vp-tag-host"></div>
+            </div>
+            <div class="field" style="flex:2 1 14rem;min-width:12rem">
+              <label>Vestige</label>
+              <input type="text" class="vp-vestige" list="${dlId}"
+                     placeholder="(filter then pick)" autocomplete="off">
+              <datalist id="${dlId}"></datalist>
+            </div>
+            <button type="button" class="btn-add vp-bind"
+                    title="Add a new bound-vestige row pre-filled">
+              + Bind
+            </button>
+          </div>
+          <div class="vp-info"
+               style="display:none;font-size:0.85em;color:#ccc;margin-top:0.4rem">
+          </div>
         </div>
-        <div class="field" style="flex:1 1 12rem;min-width:10rem">
-          <label>Tags</label>
-          <div class="vp-tag-host"></div>
-        </div>
-        <div class="field" style="flex:2 1 14rem;min-width:12rem">
-          <label>Vestige</label>
-          <input type="text" class="vp-vestige" list="${dlId}"
-                 placeholder="(filter then pick)" autocomplete="off">
-          <datalist id="${dlId}"></datalist>
-        </div>
-        <button type="button" class="btn-add vp-bind"
-                title="Add a new bound-vestige row pre-filled">
-          + Bind
-        </button>
-      </div>
-      <div class="vp-info"
-           style="display:none;font-size:0.85em;color:#ccc;margin-top:0.4rem">
-      </div>
+      </details>
     `;
     list.parentElement.insertBefore(wrap, list);
     wirePicker(panel, wrap, dlId);
@@ -267,8 +278,10 @@
     // Shared browsing-chip helper. Chip click: set value + show info
     // DIRECTLY without dispatching 'input' (which would narrow the
     // chip wall to the picked entry). Spell-picker behavior.
+    // Mounted INSIDE the <details> body, so folding the picker takes the
+    // chip wall with it.
     const results = (typeof PickerResults !== 'undefined')
-      ? PickerResults.attach(picker, {
+      ? PickerResults.attach(picker.querySelector('.vp-body') || picker, {
           itemNoun: 'vestige',
           onPick: (name) => {
             vesIn.value = name;

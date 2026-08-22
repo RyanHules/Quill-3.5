@@ -392,8 +392,9 @@
     // Counts stay in the option label as `(N)` for relative-size cues.
     const sortedTypes = [...typeIndex.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]));
+    // Every tag — see the note in spell-picker.js. The old `>= 5` floor hid
+    // 36 of the 141 item tags (trip, sunder, slot-legs, martial-weapon).
     const sortedTags = [...tagCounts.entries()]
-      .filter(([, c]) => c >= 5)
       .sort((a, b) => a[0].localeCompare(b[0]));
 
     const wrap = document.createElement('div');

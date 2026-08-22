@@ -30,7 +30,12 @@
 //
 // Design notes:
 //   - Caps at 100 chips by default to keep the DOM lean. Larger pools
-//     surface a "Showing N of M — narrow further to see more" header.
+//     surface a "Showing N of M" header WITH a "Show all M" button —
+//     narrowing further is a suggestion, not the only way out (Ryan,
+//     2026-08-19: a cap the user can't lift makes the pool invisible).
+//     The expansion is deliberately one-shot: any later render (a
+//     filter change, a keystroke in the name field) drops back to the
+//     cap, so a wide filter can never inherit a 5,000-chip wall.
 //   - Typed-name filter (when provided via opts.typedFilter) tracks the
 //     user's spell-name input — chips collapse to substring matches.
 //     If the typed filter zeros the list, surfaces "X matches from
@@ -51,6 +56,20 @@
     'font-family:inherit;';
 
   const DEFAULT_CAP = 100;
+
+  // The cap-lifting button that rides in the count header.
+  const MORE_CLASS = 'picker-results-more';
+  const MORE_STYLE =
+    'padding:0.05rem 0.4rem; margin-left:0.15rem; ' +
+    'border:1px solid rgba(255,255,255,0.28); border-radius:3px; ' +
+    'background:rgba(255,255,255,0.06); color:#bdf; cursor:pointer; ' +
+    'font-size:0.95em; font-family:inherit; line-height:1.3;';
+
+  function moreButton(label, expand) {
+    return `<button type="button" class="${MORE_CLASS}" ` +
+      `style="${MORE_STYLE}" data-expand="${expand ? '1' : '0'}">` +
+      `${escapeHtml(label)}</button>`;
+  }
 
   function escapeHtml(s) {
     return String(s)
@@ -95,6 +114,13 @@
   //                                Defaults to false; deity-picker
   //                                opts into this so the chips don't
   //                                eat layout space mid-play.
+  //   mount                      — an EXISTING element to render into,
+  //                                instead of appending a fresh div to
+  //                                `container`. For pickers whose
+  //                                markup already reserves a slot at a
+  //                                specific place in the bar (spell-
+  //                                picker's `.sp-results`, which sits
+  //                                above the info panel, not below it).
   function attach(container, opts) {
     opts = opts || {};
     const className = opts.className || 'picker-results';
@@ -105,11 +131,18 @@
     const collapsible = !!opts.collapsible;
     const collapsedByDefault = !!opts.collapsedByDefault;
 
-    const div = document.createElement('div');
-    div.className = className;
-    div.style.cssText =
-      'display:none; margin-top:0.5rem; font-size:0.85em;';
-    container.appendChild(div);
+    // Render into the caller's own slot when it supplied one, so the
+    // chip wall keeps its place in that picker's layout; otherwise
+    // append a fresh pane at the end of the container.
+    const div = opts.mount || document.createElement('div');
+    if (!opts.mount) {
+      div.className = className;
+      div.style.cssText =
+        'display:none; margin-top:0.5rem; font-size:0.85em;';
+      container.appendChild(div);
+    } else {
+      div.style.display = 'none';
+    }
 
     // When collapsible, render content INSIDE a <details>/<summary>
     // so the user gets a native disclosure widget. We track the
@@ -126,8 +159,27 @@
       }
     }, true);
 
+    // Show-all state. `expanded` lifts the cap for the CURRENT list
+    // only — `render` clears it on every call, so the button has to be
+    // re-clicked after any filter change. `lastRender` is what the
+    // button replays.
+    let expanded = false;
+    let lastRender = null;
+
     // Event-delegated click so chip re-renders don't re-wire handlers.
     div.addEventListener('click', (ev) => {
+      const more = ev.target.closest('.' + MORE_CLASS);
+      if (more) {
+        // In collapsible mode the header lives inside a <summary>, and
+        // a click there toggles the disclosure — suppress that so the
+        // button only ever changes the cap.
+        ev.preventDefault();
+        ev.stopPropagation();
+        // Re-render the same list with the cap lifted (or restored).
+        expanded = more.dataset.expand === '1';
+        if (lastRender) render(lastRender.names, lastRender.opts2, true);
+        return;
+      }
       const chip = ev.target.closest('.' + chipClass);
       if (!chip) return;
       const name = chip.dataset.name || chip.textContent || '';
@@ -144,8 +196,12 @@
     // Render `names` as chips. opts2.typedFilter, when truthy, applies
     // a case-insensitive substring filter to the names (so chips
     // narrow as the user types in the picker's name input).
-    function render(names, opts2) {
+    function render(names, opts2, keepExpanded) {
       opts2 = opts2 || {};
+      // A fresh render means a fresh filter — collapse back to the cap
+      // unless this call IS the show-all button replaying itself.
+      if (!keepExpanded) expanded = false;
+      lastRender = { names, opts2 };
       const typedRaw = String(opts2.typedFilter || '').trim();
       const typed = typedRaw.toLowerCase();
       // Defensive copy + sort so callers don't have to pre-sort.
@@ -173,8 +229,8 @@
         return;
       }
 
-      const shown = filtered.slice(0, cap);
-      const truncated = filtered.length > cap;
+      const overCap = filtered.length > cap;
+      const shown = (overCap && !expanded) ? filtered.slice(0, cap) : filtered;
       const matchSuffix = typed
         ? ` containing &quot;${escapeHtml(typedRaw)}&quot;`
         : '';
@@ -185,9 +241,20 @@
       ).join('');
       const wordShown   = nounPlural;
       const wordCounted = filtered.length === 1 ? noun : nounPlural;
-      const headerText = truncated
-        ? `Showing ${cap} of ${filtered.length} ${wordShown}${matchSuffix} — narrow further to see more`
-        : `${filtered.length} ${wordCounted}${matchSuffix}`;
+      // Over the cap the header carries a button, so the user can lift
+      // it instead of being told to narrow further and left there.
+      let headerText;
+      if (overCap && !expanded) {
+        headerText =
+          `Showing ${cap} of ${filtered.length} ${wordShown}${matchSuffix} ` +
+          moreButton(`Show all ${filtered.length}`, true);
+      } else if (overCap) {
+        headerText =
+          `Showing all ${filtered.length} ${wordShown}${matchSuffix} ` +
+          moreButton(`Show first ${cap}`, false);
+      } else {
+        headerText = `${filtered.length} ${wordCounted}${matchSuffix}`;
+      }
 
       if (collapsible) {
         // <details>/<summary> gives the user a native fold widget.
