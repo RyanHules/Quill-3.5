@@ -922,6 +922,47 @@
       'GE4: Mystic Theurge advances the Side-B Cleric to CL 10');
   });
 
+  regression('PSI1: a psionics panel shows only the power levels it can reach', async () => {
+    // report rmssl68sl-at73. The Max Power Level FIELD was already correct;
+    // the panel around it was built with `data.maxLevel || 9` and never
+    // resized, so a Wilder 3 — who manifests 1st-level powers only — opened
+    // with tabs and DC rows for 1st through 9th.
+    //
+    // Both directions, because hiding is easy and un-hiding is the part that
+    // breaks: a character who levels up must get the rows BACK.
+    await newCharacter();
+    await applyClass('Wilder', 3);
+    await wait(300);
+
+    const panel = () => document.querySelector('[data-caster-type="psionics"]');
+    const vis = (el) => el && el.style.display !== 'none';
+    const shownTabs = () =>
+      [...panel().querySelectorAll('.spell-list-tabs .spell-level-tab')]
+        .filter(vis).map(b => b.dataset.level).join(',');
+    const shownDcs = () =>
+      [...panel().querySelectorAll('.psi-dc')]
+        .filter(d => vis(d.closest('tr'))).map(d => d.dataset.lvl).join(',');
+
+    expect(panel().querySelector('.psi-max-level').value, '1',
+      'PSI1: a Wilder 3 manifests 1st-level powers (XPH table)');
+    expect(shownTabs(), '1', 'PSI1: ...so one power-level tab, not nine');
+    expect(shownDcs(), '1', 'PSI1: ...and one DC row');
+
+    // Level up. The hidden rows must come back — this is the assertion that
+    // fails if someone "simplifies" the hide into a remove.
+    await applyClass('Wilder', 11);
+    await wait(300);
+    expect(panel().querySelector('.psi-max-level').value, '5',
+      'PSI1: a Wilder 11 reaches 5th');
+    expect(shownTabs(), '1,2,3,4,5', 'PSI1: levelling up restores the rows');
+    expect(shownDcs(), '1,2,3,4,5', 'PSI1: ...DC rows too');
+
+    // And the active tab must never be one of the hidden ones.
+    const active = panel().querySelector('.spell-level-tab.active');
+    expect(!!active && Number(active.dataset.level) <= 5, true,
+      'PSI1: the showing tab is always one the manifester can reach');
+  });
+
   regression('ADV1: Ultimate Magus per-level allocation (characterization)', async () => {
     // A PIN, written before generalizing the per-level advancement path to
     // multi-type advancers (Mystic Theurge et al). Ultimate Magus is the only

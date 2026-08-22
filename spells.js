@@ -215,6 +215,14 @@ const Spells = (function () {
       wireLevelTabs(panel);
       wireMantleEntries(panel, data);
       wireMantleToggle(panel);
+      // The panel follows the Max Power Level field, both on load (a saved
+      // manifester re-opens showing only what it can reach) and whenever the
+      // player edits the number.
+      const psiMaxEl = panel.querySelector(".psi-max-level");
+      if (psiMaxEl) {
+        psiMaxEl.addEventListener("input", () => syncPsiMaxLevel(panel));
+        syncPsiMaxLevel(panel);
+      }
     } else if (type === "maneuvers") {
       panel.innerHTML = notesHTML + buildManeuversHTML(idx, data);
       container.appendChild(panel);
@@ -1522,7 +1530,7 @@ const Spells = (function () {
           <div class="field field-sm"><label>PP/Day</label><span class="psi-pp-day calc-field">--</span></div>
           <div class="field field-sm"><label>PP Spent</label><input type="number" class="psi-pp-spent" min="0" value="${data.ppSpent || "0"}"></div>
           <div class="field field-sm"><label>PP Remaining</label><span class="psi-pp-remaining calc-field">--</span></div>
-          <div class="field field-sm"><label>Powers Known <span class="psi-known-count"></span></label><input type="number" class="psi-powers-known" min="0" value="${data.powersKnown || ""}"></div>
+          <div class="field field-sm field-known-count"><label>Powers Known <span class="psi-known-count"></span></label><input type="number" class="psi-powers-known" min="0" value="${data.powersKnown || ""}"></div>
           <div class="field field-sm"><label>Max Power Level</label><input type="number" class="psi-max-level" min="1" max="9" value="${data.maxLevel || ""}"></div>
         </div>
         <div class="spell-header" style="margin-top:0.5rem">
@@ -1578,6 +1586,46 @@ const Spells = (function () {
     if (cap) cap.addEventListener("input", () =>
       updatePsionicsKnownCount(panel));
   }
+  // Show only the power levels this manifester can actually reach
+  // (report rmssl68sl-at73). The panel is BUILT with nine levels — the
+  // builder's `data.maxLevel || 9` default — so a Wilder 3, who manifests
+  // 1st-level powers only, opened with tabs and DC rows for 1st through 9th.
+  // The Max Power Level FIELD was already correct; it was the panel around it
+  // that ignored the number.
+  //
+  // HIDES rather than removes, and that is the whole design. A player who
+  // types powers at 5th and then rebuilds a character down to 3rd must not
+  // lose them, the rows must come back on the way up, and everything hidden
+  // still round-trips through collectData — so nothing is destroyed by a
+  // number that is going to change again next level.
+  //
+  // The "+ Add Power Level" button still works: it raises the field, and this
+  // follows.
+  function syncPsiMaxLevel(panel) {
+    if (!panel) return;
+    const max = int(panel.querySelector(".psi-max-level")?.value);
+    if (!max || max < 1) return;            // blank field asserts nothing
+    const show = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
+    panel.querySelectorAll(".spell-list-tabs .spell-level-tab").forEach((b) => {
+      show(b, int(b.dataset.level) <= max);
+    });
+    panel.querySelectorAll(".psi-dc").forEach((dc) => {
+      show(dc.closest("tr"), int(dc.dataset.lvl) <= max);
+    });
+    panel.querySelectorAll(".psi-power-lists .spell-list-content").forEach((d) => {
+      if (int(d.dataset.level) > max) d.classList.remove("active");
+    });
+    // If the level that was showing has just been hidden, fall back to the
+    // highest one still reachable rather than leaving the list pane blank.
+    const activeTab = panel.querySelector(".spell-level-tab.active");
+    if (!activeTab || int(activeTab.dataset.level) > max) {
+      const tabs = [...panel.querySelectorAll(".spell-list-tabs .spell-level-tab")]
+        .filter((b) => int(b.dataset.level) <= max);
+      const last = tabs[tabs.length - 1];
+      if (last) switchLevelTab(panel, last, last.dataset.level);
+    }
+  }
+
   function appendPsiPowerDiv(container, i, active) {
     const div = document.createElement("div");
     div.className = `spell-list-content${active ? " active" : ""}`;
@@ -1735,12 +1783,20 @@ const Spells = (function () {
     if (d.power_resistance)  bits.push(`<b>PR:</b> ${escapeAttr(d.power_resistance)}`);
     if (d.power_points)      bits.push(`<b>PP:</b> ${escapeAttr(d.power_points)}`);
     let html = bits.join(" &nbsp;·&nbsp; ");
+    // Base effect FIRST, augmentation after (report rmsts5gu6-2u37). Augment
+    // describes what spending extra power points CHANGES about the effect, so
+    // printing it above the description read as if it were the whole power.
+    //
+    // power-picker.js was fixed for this on its own panel (report
+    // rms3qhc3r-gedx) and this one — the ⓘ panel on a Powers Known ROW — was
+    // left the other way round, which is why the report says "and any other
+    // display for powers". Same fix, second surface.
+    if (d.description) {
+      html += `<div style="margin-top:0.4rem">${escapeAttr(d.description)}</div>`;
+    }
     if (d.augment) {
       html += `<div style="margin-top:0.4rem"><b>Augment:</b> ` +
               `${escapeAttr(d.augment)}</div>`;
-    }
-    if (d.description) {
-      html += `<div style="margin-top:0.4rem">${escapeAttr(d.description)}</div>`;
     }
     return html;
   }
@@ -3233,6 +3289,9 @@ const Spells = (function () {
   return {
     addCaster,
     removeCaster,
+    // Lets the class picker resize a psionics panel after it fills
+    // Max Power Level from the class table (report rmssl68sl-at73).
+    syncPsiMaxLevel,
     buildSpellLists: buildSpellListsLegacy,
     recalc,
     resetSlots,

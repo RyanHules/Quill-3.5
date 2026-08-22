@@ -117,7 +117,22 @@ header h1 { font-size: 1.3rem; color: var(--accent); letter-spacing: 1px; white-
 }
 
 .field-sm { min-width: 80px; max-width: 140px; }
+/* A field-sm whose label carries a live "(N / cap)" counter. Report
+   rmstwn1fi-iy3q: once the psionics panel's Powers Known count reached two
+   digits, "POWERS KNOWN (11 / 36)" needed 145px against field-sm's 140px cap,
+   wrapped to a second line, and pushed its input 15px below the seven others
+   in the row. Measured, not guessed: 145px as printed, 154px for a
+   three-digit count, so 170px carries it with room. */
+.field-known-count { max-width: 170px; }
 .field-lg { min-width: 200px; flex: 2; }
+/* ...and if a caster panel's label DOES wrap — a narrow viewport, a longer
+   counter, a label someone lengthens later — the wrap must not drag that
+   field's input out of line with the rest of the row. Bottom-aligning the
+   grid keeps every input on one baseline whatever the labels above them do.
+   Scoped to caster panels rather than every .info-grid on the sheet: this is
+   the surface with live counters in its labels, and the global version would
+   re-flow screens that were swept at 1280/875/620/450 for nothing. */
+[data-caster-type] .info-grid { align-items: flex-end; }
 /* Campaign field — spans the combined width of the Race (lg) + Type fields
    it swapped places with in the Character Information grid (2026-06-16). */
 .field-xl { min-width: 320px; flex: 3; }

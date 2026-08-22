@@ -5448,6 +5448,13 @@
     if (maxLvl != null) set('.psi-max-level', String(maxLvl));
     const ability = getKeyAbility(className);
     if (ability) set('.psi-ability', ability);
+    // ...and make the panel AROUND the field agree with it. The field was
+    // already correct; the tabs and DC rows were built at nine and stayed
+    // there, so a Wilder 3 showed power levels 1st-9th (rmssl68sl-at73).
+    // Hides rather than removes, so levelling up brings them back.
+    if (typeof Spells !== 'undefined' && Spells.syncPsiMaxLevel) {
+      try { Spells.syncPsiMaxLevel(panel); } catch (e) { /* never break apply */ }
+    }
   }
 
   function populateInvocationPanelCounts(panel, className, level, classId) {
