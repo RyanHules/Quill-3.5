@@ -2376,6 +2376,65 @@ test('live-publish: BLAST_DICE_RE separates additive riders from totals', () => 
       `${JSON.stringify(text)} must NOT parse as a blast rider, but it did`);
   }
 });
+
+// ---- tests: weapon → damage-calculator die seeding ------------------------
+//
+// report rmt4j1oxc-a89y. The item picker now seeds the damage calculator's die
+// box when it adds a weapon. The only judgement in that path is calcDieFor,
+// which decides when the DB's damage string IS a single die expression — so
+// it is checked against the shapes the DB really holds, and against the DB
+// itself, rather than against invented strings.
+const ITEM_PICKER_SRC = fs.readFileSync(path.join(ROOT, 'item-picker.js'), 'utf8');
+
+function loadCalcDieFor() {
+  const m = /function calcDieFor\(damage\) \{[\s\S]*?\n    \}/.exec(ITEM_PICKER_SRC);
+  assert(m, 'calcDieFor not found in item-picker.js — did it get renamed?');
+  // Declare it inside the eval scope, then hand back the binding.
+  return eval(`${m[0]}\ncalcDieFor;`);
+}
+
+test('item-picker: calcDieFor fills only unambiguous die expressions', () => {
+  const calcDieFor = loadCalcDieFor();
+  for (const [input, expected] of [
+    ['1d8', '1d8'], ['2d4', '2d4'], ['d6', 'd6'],
+    // Double weapon, both ends alike — one answer, so give it.
+    ['1d6/1d6', '1d6'], ['1d8/1d8', '1d8'],
+    // Double weapon, ends differ — WHICH end? Refuse rather than pick.
+    ['1d8/1d6', null], ['1d6/1d4', null],
+    // Not a die at all.
+    ['1', null], ['', null], ['Smoke (see text)', null],
+    ['2d6 (single stick; +1d6 per additional bound stick, max 10d6)', null],
+  ]) {
+    const got = calcDieFor(input);
+    assert(got === expected,
+      `calcDieFor(${JSON.stringify(input)}) = ${JSON.stringify(got)}, ` +
+      `expected ${JSON.stringify(expected)}`);
+  }
+});
+
+test('item-picker: calcDieFor never returns a non-die for any real weapon', (db) => {
+  const calcDieFor = loadCalcDieFor();
+  const rows = execAll(db,
+    "SELECT name, json_extract(data, '$.damage_medium') AS dmg FROM entry " +
+    "WHERE json_extract(data, '$.damage_medium') IS NOT NULL");
+  assertGE(rows.length, 100, `expected 100+ weapons with damage, got ${rows.length}`);
+  const bad = [];
+  let filled = 0;
+  for (const r of rows) {
+    const got = calcDieFor(r.dmg);
+    if (got == null) continue;
+    filled++;
+    // Whatever it returns must be a bare die expression — this is the
+    // property that keeps a prose string out of a numeric box.
+    if (!/^\d*d\d+$/i.test(got)) bad.push(`${r.name}: ${JSON.stringify(r.dmg)} -> ${JSON.stringify(got)}`);
+  }
+  assert(bad.length === 0,
+    `calcDieFor returned a non-die for ${bad.length} weapon(s):\n  ` +
+    bad.join('\n  '));
+  assertGE(filled, rows.length * 0.8,
+    `expected calcDieFor to fill 80%+ of real weapons, filled ${filled}/${rows.length}`);
+});
+
 // Pull the keys from HARDCODED_ADVANCERS and SPELLCASTING_TYPE without
 // requiring class-picker.js as a module (it's an IIFE).
 function extractObjectKeys(src, varName) {

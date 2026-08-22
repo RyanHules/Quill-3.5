@@ -885,6 +885,31 @@
       flash(`Equipped "${entry.displayName}".`, '#7a9');
     });
 
+    // The damage-calculator die box wants ONE die expression. 128 of the DB's
+    // 145 weapon damage values are exactly that; the other 17 are not, and
+    // guessing at them is how a wrong number reaches a player:
+    //
+    //   '1d6/1d6'  double weapon, both ends alike  -> '1d6'  (unambiguous)
+    //   '1d8/1d6'  double weapon, ends differ      -> null   (which end?)
+    //   '1'        blowgun, flat damage            -> null   (not a die)
+    //   '2d6 (single stick; +1d6 per additional…)' -> null   (prose)
+    //   'Smoke (see text)'                         -> null
+    //
+    // Returning null leaves the box empty for the player to fill. The verbatim
+    // damage string still lands in `.atk-damage` either way, so refusing here
+    // loses nothing — it only declines to assert something we do not know.
+    function calcDieFor(damage) {
+      const d = String(damage == null ? '' : damage).trim();
+      if (/^\d*d\d+$/i.test(d)) return d;
+      const halves = d.split('/').map(s => s.trim());
+      if (halves.length === 2 && halves[0] &&
+          halves[0].toLowerCase() === halves[1].toLowerCase() &&
+          /^\d*d\d+$/i.test(halves[0])) {
+        return halves[0];
+      }
+      return null;
+    }
+
     addWeapon.addEventListener('click', () => {
       const typed = itemInput.value.trim();
       if (!typed) { flash('Pick a weapon first.', '#a66'); return; }
@@ -905,6 +930,12 @@
       Character.addAttack({
         name: entry.displayName,
         damage: damage,
+        // Seed the damage CALCULATOR's die box too, not just the free-text
+        // Damage field (report rmt4j1oxc-a89y). Safe to do unasked because the
+        // calculator is opt-in: it only drives `.atk-damage` while "fill
+        // damage" is ticked, so an untouched row keeps the verbatim string
+        // above and the player gains a pre-filled die when they tick it.
+        damageCalc: { dice: calcDieFor(damage) },
         crit: full.critical || '',
         range: full.range_increment || '',
         // DAMAGE type, not the item category — see fullItemRow. This read
