@@ -922,6 +922,102 @@
       'GE4: Mystic Theurge advances the Side-B Cleric to CL 10');
   });
 
+  regression('ADV1: Ultimate Magus per-level allocation (characterization)', async () => {
+    // A PIN, written before generalizing the per-level advancement path to
+    // multi-type advancers (Mystic Theurge et al). Ultimate Magus is the only
+    // PrC that used that path, and it had no coverage of its own — so a
+    // regression there would have been silent, and it would have been silent
+    // in the worst possible place: caster levels.
+    //
+    // This asserts the CURRENT resolved outcome, not a reading of the rules.
+    // Its job is "nothing moved", so if a deliberate rules fix later changes
+    // these numbers, re-pin them in the same commit and say why.
+    //
+    // Wizard 3 (prepared) / Sorcerer 3 (spontaneous) / Ultimate Magus 4.
+    // UM advances at every level; L1 and L4 auto-advance whichever arcane
+    // class is currently LOWER, L2 and L3 default to advancing both.
+    await newCharacter();
+    await applyClass('Wizard', 3);
+    await applyClass('Sorcerer', 3);
+    await applyClass('Ultimate Magus', 4);
+    await wait(300);
+
+    const clOf = (name) => {
+      const p = [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .find(pp => (pp.querySelector('.caster-notes')?.value || '').trim() === name);
+      return p ? p.querySelector('.sc-caster-level')?.value : null;
+    };
+    const um = ClassPicker.getState().find(c => c.className === 'Ultimate Magus');
+    if (!um) fail('ADV1: Ultimate Magus did not apply');
+    expect(!!um.perLevelChoice, true, 'ADV1: UM still uses the per-level path');
+    expect((um.advancementSlots || []).length, 4,
+      'ADV1: one slot per PrC level');
+    expect((um.advancementSlots || []).map(s => s.kind).join(','),
+      'auto-lower,choice,choice,auto-lower',
+      'ADV1: L1 and L4 are auto-lower, L2 and L3 are player choices');
+    expect(clOf('Wizard'), '6', 'ADV1: Wizard caster level');
+    expect(clOf('Sorcerer'), '6', 'ADV1: Sorcerer caster level');
+  });
+
+  regression('ADV2: a multi-target advancer allocates PER LEVEL', async () => {
+    // report rmt4jee2t-7zem. RAW, "+1 level of existing arcane spellcasting
+    // class" is chosen when you gain the level and MAY differ between levels,
+    // so a Mystic Theurge 4 can put two levels into Wizard and two into
+    // Sorcerer. The whole-PrC picker could only send all four to one class.
+    await newCharacter();
+    await applyClass('Wizard', 3);
+    await applyClass('Sorcerer', 3);
+    await applyClass('Cleric', 3);
+    await applyClass('Mystic Theurge', 4);
+    await wait(300);
+
+    const mt = ClassPicker.getState().find(c => c.className === 'Mystic Theurge');
+    if (!mt) fail('ADV2: Mystic Theurge did not apply');
+    expect(!!mt.perLevelChoice, true,
+      'ADV2: two arcane targets exist, so the advancer is promoted to per-level');
+    expect((mt.advancementSlots || []).length, 4, 'ADV2: one slot per PrC level');
+
+    // Seeding must cover EVERY type it advances, not just the first. A slot
+    // holding one class would mean the divine half advanced nothing — which
+    // is what the single-target seed used to do.
+    const seeded = mt.advancementSlots[0].targets || [];
+    const types = seeded.map(n => {
+      const t = ClassPicker.getState().find(c => c.className === n);
+      return n;
+    });
+    expect(seeded.length, 2,
+      `ADV2: each slot seeds one arcane AND one divine target (got ${JSON.stringify(seeded)})`);
+
+    const clOf = (name) => {
+      const p = [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')]
+        .find(pp => (pp.querySelector('.caster-notes')?.value || '').trim() === name);
+      return p ? p.querySelector('.sc-caster-level')?.value : null;
+    };
+    // Default seeding sends all four levels to the first of each type.
+    expect(clOf('Cleric'), '7', 'ADV2: the divine half advances all 4 levels');
+
+    // Now split the arcane half: levels 3 and 4 go to the Sorcerer instead.
+    // Driven through the actual radios rather than by poking advancementSlots,
+    // because the write path IS the thing under test — the per-type handler
+    // has to replace the arcane pick and leave the divine one alone, and it
+    // is the handler (not reconcileClassPillars) that refreshes the spell
+    // tabs afterwards.
+    for (const lvl of [3, 4]) {
+      const radio = [...document.querySelectorAll('#mc-classes-list input[type=radio]')]
+        .find(r => r.name === `mc-slot-Mystic Theurge-${lvl}-arcane`
+                && r.value === 'Sorcerer');
+      if (!radio) fail(`ADV2: no arcane radio for Sorcerer at MT level ${lvl}`);
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change', { bubbles: true }));
+      await wait(150);
+    }
+    await wait(300);
+    expect(clOf('Wizard'), '5', 'ADV2: Wizard 3 + the two levels still on it');
+    expect(clOf('Sorcerer'), '5', 'ADV2: Sorcerer 3 + the two reallocated levels');
+    expect(clOf('Cleric'), '7',
+      'ADV2: and the divine half is untouched by an arcane reallocation');
+  });
+
   regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
     // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
     // progression feeds the synthesis (it fills Side A's empty L6 here), and

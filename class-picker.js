@@ -1442,6 +1442,9 @@
     if (!advancers.length) return;
 
     for (const adv of advancers) {
+      // Promote here too — see promoteAdvancerIfAmbiguous. Idempotent, and it
+      // preserves any allocation the player has already made.
+      promoteAdvancerIfAmbiguous(adv);
       if (adv.perLevelChoice) {
         renderPerLevelChooser(listEl, adv);
       } else {
@@ -1558,10 +1561,14 @@
         : '');
     wrap.appendChild(header);
 
-    // Gather candidate targets per slot. UM: prepared and spontaneous
-    // arcane casters. Generic: any class matching adv.advancesTypes.
-    const primaryType = adv.advancesTypes[0];
-    const candidates = eligibleTargetsForType(adv, primaryType);
+    // Candidate targets per slot, PER TYPE. This used to read
+    // `adv.advancesTypes[0]` and stop, which was fine while Ultimate Magus
+    // (one type, two styles) was the only PrC on this path — and made a
+    // Mystic Theurge's divine half literally unrenderable, since only its
+    // arcane candidates were ever gathered.
+    const byType = adv.advancesTypes.map(
+      t => ({ type: t, candidates: eligibleTargetsForType(adv, t) }));
+    const candidates = byType.length ? byType[0].candidates : [];
     // Warn if requiresStyles isn't met.
     if (adv.requiresStyles) {
       const have = new Set(candidates
@@ -1589,8 +1596,26 @@
       slotRow.style.cssText = 'display:inline-flex; flex-wrap:wrap; gap:0.5rem; align-items:center;';
       if (slot.kind === 'auto-lower') {
         renderAutoLowerSlot(slotRow, adv, slot, candidates);
-      } else {
+      } else if (adv.requiresStyles || byType.length <= 1) {
+        // Single-type (or style-driven, i.e. Ultimate Magus): one control
+        // group, exactly as before.
         renderChoiceSlot(slotRow, adv, slot, candidates);
+      } else {
+        // Multi-type: one labelled group per type, each an independent
+        // single-choice. A Mystic Theurge level advances one arcane class AND
+        // one divine class — they are not alternatives to each other, so they
+        // must not share a radio group.
+        for (const { type, candidates: cands } of byType) {
+          if (!cands.length) continue;
+          const grp = document.createElement('span');
+          grp.style.cssText = 'display:inline-flex; gap:0.3rem; align-items:center;';
+          const lbl = document.createElement('span');
+          lbl.textContent = `${type}:`;
+          lbl.style.cssText = 'opacity:0.55;';
+          grp.appendChild(lbl);
+          renderChoiceSlot(grp, adv, slot, cands, type);
+          slotRow.appendChild(grp);
+        }
       }
       wrap.appendChild(slotRow);
     }
@@ -1599,7 +1624,15 @@
 
   // Render a choice slot: checkboxes (or radios) for each eligible
   // target, filtered by requiresStyles.
-  function renderChoiceSlot(rowEl, adv, slot, candidates) {
+  // `forType` is set only in the multi-type case. It scopes this group's
+  // radio name and, critically, scopes the WRITE: choosing a new arcane
+  // target must replace the slot's arcane pick and leave its divine one
+  // alone. Without that, picking Sorcerer would silently drop the Cleric.
+  function renderChoiceSlot(rowEl, adv, slot, candidates, forType) {
+    const typeOf = (name) => {
+      const t = getClassType(name);
+      return Array.isArray(t) ? t : [t];
+    };
     for (const cand of candidates) {
       const style = getCasterStyle(cand.className);
       // Skip candidates that don't satisfy requiresStyles, IF set.
@@ -1610,7 +1643,8 @@
         'display:inline-flex; align-items:center; gap:0.2rem; cursor:pointer;';
       const cb = document.createElement('input');
       cb.type = adv.allowsMultiAdvance ? 'checkbox' : 'radio';
-      cb.name = `mc-slot-${adv.className}-${slot.prcLevel}`;
+      cb.name = `mc-slot-${adv.className}-${slot.prcLevel}`
+              + (forType ? `-${forType}` : '');
       cb.value = cand.className;
       cb.checked = (slot.targets || []).includes(cand.className);
       cb.addEventListener('change', () => {
@@ -1621,6 +1655,11 @@
           } else {
             next = next.filter(t => t !== cand.className);
           }
+        } else if (forType) {
+          // Replace only this type's pick. Anything in the slot belonging to
+          // a DIFFERENT type is another group's business and survives.
+          next = next.filter(t => !typeOf(t).includes(forType));
+          if (cb.checked) next.push(cand.className);
         } else {
           next = cb.checked ? [cand.className] : [];
         }
@@ -2775,6 +2814,11 @@
     if (classHasOwnSpellsPerDay(classId)) return null;
     const rows = levelsUpTo(classId, level);
     const types = new Set();
+    // WHICH PrC levels advance, not just how many. Needed by the per-level
+    // allocation UI, which used to be reachable only by Ultimate Magus and is
+    // now offered to any advancer with more than one eligible target
+    // (report rmt4jee2t-7zem).
+    const advancingLevels = [];
     let hits = 0;
     for (const r of rows) {
       const text = String(r.special || '');
@@ -2791,10 +2835,11 @@
       // Increment hits once per row that had at least one match
       // (Cerebremancer L1 has TWO markers but advances each tracked
       // class by 1, not 2).
-      if (perRow > 0) hits++;
+      if (perRow > 0) { hits++; advancingLevels.push(Number(r.level)); }
     }
     if (hits > 0) {
-      return { types: [...types], levels: hits };
+      return { types: [...types], levels: hits,
+               advancingLevels: advancingLevels.filter(n => Number.isFinite(n)) };
     }
     const hard = getAdvancementSpec(className);
     if (hard && hard.advancesAllLevels) {
@@ -2816,14 +2861,17 @@
       }
       if (effective <= 0) return null;
       const out = { types: hard.types.slice(), levels: effective };
+      // Computed for EVERY advancer now, not only the per-level ones: it is
+      // just a list of which PrC levels advance, and the per-level allocation
+      // UI needs it the moment a second eligible target shows up.
+      const advancingLevels = [];
+      for (let lv = 1; lv <= level; lv++) {
+        if (nonAdvancing.includes(lv)) continue;
+        advancingLevels.push(lv);
+      }
+      out.advancingLevels = advancingLevels;
       if (hard.perLevelChoice) {
-        const advancingLevels = [];
-        for (let lv = 1; lv <= level; lv++) {
-          if (nonAdvancing.includes(lv)) continue;
-          advancingLevels.push(lv);
-        }
         out.perLevelChoice = true;
-        out.advancingLevels = advancingLevels;
         out.autoAdvanceLowerLevels = autoLower.filter(lv => lv <= level);
         out.requiresStyles = hard.requiresStyles || null;
         out.allowsMultiAdvance = !!hard.allowsMultiAdvance;
@@ -2884,6 +2932,23 @@
     for (const wantStyle of wantStyles) {
       const match = eligible.find(e => getCasterStyle(e.className) === wantStyle);
       if (match) defaultChoiceTargets.push(match.className);
+    }
+    // No requiresStyles — this is a type-driven advancer (Mystic Theurge and
+    // friends). Default ONE target PER TYPE, because such a PrC advances every
+    // type it names at every level: a Mystic Theurge level advances an arcane
+    // class AND a divine one, and seeding a single target would have silently
+    // halved it. The old fallback took eligible[0] and stopped, which was
+    // correct only for the single-type PrC this path used to serve.
+    if (!wantStyles.length) {
+      for (const want of types) {
+        const match = eligible.find(e => {
+          if (defaultChoiceTargets.includes(e.className)) return false;
+          const t = getClassType(e.className);
+          const ts = Array.isArray(t) ? t : [t];
+          return want === 'any' || ts.includes(want);
+        });
+        if (match) defaultChoiceTargets.push(match.className);
+      }
     }
     if (!defaultChoiceTargets.length && eligible.length) {
       defaultChoiceTargets.push(eligible[0].className);
@@ -2994,8 +3059,45 @@
   // Resolve advancesTargets for an entry by re-running pickAdvanceTarget
   // for each type. Updates entry.advancesTargets in place. Skips types
   // already targeting an entry that still exists.
+  // True when the player actually has a CHOICE to make for this advancer —
+  // some type it advances has two or more eligible target classes. A single
+  // Wizard leaves nothing to allocate, so nothing should be asked.
+  function advancerIsAmbiguous(entry) {
+    return (entry.advancesTypes || []).some(
+      t => eligibleTargetsForType(entry, t).length >= 2);
+  }
+
+  // Idempotent, and called from BOTH the refresh path and the render path.
+  // It has to be called from the render path because promotion during a class
+  // apply happens AFTER the chip list has already been drawn — so the model
+  // flipped to per-level while the UI still showed the single whole-PrC
+  // picker, and the per-level rows appeared only on some later unrelated
+  // re-render. A promotion the player cannot see is worse than none.
+  function promoteAdvancerIfAmbiguous(entry) {
+    if (entry.perLevelChoice) return false;
+    if (!(entry.advancingLevels || []).length) return false;
+    if (!advancerIsAmbiguous(entry)) return false;
+    entry.perLevelChoice = true;
+    entry.perLevelAuto = true;      // promoted here, not declared in the spec
+    seedAdvancementSlots(entry);
+    return true;
+  }
+
   function refreshAdvanceTargets(entry) {
     if (!entry.advancesTypes || !entry.advancesTypes.length) return;
+    // Promote a classic advancer to per-level allocation once the character
+    // has more than one valid target (report rmt4jee2t-7zem). RAW, the choice
+    // of which class a "+1 level of existing X class" advances is made at each
+    // level and MAY differ between them — a Mystic Theurge 5 can put three
+    // levels into Wizard and two into Sorcerer. The single whole-PrC picker
+    // could not express that.
+    //
+    // Promotion is one-way. If the second target is later removed the slots
+    // stay, each showing one option: still correct, just no longer a choice.
+    // Demoting would mean discarding the player's per-level allocation the
+    // moment they retrained a class, which is a worse trade than a slightly
+    // redundant UI.
+    promoteAdvancerIfAmbiguous(entry);
     // Per-level entries manage their own slots via seedAdvancementSlots
     // and the UI. Refresh slot targets here too so removed classes drop
     // out and new candidates can be auto-picked.
@@ -4114,11 +4216,15 @@
     if (adv) {
       entry.advancesTypes = adv.types;
       entry.advancesLevels = adv.levels;
+      // Carried for EVERY advancer, not just the pre-declared per-level ones:
+      // refreshAdvanceTargets promotes a classic advancer to per-level
+      // allocation once a second eligible target appears, and it cannot do
+      // that without knowing which PrC levels advance.
+      if (adv.advancingLevels) entry.advancingLevels = adv.advancingLevels;
       if (adv.perLevelChoice) {
         // Mark the entry so the UI renders per-level pickers and
         // effectiveSpellLevel routes to advancementSlots.
         entry.perLevelChoice = true;
-        entry.advancingLevels = adv.advancingLevels;
         entry.autoAdvanceLowerLevels = adv.autoAdvanceLowerLevels || [];
         entry.requiresStyles = adv.requiresStyles;
         entry.allowsMultiAdvance = adv.allowsMultiAdvance;
