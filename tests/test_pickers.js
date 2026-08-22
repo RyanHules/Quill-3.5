@@ -2325,6 +2325,57 @@ test('lookup: DB spell_like_abilities all render without object leak', (db) => {
 const CLASS_PICKER_SRC = fs.readFileSync(
   path.join(ROOT, 'class-picker.js'), 'utf8'
 );
+const LIVE_PUBLISH_SRC = fs.readFileSync(
+  path.join(ROOT, 'live-publish.js'), 'utf8'
+);
+
+// ---- tests: schema-7 blast-rider discrimination --------------------------
+//
+// The one place the schema-7 publish GUESSES is BLAST_DICE_RE, which decides
+// whether a special-abilities row is an additive rider on the eldritch blast.
+// Everything else in that block reads the DOM.
+//
+// The first version of this regex accepted UNSIGNED dice, and running it over
+// all 400 saved characters (rather than a fixture built from the one row that
+// motivated it) showed it matching `[Warlock 9] Eldritch blast 5d6` — the
+// character's BASE blast, stated in the special-abilities list. Publishing
+// that as a rider means a consumer folding riders into damage computes
+// 5d6 + 5d6 + 4d6 for a blast that is 9d6. Wrong, silently, mid-combat.
+//
+// The cases below are the real strings that broke it, kept as the guard.
+test('live-publish: BLAST_DICE_RE separates additive riders from totals', () => {
+  const m = /var BLAST_DICE_RE = (\/.*\/i);/.exec(LIVE_PUBLISH_SRC);
+  assert(m, 'BLAST_DICE_RE not found in live-publish.js — did it get renamed?');
+  const RE = eval(m[1]);
+
+  // Must parse: a rider that ADDS, written the way the books write it.
+  for (const [text, dice] of [
+    ['[Hellfire Warlock 2] Hellfire blast +4d6', '+4d6'],
+    ['[Hellfire Warlock 3] Hellfire blast +6d6', '+6d6'],
+    ['Hellfire blast +2d6', '+2d6'],
+  ]) {
+    const r = RE.exec(text);
+    assert(r, `expected a rider match for ${JSON.stringify(text)}`);
+    assert(r[2].replace(/\s+/g, '') === dice,
+      `expected dice ${dice} from ${JSON.stringify(text)}, got ${r[2]}`);
+  }
+
+  // Must NOT parse. The first four are TOTALS, not additions — the base blast
+  // and unrelated "<x> blast" abilities on real saved characters.
+  for (const text of [
+    '[Warlock 9] Eldritch blast 5d6',
+    'Eldritch Blast (1d6)',
+    'Ice Blast (2d6 cold, DC 17)',
+    'Mind Blast (DC 22)',
+    'Sneak attack +2d6',
+    '[Scout 1] Skirmish (+1d6)',
+    'Hellrime Blast',
+    '[Warlock 3] DR 1/cold iron',
+  ]) {
+    assert(!RE.exec(text),
+      `${JSON.stringify(text)} must NOT parse as a blast rider, but it did`);
+  }
+});
 // Pull the keys from HARDCODED_ADVANCERS and SPELLCASTING_TYPE without
 // requiring class-picker.js as a module (it's an IIFE).
 function extractObjectKeys(src, varName) {

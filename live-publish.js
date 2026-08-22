@@ -69,7 +69,13 @@
   //    nothing, so they reached neither the DB nor this bus; the DB now carries
   //    them and an ATTACK arrives with its damage already resolved for this
   //    character at this essentia. Additive.
-  var SCHEMA = 6;
+  // 7: + `invocations`, `special_abilities`, and `blast_riders` on an
+  //    eldritch-blast attack row. A warlock was the one PC whose offense could
+  //    not be read off this bus at all — the rig had to ask a human for +4d6
+  //    mid-combat. These are the first LISTS published here; see the schema-7
+  //    block below for why the "resolved numbers, not lists" rule had to
+  //    bend for exactly this case. Additive.
+  var SCHEMA = 7;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -111,7 +117,9 @@
     return out;
   }
 
-  function attacks() {
+  // `sa` is the specialAbilities() result, passed in so the DOM scan happens
+  // once per snapshot rather than once per attack row.
+  function attacks(sa) {
     var rows = document.querySelectorAll('.attack-entry');
     var out = [];
     Array.prototype.forEach.call(rows, function (row) {
@@ -126,6 +134,11 @@
       var bonus = f('.atk-bonus');
       if (name == null && bonus == null) return;   // blank template row
       var bonusEl = row.querySelector('.atk-bonus');
+      // Blast riders ride ONLY on an eldritch blast row. The key is absent on
+      // every other attack rather than null, because null here would read as
+      // "this dagger may have unmodelled blast riders", which is not a
+      // statement about a dagger. Absence means "not a blast".
+      var blast = isEldritchBlastRow(name) ? blastRidersFrom(sa) : null;
       out.push({
         name: name,
         bonus: bonus,
@@ -150,6 +163,15 @@
         // "not modelled" and "none" must not share a representation.
         damage_structured: damageStructured(row)
       });
+      if (blast) {
+        var last = out[out.length - 1];
+        last.blast_riders = blast;
+        // NOT folded into `damage`, and explicitly flagged unresolved: the
+        // sheet models no essence or shape, so this list is what it could
+        // substantiate, never a complete accounting of the blast. A consumer
+        // that wants the total resolves the `invocations` list against the DB.
+        last.blast_riders_resolved = false;
+      }
     });
     return out;
   }
@@ -169,6 +191,156 @@
       if (typeof DamageCalc === 'undefined' || !DamageCalc.readRiders) return null;
       return DamageCalc.readRiders(row);
     } catch (e) { return null; }
+  }
+
+  // --- schema 7: invocations, special abilities, blast riders ---------------
+  //
+  // WHY. A warlock was the one PC whose offense could not be read off this bus
+  // at all (Vaire, 2026-08-22 — he had to ask a human for +4d6 mid-combat).
+  //
+  // The reported cause was that spellcasting publishes and invocations do not.
+  // That is not what was happening: this bus publishes no spell NAME for
+  // anyone. `pools.spell_slots` carries counts and DCs — `known: 4` is how
+  // MANY 1st-level spells a bard knows, never which four. The rule is
+  // "resolved numbers, not lists", uniformly.
+  //
+  // Warlocks are not an exception to that rule; they are where it bites. A
+  // caster's offense degrades gracefully into numbers — you get DCs and slot
+  // counts and can run them approximately. A warlock's offense IS a list.
+  // Strip it and nothing is left but the base blast dice.
+  //
+  // So this is the first LIST this bus publishes, and it is deliberate.
+
+  function textOf(v) {
+    // specialAbilities rows are two shapes in live saves: a plain string, and
+    // {text, fromClass} for class-granted ones. Both are current; neither is
+    // legacy.
+    if (v == null) return null;
+    if (typeof v === 'string') return v.trim() || null;
+    return (v.text == null ? null : String(v.text).trim()) || null;
+  }
+
+  function specialAbilities() {
+    try {
+      var root = document.getElementById('special-abilities-container');
+      if (!root) return null;
+      var out = [];
+      root.querySelectorAll('.special-ability-entry').forEach(function (ta) {
+        var t = (ta.value == null ? '' : String(ta.value)).trim();
+        if (!t) return;
+        // `data-from-class` is the DOM carrier for the save's `fromClass`.
+        var fc = ta.getAttribute('data-from-class');
+        out.push({ text: t, from_class: fc || null });
+      });
+      return out;
+    } catch (e) { return null; }
+  }
+
+  function invocations() {
+    try {
+      var panels = document.querySelectorAll('[data-caster-type="invocations"]');
+      if (!panels.length) return null;          // not an invoker at all
+      var out = [];
+      panels.forEach(function (p, i) {
+        var id = casterIdentity(p, i);
+        var grades = {};
+        p.querySelectorAll('.invo-known-list').forEach(function (list) {
+          var g = list.dataset.grade;
+          if (!g) return;
+          grades[g] = Array.from(
+            list.querySelectorAll('.invo-known-row .invo-known-name'))
+            .map(function (inp) { return (inp.value || '').trim(); })
+            .filter(Boolean);
+        });
+        out.push({
+          id: id.id,
+          label: id.label,
+          invoking_class: p.dataset.invoClass || null,
+          // The warlock's "caster level" for its invocations. Published
+          // because it drives grade access and every invocation's save DC,
+          // neither of which the name list tells you.
+          invoker_level: intOf(cell(p, '.invo-caster-level')),
+          highest_grade: cell(p, '.invo-highest-grade'),
+          known_count: intOf(cell(p, '.invo-known-count')),
+          known: grades
+        });
+      });
+      return out;
+    } catch (e) { return null; }
+  }
+
+  // Blast riders the sheet can actually SUBSTANTIATE, and nothing else.
+  //
+  // The sheet does not model eldritch essences or blast shapes — the blast
+  // attack row says so in its own notes ("Invocation essences/shapes not
+  // applied."), and `damage_riders` comes back empty because the rider store
+  // is genuinely empty, not because publishing skips it.
+  //
+  // So this deliberately does NOT try to resolve a total. Two reasons, and the
+  // second is the one that matters: resolving needs rules the sheet has not
+  // been taught (one essence and one shape per blast, which invocation is
+  // which, how a Hellfire Warlock's dice interact, and above all WHICH essence
+  // the player has up this round — which the sheet is not told). And a total
+  // that is silently wrong is worse than no total, because it gets applied
+  // mid-combat and the seam is never visible. Same principle as `stale`
+  // meaning absent rather than empty: an unknown must never present as a
+  // nothing.
+  //
+  // What IS substantiated: a class-granted special ability whose text carries
+  // explicit blast dice ("[Hellfire Warlock 2] Hellfire blast +4d6"). Those
+  // are read, not guessed. Named invocations are published in `invocations`
+  // above for a consumer that can resolve them against the DB; they are NOT
+  // listed here, because the sheet cannot tell "Hellrime Blast" (an essence)
+  // from "Flee the Scene" (not a blast rider at all) without that DB.
+  // The dice MUST carry an explicit sign. That one requirement is doing real
+  // work, and it was found by running the first version of this regex over all
+  // 400 saved characters instead of a fixture:
+  //
+  //   "[Hellfire Warlock 2] Hellfire blast +4d6"  -> rider     (signed)
+  //   "[Warlock 9] Eldritch blast 5d6"            -> NOT a rider
+  //   "Eldritch Blast (1d6)"                      -> NOT a rider
+  //   "Ice Blast (2d6 cold, DC 17)"               -> NOT a rider
+  //
+  // The second line is the one that matters. The base blast appears in the
+  // special-abilities list as a plain statement of its own dice, and the
+  // unsigned version of this pattern published it as a RIDER — so a consumer
+  // folding riders into `damage` would have computed 5d6 + 5d6 + 4d6 for a
+  // character whose blast is 9d6. Silently wrong, mid-combat, in exactly the
+  // way this whole block promises not to be.
+  //
+  // A rider ADDS, and the book writes it that way — FCII's class table says
+  // "Hellfire blast +2d6 / +4d6 / +6d6". Requiring the sign is therefore not a
+  // heuristic about text; it is the distinction between a total and an
+  // addition, which is the thing being asked.
+  var BLAST_DICE_RE = /\b([a-z]+\s+blast)\b[^0-9+\-]{0,20}([+-]\s*\d+d\d+)/i;
+
+  // Takes the output of specialAbilities() — {text, from_class} rows.
+  function blastRidersFrom(abilities) {
+    var out = [];
+    (abilities || []).forEach(function (a) {
+      var t = textOf(a);
+      if (!t) return;
+      var m = BLAST_DICE_RE.exec(t);
+      if (!m) return;
+      // Belt and braces on the base blast: the sign requirement above already
+      // excludes it, and this says so out loud so a later edit to the regex
+      // cannot quietly re-admit the double-count.
+      if (/^eldritch blast$/i.test(m[1].trim())) return;
+      out.push({
+        name: m[1].replace(/\s+/g, ' ').trim(),
+        dice: m[2].replace(/\s+/g, ''),
+        source: 'special_ability',
+        // The row verbatim, so a consumer can see what was parsed and
+        // disagree with the parse rather than trusting it blind.
+        source_text: t,
+        from_class: (a && a.from_class) || null
+      });
+    });
+    return out;
+  }
+
+  function isEldritchBlastRow(name) {
+    return /eldritch blast/i.test(name || '');
   }
 
   // --- schema 2 ------------------------------------------------------------
@@ -447,6 +619,14 @@
       var sp = panel.querySelector('.sp-class');
       if (sp && sp.value && sp.value.trim()) label = sp.value.trim();
     }
+    // An invocations panel has none of the above — its class lives in
+    // `data-invo-class`, which the class picker sets. Without this, every
+    // warlock block published `label: null` while the sheet knew perfectly
+    // well it was a Warlock. Unlike `.sp-class` this one is NOT a
+    // user-editable search box, so it is the most trustworthy of the four.
+    if (!label && panel.dataset && panel.dataset.invoClass) {
+      label = String(panel.dataset.invoClass).trim() || null;
+    }
     return { id: panel.id || ('#' + i), label: label };
   }
 
@@ -518,6 +698,9 @@
   // fingerprint — embedding a clock here would make every comparison differ
   // and turn the watcher into an unconditional 1.5s publisher.
   function snapshot(qualified) {
+    // Scanned once — both `special_abilities` and the blast riders on the
+    // eldritch-blast attack row read it.
+    var sa = specialAbilities();
     return {
       schema: SCHEMA,
       qualified: qualified,
@@ -558,7 +741,14 @@
         nonlethal: num('hp-nonlethal')
       },
       speed: { land: txt('speed-land'), fly: txt('speed-fly') },
-      attacks: attacks(),
+      attacks: attacks(sa),
+      // The first LISTS this bus publishes. Everything else here is a resolved
+      // number, and that rule is right for a caster — DCs and slot counts run
+      // them approximately. It fails completely for a warlock, whose entire
+      // offense is a list. Null (not []) when the character has no invocations
+      // panel / no special-abilities container at all.
+      invocations: invocations(),
+      special_abilities: sa,
       skills: skills(),
       pools: pools(),
       conditions: conditions(),
