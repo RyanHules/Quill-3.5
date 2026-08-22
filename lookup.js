@@ -42,6 +42,11 @@
   let entries = [];
   // Type → count, for the chip strip.
   const typeCounts = new Map();
+  // Tag → number of indexed entries carrying it. Populated in buildIndex
+  // and used ONLY by the `tag:` suggestion strip — a tag filter you have
+  // to guess the spelling of is a filter nobody can use (report
+  // rmt1jde3r-heq3).
+  const tagCounts = new Map();
   // Set of active type filters (empty = no filter).
   const activeTypes = new Set();
   // Lowercase book abbreviation → lowercase full book name. Used by the
@@ -95,6 +100,8 @@
         <div class="lookup-chips" id="lookup-chips">
           <!-- Phase 2 will populate type-filter chips here -->
         </div>
+        <div class="lookup-tag-hints" id="lookup-tag-hints"
+             style="display:none"></div>
         <div class="lookup-results" id="lookup-results" role="listbox">
           <!-- Phase 2/3 will render results here -->
         </div>
@@ -116,6 +123,7 @@
     chipsEl   = modalEl.querySelector('#lookup-chips');
     // Phase 5: wire click delegation for the empty-state widgets.
     wireEmptyStateClicks();
+    wireTagHintClicks();
 
     // Close on backdrop / × click.
     modalEl.addEventListener('click', (ev) => {
@@ -2635,7 +2643,12 @@
       "   COALESCE(json_extract(data, '$.text'),          '')) AS body, " +
       "  CASE WHEN type IN ('class','prc') " +
       "       THEN json_extract(data, '$.class_features') ELSE NULL END " +
-      "    AS class_features_json " +
+      "    AS class_features_json, " +
+      // Creature filter columns (report rmsur3jhq-gtgo). These are real
+      // columns on `entry`, not JSON — only hit_dice has to be dug out.
+      "  creature_size, creature_type, cr, alignment, " +
+      "  CASE WHEN type = 'creature' " +
+      "       THEN json_extract(data, '$.hit_dice') ELSE NULL END AS hit_dice " +
       "FROM entry WHERE name IS NOT NULL"
     );
     // Pull tags in one shot.
@@ -2662,10 +2675,14 @@
       }
     }
     typeCounts.clear();
+    tagCounts.clear();
     entries = rows.map(r => {
       const nameKey = squash(r.name);
       const tags = tagsById.get(r.id) || new Set();
       typeCounts.set(r.type, (typeCounts.get(r.type) || 0) + 1);
+      // Count over INDEXED entries, so a suggested tag always has
+      // something behind it in this modal.
+      for (const t of tags) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
       // Parse class_features for class / prc rows. Stores the
       // original feature names (preserved case + punctuation) so
       // rankEntry can return WHICH feature matched as attribution,
@@ -2735,6 +2752,15 @@
           [...tags].join('·'),
         bodyKey,
         featureNames,    // null OR list of preserved-case names
+        // Creature facts, pre-parsed once, for the cr:/hd:/size:/align:
+        // filters. null for everything that isn't a creature.
+        creature: r.type === 'creature' ? {
+          cr:    parseCRSpan(r.cr),
+          hd:    parseHDCount(r.hit_dice),
+          size:  (r.creature_size || '').toLowerCase(),
+          ctype: (r.creature_type || '').toLowerCase(),
+          align: (r.alignment || '').toLowerCase(),
+        } : null,
       };
     });
     // Prereq in-degree ("foundational-ness") — a within-tier tiebreak so the
@@ -2785,6 +2811,66 @@
 
   // ---- Search ranking -----------------------------------------------------
 
+  // ---- creature filter parsing (report rmsur3jhq-gtgo) --------------------
+  //
+  // "an option to filter creatures by various criteria (HD, CR, etc) …
+  // would be very helpful for spells like planar ally" — which asks for a
+  // creature of at most N HD, of a particular alignment and type. So:
+  // `cr:<=6`, `hd:12`, `size:large`, `align:chaotic good`,
+  // `type:outsider`.
+
+  // "1/2" → 0.5, "13" → 13. Returns null for "—" and other non-numbers.
+  function crToNumber(s) {
+    const frac = /^(\d+)\s*\/\s*(\d+)$/.exec(s);
+    if (frac) return Number(frac[1]) / Number(frac[2]);
+    const n = Number(s);
+    return isNaN(n) ? null : n;
+  }
+
+  // A creature's CR as a SPAN [min, max]. Most are a single number, but a
+  // dragon prints one CR per age category ("Wyrmling 3; … great wyrm 25")
+  // and a few print alternatives ("3 (without pipes) or 5 (with pipes)").
+  // Treating those as a span is what keeps the dragons from silently
+  // vanishing out of a `cr:<=6` search — they DO have a CR-6 form.
+  function parseCRSpan(raw) {
+    if (raw == null) return null;
+    const nums = String(raw).match(/\d+\s*\/\s*\d+|\d+(?:\.\d+)?/g);
+    if (!nums || !nums.length) return null;
+    const vals = nums.map(crToNumber).filter(n => n != null);
+    if (!vals.length) return null;
+    return [Math.min(...vals), Math.max(...vals)];
+  }
+
+  // "10d8+20 (65 hp)" → 10.
+  function parseHDCount(raw) {
+    const m = /(\d+)\s*d\s*\d+/i.exec(String(raw || ''));
+    return m ? Number(m[1]) : null;
+  }
+
+  // A numeric filter expression: "6", "<=6", "≤6", ">=3", "<6", ">3",
+  // "3-7", "1/2". Returns {min, max} or null when it isn't numeric (so a
+  // non-numeric `size:` value falls through to the text filters).
+  function parseRangeExpr(raw) {
+    const s = String(raw || '').trim().replace(/\s+/g, '');
+    if (!s) return null;
+    let m = /^(\d+(?:\/\d+)?|\d+\.\d+)-(\d+(?:\/\d+)?|\d+\.\d+)$/.exec(s);
+    if (m) {
+      const a = crToNumber(m[1]), b = crToNumber(m[2]);
+      return (a == null || b == null) ? null : { min: Math.min(a, b), max: Math.max(a, b) };
+    }
+    m = /^(<=|>=|<|>|=|≤|≥)?(\d+(?:\/\d+)?|\d+\.\d+)$/.exec(s);
+    if (!m) return null;
+    const n = crToNumber(m[2]);
+    if (n == null) return null;
+    switch (m[1]) {
+      case '<':  return { min: -Infinity, max: n - 0.001 };
+      case '<=': case '≤': return { min: -Infinity, max: n };
+      case '>':  return { min: n + 0.001, max: Infinity };
+      case '>=': case '≥': return { min: n, max: Infinity };
+      default:   return { min: n, max: n };
+    }
+  }
+
   // Parse `feat:metamagic` / `spell:fireball` / `tag:combat-maneuver`
   // / `@source:DMG` prefixes out of the raw query. Returns
   // `{ q, types: Set<string>, tags: Set<string>, sources: Set<string> }`.
@@ -2795,6 +2881,13 @@
       tags: new Set(),
       sources: new Set(),
       flaggedOnly: false,
+      // Creature-only filters; stays null unless one is used, so nothing
+      // else in the pipeline has to know about them.
+      creature: null,
+    };
+    const cre = (k, v) => {
+      if (!out.creature) out.creature = {};
+      out.creature[k] = v;
     };
     const parts = [];
     for (const token of String(raw || '').split(/\s+/)) {
@@ -2803,12 +2896,33 @@
       if (m) {
         const k = m[1].toLowerCase();
         const v = m[2];
+        // Creature criteria. `cr`/`hd` are numeric ranges; `size` and
+        // `align` are text (hyphens read as spaces so `align:chaotic-good`
+        // survives the whitespace tokenizer).
+        const asText = () => v.replace(/[-_]+/g, ' ').toLowerCase();
+        if ((k === 'cr' || k === 'hd') && v) {
+          const r = parseRangeExpr(v);
+          if (r) { cre(k, r); continue; }
+          parts.push(token);        // "cr:huge" isn't a range — plain text
+          continue;
+        }
+        if ((k === 'size' || k === 'align' || k === 'alignment') && v) {
+          cre(k === 'size' ? 'size' : 'align', asText());
+          continue;
+        }
         if (k === 'tag' && v)       out.tags.add(v.toLowerCase());
         else if (k === 'flag' && v.toLowerCase() === 'open')
                                     out.flaggedOnly = true;
         else if ((k === '@source' || k === 'source') && v)
                                     out.sources.add(v.toLowerCase());
-        else if (k === 'type' && v) out.types.add(v.toLowerCase());
+        else if (k === 'type' && v) {
+          // `type:spell` filters by ENTRY type; `type:outsider` is a
+          // creature type. Falling through to the creature filter beats
+          // the old behavior, which accepted the token and then matched
+          // nothing at all.
+          if (v.toLowerCase() in TYPE_LABELS) out.types.add(v.toLowerCase());
+          else cre('ctype', asText());
+        }
         else if (k in TYPE_LABELS || k === 'prc' || k === 'class') {
           // `feat:` (no value) filters to feats; `feat:metamagic`
           // filters to feats AND pushes "metamagic" into the query.
@@ -2918,6 +3032,29 @@
         }
         if (!hit) return 0;
       }
+    }
+    if (parsed.creature) {
+      // Any creature criterion restricts the search to creatures.
+      const c = entry.creature;
+      if (!c) return 0;
+      const f = parsed.creature;
+      if (f.cr) {
+        // Span overlap, not point containment — see parseCRSpan.
+        if (!c.cr || c.cr[0] > f.cr.max || c.cr[1] < f.cr.min) return 0;
+      }
+      if (f.hd) {
+        if (c.hd == null || c.hd < f.hd.min || c.hd > f.hd.max) return 0;
+      }
+      // Size matches either way round so "medium" reaches the 46 rows
+      // printed as "Medium-size".
+      if (f.size && !(c.size.startsWith(f.size) || f.size.startsWith(c.size))) {
+        return 0;
+      }
+      // Type and alignment are substrings: `type:outsider` hits
+      // "Outsider (Chaotic, Eladrin, Extraplanar, Good)", and
+      // `align:chaotic good` hits "Always chaotic good".
+      if (f.ctype && !c.ctype.includes(f.ctype)) return 0;
+      if (f.align && !c.align.includes(f.align)) return 0;
     }
     if (parsed.sources.size) {
       const src = (entry.source || '').toLowerCase();
@@ -3060,6 +3197,155 @@
     }
   }
 
+  // ---- `tag:` suggestions -------------------------------------------------
+  //
+  // Report rmt1jde3r-heq3: "filtering by tag is pretty much guesswork —
+  // there's no way to know if the tag you're looking for is formulated the
+  // way you think it is, or even exists at all." The results list answers
+  // that question for entry NAMES as you type; nothing answered it for
+  // tags, and a mistyped tag returns a clean, confident, empty list.
+  //
+  // So while the query carries a `tag:` token, the strip under the type
+  // chips lists the tags that match it, with counts, clickable. An empty
+  // `tag:` lists the commonest ones — which is also the answer to "what
+  // tags are there at all".
+
+  // The tag token currently being typed: the LAST `tag:` in the query, so
+  // `tag:fire tag:evo` suggests against "evo".
+  function currentTagToken(raw) {
+    let last = null;
+    for (const token of String(raw || '').split(/\s+/)) {
+      const m = token.match(/^tag:(.*)$/i);
+      if (m) last = m[1].toLowerCase();
+    }
+    return last;
+  }
+
+  function matchTags(partial) {
+    const exact = [], prefix = [], contains = [];
+    for (const [tag, count] of tagCounts) {
+      if (!partial) { contains.push([tag, count]); continue; }
+      if (tag === partial) exact.push([tag, count]);
+      else if (tag.startsWith(partial)) prefix.push([tag, count]);
+      else if (tag.includes(partial)) contains.push([tag, count]);
+    }
+    const byCount = (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]);
+    exact.sort(byCount); prefix.sort(byCount); contains.sort(byCount);
+    // Nothing CONTAINS what was typed — but the filter in score() also
+    // matches the other way round (a tag that is a substring of the typed
+    // text), so `tag:teleportation-magic` still returns the teleport pile.
+    // Surface those, or the hint would contradict the result list.
+    const reverse = [];
+    if (!exact.length && !prefix.length && !contains.length && partial) {
+      for (const [tag, count] of tagCounts) {
+        if (partial.includes(tag)) reverse.push([tag, count]);
+      }
+      reverse.sort(byCount);
+    }
+    return { exact, reverse, ordered: exact.concat(prefix, contains, reverse) };
+  }
+
+  // The creature criteria are query syntax, so they need somewhere to be
+  // discovered. This line appears whenever the search is about creatures —
+  // the chip is active, `creature:` is typed, or a criterion is already in
+  // use — and each token is clickable, so it doubles as the filter UI.
+  function creatureHintHtml(parsed) {
+    const onCreatures = activeTypes.has('creature') ||
+      parsed.types.has('creature') || !!parsed.creature;
+    if (!onCreatures) return '';
+    const f = parsed.creature || {};
+    const bits = [
+      ['cr:', 'cr:&lt;=6', !!f.cr],
+      ['hd:', 'hd:&lt;=12', !!f.hd],
+      ['size:', 'size:large', !!f.size],
+      ['type:', 'type:outsider', !!f.ctype],
+      ['align:', 'align:chaotic-good', !!f.align],
+    ].map(([tok, label, on]) =>
+      `<button type="button" class="lookup-chip lookup-crit-chip` +
+      `${on ? ' active' : ''}" data-token="${escapeHtml(tok)}">${label}</button>`
+    ).join('');
+    return `<span class="lookup-tag-hint-label">creature filters:</span>` + bits;
+  }
+
+  function renderTagHints(raw) {
+    const host = document.getElementById('lookup-tag-hints');
+    if (!host) return;
+    const creatureHtml = creatureHintHtml(parseQuery(raw));
+    const partial = currentTagToken(raw);
+    if (partial === null) {          // no `tag:` in the query at all
+      host.innerHTML = creatureHtml;
+      host.style.display = creatureHtml ? '' : 'none';
+      return;
+    }
+    const { exact, reverse, ordered } = matchTags(partial);
+    const SHOWN = 12;
+    let head;
+    if (!ordered.length) {
+      head = `<span class="lookup-tag-hint-label">No tag named ` +
+        `&quot;${escapeHtml(partial)}&quot;.</span>`;
+    } else if (reverse.length) {
+      head = `<span class="lookup-tag-hint-label">No tag named ` +
+        `&quot;${escapeHtml(partial)}&quot; — showing entries tagged:</span>`;
+    } else if (!partial) {
+      head = `<span class="lookup-tag-hint-label">${tagCounts.size} tags ` +
+        `— keep typing to narrow:</span>`;
+    } else if (exact.length) {
+      head = `<span class="lookup-tag-hint-label">tag ` +
+        `&quot;${escapeHtml(partial)}&quot; ✓` +
+        (ordered.length > 1 ? ` · also matching:` : '') + `</span>`;
+    } else {
+      head = `<span class="lookup-tag-hint-label">` +
+        `${ordered.length} tag${ordered.length === 1 ? '' : 's'} matching ` +
+        `&quot;${escapeHtml(partial)}&quot;:</span>`;
+    }
+    const chips = ordered.slice(0, SHOWN).map(([tag, count]) =>
+      `<button type="button" class="lookup-chip lookup-tag-chip" ` +
+      `data-tag="${escapeHtml(tag)}">${escapeHtml(tag)} ` +
+      `<span class="lookup-tag-chip-count">${count}</span></button>`
+    ).join('');
+    const more = ordered.length > SHOWN
+      ? `<span class="lookup-tag-hint-label">+${ordered.length - SHOWN} more</span>`
+      : '';
+    host.innerHTML = head + chips + more +
+      (creatureHtml ? `<span class="lookup-hint-break"></span>` + creatureHtml : '');
+    host.style.display = '';
+  }
+
+  // Clicking a suggestion rewrites the token being typed to the exact tag.
+  function wireTagHintClicks() {
+    const host = document.getElementById('lookup-tag-hints');
+    if (!host) return;
+    host.addEventListener('click', (ev) => {
+      // A criterion chip drops its token into the query, ready to type a
+      // value after (or removes it again when it's already in use).
+      const crit = ev.target.closest('.lookup-crit-chip');
+      if (crit) {
+        const tok = crit.dataset.token;                // e.g. "cr:"
+        const re = new RegExp('^' + tok.replace(':', '') + ':', 'i');
+        const tokens = inputEl.value.trim().split(/\s+/).filter(Boolean);
+        const at = tokens.findIndex(t => re.test(t));
+        if (at >= 0 && crit.classList.contains('active')) tokens.splice(at, 1);
+        else if (at < 0) tokens.push(tok);
+        inputEl.value = tokens.join(' ') + (at < 0 ? '' : ' ');
+        inputEl.focus();
+        render(inputEl.value.trim());
+        return;
+      }
+      const chip = ev.target.closest('.lookup-tag-chip');
+      if (!chip) return;
+      const tag = chip.dataset.tag;
+      const tokens = inputEl.value.trim().split(/\s+/);
+      let replaced = false;
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        if (/^tag:/i.test(tokens[i])) { tokens[i] = 'tag:' + tag; replaced = true; break; }
+      }
+      if (!replaced) tokens.push('tag:' + tag);
+      inputEl.value = tokens.join(' ') + ' ';
+      inputEl.focus();
+      render(inputEl.value.trim());
+    });
+  }
+
   function countForChip(t) {
     if (t === 'item') {
       return (typeCounts.get('item') || 0) +
@@ -3116,6 +3402,12 @@
   // ---- Render -------------------------------------------------------------
 
   const MAX_RESULTS = 200;  // Cap rendered rows to keep the DOM lean.
+  // How many rows the CURRENT query is allowed to render. Reset to the cap
+  // on every new query; the footer's "show more" raises it a page at a time
+  // (report rmszxjzbo-eq45 — a cap with no way past it hides the pool).
+  // Paged rather than unlimited because each row does errata + review-flag
+  // lookups, and `type:spell` alone is 5,000 of them.
+  let resultLimit = MAX_RESULTS;
 
   function renderEmptyState() {
     const recent = loadRecent();
@@ -3268,7 +3560,8 @@
     return rankParsed(parseQuery(query));
   }
 
-  function render(query) {
+  function render(query, keepLimit) {
+    if (!keepLimit) resultLimit = MAX_RESULTS;
     if (!resultsEl) return;
     if (!DB.isLoaded()) {
       resultsEl.innerHTML =
@@ -3278,13 +3571,15 @@
       return;
     }
     if (!entries.length) buildIndex();
+    renderTagHints(query);
 
     const parsed = parseQuery(query);
     // Empty state: no query and no filters → show type breakdown + recent
     // searches. Both are clickable: a type chip narrows by type, a recent
     // chip re-fills the input.
     if (!parsed.q && !activeTypes.size && !parsed.types.size &&
-        !parsed.tags.size && !parsed.sources.size && !parsed.flaggedOnly) {
+        !parsed.tags.size && !parsed.sources.size && !parsed.flaggedOnly &&
+        !parsed.creature) {
       renderEmptyState();
       setCount('');
       lastResults = [];
@@ -3294,7 +3589,7 @@
     // Score + sort via the shared ranking core (also used headless by the
     // lookup usability harness). Book-filter + skip-zero-score live in there.
     const ranked = rankParsed(parsed);
-    lastResults = ranked.slice(0, MAX_RESULTS);
+    lastResults = ranked.slice(0, resultLimit);
 
     resultsEl.innerHTML = '';
     if (!lastResults.length) {
@@ -3357,11 +3652,19 @@
       resultsEl.appendChild(row);
     }
     const total = ranked.length;
-    setCount(
-      total > MAX_RESULTS
-        ? `showing ${MAX_RESULTS} of ${total}`
-        : `${total} match${total === 1 ? '' : 'es'}`
-    );
+    if (total > lastResults.length) {
+      const step = Math.min(MAX_RESULTS, total - lastResults.length);
+      setCountHtml(
+        `showing ${lastResults.length} of ${total} ` +
+        `<button type="button" id="lookup-more">show ${step} more</button>`);
+      const btn = document.getElementById('lookup-more');
+      if (btn) btn.addEventListener('click', () => {
+        resultLimit += MAX_RESULTS;
+        render(inputEl.value.trim(), true);
+      });
+    } else {
+      setCount(`${total} match${total === 1 ? '' : 'es'}`);
+    }
     // Ensure selection is valid.
     if (selectedIdx >= lastResults.length) selectedIdx = 0;
     paintSelection();
@@ -3370,6 +3673,13 @@
   function setCount(text) {
     const el = document.getElementById('lookup-count');
     if (el) el.textContent = text;
+  }
+
+  // Same slot, but carrying the "show more" button. Callers pass only
+  // text they built themselves — nothing user-supplied reaches here.
+  function setCountHtml(html) {
+    const el = document.getElementById('lookup-count');
+    if (el) el.innerHTML = html;
   }
 
   // ---- Global hotkey ------------------------------------------------------
