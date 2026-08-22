@@ -2450,6 +2450,91 @@
       'LOAD: removing the magic item drops Medium -> Light with no field edit');
   });
 
+  // Report rmszworfj-3ehb — a DB-known vestige renders as a read-only chip
+  // with an ⓘ, the way a DB-matched feat row does; ✎ gives the form back for
+  // a house-ruled value; an unrecognised name never collapses. The property
+  // that MUST hold through all of it is that the save still carries every
+  // field, because the inputs are hidden rather than replaced.
+  regression('VEST-CHIP: a known vestige is a chip, a homebrew one is a form', async () => {
+    await newCharacter();
+    if (!dbReady()) fail('VEST-CHIP: DB not loaded — re-run once [DB] Loaded appears.');
+    Spells.addCaster('binding', {});
+    await wait(500);
+    const panel = $('[data-caster-type="binding"]');
+    if (!panel) fail('VEST-CHIP: no binding panel');
+    const row = () => panel.querySelector('.vestige-entry');
+
+    // Bind a real vestige through the picker bar.
+    const picker = panel.querySelector('.vestige-picker');
+    if (!picker) fail('VEST-CHIP: the vestige picker bar never injected');
+    const chip = [...picker.querySelectorAll('.picker-result-chip')]
+      .find((c) => /^Amon/.test(c.dataset.name));
+    if (!chip) fail('VEST-CHIP: Amon not in the picker chip wall');
+    chip.click();
+    await wait(150);
+    picker.querySelector('.vp-bind').click();
+    await wait(350);
+
+    const r = row();
+    expect(r.classList.contains('vestige-structured'), true,
+      'VEST-CHIP: a DB-known vestige collapses to a chip');
+    expect(r.querySelector('.vestige-namebox').textContent,
+      'Amon, the Void before the Altar', 'VEST-CHIP: the chip names it');
+    // The values are still THERE, just not on screen.
+    expect(r.querySelector('.vestige-dc').value, '20',
+      'VEST-CHIP: the binding DC is still in the input behind the chip');
+    expect(getComputedStyle(r.querySelector('.vestige-level').closest('.field')).display,
+      'none', 'VEST-CHIP: the printed fields are hidden');
+
+    // ⓘ shows the rules.
+    r.querySelector('.vestige-info-btn').click();
+    await wait(200);
+    if (!/Binding DC 20/.test(r.querySelector('.feat-rules')?.textContent || '')) {
+      fail('VEST-CHIP: the ⓘ panel must carry the vestige rules');
+    }
+
+    // ✎ gives the form back, and an edit survives collapsing.
+    r.querySelector('.vestige-edit-btn').click();
+    await wait(150);
+    expect(r.classList.contains('vestige-structured'), false,
+      'VEST-CHIP: ✎ reveals the form');
+    const dc = r.querySelector('.vestige-dc');
+    dc.value = '25';
+    dc.dispatchEvent(new Event('input', { bubbles: true }));
+    r.querySelector('.vestige-edit-btn').click();
+    await wait(150);
+    expect(r.querySelector('.vestige-dc').value, '25',
+      'VEST-CHIP: a house-ruled DC survives collapsing back to a chip');
+
+    // A name the DB does not know stays an editable form with no ⓘ.
+    panel.querySelector('.bind-add-vestige').click();
+    await wait(150);
+    const rows = panel.querySelectorAll('.vestige-entry');
+    const hb = rows[rows.length - 1];
+    const n = hb.querySelector('.vestige-name');
+    n.value = 'Grumbleflax the Invented';
+    n.dispatchEvent(new Event('input', { bubbles: true }));
+    n.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(200);
+    expect(hb.classList.contains('vestige-structured'), false,
+      'VEST-CHIP: a homebrew vestige must stay a form');
+    expect(hb.querySelector('.vestige-info-btn').style.display, 'none',
+      'VEST-CHIP: …and offer no ⓘ it cannot fill');
+
+    // Save/load: the chip comes back a chip, the edit comes back edited.
+    const blob = Spells.collectData();
+    Spells.loadData(blob);
+    await wait(600);
+    const back = $$('[data-caster-type="binding"] .vestige-entry');
+    expect(back.length, 2, 'VEST-CHIP: both rows survive the round trip');
+    expect(back[0].classList.contains('vestige-structured'), true,
+      'VEST-CHIP: the known vestige reloads as a chip');
+    expect(back[0].querySelector('.vestige-dc').value, '25',
+      'VEST-CHIP: the house-ruled DC reloads');
+    expect(back[1].classList.contains('vestige-structured'), false,
+      'VEST-CHIP: the homebrew row reloads as a form');
+  });
+
   // Report rmstjnqxs-ectk — a bag of holding's contents leave the character's
   // load, the bag does not. The property that needs DRIVING rather than
   // grepping is that the DISPLAYED total and the LOAD CATEGORY agree: they

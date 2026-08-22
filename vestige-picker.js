@@ -80,6 +80,11 @@
     syncInputAttributes();
     wireDelegation();
     observePanels();
+    // The bound-vestige rows decide chip-vs-form by asking this index, and a
+    // character can be loaded before the DB finishes — in which case every
+    // row resolved to "unknown" and stayed a form forever. Tell them.
+    // (Save-stability #4: the loader running before the module is ready.)
+    document.dispatchEvent(new CustomEvent('vestige-index-ready'));
 
     document.addEventListener('book-filter-changed', () => {
       rebuildIndex();
@@ -92,6 +97,9 @@
           dl.appendChild(opt);
         }
       }
+      // A book going out of scope can take a vestige with it, so a chip may
+      // have to become a form again (and back).
+      document.dispatchEvent(new CustomEvent('vestige-index-ready'));
     });
   }
 
@@ -399,6 +407,22 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+
+  // Exposed for the bound-vestige ROWS (spells.js), which render a DB-matched
+  // vestige as a read-only chip with an ⓘ instead of a six-field form — the
+  // feat-row treatment, report rmszworfj-3ehb. They need the same two things
+  // the picker bar needs: does this name resolve, and what does it say.
+  window.VestigePicker = {
+    lookup: (name) => vestigeIndex.get(String(name || '').trim().toLowerCase()) || null,
+    renderInfoHtml: (name) => {
+      const v = vestigeIndex.get(String(name || '').trim().toLowerCase());
+      return v ? renderInfo(v) : '';
+    },
+    entryIdFor: (name) => {
+      const v = vestigeIndex.get(String(name || '').trim().toLowerCase());
+      return v ? v.id : null;
+    },
+  };
 
   DB.ready.then((db) => { if (db) init(); });
 })();

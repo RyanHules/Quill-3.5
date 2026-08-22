@@ -8498,6 +8498,32 @@ test('audit: a muted family covers every caster and level of that check', () => 
     'change with it');
 });
 
+// ---- tests: vestige rows as chips (report rmszworfj-3ehb) -----------------
+
+test('save: a vestige chip HIDES its inputs, never removes them', () => {
+  const sp = readSource('spells.js');
+  // The whole safety of this change is that collectData still finds the same
+  // six fields — a chip that REPLACED the inputs would silently empty every
+  // bound vestige on the next save.
+  assert(/style\.display = structured \? "none" : ""/.test(sp),
+    'spells.js: the DB-derived fields must be hidden by display, not removed');
+  for (const cls of ['vestige-name', 'vestige-level', 'vestige-dc',
+                     'vestige-abilities', 'vestige-sign', 'vestige-good-pact']) {
+    assert(new RegExp(`class="${cls}"`).test(sp),
+      `spells.js: the ${cls} input must still be rendered into every row`);
+  }
+  // Good Pact is the player's choice, not the book's — it stays live even on
+  // a chip (Ryan, 2026-08-23).
+  assert(!/vestige-good-pact[^]{0,400}structured \? "none"/.test(sp),
+    'the Good Pact checkbox must not be hidden by the chip');
+  // Save-stability #4: the index arrives with the DB, which can be after a
+  // character loads, so the decision has to be re-made when it does.
+  assert(/vestige-index-ready/.test(sp) &&
+         /vestige-index-ready/.test(readSource('vestige-picker.js')),
+    'a load before DB.ready would leave every chip stuck as a form unless ' +
+    'the picker announces its index and spells.js re-syncs');
+});
+
 // ---- tests: creature criteria in the lookup (report rmsur3jhq-gtgo) -------
 //
 // "filter creatures by various criteria (HD, CR, etc) … helpful for spells

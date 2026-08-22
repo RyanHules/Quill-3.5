@@ -1991,12 +1991,22 @@ const Spells = (function () {
   }
   function vestigeRow(data = "") {
     const d = typeof data === "object" ? data : { name: data };
+    // A vestige the DB knows collapses to a read-only name chip + ⓘ, the way
+    // a DB-matched feat row does (report rmszworfj-3ehb, Ryan's call
+    // 2026-08-23). The inputs all still exist — hidden — so collectData and
+    // every existing save round-trip are untouched; `✎` reveals them again
+    // for a house-ruled DC, and an unrecognised name never collapses at all.
+    // Good Pact stays live whatever happens: which pact you made is YOUR
+    // choice, not something the book fills in.
     return `<div class="vestige-entry">
       <div class="vestige-header">
+        <span class="vestige-namebox" style="display:none"></span>
         <div class="field" style="flex:1"><label>Vestige Name</label><input type="text" class="vestige-name" value="${d.name || ""}"></div>
         <div class="field field-sm"><label>Level</label><input type="number" class="vestige-level" min="1" max="8" value="${d.level || ""}"></div>
         <div class="field field-sm"><label>Binding DC</label><input type="number" class="vestige-dc" value="${d.dc || ""}"></div>
         <label class="mi-toggle"><input type="checkbox" class="vestige-good-pact"${d.goodPact ? " checked" : ""}> Good Pact</label>
+        <button type="button" class="btn-feat-info vestige-info-btn" title="Show vestige rules" aria-expanded="false" style="display:none">ⓘ</button>
+        <button type="button" class="btn-small vestige-edit-btn" title="Edit the printed level / DC / abilities" style="display:none">✎</button>
         <button class="btn-remove bind-remove-vestige" title="Remove">X</button>
       </div>
       <div class="field"><label>Granted Abilities</label><textarea class="vestige-abilities" rows="2">${d.abilities || ""}</textarea></div>
@@ -2027,7 +2037,101 @@ const Spells = (function () {
     const pactInfo = entry.querySelector(".vestige-pact-info");
     goodPact.addEventListener("change", () => {
       pactInfo.style.display = goodPact.checked ? "none" : "";
+      syncVestigeStructure(entry);
     });
+    // Collapse on `change`, not `input`: a datalist pick fires both, so
+    // choosing a vestige collapses immediately, while someone typing a name
+    // by hand keeps their box until they leave it. Collapsing mid-keystroke
+    // would yank the field out from under them.
+    const nameIn = entry.querySelector(".vestige-name");
+    nameIn.addEventListener("change", () => {
+      entry.classList.remove("vestige-editing");   // a new name, a new row
+      collapseVestigeRules(entry);
+      syncVestigeStructure(entry);
+    });
+    entry.querySelector(".vestige-info-btn")
+      .addEventListener("click", () => toggleVestigeRules(entry));
+    entry.querySelector(".vestige-edit-btn").addEventListener("click", () => {
+      entry.classList.toggle("vestige-editing");
+      syncVestigeStructure(entry);
+      if (entry.classList.contains("vestige-editing")) nameIn.focus();
+    });
+    syncVestigeStructure(entry);
+  }
+
+  // Chip or form? Chip when the DB knows the name and the player is not
+  // editing. The inputs are hidden, never removed — a save collects the same
+  // fields it always did.
+  function syncVestigeStructure(entry) {
+    const nameIn = entry.querySelector(".vestige-name");
+    const name = (nameIn?.value || "").trim();
+    const known = !!(name && window.VestigePicker && VestigePicker.lookup(name));
+    const structured = known && !entry.classList.contains("vestige-editing");
+    entry.classList.toggle("vestige-structured", structured);
+
+    const box = entry.querySelector(".vestige-namebox");
+    if (box) {
+      box.textContent = name;
+      box.style.display = structured ? "" : "none";
+    }
+    // The DB-derived half hides; Good Pact does not.
+    for (const sel of [".vestige-name", ".vestige-level", ".vestige-dc"]) {
+      const field = entry.querySelector(sel)?.closest(".field");
+      if (field) field.style.display = structured ? "none" : "";
+    }
+    const abil = entry.querySelector(".vestige-abilities")?.closest(".field");
+    if (abil) abil.style.display = structured ? "none" : "";
+    const pactInfo = entry.querySelector(".vestige-pact-info");
+    const goodPact = entry.querySelector(".vestige-good-pact");
+    if (pactInfo) {
+      pactInfo.style.display =
+        (structured || (goodPact && goodPact.checked)) ? "none" : "";
+    }
+    // ⓘ is offered whenever the name resolves — including while editing, so
+    // the rules stay one click away from the box you are correcting.
+    const info = entry.querySelector(".vestige-info-btn");
+    if (info) info.style.display = known ? "" : "none";
+    const edit = entry.querySelector(".vestige-edit-btn");
+    if (edit) {
+      edit.style.display = known ? "" : "none";
+      edit.classList.toggle("active", entry.classList.contains("vestige-editing"));
+      edit.title = structured
+        ? "Edit the printed level / DC / abilities"
+        : "Done — collapse back to the vestige chip";
+    }
+  }
+
+  // The vestige index arrives with the DB, which can be AFTER a character
+  // loads. Re-decide every row when it does (and when the book filter
+  // changes what is in scope).
+  document.addEventListener("vestige-index-ready", () => {
+    document.querySelectorAll(".vestige-entry").forEach(syncVestigeStructure);
+  });
+
+  function toggleVestigeRules(entry) {
+    if (entry.querySelector(".feat-rules")) { collapseVestigeRules(entry); return; }
+    const name = (entry.querySelector(".vestige-name")?.value || "").trim();
+    const panel = document.createElement("div");
+    panel.className = "feat-rules";
+    const html = (window.VestigePicker && VestigePicker.renderInfoHtml(name)) || "";
+    panel.innerHTML = html ||
+      '<i style="opacity:.7">No rules text in the database for this vestige.</i>';
+    if (html && window.ErrataBadge && VestigePicker.entryIdFor(name)) {
+      ErrataBadge.attach(panel, VestigePicker.entryIdFor(name));
+    }
+    entry.appendChild(panel);
+    const btn = entry.querySelector(".vestige-info-btn");
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("active");
+  }
+
+  function collapseVestigeRules(entry) {
+    entry.querySelector(".feat-rules")?.remove();
+    const btn = entry.querySelector(".vestige-info-btn");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("active");
+    }
   }
   function recalcBindCount(panel) {
     const count = panel.querySelectorAll(".vestige-entry").length;

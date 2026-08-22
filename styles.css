@@ -2010,6 +2010,26 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 .audit-unmute:hover,
 .audit-show-dismissed:hover { color: var(--text); }
 
+/* === Bound vestige rows: chip when the DB knows it, form when it doesn't === */
+.vestige-namebox {
+  flex: 1;
+  font-weight: 600;
+  padding: 0.25rem 0.1rem;
+  align-self: center;
+}
+.vestige-entry.vestige-structured .vestige-header { align-items: center; }
+.vestige-edit-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 0 0.4rem;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.vestige-edit-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.vestige-edit-btn.active { color: #bdf; border-color: #6a8aaa; }
+
 /* === Extradimensional containers (bag of holding & friends) === */
 .container-summary {
   margin-top: 0.5rem;
