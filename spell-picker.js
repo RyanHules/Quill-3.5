@@ -957,9 +957,24 @@
         // against another one. The book puts the base a page-turn away; a
         // picker never does, so it is offered inline, collapsed.
         if (window.Lookup && Lookup.renderBaseReference) {
-          const baseRef = Lookup.renderBaseReference(
-            { id: full.spell_id, name: full.name, source: full.source,
-              description: full.description }, 'spell');
+          const stub = {
+            id: full.spell_id, name: full.name, source: full.source,
+            description: full.description,
+            casting_time: full.casting_time, range: full.range,
+            components: full.components, duration: full.duration,
+            saving_throw: full.saving_throw,
+            spell_resistance: full.spell_resistance,
+            target: full.target, area: full.area, effect: full.effect,
+            school: full.school,
+          };
+          // Greater Teleport prints no casting time, range, components,
+          // duration, save or SR of its own — they are teleport's. Fill the
+          // gaps from the base, marked as inherited (Ryan, 2026-08-23).
+          if (Lookup.renderInheritedMeta) {
+            const inherited = Lookup.renderInheritedMeta(stub, 'spell');
+            if (inherited) html += inherited;
+          }
+          const baseRef = Lookup.renderBaseReference(stub, 'spell');
           if (baseRef) html += baseRef;
         }
       }

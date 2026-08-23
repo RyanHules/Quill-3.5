@@ -3167,6 +3167,21 @@ tr.gear-stowed .gear-weight {
   color: #fff;
 }
 
+/* A stat-block value the entry does not print itself, taken from the entry it
+   is a delta of. Marked rather than silent: the player needs to know which
+   book the number came out of. */
+.lookup-meta-inherited {
+  font-style: italic;
+  opacity: 0.82;
+}
+.lookup-meta-inherited b { font-style: normal; }
+.lookup-meta-inherit-note {
+  flex-basis: 100%;
+  font-size: 0.82em;
+  opacity: 0.6;
+  margin-top: 0.15rem;
+}
+
 /* "As X, except…" — the base entry a delta power/spell is defined against,
    offered inline because in a picker it is never a page-turn away. */
 .lookup-base-ref {

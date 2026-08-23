@@ -8739,6 +8739,121 @@ test('xref: an unresolvable reference stays silent', (db) => {
     'Fireball defines itself; it has no base');
 });
 
+test('xref: both delta idioms parse — including the majority one', (db) => {
+  const L = loadLookupModule(db);
+  const detail = (name, source, type) => execOne(db,
+    "SELECT id, name, source, json_extract(data,'$.description') AS description "
+    + "FROM entry WHERE name = ? AND source = ? AND type = ? LIMIT 1",
+    [name, source, type]);
+  // The psionics idiom: "As energy stun (EPH 104), except…" — 188 entries.
+  assert(L.resolveBaseReference(
+    detail('Energy Stun', 'Complete Psionic', 'power'), 'power'),
+    'the "As X, except" idiom must parse');
+  // The PHB idiom: "This spell functions like teleport, except…" — 356, the
+  // MAJORITY, and missing from the first cut. Greater Teleport had no
+  // reference at all until this pattern existed (Ryan spotted it).
+  const gt = detail('Teleport, Greater', "Player's Handbook (Premium Edition)", 'spell');
+  const ref = L.resolveBaseReference(gt, 'spell');
+  assert(ref && ref.target.name === 'Teleport',
+    'the "This spell functions like X" idiom must parse — it is the common one');
+});
+
+test('xref: a delta inherits the stat block it does not print', (db) => {
+  const L = loadLookupModule(db);
+  // NB: casting_time / components / duration / saving_throw live inside the
+  // JSON blob, not as columns on `entry` — only school, cr, alignment and
+  // friends are promoted to columns.
+  const full = (name, source, type) => execOne(db,
+    "SELECT id, name, source, school, "
+    + "json_extract(data,'$.description') AS description, "
+    + "json_extract(data,'$.casting_time')     AS d_casting_time, "
+    + "json_extract(data,'$.range')            AS d_range, "
+    + "json_extract(data,'$.components')       AS d_components, "
+    + "json_extract(data,'$.duration')         AS d_duration, "
+    + "json_extract(data,'$.saving_throw')     AS d_saving_throw, "
+    + "json_extract(data,'$.spell_resistance') AS d_spell_resistance, "
+    + "json_extract(data,'$.target')           AS d_target "
+    + "FROM entry WHERE name=? AND source=? AND type=? LIMIT 1",
+    [name, source, type]);
+  // Greater Teleport prints NONE of its own stat block — it is all teleport's.
+  const gtRow = full('Teleport, Greater', "Player's Handbook (Premium Edition)", 'spell');
+  const gt = { id: gtRow.id, name: gtRow.name, source: gtRow.source,
+               description: gtRow.description,
+               casting_time: gtRow.d_casting_time, range: gtRow.d_range,
+               components: gtRow.d_components, duration: gtRow.d_duration,
+               saving_throw: gtRow.d_saving_throw,
+               spell_resistance: gtRow.d_spell_resistance,
+               target: gtRow.d_target };
+  const inh = L.inheritedStatBlock(gt, 'spell');
+  assert(inh, 'Greater Teleport must inherit a stat block');
+  for (const f of ['casting_time', 'range', 'components', 'duration',
+                   'saving_throw', 'spell_resistance']) {
+    assert(inh.fields[f], `${f} should be inherited`);
+    assertEq(inh.fields[f].from, 'Teleport', `${f} should come from Teleport`);
+  }
+  // Provenance is not optional: a value the book did not print under THIS
+  // spell has to say where it came from.
+  assert(Object.values(inh.fields).every(v => v.from),
+    'every inherited value must name its source entry');
+});
+
+test('xref: a mass variant does NOT inherit what its base hits', (db) => {
+  const L = loadLookupModule(db);
+  const stub = (name, type) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description, "
+      + "json_extract(data,'$.target') AS target, "
+      + "json_extract(data,'$.range')  AS range "
+      + "FROM entry WHERE name=? AND type=? LIMIT 1", [name, type]);
+    assert(r, `fixture missing: ${name}`);
+    return r;
+  };
+  // Mass Contagion is an area; inheriting Contagion's "Living creature
+  // touched" would print a WRONG target on a spell about to be cast.
+  const mc = L.inheritedStatBlock(stub('Contagion, Mass', 'spell'), 'spell');
+  assert(mc, 'Mass Contagion still inherits the safe fields');
+  assert(!mc.fields.target, 'target must NOT be inherited by a mass variant');
+  assert((mc.skipped || []).includes('target'),
+    'and the omission must be reported, not silent');
+  assert(mc.fields.casting_time || mc.fields.duration || mc.fields.components,
+    'the non-shape fields are still inherited');
+  // But a mass spell whose BASE is already mass is right to inherit it —
+  // Mass Cure Critical Wounds references mass cure light wounds, and that
+  // "one creature/level" IS its target. Six of the ten mass/chain deltas are
+  // this case, which is why the rule compares the two names.
+  const cc = L.inheritedStatBlock(stub('Cure Critical Wounds, Mass', 'spell'), 'spell');
+  assert(cc && cc.fields.target,
+    'a mass variant of a mass base SHOULD inherit its target');
+  // "Greater" is not a shape word: greater teleport keeps teleport's target.
+  const gt = L.inheritedStatBlock(stub('Teleport, Greater', 'spell'), 'spell');
+  assert(gt && gt.fields.target,
+    '"greater" must not be treated as changing what the spell affects');
+});
+
+test('xref: a chain of deltas resolves, with a depth cap', (db) => {
+  const L = loadLookupModule(db);
+  const stub = (name, type, source) => execOne(db,
+    "SELECT id, name, source, json_extract(data,'$.description') AS description "
+    + "FROM entry WHERE name=? AND type=?"
+    + (source ? " AND source=?" : "") + " LIMIT 1",
+    source ? [name, type, source] : [name, type]);
+  // Ryan: "psionic greater teleport … functions like a spell that functions
+  // like another spell". Two hops.
+  const chain = L.resolveBaseChain(
+    stub('Teleport, Psionic Greater', 'power'), 'power');
+  assertEq(chain.length, 2, 'psionic greater teleport is two hops from teleport');
+  assertEq(chain[0].stub.name, 'Teleport, Greater');
+  assertEq(chain[1].stub.name, 'Teleport');
+  // "it *shouldn't* nest more than that, but this is 3.5" — it does, once.
+  const deep = L.resolveBaseChain(stub('True Creation', 'power'), 'power');
+  assertEq(deep.length, 3, 'True Creation is the one three-hop chain');
+  assertEq(deep[2].stub.name, 'Minor Creation');
+  // Nothing may loop forever, whatever the corpus does next.
+  const src = fs.readFileSync(path.join(ROOT, 'lookup.js'), 'utf8');
+  assert(/XREF_MAX_DEPTH/.test(src) && /seen\.has\(ref\.target\.id\)/.test(src),
+    'the chain walker needs both a depth cap and a cycle guard');
+});
+
 test('xref: the resolver is wired into both pickers, not just the lookup', () => {
   // The whole point is that a PICKER has no page to turn to.
   for (const file of ['power-picker.js', 'spell-picker.js']) {

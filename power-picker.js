@@ -634,9 +634,23 @@
       // power_id` and rebuildIndex renames it back; using the alias here is
       // the same undefined that stopped the errata badge rendering for
       // months (see the note in updateInfo).
-      const baseRef = Lookup.renderBaseReference(
-        { id: rec.id, name: rec.name, source: rec.source,
-          description: rec.description }, 'power');
+      const stub = {
+        id: rec.id, name: rec.name, source: rec.source,
+        description: rec.description,
+        manifesting_time: rec.manifesting_time, range: rec.range,
+        display: rec.display, duration: rec.duration,
+        saving_throw: rec.saving_throw, power_resistance: rec.power_resistance,
+        target: rec.target, area: rec.area, effect: rec.effect,
+        discipline: rec.discipline,
+      };
+      // A delta power prints only what CHANGES, so its manifesting time,
+      // range, display, duration, save and PR are often absent altogether —
+      // superimpose the base's onto the gaps, marked (Ryan, 2026-08-23).
+      if (Lookup.renderInheritedMeta) {
+        const inherited = Lookup.renderInheritedMeta(stub, 'power');
+        if (inherited) bits.push(inherited);
+      }
+      const baseRef = Lookup.renderBaseReference(stub, 'power');
       if (baseRef) bits.push(baseRef);
     }
     if (rec.augment) bits.push(`<b>Augment:</b> ${escapeHtml(rec.augment)}`);

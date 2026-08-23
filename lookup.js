@@ -549,15 +549,31 @@
   // or at non-entries ("dream spell", "monstrous spiders") — showing nothing
   // there is correct, so a miss is silent by design.
 
+  // TWO idioms, and the one I shipped first was the MINORITY. The psionics
+  // books write "As energy stun (EPH 104), except…" (188 entries); the PHB and
+  // most splatbooks write "This spell functions like teleport, except…" (356).
+  // Greater Teleport carries no range, casting time, components, duration,
+  // save or SR of its own, and went unreferenced entirely until the second
+  // pattern existed — Ryan spotted it from the outside (2026-08-23).
+  //
   // Deliberately no lookbehind: `(?:^|[.!?]\s+)` consumes the sentence break
   // instead, which keeps this parseable by older engines. The reference is not
   // always the opening sentence — Energy Stun leads with a line of flavour.
-  const XREF_RE = new RegExp(
-    '(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' +
-    '([a-z][a-z0-9\'’\\- ]{2,50}?)' +
+  const XREF_NAME = '([a-z][a-z0-9\'’\\- ]{2,50}?)';
+  const XREF_CITE =
     '\\s*(?:\\(\\s*(?:page\\s+\\d+\\s+of\\s+the\\s+([^)]+?)' +
-    '|([A-Za-z]{2,5})\\.?\\s*\\d+)\\s*\\))?' +
-    '\\s*,?\\s*except\\b', 'i');
+    '|([A-Za-z]{2,5})\\.?\\s*\\d+)\\s*\\))?';
+  const XREF_RES = [
+    new RegExp('(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '\\s*,?\\s*except\\b', 'i'),
+    new RegExp('\\bThis\\s+(?:spell|power|ability)\\s+functions?\\s+like\\s+' +
+               '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '\\s*(?:spell|power)?\\s*,?\\s*(?:except|but)\\b', 'i'),
+    // …and the ones that say "functions like X" with no except-clause at all.
+    new RegExp('\\bThis\\s+(?:spell|power|ability)\\s+functions?\\s+like\\s+' +
+               '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '\\s*(?:spell|power)?\\s*[.,]', 'i'),
+  ];
 
   // The books cite each other by their own shorthand, which is not always the
   // abbreviation the `book` table carries: the PHB is "PH" inside the psionics
@@ -592,7 +608,12 @@
     // name index is built lazily on first render.
     if (!entries.length && DB.isLoaded()) buildIndex();
     if (!entriesByName.size) return null;
-    const m = XREF_RE.exec(String(d.description).replace(/\s+/g, ' ').slice(0, 600));
+    const desc = String(d.description).replace(/\s+/g, ' ').slice(0, 700);
+    let m = null;
+    for (const re of XREF_RES) {
+      m = re.exec(desc);
+      if (m) break;
+    }
     if (!m) return null;
     const [, refName, bookFull, bookAbbr] = m;
     let hint = null;
@@ -626,6 +647,141 @@
 
   function sameNameAs(target, d) {
     return (target.name || '').toLowerCase() === (d.name || '').toLowerCase();
+  }
+
+  // The whole chain of bases, nearest first, as fetched DETAIL rows.
+  //
+  // A delta can reference a delta: psionic greater teleport → greater teleport
+  // → teleport, and True Creation goes three deep (→ Major Creation, Psionic →
+  // Major Creation → Minor Creation). Measured over the corpus: 464 chains are
+  // one hop, 19 are two, exactly one is three. The cap and the cycle guard are
+  // cheap and this is 3.5 — Ryan's "it shouldn't nest more than that, but who
+  // knows" was right to hedge, since depth 3 exists.
+  const XREF_MAX_DEPTH = 5;
+
+  function resolveBaseChain(d, type) {
+    const out = [];
+    const seen = new Set([d && d.id]);
+    let cur = d, curType = type;
+    while (out.length < XREF_MAX_DEPTH) {
+      const ref = resolveBaseReference(cur, curType);
+      if (!ref || seen.has(ref.target.id)) break;
+      seen.add(ref.target.id);
+      const detail = fetchDetail(ref.target.id);
+      if (!detail) break;
+      out.push({ stub: ref.target, detail, sameName: ref.sameName });
+      cur = detail;
+      curType = ref.target.type;
+    }
+    return out;
+  }
+
+  // The stat-block fields a delta entry legitimately inherits. A spell that
+  // "functions like teleport, except…" prints only what CHANGES, so its own
+  // range / casting time / components / duration / save / SR are simply
+  // absent — 297 entries have at least one such gap. Showing the reader a
+  // blank stat block for a spell whose stat block is in the book, one
+  // cross-reference away, is the same page-turn problem one level down.
+  const XREF_INHERIT = {
+    spell: ['casting_time', 'range', 'components', 'duration', 'saving_throw',
+            'spell_resistance', 'target', 'area', 'effect', 'school',
+            'subschool', 'descriptor'],
+    power: ['manifesting_time', 'range', 'display', 'duration', 'saving_throw',
+            'power_resistance', 'target', 'area', 'effect', 'discipline',
+            'subdiscipline'],
+  };
+
+  // WHAT THE SPELL HITS is the one part of a stat block a variant can change
+  // WITHOUT restating, and "mass" is the word that does it: Mass Contagion is
+  // an area, and inheriting Contagion's "Living creature touched" would print
+  // a wrong target on a spell the player is about to cast.
+  //
+  // The discriminator is NOT the variant's own name — checked against all ten
+  // mass/chain deltas that have a shape gap, and SIX of them are right to
+  // inherit, because their base is already a mass spell (Mass Cure Critical
+  // Wounds references mass cure light wounds, whose "one creature/level" IS
+  // its target). It is whether the delta adds a mass/chain the base lacks.
+  // "Greater" does not qualify: greater teleport, greater arcane sight and
+  // greater blink all keep their base's target, which is why the rule is this
+  // narrow rather than "any qualifier".
+  const XREF_SHAPE_FIELDS = ['target', 'area', 'effect'];
+  const XREF_SHAPE_WORDS = /\b(mass|chain)\b/i;
+
+  function changesShape(deltaName, baseName) {
+    return XREF_SHAPE_WORDS.test(String(deltaName || '')) &&
+           !XREF_SHAPE_WORDS.test(String(baseName || ''));
+  }
+
+  function xrefEmpty(v) {
+    return v == null || v === '' || v === '-' || v === '—';
+  }
+
+  // → { fields: {name: {value, from}}, chain } — only the fields the entry
+  // does NOT print itself, taken from the NEAREST base that has one. Never
+  // overwrites a printed value: a delta that states its own duration is
+  // stating a change, and that is the whole point of the entry.
+  function inheritedStatBlock(d, type) {
+    const chain = resolveBaseChain(d, type);
+    if (!chain.length) return null;
+    const wanted = XREF_INHERIT[type];
+    if (!wanted) return null;
+    const fields = {};
+    const skipped = [];
+    for (const f of wanted) {
+      if (!xrefEmpty(d[f]) || !xrefEmpty(d.data && d.data[f])) continue;
+      for (const hop of chain) {
+        const v = hop.detail[f];
+        if (xrefEmpty(v)) continue;
+        if (XREF_SHAPE_FIELDS.includes(f) &&
+            changesShape(d.name, hop.detail.name)) {
+          // Say nothing rather than say something wrong — the base entry is
+          // rendered in full just below, where the reader can see what the
+          // single-target version hits and apply the mass rule themselves.
+          skipped.push(f);
+          break;
+        }
+        fields[f] = { value: v, from: hop.detail.name, source: hop.detail.source };
+        break;
+      }
+    }
+    return (Object.keys(fields).length || skipped.length)
+      ? { fields, chain, skipped } : null;
+  }
+
+  // The same inheritance, as a ready-made strip for a picker that builds its
+  // own meta line. Returns '' when there is nothing to add, so a caller can
+  // append it unconditionally.
+  const XREF_LABELS = {
+    casting_time: 'Casting', manifesting_time: 'Manifesting',
+    range: 'Range', components: 'Components', display: 'Display',
+    duration: 'Duration', saving_throw: 'Save',
+    spell_resistance: 'SR', power_resistance: 'PR',
+    target: 'Target', area: 'Area', effect: 'Effect',
+    school: 'School', discipline: 'Discipline',
+  };
+
+  function renderInheritedMeta(d, type) {
+    const inh = inheritedStatBlock(d, type);
+    if (!inh) return '';
+    const bits = Object.entries(inh.fields)
+      .filter(([f]) => XREF_LABELS[f])
+      .map(([f, got]) =>
+        `<span class="lookup-meta-inherited" title="Inherited from ` +
+        `${escapeHtml(got.from)}"><b>${escapeHtml(XREF_LABELS[f])}:</b> ` +
+        `${escapeHtml(formatValue(got.value))}</span>`);
+    if (!bits.length && !(inh.skipped || []).length) return '';
+    const froms = [...new Set(Object.values(inh.fields).map(f => f.from))];
+    let note = bits.length
+      ? `<div class="lookup-meta-inherit-note">italic values are inherited ` +
+        `from ${escapeHtml(froms.join(' → '))}</div>`
+      : '';
+    if ((inh.skipped || []).length) {
+      note += `<div class="lookup-meta-inherit-note">` +
+        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant ` +
+        `changes what it affects</div>`;
+    }
+    return `<div class="lookup-detail-meta lookup-inherited-strip">` +
+      bits.join(' &nbsp;·&nbsp; ') + note + `</div>`;
   }
 
   function renderBaseReference(d, type) {
@@ -734,6 +890,21 @@
   function renderMeta(d, type) {
     const fields = META_FIELDS_BY_TYPE[type] || META_FIELDS_BY_TYPE._default;
     const items = [];
+    // A delta entry prints only what CHANGES, so its own casting time / range
+    // / components / duration / save / SR are often simply absent — Greater
+    // Teleport has NONE of them. Fill those gaps from the base it references
+    // (report follow-up, Ryan 2026-08-23: "superimpose it onto any empty
+    // fields in the referencing spell"). Marked, never silent: an inherited
+    // value is italicised and names where it came from, because a player
+    // adjudicating an edge case needs to know which book to open.
+    const inh = inheritedStatBlock(d, type);
+    const inheritedFor = (keys) => {
+      if (!inh) return null;
+      for (const k of (Array.isArray(keys) ? keys : [keys])) {
+        if (inh.fields[k]) return inh.fields[k];
+      }
+      return null;
+    };
     for (const [label, key] of fields) {
       // Spells: collapse School / Subschool / Descriptor into the
       // canonical book-print form "School (Subschool) [Descriptor]"
@@ -761,7 +932,18 @@
         continue;
       }
       const v = pickField(d, key);
-      if (v == null || v === '' || v === '—') continue;
+      if (v == null || v === '' || v === '—') {
+        const got = inheritedFor(key);
+        if (!got) continue;
+        items.push(
+          `<span class="lookup-meta-item lookup-meta-inherited" ` +
+          `title="Inherited from ${escapeHtml(got.from)}` +
+          (got.source ? ` (${escapeHtml(got.source)})` : '') + `">` +
+          `<b>${escapeHtml(label)}:</b> ${escapeHtml(formatValue(got.value))}` +
+          `</span>`
+        );
+        continue;
+      }
       items.push(
         `<span class="lookup-meta-item">` +
         `<b>${escapeHtml(label)}:</b> ${escapeHtml(formatValue(v))}` +
@@ -769,7 +951,21 @@
       );
     }
     if (!items.length) return '';
-    return `<div class="lookup-detail-meta">${items.join('')}</div>`;
+    let note = '';
+    if (inh && items.some(s => s.includes('lookup-meta-inherited'))) {
+      const froms = [...new Set(Object.values(inh.fields).map(f => f.from))];
+      note = `<div class="lookup-meta-inherit-note">italic values are ` +
+        `inherited from ${escapeHtml(froms.join(' → '))}</div>`;
+    }
+    if (inh && inh.skipped && inh.skipped.length) {
+      // A mass/chain variant does not hit what its base hits, so the shape
+      // fields are NOT inherited — and that silence is stated rather than
+      // left to look like the book printed nothing.
+      note += `<div class="lookup-meta-inherit-note">` +
+        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant ` +
+        `changes what it affects; see the base entry below</div>`;
+    }
+    return `<div class="lookup-detail-meta">${items.join('')}${note}</div>`;
   }
 
   // First non-null field from a list. Handles dotted paths into the
@@ -4072,6 +4268,11 @@
     // point of the feature is that nothing in a picker is a page-turn away.
     resolveBaseReference,
     renderBaseReference,
+    resolveBaseChain,
+    // Stat-block fields a delta entry inherits from the chain it references,
+    // for a picker that renders its own meta strip.
+    inheritedStatBlock,
+    renderInheritedMeta,
   };
 
   // Init when the DOM is ready and the DB module exists. We don't
