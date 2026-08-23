@@ -8613,6 +8613,52 @@ test('lookup: a creature criterion restricts the search to creatures', (db) => {
   for (const e of out) assertEq(e.type, 'creature', `${e.name} leaked through`);
 });
 
+// ---- tests: the lookup picks the same printing the pickers do -------------
+// (report fmsuwe0gw-c0rh)
+
+test('lookup: a reprint tie goes to the NEWEST printing', (db) => {
+  const L = loadLookupModule(db);
+  // Draconomicon 2003 vs Spell Compendium 2005 — same spell, same edition.
+  // Every picker applies the source-recency tiebreak; the lookup kept
+  // whichever came first in DB id order, which is neither rule.
+  const out = L.rankResults('Fell the Greatest Foe')
+    .filter(e => /^fell the greatest foe$/i.test(e.name));
+  assertEq(out.length, 1, 'the two printings must still dedupe to one row');
+  assertEq(out[0].source, 'Spell Compendium',
+    'the 2005 Spell Compendium printing should win over the 2003 Draconomicon one');
+  // Both printings really are in the DB, or the test proves nothing.
+  const rows = execAll(db,
+    "SELECT source FROM entry WHERE type='spell' AND name='Fell the Greatest Foe'");
+  assertEq(rows.length, 2, 'fixture: expected exactly two printings');
+});
+
+test('lookup: 3.0 and 3.5 counterparts do NOT collapse into one row', (db) => {
+  const L = loadLookupModule(db);
+  // The canonical edition-conflation case (Dimensional Lock, 2026-05-19).
+  // The dedupe key has always CLAIMED to keep editions apart — but `version`
+  // was missing from the index SELECT, so the key's version component was
+  // undefined for every entry and the two printings collapsed. A 3.0 spell
+  // wearing a 3.5 spell's mechanics is the exact confusion the VersionBadge
+  // work exists to prevent.
+  const out = L.rankResults('dimensional lock')
+    .filter(e => e.type === 'spell' && /^dimensional lock$/i.test(e.name));
+  assertEq(out.length, 2, 'the 3.0 and the 3.5 Dimensional Lock are different spells');
+  const versions = out.map(e => e.version).sort();
+  assertEq(versions.join(','), '3.0,3.5', `got versions ${versions.join(',')}`);
+});
+
+test('lookup: the search index carries version', (db) => {
+  const L = loadLookupModule(db);
+  const e = L.rankResults('fireball')[0];
+  assert(e && e.version,
+    'entries must carry `version` — the dedupe key, the row edition badge ' +
+    'and BookFilter\'s hide-3.0 counterpart mode all read it, and all three ' +
+    'failed silently when it was absent from the SELECT');
+  const src = fs.readFileSync(path.join(ROOT, 'lookup.js'), 'utf8');
+  assert(/SELECT id, name, type, source, version,/.test(src),
+    'version must stay in the index SELECT');
+});
+
 test('lookup: type: still means ENTRY type for real entry types', (db) => {
   const L = loadLookupModule(db);
   const spells = L.rankResults('type:spell fireball');

@@ -54,6 +54,10 @@
   // the full source string ("Dungeon Master's Guide"). Without this,
   // typing the abbreviation never matches; populated in buildIndex.
   let bookAbbrevMap = new Map();
+  // Book name → publication_date. The reprint tiebreak every PICKER already
+  // applies (3.5 first, then newest printing) and the lookup did not — see
+  // the dedupe in rankParsed. Report fmsuwe0gw-c0rh.
+  let bookDateMap = new Map();
 
   // The 8 chips shown by default; everything else is grouped under
   // a "More…" expander. Order is tuned for player-facing utility.
@@ -535,10 +539,23 @@
       (d.mechanics && typeof d.mechanics === 'object'
         && Object.keys(d.mechanics).length)
     );
+    // A class / PrC description is the book's multi-page writeup —
+    // Adventures, Characteristics, Alignment, Religion, Background, Races,
+    // Other Classes, Role — and the things a reader opened the entry FOR
+    // (the class table, the features) sit below it. Warlock's is 23,374
+    // characters of it (report fmszwndfi-40pg: "entry above class features
+    // is just raw text; at least make it collapsible").
+    //
+    // 1,500 is chosen off the distribution rather than taste: the median
+    // class description is 282 chars and p75 is 806, so the short ones —
+    // which read fine above the table — are untouched, while the 100 of 634
+    // that genuinely scroll get the lead paragraph plus a toggle.
+    const longClassProse =
+      (type === 'class' || type === 'prc') && desc.length > 1500;
     // Threshold: only collapse when there's meaningfully more prose
     // than the lead paragraph. Below ~350 chars the toggle adds more
     // friction than it saves.
-    if (!hasStructured || desc.length < 350) {
+    if ((!hasStructured && !longClassProse) || desc.length < 350) {
       return `<div class="lookup-detail-desc">${escapeHtml(desc)}</div>`;
     }
     const lead = firstParagraph(desc, d.summary);
@@ -2621,7 +2638,15 @@
     // because SQLite's json1 doesn't ergonomically flatten an
     // array-of-objects into a text blob.
     const rows = DB.query(
-      "SELECT id, name, type, source, types_csv, " +
+      // `version` was MISSING from this SELECT until 2026-08-23, and three
+      // separate things quietly depended on it: the dedupe key claimed to
+      // keep 3.0 and 3.5 counterparts distinct (it could not — the component
+      // was always undefined, so they collapsed into one row), the result
+      // row's edition badge never rendered, and BookFilter's `counterpart`
+      // hide-3.0 mode had no edition to test. Found via report
+      // fmsuwe0gw-c0rh, which is about the neighbouring question of WHICH
+      // printing wins.
+      "SELECT id, name, type, source, version, types_csv, " +
       // prereq_raw feeds the prereq-in-degree "foundational-ness" signal used as
       // a within-tier tiebreak (see the centrality pass after the map). Feats
       // carry `prerequisites` (string); PrCs carry `requirements` (JSON array) —
@@ -2664,8 +2689,10 @@
     // entries whose source is "Dungeon Master's Guide" (and similar).
     // Without this, the user-natural query @source:DMG fails because
     // entry.source carries the full book name, not the abbreviation.
-    const bookRows = DB.query("SELECT name, abbreviation FROM book");
+    const bookRows = DB.query(
+      "SELECT name, abbreviation, publication_date FROM book");
     bookAbbrevMap = new Map();   // lowercase abbrev → lowercase full name
+    bookDateMap = new Map();     // full book name → publication_date
     for (const b of bookRows) {
       if (b.abbreviation) {
         bookAbbrevMap.set(
@@ -2673,6 +2700,7 @@
           (b.name || '').toLowerCase()
         );
       }
+      if (b.name) bookDateMap.set(b.name, b.publication_date || '');
     }
     typeCounts.clear();
     tagCounts.clear();
@@ -2731,6 +2759,7 @@
         name: r.name,
         type: r.type,
         source: r.source,
+        version: r.version,
         // Epic feats carry a hidden character-level-21+ prereq, so they almost
         // never apply to a real build — demote them in ranking (see rankWeight).
         // Detect from types_csv (the authoritative per-printing marker), NOT the
@@ -3542,6 +3571,33 @@
     // stay distinct (the version-badge intent) and a "Rage" spell vs a "Rage"
     // creature aren't collapsed. Cleans the browse list AND lifts genuinely
     // different entries up the ranking that dup rows had been burying.
+    //
+    // WHICH printing survives is the SOURCE-RECENCY tiebreak every picker
+    // already applies — newest publication_date wins a tie on score. The
+    // lookup used to keep whichever came first in index (= DB id) order, so
+    // "Fell the Greatest Foe" showed the 2003 Draconomicon printing while the
+    // spell-picker showed the 2005 Spell Compendium one (report
+    // fmsuwe0gw-c0rh). Measured: the two disagreed on 852 of 1,110 duplicate
+    // groups.
+    //
+    // Decided in the DEDUPE rather than in the sort, on purpose: adding a
+    // date term to the comparator would reorder every same-score pair in the
+    // entire result list, which is a far larger change than choosing a
+    // printing. Row POSITION still comes from the rank order; only which
+    // printing sits there changes.
+    const SEP = String.fromCharCode(0);      // same separator as the key below
+    const dedupeKey = (e) => e.type + SEP + (e.version || '') + SEP +
+      (e.name || '').toLowerCase();
+    const pubDate = (e) => bookDateMap.get(e.source) || '';
+    const bestByKey = new Map();
+    for (const { entry, score } of scored) {
+      const k = dedupeKey(entry);
+      const cur = bestByKey.get(k);
+      if (!cur || score > cur.score ||
+          (score === cur.score && pubDate(entry) > pubDate(cur.entry))) {
+        bestByKey.set(k, { entry, score });
+      }
+    }
     const seen = new Set();
     const out = [];
     for (const { entry } of scored) {
@@ -3549,7 +3605,8 @@
         '\u0000' + (entry.name || '').toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push(entry);
+      // The best-ranked row's POSITION, the newest printing's CONTENT.
+      out.push((bestByKey.get(key) || { entry }).entry);
     }
     return out;
   }
