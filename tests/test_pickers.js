@@ -8988,6 +8988,83 @@ test('xref: the sibling shorthand works when the bare name matches NOTHING', (db
     0, 'fixture: there must be no entry called plain "Acid Resistance"');
 });
 
+test('xref: an either/or delta names both bases and inherits nothing', (db) => {
+  const L = loadLookupModule(db);
+  const row = (name) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description, "
+      + "json_extract(data,'$.range') AS range, "
+      + "json_extract(data,'$.duration') AS duration, "
+      + "json_extract(data,'$.saving_throw') AS saving_throw "
+      + "FROM entry WHERE name = ? AND type='mystery' LIMIT 1", [name]);
+    assert(r, `fixture missing: ${name}`);
+    return r;
+  };
+  // Ryan, 2026-08-23: a usage-dependent delta must leave the fields blank —
+  // which base applies depends on what the caster chose, so there is no
+  // single value. These already resolved to nothing BY ACCIDENT (the captured
+  // name was the whole "X or the spell Y" string); an accident is not a rule,
+  // and the reader still deserves both pointers.
+  for (const [name, a, b] of [['Black Candle', 'Light', 'Darkness'],
+                              ['Languor', 'Slow', 'Hold Monster'],
+                              ['Dark Air or Water', 'Control Water', 'Control Winds']]) {
+    const d = row(name);
+    const alts = L.resolveAlternativeBases(d, 'mystery');
+    assert(alts && alts.length === 2, `${name} must offer BOTH bases`);
+    assertEq(alts.map(x => x.name).join(' / '), `${a} / ${b}`);
+    // …and no single base, so nothing is inherited from either. NB this
+    // assertion currently passes for TWO reasons — the explicit either/or
+    // guard, and the fact that the main patterns also fail on these strings.
+    // Mutating the guard away does not redden it. Kept anyway: the guard is
+    // what stops one arm being picked if a broader pattern ever captures
+    // "light or the spell darkness" as a name that happens to resolve.
+    assertEq(L.resolveBaseReference(d, 'mystery'), null,
+      `${name} must not pick one arm of an either/or`);
+    const inh = L.inheritedStatBlock(d, 'mystery');
+    assert(!inh, `${name} must inherit no stat-block field`);
+  }
+});
+
+test('xref: a type only inherits fields that TYPE actually uses', (db) => {
+  const L = loadLookupModule(db);
+  const my = (name) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description, "
+      + "json_extract(data,'$.level') AS level, "
+      + "json_extract(data,'$.casting_time') AS casting_time, "
+      + "json_extract(data,'$.range') AS range, "
+      + "json_extract(data,'$.duration') AS duration, "
+      + "json_extract(data,'$.saving_throw') AS saving_throw, "
+      + "json_extract(data,'$.spell_resistance') AS spell_resistance "
+      + "FROM entry WHERE name = ? AND type='mystery' LIMIT 1", [name]);
+    assert(r, `fixture missing: ${name}`);
+    return r;
+  };
+  // 19 of the 20 resolving mysteries have a gap, but the field list is short
+  // for a measured reason: a mystery is graded by path and tier, and `level`
+  // is populated on 0 of 78 mysteries. Inheriting Summon Monster I's spell
+  // level would invent a concept the type does not have.
+  const lvl = execAll(db,
+    "SELECT id FROM entry WHERE type='mystery' "
+    + "AND json_extract(data,'$.level') IS NOT NULL");
+  assertEq(lvl.length, 0,
+    'fixture: no mystery should carry `level` — if one now does, revisit '
+    + 'whether inheriting it is right');
+  const inh = L.inheritedStatBlock(my('Shadow Plague'), 'mystery');
+  assert(inh, 'Shadow Plague should inherit from Incendiary Cloud');
+  for (const f of ['range', 'duration', 'saving_throw', 'spell_resistance']) {
+    assert(inh.fields[f], `${f} should be inherited — the type uses it`);
+  }
+  assert(!inh.fields.level, 'level must NEVER be inherited onto a mystery');
+  assert(!inh.fields.casting_time,
+    'casting_time is on 9 of 78 mysteries — not a field the type relies on');
+  // Invocations are the counter-case: range / duration / save / SR are
+  // populated on 0 of 102, so "Word of Changing has gaps" is an illusion.
+  assert(!(L.inheritedStatBlock({
+    id: -1, name: 'x', source: 'y', description: 'As baleful polymorph, except as noted.',
+  }, 'invocation')), 'invocation must have no inherit list at all');
+});
+
 test('xref: the resolver is wired into every surface that has a base to show', () => {
   // The whole point is that a PICKER has no page to turn to, and the picker
   // is a primary way of finding things (Ryan, 2026-08-23: "it should surface

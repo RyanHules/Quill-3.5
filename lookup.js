@@ -635,8 +635,51 @@
   // except…"), so stopping at the first non-empty field found nothing.
   const XREF_PROSE_FIELDS = ['description', 'benefit', 'effect', 'body', 'text'];
 
+  // A delta that names TWO bases — Black Candle "functions like the spell
+  // light or the spell darkness", Languor "like either the spell slow or the
+  // spell hold monster", Dark Air or Water. Which base applies depends on
+  // what the caster chose when they used it, so there is no single value to
+  // inherit and no single entry to call THE base. Ryan's call (2026-08-23):
+  // leave those fields blank. They already resolved to nothing by accident —
+  // the captured name was the whole "X or the spell Y" string — but an
+  // accident is not a rule, and the reader still deserves the pointers.
+  const XREF_MULTI = new RegExp(
+    '\\b(?:functions?|works?)\\s+(?:just\\s+)?like\\s+(?:either\\s+)?' +
+    '(?:the\\s+)?' + XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s+or\\s+' +
+    '(?:the\\s+)?' + XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s*[.,]', 'i');
+
+  // → [entry, …] when the prose names several alternatives, else null.
+  function resolveAlternativeBases(d, type) {
+    if (!d) return null;
+    if (!entries.length && DB.isLoaded()) buildIndex();
+    if (!entriesByName.size) return null;
+    for (const f of XREF_PROSE_FIELDS) {
+      const v = d[f];
+      if (typeof v !== 'string' || v.length < 20) continue;
+      const m = XREF_MULTI.exec(v.replace(/\s+/g, ' ').slice(0, 700));
+      if (!m) continue;
+      const found = [];
+      for (const raw of [m[1], m[2]]) {
+        for (const variant of xrefNameVariants(raw)) {
+          const hit = (entriesByName.get(variant) || []).filter(e => e.id !== d.id);
+          if (hit.length) { found.push(hit[0]); break; }
+        }
+      }
+      if (found.length >= 2) return found;
+    }
+    return null;
+  }
+
   function resolveBaseReference(d, type) {
     if (!d) return null;
+    // Never pick one arm of an either/or.
+    // Belt-and-braces TODAY: these strings also fail the main patterns, so
+    // removing this line currently changes no resolution (checked by
+    // mutation). It is kept because the patterns keep getting broader — the
+    // bare "functions like X." form would happily capture "light or the
+    // spell darkness" as a name, and the day that garbage happens to match a
+    // real entry is the day one arm gets picked silently.
+    if (resolveAlternativeBases(d, type)) return null;
     // A picker can call this before the modal has ever been opened, and the
     // name index is built lazily on first render.
     if (!entries.length && DB.isLoaded()) buildIndex();
@@ -786,6 +829,15 @@
     power: ['manifesting_time', 'range', 'display', 'duration', 'saving_throw',
             'power_resistance', 'target', 'area', 'effect', 'discipline',
             'subdiscipline'],
+    // Shadowcaster mysteries are deltas of PHB spells, and 19 of the 20 that
+    // resolve have a real gap. The list is short for a measured reason:
+    // ONLY INHERIT A FIELD THE TYPE ITSELF USES. Across all 78 mysteries,
+    // `level` is populated 0 times — a mystery is graded by path and tier,
+    // not by a spell level, so inheriting Summon Monster I's "1" would
+    // invent a concept the type does not have. `casting_time` is populated
+    // on 9 of 78 (11%) and is left out for the same reason. The five below
+    // run 64-92%, so a delta missing one is a genuine hole.
+    mystery: ['range', 'duration', 'saving_throw', 'spell_resistance', 'target'],
   };
 
   // WHAT THE SPELL HITS is the one part of a stat block a variant can change
@@ -882,6 +934,18 @@
   }
 
   function renderBaseReference(d, type) {
+    // Either/or: name BOTH and inherit nothing. The reader picks, because the
+    // book made it their choice.
+    const alts = resolveAlternativeBases(d, type);
+    if (alts) {
+      const label = `Behaves as one of ${alts.length} — you choose which when ` +
+        `you use it, so no stat block is inherited`;
+      const bodies = alts.map(a =>
+        renderNestedExpansionById(a.id, a.name)).join('');
+      return `<details class="lookup-base-ref"><summary>${label}: ` +
+        alts.map(a => escapeHtml(a.name)).join(' / ') +
+        `</summary>${bodies}</details>`;
+    }
     const ref = resolveBaseReference(d, type);
     if (!ref) return '';
     const t = ref.target;
@@ -1286,6 +1350,19 @@
       ['Level',      ['mystery_level']],
       ['Type',       ['type']],
       ['School',     ['school']],
+      // The rest of the stat block, which this strip never showed for ANY
+      // mystery — range is populated on 70 of 78, duration on 72, save and SR
+      // on 57 each, target on 50, and none of it reached the reader. Found
+      // 2026-08-23 while wiring delta inheritance: the inherited values had
+      // nowhere to land, which is how the display gap surfaced.
+      ['Casting',    ['casting_time']],
+      ['Range',      ['range']],
+      ['Target',     ['target']],
+      ['Area',       ['area']],
+      ['Effect',     ['effect']],
+      ['Duration',   ['duration']],
+      ['Save',       ['saving_throw']],
+      ['SR',         ['spell_resistance']],
     ],
     utterance: [
       ['Lexicon',    ['lexicon']],
@@ -4366,6 +4443,10 @@
     resolveBaseReference,
     renderBaseReference,
     resolveBaseChain,
+    // Exported so the either/or case can be tested directly — its correct
+    // behaviour is "resolve to nothing", which is indistinguishable from a
+    // parse failure unless you can ask this question separately.
+    resolveAlternativeBases,
     // Stat-block fields a delta entry inherits from the chain it references,
     // for a picker that renders its own meta strip.
     inheritedStatBlock,
