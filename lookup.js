@@ -58,6 +58,9 @@
   // applies (3.5 first, then newest printing) and the lookup did not — see
   // the dedupe in rankParsed. Report fmsuwe0gw-c0rh.
   let bookDateMap = new Map();
+  // Lowercased entry name → [entry, …]. Feeds the "As X, except…" base-entry
+  // resolver (report fmt0bmlw6-898g).
+  let entriesByName = new Map();
 
   // The 8 chips shown by default; everything else is grouped under
   // a "More…" expander. Order is tuned for player-facing utility.
@@ -455,6 +458,8 @@
     bits.push(renderMeta(d, type));
     if (d.description) {
       bits.push(renderDescription(d, type));
+      // "As X, except…" — the base entry this one is a delta against, inline.
+      bits.push(renderBaseReference(d, type));
     }
     bits.push(renderTypeSpecific(d, type));
     // Structured data tables for every non-rule type (rules render
@@ -522,6 +527,122 @@
       lines.shift();
     }
     return lines.join('\n').trim();
+  }
+
+  // ---- "As X, except…" base-entry references ------------------------------
+  //
+  // 167 powers and spells define themselves as a DELTA against another entry:
+  // "As analyze dweomer (PH 197), except as noted here." In the book that is
+  // fine — the base is a page-turn away, usually the same page. In a picker it
+  // is a dead end, because nothing here is next to anything (Ryan, 2026-08-23).
+  // So the reference is parsed, resolved, and the base entry is offered inline.
+  //
+  // THREE of them are the same NAME in a later book (Astral Construct, Energy
+  // Missile, Energy Stun — all Complete Psionic over Expanded Psionics
+  // Handbook). Those are not two powers; they are one power reprinted with
+  // changes, and since the source-recency tiebreak already hands the reader
+  // the later printing, the earlier one is the base text it amends — errata in
+  // all but name. They get a label that says so rather than "base power".
+  //
+  // Measured before building: 167 references, 160 resolve. The 7 that do not
+  // point at 3.0 names we do not carry ("polymorph self", "polymorph other")
+  // or at non-entries ("dream spell", "monstrous spiders") — showing nothing
+  // there is correct, so a miss is silent by design.
+
+  // Deliberately no lookbehind: `(?:^|[.!?]\s+)` consumes the sentence break
+  // instead, which keeps this parseable by older engines. The reference is not
+  // always the opening sentence — Energy Stun leads with a line of flavour.
+  const XREF_RE = new RegExp(
+    '(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' +
+    '([a-z][a-z0-9\'’\\- ]{2,50}?)' +
+    '\\s*(?:\\(\\s*(?:page\\s+\\d+\\s+of\\s+the\\s+([^)]+?)' +
+    '|([A-Za-z]{2,5})\\.?\\s*\\d+)\\s*\\))?' +
+    '\\s*,?\\s*except\\b', 'i');
+
+  // The books cite each other by their own shorthand, which is not always the
+  // abbreviation the `book` table carries: the PHB is "PH" inside the psionics
+  // books, and the XPH is "EPH".
+  const XREF_BOOK_ALIASES = {
+    ph: "player's handbook (premium edition)",
+    phb: "player's handbook (premium edition)",
+    eph: 'expanded psionics handbook',
+    xph: 'expanded psionics handbook',
+  };
+
+  // D&D inverts qualifiers between prose and entry name: the book writes "as
+  // greater teleport" and the entry is "Teleport, Greater". Without this, 11
+  // of the 167 references resolve to nothing.
+  const XREF_QUALIFIERS = ['greater', 'lesser', 'mass', 'psionic',
+                           'improved', 'superior'];
+
+  function xrefNameVariants(raw) {
+    const n = String(raw || '').trim().toLowerCase();
+    const out = [n];
+    for (const q of XREF_QUALIFIERS) {
+      if (n.startsWith(q + ' ')) out.push(n.slice(q.length + 1) + ', ' + q);
+      if (n.endsWith(', ' + q)) out.push(q + ' ' + n.slice(0, -q.length - 2));
+    }
+    return out;
+  }
+
+  // → { target, sameName } | null. `d` is a fetched detail row.
+  function resolveBaseReference(d, type) {
+    if (!d || !d.description) return null;
+    // A picker can call this before the modal has ever been opened, and the
+    // name index is built lazily on first render.
+    if (!entries.length && DB.isLoaded()) buildIndex();
+    if (!entriesByName.size) return null;
+    const m = XREF_RE.exec(String(d.description).replace(/\s+/g, ' ').slice(0, 600));
+    if (!m) return null;
+    const [, refName, bookFull, bookAbbr] = m;
+    let hint = null;
+    if (bookFull) {
+      const b = bookFull.trim().toLowerCase().replace(/^the /, '');
+      hint = XREF_BOOK_ALIASES[b] || null;
+      if (!hint) {
+        for (const full of bookAbbrevMap.values()) {
+          if (full.startsWith(b) || full.includes(b)) { hint = full; break; }
+        }
+      }
+    } else if (bookAbbr) {
+      const a = bookAbbr.toLowerCase();
+      hint = XREF_BOOK_ALIASES[a] || bookAbbrevMap.get(a) || null;
+    }
+    let cands = [];
+    for (const v of xrefNameVariants(refName)) {
+      cands = (entriesByName.get(v) || []).filter(e => e.id !== d.id);
+      if (cands.length) break;
+    }
+    if (!cands.length) return null;
+    if (hint) {
+      const hit = cands.find(e => (e.source || '').toLowerCase() === hint);
+      if (hit) return { target: hit, sameName: sameNameAs(hit, d) };
+    }
+    const sameType = cands.filter(e => e.type === type);
+    const pool = (sameType.length ? sameType : cands).slice().sort((a, b) =>
+      (a.version === '3.5' ? 0 : 1) - (b.version === '3.5' ? 0 : 1));
+    return { target: pool[0], sameName: sameNameAs(pool[0], d) };
+  }
+
+  function sameNameAs(target, d) {
+    return (target.name || '').toLowerCase() === (d.name || '').toLowerCase();
+  }
+
+  function renderBaseReference(d, type) {
+    const ref = resolveBaseReference(d, type);
+    if (!ref) return '';
+    const t = ref.target;
+    const label = ref.sameName
+      // Same name, later book: one power reprinted with changes. The entry the
+      // reader is looking at already won the recency tiebreak, so it is the
+      // authoritative one — what it is missing is the text it amends.
+      ? `Full rules from the earlier printing — ${escapeHtml(t.source || '')}` +
+        ` (this ${escapeHtml(d.source || '')} printing supersedes it; only ` +
+        `the changes above are new)`
+      : `Base ${escapeHtml(TYPE_LABELS[t.type] || t.type).toLowerCase()}: ` +
+        `${escapeHtml(t.name)} — ${escapeHtml(t.source || '')}`;
+    return `<details class="lookup-base-ref"><summary>${label}</summary>` +
+      renderNestedExpansionById(t.id, t.name) + `</details>`;
   }
 
   function renderDescription(d, type) {
@@ -2557,7 +2678,15 @@
       return `<div class="lookup-nested-expansion lookup-nested-notfound">` +
         `<b>${escapeHtml(name)}</b> — not found in the DB.</div>`;
     }
-    const data = fetchDetail(stub.id);
+    return renderNestedExpansionById(stub.id, name);
+  }
+
+  // Same renderer, addressed by ID. The base-entry reference needs this
+  // because its target can be the SAME NAME in a different book (Energy Stun
+  // in Complete Psionic pointing at Energy Stun in the XPH), and resolving
+  // that by name would find the entry we are already reading.
+  function renderNestedExpansionById(id, name) {
+    const data = fetchDetail(id);
     if (!data) {
       return `<div class="lookup-nested-expansion lookup-nested-notfound">` +
         `<b>${escapeHtml(name)}</b> — entry lookup failed.</div>`;
@@ -2792,6 +2921,12 @@
         } : null,
       };
     });
+    entriesByName = new Map();
+    for (const e of entries) {
+      const k = (e.name || '').toLowerCase();
+      if (!entriesByName.has(k)) entriesByName.set(k, []);
+      entriesByName.get(k).push(e);
+    }
     // Prereq in-degree ("foundational-ness") — a within-tier tiebreak so the
     // feats a build chains OFF of (required by many others) float above their
     // peers instead of sorting alphabetically (Improved Grapple over Clever
@@ -3932,6 +4067,11 @@
     findFeatsRequiring,
     wireSeeAlsoPills,
     renderNestedExpansion,
+    // The "As X, except…" base-entry reference, exposed so a picker's info
+    // panel can offer the same inline base text the lookup does — the whole
+    // point of the feature is that nothing in a picker is a page-turn away.
+    resolveBaseReference,
+    renderBaseReference,
   };
 
   // Init when the DOM is ready and the DB module exists. We don't

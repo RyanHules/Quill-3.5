@@ -8659,6 +8659,102 @@ test('lookup: the search index carries version', (db) => {
     'version must stay in the index SELECT');
 });
 
+// ---- tests: "As X, except…" base-entry references (fmt0bmlw6-898g) --------
+//
+// 167 powers and spells are a DELTA against another entry. In the book the
+// base is a page-turn away; in a picker it is nowhere. These check the
+// resolver against the real corpus, in both directions — the references that
+// must resolve, and the ones that must NOT.
+
+test('xref: a delta entry resolves to the entry it amends', (db) => {
+  const L = loadLookupModule(db);
+  const detail = (name, source) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description "
+      + "FROM entry WHERE name = ? AND source = ? LIMIT 1", [name, source]);
+    assert(r, `fixture missing: ${name} / ${source}`);
+    return r;
+  };
+  // Cross-TYPE: a psionic power defined against a PHB spell. 37 of the 167.
+  let ref = L.resolveBaseReference(
+    detail('Analyze Dweomer, Psionic', 'Complete Psionic'), 'power');
+  assert(ref, 'Analyze Dweomer, Psionic must resolve its base');
+  assertEq(ref.target.name, 'Analyze Dweomer');
+  assertEq(ref.target.type, 'spell');
+  assertEq(ref.sameName, false);
+  // Bare reference, no citation at all ("As cloud mind, except as noted…").
+  ref = L.resolveBaseReference(
+    detail('Cloud Mind, Mass', 'Expanded Psionics Handbook'), 'power');
+  assert(ref && ref.target.name === 'Cloud Mind',
+    'a bare reference with no book citation must still resolve');
+  // The book inverts qualifiers: "as greater teleport" ↔ "Teleport, Greater".
+  ref = L.resolveBaseReference(
+    detail('Teleport, Psionic Greater', 'Expanded Psionics Handbook'), 'power');
+  assert(ref && /^Teleport, Greater$/i.test(ref.target.name),
+    'the qualifier inversion must resolve, or 11 references go dark');
+});
+
+test('xref: a same-name later printing is flagged as superseding', (db) => {
+  const L = loadLookupModule(db);
+  // Three of them, all Complete Psionic over the XPH. These are not two
+  // powers — they are one power reprinted with changes, which is why they get
+  // a different label from a genuine base-entry reference (Ryan, 2026-08-23:
+  // "more accurate to treat it as errata than a separate entry").
+  for (const name of ['Energy Stun', 'Energy Missile', 'Astral Construct']) {
+    // `type='power'` matters: Complete Psionic also carries an Astral
+    // Construct CREATURE, and a name-only fixture picks it up and then
+    // accuses the resolver of missing a reference that entry never had.
+    const d = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description "
+      + "FROM entry WHERE name = ? AND source = 'Complete Psionic' "
+      + "AND type = 'power' LIMIT 1", [name]);
+    assert(d, `fixture missing: ${name} / Complete Psionic`);
+    const ref = L.resolveBaseReference(d, 'power');
+    assert(ref, `${name} must resolve its earlier printing`);
+    assertEq(ref.sameName, true, `${name} is the SAME power, later printing`);
+    assertEq(ref.target.source, 'Expanded Psionics Handbook');
+    assert(ref.target.id !== d.id, 'it must not resolve to itself');
+  }
+});
+
+test('xref: an unresolvable reference stays silent', (db) => {
+  const L = loadLookupModule(db);
+  // These point at 3.0 names the DB does not carry ("polymorph other") or at
+  // non-entries ("dream spell"). Rendering a broken box would be worse than
+  // rendering nothing, so a miss is silent by design.
+  for (const [name, source] of [['Spider Shapes', 'Forgotten Realms Campaign Setting'],
+                                ['Dream Casting', 'Savage Species']]) {
+    const d = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description "
+      + "FROM entry WHERE name = ? AND source = ? LIMIT 1", [name, source]);
+    if (!d) continue;                       // book may leave the filter later
+    assertEq(L.resolveBaseReference(d, 'spell'), null,
+      `${name} references something we do not carry — it must resolve to null`);
+  }
+  // And an entry with no reference at all must not produce one.
+  const fireball = execOne(db,
+    "SELECT id, name, source, json_extract(data,'$.description') AS description "
+    + "FROM entry WHERE type='spell' AND name='Fireball' LIMIT 1");
+  assertEq(L.resolveBaseReference(fireball, 'spell'), null,
+    'Fireball defines itself; it has no base');
+});
+
+test('xref: the resolver is wired into both pickers, not just the lookup', () => {
+  // The whole point is that a PICKER has no page to turn to.
+  for (const file of ['power-picker.js', 'spell-picker.js']) {
+    const src = readSource(file);
+    assert(/Lookup\.renderBaseReference/.test(src),
+      `${file}: must offer the base entry inline`);
+  }
+  const lk = readSource('lookup.js');
+  assert(/renderBaseReference,/.test(lk) && /resolveBaseReference,/.test(lk),
+    'lookup.js must export both halves for the pickers to use');
+  // A picker can ask before the modal has ever been opened.
+  assert(/if \(!entries\.length && DB\.isLoaded\(\)\) buildIndex\(\);/.test(lk),
+    'resolveBaseReference must build the index lazily — a picker is often ' +
+    'the first caller, and the index is built on the modal\'s first render');
+});
+
 test('lookup: type: still means ENTRY type for real entry types', (db) => {
   const L = loadLookupModule(db);
   const spells = L.rankResults('type:spell fireball');

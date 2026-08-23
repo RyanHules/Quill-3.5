@@ -625,6 +625,20 @@
     // the table), so a 350-char cut silently hid the back half of most
     // powers. Report rms3qhc3r-gedx.
     if (rec.description) bits.push(escapeHtml(rec.description));
+    // "As energy stun (EPH 104), except as noted here." — 25 XPH and 13
+    // Complete Psionic powers are a DELTA against another entry, and in a
+    // picker the base is not a page-turn away the way it is in the book
+    // (Ryan, 2026-08-23). Offer it inline, collapsed.
+    if (rec.description && window.Lookup && Lookup.renderBaseReference) {
+      // `rec.id`, NOT `rec.power_id` — the index query aliases `id AS
+      // power_id` and rebuildIndex renames it back; using the alias here is
+      // the same undefined that stopped the errata badge rendering for
+      // months (see the note in updateInfo).
+      const baseRef = Lookup.renderBaseReference(
+        { id: rec.id, name: rec.name, source: rec.source,
+          description: rec.description }, 'power');
+      if (baseRef) bits.push(baseRef);
+    }
     if (rec.augment) bits.push(`<b>Augment:</b> ${escapeHtml(rec.augment)}`);
     // Structured data tables (Object Reading study times, Remote
     // Viewing save modifiers).

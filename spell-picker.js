@@ -953,6 +953,15 @@
       if (full.description) {
         html += `<div class="sp-info-desc" style="margin-top:0.4rem;` +
                 `line-height:1.4">${escapeHtml(full.description)}</div>`;
+        // "As lesser spirit binding, except…" — a spell defined as a delta
+        // against another one. The book puts the base a page-turn away; a
+        // picker never does, so it is offered inline, collapsed.
+        if (window.Lookup && Lookup.renderBaseReference) {
+          const baseRef = Lookup.renderBaseReference(
+            { id: full.spell_id, name: full.name, source: full.source,
+              description: full.description }, 'spell');
+          if (baseRef) html += baseRef;
+        }
       }
       // Structured data tables (Prismatic Sphere colors, Summon
       // Undead list, Detect-spell aura strengths, …). `full` can be
