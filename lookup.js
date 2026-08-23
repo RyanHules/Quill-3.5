@@ -576,21 +576,29 @@
   const XREF_NOUN = '(?:spell|power|ability|feat|item|weapon|armor|rule|' +
                     'maneuver|stance|invocation|mystery|utterance|soulmeld|' +
                     'vestige|trick|effect|attack)';
+  // The referenced thing can be introduced BY ITS KIND: the shadowcaster
+  // mysteries are written "This mystery functions like the spell summon
+  // monster I, except…" and "…like the mystery flesh fails, except…". Without
+  // this the name captured was "spell summon monster i", which resolves to
+  // nothing — 24 mysteries were silently unresolvable and I reported that as
+  // "zero mysteries resolve" as though it were a fact about the corpus
+  // rather than about my pattern (Ryan called it, 2026-08-23).
+  const XREF_LEAD = '(?:' + XREF_NOUN + '\\s+)?';
   const XREF_VERB = '(?:functions?|works?|operates?|acts?)\\s+(?:just\\s+)?like';
   const XREF_RES = [
     new RegExp('(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
                '\\s*,?\\s*except\\b', 'i'),
     new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
-               '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
     // Subject-less: "Works like dominate monster, except…" (the Faiths and
     // Pantheons divine abilities are written this way throughout).
     new RegExp('(?:^|[.!?;—]\\s*)(?:' + XREF_VERB + '|is\\s+identical\\s+to)' +
-               '\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '\\s+(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
     // …and the ones that say "functions like X" with no except-clause at all.
     new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
-               '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*[.,]', 'i'),
   ];
 
@@ -664,7 +672,19 @@
       cands = (entriesByName.get(v) || []).filter(e => e.id !== d.id);
       if (cands.length) break;
     }
-    if (!cands.length) return null;
+    if (!cands.length) {
+      // No entry by that bare name — but the sibling shorthand may still know
+      // what is meant. The DMG's armor affixes are the whole class: "Acid
+      // Resistance, Greater (armor special ability)" says "As acid
+      // resistance, except…", and there IS no entry called plain "Acid
+      // Resistance" — it is "Acid Resistance (armor special ability)".
+      // This used to return null here, and I reported the miss as missing DATA
+      // when it was this ordering (Ryan corrected it, 2026-08-23).
+      const sibOnly = siblingBase(d, refName, type);
+      return sibOnly
+        ? { target: sibOnly, sameName: sameNameAs(sibOnly, d) }
+        : null;
+    }
     if (hint) {
       const hit = cands.find(e => (e.source || '').toLowerCase() === hint);
       if (hit) return { target: hit, sameName: sameNameAs(hit, d) };

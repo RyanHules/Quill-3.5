@@ -311,6 +311,16 @@
           'mystery', 'path', m.path, m.name
         );
       }
+      // "This mystery functions like the spell summon monster I, except…" —
+      // 20 of the shadowcaster mysteries are deltas of a PHB spell (and
+      // Greater Flesh Fails of its own lesser mystery). Offered inline.
+      if (window.Lookup && Lookup.renderBaseReference) {
+        const baseRef = Lookup.renderBaseReference({
+          id: m.mystery_id, name: m.name, source: m.source,
+          description: m.description,
+        }, 'mystery');
+        if (baseRef) html += baseRef;
+      }
       info.innerHTML = html;
       if (window.Lookup && Lookup.wireSeeAlsoPills) {
         Lookup.wireSeeAlsoPills(info);

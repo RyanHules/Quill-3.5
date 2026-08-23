@@ -8933,6 +8933,61 @@ test('xref: an uncited reference means the SAME book', (db) => {
   }
 });
 
+test('xref: the referenced thing can be named by its KIND', (db) => {
+  const L = loadLookupModule(db);
+  const row = (name, type) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description "
+      + "FROM entry WHERE name = ? AND type = ? LIMIT 1", [name, type]);
+    assert(r, `fixture missing: ${name} [${type}]`);
+    return r;
+  };
+  // The shadowcaster mysteries introduce the referent by its kind: "This
+  // mystery functions like THE SPELL summon monster I, except…". The name
+  // captured was "spell summon monster i", which matches nothing — so all 20
+  // were silently unresolvable, and I reported that as "zero mysteries
+  // resolve" as though it were a fact about the corpus. It was my pattern.
+  for (const [name, want] of [['Army of Shadow', 'Summon Monster I'],
+                              ['Ephemeral Image', 'Project Image'],
+                              ['Feign Life', 'Animate Objects']]) {
+    const ref = L.resolveBaseReference(row(name, 'mystery'), 'mystery');
+    assert(ref, `${name} must resolve its base spell`);
+    assertEq(ref.target.name, want);
+  }
+});
+
+test('xref: the sibling shorthand works when the bare name matches NOTHING', (db) => {
+  const L = loadLookupModule(db);
+  const row = (name) => {
+    const r = execOne(db,
+      "SELECT id, name, source, json_extract(data,'$.description') AS description "
+      + "FROM entry WHERE name = ? LIMIT 1", [name]);
+    assert(r, `fixture missing: ${name}`);
+    return r;
+  };
+  // The DMG armor affixes are the whole class: "Acid Resistance, Greater
+  // (armor special ability)" says "As acid resistance, except…" and there is
+  // no entry called plain "Acid Resistance" — it is "Acid Resistance (armor
+  // special ability)". The resolver used to bail the moment the bare name
+  // matched nothing, BEFORE trying the sibling rule, and I reported the miss
+  // as missing data rather than as the ordering bug it was.
+  for (const [name, want] of [
+      ['Acid Resistance, Greater (armor special ability)',
+       'Acid Resistance (armor special ability)'],
+      ['Acid Resistance, Improved (armor special ability)',
+       'Acid Resistance (armor special ability)'],
+      ['Cold Resistance, Greater (armor special ability)',
+       'Cold Resistance (armor special ability)']]) {
+    const ref = L.resolveBaseReference(row(name), 'item');
+    assert(ref, `${name} must resolve`);
+    assertEq(ref.target.name, want);
+    assertEq(ref.target.source, "Dungeon Master's Guide");
+  }
+  // The bare name really is absent — otherwise this tests nothing.
+  assertEq(execAll(db, "SELECT id FROM entry WHERE name = 'Acid Resistance'").length,
+    0, 'fixture: there must be no entry called plain "Acid Resistance"');
+});
+
 test('xref: the resolver is wired into every surface that has a base to show', () => {
   // The whole point is that a PICKER has no page to turn to, and the picker
   // is a primary way of finding things (Ryan, 2026-08-23: "it should surface
@@ -8941,7 +8996,7 @@ test('xref: the resolver is wired into every surface that has a base to show', (
   // invocation — plus the Feats-tab ⓘ panel, which is the one read mid-play.
   for (const file of ['power-picker.js', 'spell-picker.js', 'feat-picker.js',
                       'item-picker.js', 'maneuver-picker.js',
-                      'invocation-picker.js', 'feats.js']) {
+                      'invocation-picker.js', 'mystery-picker.js', 'feats.js']) {
     const src = readSource(file);
     assert(/Lookup\.renderBaseReference/.test(src),
       `${file}: must offer the base entry inline`);
