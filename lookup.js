@@ -458,9 +458,12 @@
     bits.push(renderMeta(d, type));
     if (d.description) {
       bits.push(renderDescription(d, type));
-      // "As X, except…" — the base entry this one is a delta against, inline.
-      bits.push(renderBaseReference(d, type));
     }
+    // "As X, except…" — the base entry this one is a delta against, inline.
+    // OUTSIDE the description gate: a feat's rules prose lives in `benefit`,
+    // so gating on description hid the reference on exactly the types that
+    // do not use that field.
+    bits.push(renderBaseReference(d, type));
     bits.push(renderTypeSpecific(d, type));
     // Structured data tables for every non-rule type (rules render
     // theirs inside renderRuleExtra, ordered before See-also).
@@ -563,16 +566,32 @@
   const XREF_CITE =
     '\\s*(?:\\(\\s*(?:page\\s+\\d+\\s+of\\s+the\\s+([^)]+?)' +
     '|([A-Za-z]{2,5})\\.?\\s*\\d+)\\s*\\))?';
+  // The noun and the verb both vary, and both cost coverage when guessed.
+  // Scanned every type and every prose field: the idiom is NOT confined to
+  // spells and powers (Ryan asked, since "this *is* 3.5"). 40 magic items,
+  // 22 mysteries, 16 rules, 6 feats, 4 maneuvers and one each of invocation /
+  // weapon / soulmeld / skill_use use it — "This feat works like Cleave,
+  // except…", "Works like dominate monster, except…". A noun list of
+  // spell|power|ability missed all of them.
+  const XREF_NOUN = '(?:spell|power|ability|feat|item|weapon|armor|rule|' +
+                    'maneuver|stance|invocation|mystery|utterance|soulmeld|' +
+                    'vestige|trick|effect|attack)';
+  const XREF_VERB = '(?:functions?|works?|operates?|acts?)\\s+(?:just\\s+)?like';
   const XREF_RES = [
     new RegExp('(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
                '\\s*,?\\s*except\\b', 'i'),
-    new RegExp('\\bThis\\s+(?:spell|power|ability)\\s+functions?\\s+like\\s+' +
+    new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
                '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
-               '\\s*(?:spell|power)?\\s*,?\\s*(?:except|but)\\b', 'i'),
+               '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
+    // Subject-less: "Works like dominate monster, except…" (the Faiths and
+    // Pantheons divine abilities are written this way throughout).
+    new RegExp('(?:^|[.!?;—]\\s*)(?:' + XREF_VERB + '|is\\s+identical\\s+to)' +
+               '\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
+               '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
     // …and the ones that say "functions like X" with no except-clause at all.
-    new RegExp('\\bThis\\s+(?:spell|power|ability)\\s+functions?\\s+like\\s+' +
+    new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
                '(?:the\\s+)?' + XREF_NAME + XREF_CITE +
-               '\\s*(?:spell|power)?\\s*[.,]', 'i'),
+               '\\s*' + XREF_NOUN + '?\\s*[.,]', 'i'),
   ];
 
   // The books cite each other by their own shorthand, which is not always the
@@ -602,16 +621,27 @@
   }
 
   // → { target, sameName } | null. `d` is a fetched detail row.
+  // Where a type keeps its rules prose. EVERY one of these is scanned, not
+  // just the first populated one: Great Cleave has a flavour `description`
+  // AND the actual reference in `benefit` ("This feat works like Cleave,
+  // except…"), so stopping at the first non-empty field found nothing.
+  const XREF_PROSE_FIELDS = ['description', 'benefit', 'effect', 'body', 'text'];
+
   function resolveBaseReference(d, type) {
-    if (!d || !d.description) return null;
+    if (!d) return null;
     // A picker can call this before the modal has ever been opened, and the
     // name index is built lazily on first render.
     if (!entries.length && DB.isLoaded()) buildIndex();
     if (!entriesByName.size) return null;
-    const desc = String(d.description).replace(/\s+/g, ' ').slice(0, 700);
     let m = null;
-    for (const re of XREF_RES) {
-      m = re.exec(desc);
+    for (const f of XREF_PROSE_FIELDS) {
+      const v = d[f];
+      if (typeof v !== 'string' || v.length < 20) continue;
+      const text = v.replace(/\s+/g, ' ').slice(0, 700);
+      for (const re of XREF_RES) {
+        m = re.exec(text);
+        if (m) break;
+      }
       if (m) break;
     }
     if (!m) return null;
@@ -639,10 +669,57 @@
       const hit = cands.find(e => (e.source || '').toLowerCase() === hint);
       if (hit) return { target: hit, sameName: sameNameAs(hit, d) };
     }
+    // SAME BOOK FIRST. An uncited reference means the book's own entry — the
+    // DMG's "As shadow, except…" is the DMG's shadow armor ability, and
+    // without this it resolved to the Shadow DOMAIN in Eberron. Bare
+    // single-word bases collide across a 20,000-entry corpus constantly.
+    const ownSource = (d.source || '').toLowerCase();
+    if (ownSource) {
+      const local = cands.filter(e => (e.source || '').toLowerCase() === ownSource);
+      if (local.length) {
+        const localTyped = local.filter(e => e.type === type);
+        const pick = (localTyped.length ? localTyped : local)[0];
+        return { target: pick, sameName: sameNameAs(pick, d) };
+      }
+    }
+    // SIBLING SHORTHAND. "Ring of Jumping, Improved" says "As jumping,
+    // except…" and means the DMG's Ring of Jumping — not Magic of Faerun's
+    // unrelated item called Jumping, which is what a bare name match found.
+    // Only fires when the entry's own name minus its qualifier exists in the
+    // same book AND contains the referenced word, so it cannot hijack a real
+    // reference: Mass Cure Critical Wounds cites "mass cure light wounds",
+    // which is NOT a substring of "cure critical wounds", so that stays put.
+    const sib = siblingBase(d, refName, type);
+    if (sib) return { target: sib, sameName: sameNameAs(sib, d) };
     const sameType = cands.filter(e => e.type === type);
     const pool = (sameType.length ? sameType : cands).slice().sort((a, b) =>
       (a.version === '3.5' ? 0 : 1) - (b.version === '3.5' ? 0 : 1));
     return { target: pool[0], sameName: sameNameAs(pool[0], d) };
+  }
+
+  // The entry's own name with a trailing/leading qualifier stripped, if that
+  // names a real sibling in the same book.
+  function siblingBase(d, refName, type) {
+    const self = String(d.name || '');
+    const ref = String(refName || '').trim().toLowerCase();
+    if (!self || !ref) return null;
+    const stripped = [
+      self.replace(/,\s*(greater|lesser|improved|superior|major|minor)\b/i, ''),
+      self.replace(/^(greater|lesser|improved|superior|major|minor)\s+/i, ''),
+    ];
+    for (const cand of stripped) {
+      if (cand === self) continue;
+      const key = cand.toLowerCase();
+      if (!key.includes(ref)) continue;      // must be the thing referenced
+      const rows = (entriesByName.get(key) || []).filter(e =>
+        e.id !== d.id &&
+        (e.source || '').toLowerCase() === (d.source || '').toLowerCase());
+      if (rows.length) {
+        const typed = rows.filter(e => e.type === type);
+        return (typed.length ? typed : rows)[0];
+      }
+    }
+    return null;
   }
 
   function sameNameAs(target, d) {

@@ -8854,6 +8854,85 @@ test('xref: a chain of deltas resolves, with a depth cap', (db) => {
     'the chain walker needs both a depth cap and a cycle guard');
 });
 
+test('xref: the idiom is not confined to spells and powers', (db) => {
+  const L = loadLookupModule(db);
+  const row = (name, type) => {
+    const r = execOne(db,
+      "SELECT id, name, source, type, "
+      + "json_extract(data,'$.description') AS description, "
+      + "json_extract(data,'$.benefit')     AS benefit "
+      + "FROM entry WHERE name = ? AND type = ? LIMIT 1", [name, type]);
+    assert(r, `fixture missing: ${name} [${type}]`);
+    return r;
+  };
+  // Ryan asked whether rules or feats use it ("this *is* 3.5, after all").
+  // Scanned every type: 13 items, 13 rules, 4 maneuvers, 2 feats, 2
+  // invocations, 1 weapon and 1 soulmeld resolve, on top of the spells and
+  // powers. A noun list of spell|power|ability had matched none of them.
+  const cases = [
+    ['Great Cleave', 'feat', 'Cleave'],
+    ['Control Creatures', 'rule', 'Dominate Monster'],
+    ['Ballista Throw', 'maneuver', 'Mighty Throw'],
+    ['Draconic Flight, Greater', 'invocation', 'Draconic Flight'],
+  ];
+  for (const [name, type, want] of cases) {
+    const ref = L.resolveBaseReference(row(name, type), type);
+    assert(ref, `${name} [${type}] must resolve its base`);
+    assertEq(ref.target.name, want, `${name} resolves to the wrong base`);
+  }
+  // Great Cleave's reference is in `benefit`, and it ALSO has a description —
+  // a reader that stops at the first populated prose field finds nothing.
+  const gc = row('Great Cleave', 'feat');
+  assert(gc.description && gc.benefit && !/works like/i.test(gc.description),
+    'fixture: Great Cleave must have prose in BOTH fields for this to bite');
+});
+
+test('xref: an uncited reference means the SAME book', (db) => {
+  const L = loadLookupModule(db);
+  const row = (name) => execOne(db,
+    "SELECT id, name, source, json_extract(data,'$.description') AS description "
+    + "FROM entry WHERE name = ? LIMIT 1", [name]);
+  // "As shadow, except…" in the DMG means the DMG's shadow armor ability.
+  // Without a same-book preference it resolved to the Shadow DOMAIN in
+  // Eberron — a confidently wrong answer, which is worse than none.
+  let ref = L.resolveBaseReference(row('Shadow, Greater (armor special ability)'), 'item');
+  assert(ref, 'Greater Shadow must resolve');
+  assertEq(ref.target.name, 'Shadow (armor special ability)');
+  assertEq(ref.target.source, "Dungeon Master's Guide");
+  // "As jumping, except…" means the DMG's Ring of Jumping, not Magic of
+  // Faerun's unrelated item literally called Jumping. Caught by the
+  // sibling-shorthand rule: the entry's own name minus its qualifier.
+  ref = L.resolveBaseReference(row('Ring of Jumping, Improved'), 'item');
+  assert(ref, 'Improved Ring of Jumping must resolve');
+  assertEq(ref.target.name, 'Ring of Jumping');
+  assertEq(ref.target.source, "Dungeon Master's Guide");
+  // The sibling rule must NOT hijack a real cross-book reference: Mass Cure
+  // Critical Wounds cites "mass cure light wounds", which is not a substring
+  // of its own name minus a qualifier, so it stays put.
+  ref = L.resolveBaseReference(row('Cure Critical Wounds, Mass'), 'spell');
+  assert(ref && /mass/i.test(ref.target.name),
+    `expected the mass base, got ${ref && ref.target.name}`);
+  // The same-book preference proper — a case the sibling rule does NOT
+  // cover, so this is what actually pins it. Libris Mortis's Summon Undead
+  // II means LIBRIS MORTIS's Summon Undead I, not the Heroes of Horror
+  // printing of the same name. Measured: the preference changes 65
+  // resolutions, all of this shape (the Repair Damage ladders in Eberron and
+  // the Dragon Compendium, Magic of Faerun's Iron Bones → its own Stone
+  // Bones). NB this is the opposite rule from the reprint DEDUPE, where the
+  // NEWEST printing wins — different question: a book citing its own spell
+  // means its own, even when a newer reprint exists elsewhere.
+  const su2 = execOne(db,
+    "SELECT id, name, source, json_extract(data,'$.description') AS description "
+    + "FROM entry WHERE name='Summon Undead II' AND source='Libris Mortis' LIMIT 1");
+  if (su2) {
+    const r2 = L.resolveBaseReference(su2, 'spell');
+    assert(r2, 'Summon Undead II must resolve');
+    assertEq(r2.target.name, 'Summon Undead I');
+    assertEq(r2.target.source, 'Libris Mortis',
+      'a book citing its own spell must get its own printing');
+  }
+});
+
 test('xref: the resolver is wired into both pickers, not just the lookup', () => {
   // The whole point is that a PICKER has no page to turn to.
   for (const file of ['power-picker.js', 'spell-picker.js']) {
