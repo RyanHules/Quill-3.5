@@ -360,6 +360,16 @@
           'maneuver', 'discipline', m.discipline, m.name
         );
       }
+      // "This maneuver functions like mighty throw, except…" — the four
+      // Iron Heart throws are all deltas of Mighty Throw. Offered inline,
+      // since the picker is where a warblade actually reads them.
+      if (window.Lookup && Lookup.renderBaseReference) {
+        const baseRef = Lookup.renderBaseReference({
+          id: m.id, name: m.name, source: m.source,
+          description: m.description,
+        }, 'maneuver');
+        if (baseRef) html += baseRef;
+      }
       info.innerHTML = html;
       if (window.Lookup && Lookup.wireSeeAlsoPills) {
         Lookup.wireSeeAlsoPills(info);

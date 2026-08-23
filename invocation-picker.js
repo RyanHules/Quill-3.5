@@ -241,6 +241,16 @@
           'invocation', 'grade', r.grade, r.name
         );
       }
+      // "As draconic flight, except…" — Greater Draconic Flight is a delta of
+      // its own lesser version, and Word of Changing is a delta of baleful
+      // polymorph. Offered inline like everywhere else.
+      if (window.Lookup && Lookup.renderBaseReference) {
+        const baseRef = Lookup.renderBaseReference({
+          id: r.invocation_id, name: r.name, source: r.source,
+          description: r.description,
+        }, 'invocation');
+        if (baseRef) html += baseRef;
+      }
       info.innerHTML = html;
       if (window.Lookup && Lookup.wireSeeAlsoPills) {
         Lookup.wireSeeAlsoPills(info);

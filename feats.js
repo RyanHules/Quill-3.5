@@ -394,6 +394,19 @@ const Feats = (function () {
       const hbHtml = HomebrewItemFamiliar.appendRulesHtml(row.name);
       if (hbHtml) html += hbHtml;
     }
+    // "This feat works like Cleave, except…" — the base feat, inline. This
+    // panel is the one a player reads mid-play off their own feat row, so it
+    // is the place the base being a page-turn away hurts most. The whole row
+    // goes over because a feat's rules text is in `benefit`, not
+    // `description`.
+    if (window.Lookup && Lookup.renderBaseReference) {
+      const baseRef = Lookup.renderBaseReference({
+        id: row.id, name: row.name, source: row.source,
+        description: row.description, benefit: row.benefit,
+        normal: row.normal, special: row.special,
+      }, "feat");
+      if (baseRef) html += baseRef;
+    }
     return { html, entryId: row.id };
   }
 

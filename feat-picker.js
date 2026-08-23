@@ -525,6 +525,18 @@
           bits.push(Lookup.renderSeeAlsoRow('Required by', deps));
         }
       }
+      // "This feat works like Cleave, except…" — the base feat, inline. The
+      // picker is a primary way of FINDING things, so it should surface as
+      // much as the lookup does (Ryan, 2026-08-23). NB a feat's rules text is
+      // in `benefit`, which is why the whole row is handed over rather than
+      // just a description.
+      if (window.Lookup && Lookup.renderBaseReference) {
+        const baseRef = Lookup.renderBaseReference({
+          id: entry.primary.feat_id, name: full.name, source: full.source,
+          description: full.description, benefit: full.benefit,
+        }, 'feat');
+        if (baseRef) bits.push(baseRef);
+      }
       info.innerHTML = bits.join('<br>');
       // Activate pill click handler — toggles inline-expanded views
       // of linked feats below their pill row.

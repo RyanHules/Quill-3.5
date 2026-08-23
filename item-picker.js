@@ -711,6 +711,18 @@
           if (tablesHtml) bits.push(tablesHtml);
         } catch (e) { /* malformed tables JSON — skip */ }
       }
+      // "As shadow, except…" — the base item or spell this one is a delta
+      // against, inline. Thirteen magic items and one weapon do this, mostly
+      // the DMG's armor/weapon special-ability ladders (Greater Acid
+      // Resistance, Improved Ring of Jumping) and the staffs that reproduce
+      // a spell.
+      if (window.Lookup && Lookup.renderBaseReference) {
+        const baseRef = Lookup.renderBaseReference({
+          id: full.item_id, name: full.name, source: full.source,
+          description: full.description,
+        }, full.type || 'item');
+        if (baseRef) bits.push(baseRef);
+      }
       info.innerHTML = bits.join('<br>');
       // Activate see-also pill clicks (Craft feats + spell names in
       // the Prereq line).

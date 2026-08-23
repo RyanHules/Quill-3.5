@@ -8933,12 +8933,26 @@ test('xref: an uncited reference means the SAME book', (db) => {
   }
 });
 
-test('xref: the resolver is wired into both pickers, not just the lookup', () => {
-  // The whole point is that a PICKER has no page to turn to.
-  for (const file of ['power-picker.js', 'spell-picker.js']) {
+test('xref: the resolver is wired into every surface that has a base to show', () => {
+  // The whole point is that a PICKER has no page to turn to, and the picker
+  // is a primary way of finding things (Ryan, 2026-08-23: "it should surface
+  // as much information as possible"). Every type that has resolving
+  // references gets it: spell, power, feat, item/weapon, maneuver,
+  // invocation — plus the Feats-tab ⓘ panel, which is the one read mid-play.
+  for (const file of ['power-picker.js', 'spell-picker.js', 'feat-picker.js',
+                      'item-picker.js', 'maneuver-picker.js',
+                      'invocation-picker.js', 'feats.js']) {
     const src = readSource(file);
     assert(/Lookup\.renderBaseReference/.test(src),
       `${file}: must offer the base entry inline`);
+  }
+  // A feat's rules text is in `benefit`, so the two feat surfaces have to
+  // hand that field over — passing description alone finds the flavour and
+  // misses the reference, which is how Great Cleave stayed dark.
+  for (const file of ['feat-picker.js', 'feats.js']) {
+    const src = readSource(file);
+    assert(/renderBaseReference\(\{[^}]*benefit/s.test(src),
+      `${file}: must pass \`benefit\` — a feat's reference lives there`);
   }
   const lk = readSource('lookup.js');
   assert(/renderBaseReference,/.test(lk) && /resolveBaseReference,/.test(lk),
