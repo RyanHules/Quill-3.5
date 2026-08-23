@@ -315,10 +315,21 @@
       // 20 of the shadowcaster mysteries are deltas of a PHB spell (and
       // Greater Flesh Fails of its own lesser mystery). Offered inline.
       if (window.Lookup && Lookup.renderBaseReference) {
-        const baseRef = Lookup.renderBaseReference({
+        const stub = {
           id: m.mystery_id, name: m.name, source: m.source,
-          description: m.description,
-        }, 'mystery');
+          description: m.description, range: m.range, area: m.area,
+          target: m.target, duration: m.duration,
+          saving_throw: m.saving_throw, spell_resistance: m.spell_resistance,
+        };
+        // The stat-block half: a delta mystery prints only what it changes,
+        // so range / duration / save / SR are often absent. renderInherited
+        // Meta emits ONLY fields this entry lacks, so it cannot duplicate
+        // whatever renderInfo already printed above.
+        if (Lookup.renderInheritedMeta) {
+          const inherited = Lookup.renderInheritedMeta(stub, 'mystery');
+          if (inherited) html += inherited;
+        }
+        const baseRef = Lookup.renderBaseReference(stub, 'mystery');
         if (baseRef) html += baseRef;
       }
       info.innerHTML = html;

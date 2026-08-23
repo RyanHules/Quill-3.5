@@ -1350,19 +1350,13 @@
       ['Level',      ['mystery_level']],
       ['Type',       ['type']],
       ['School',     ['school']],
-      // The rest of the stat block, which this strip never showed for ANY
-      // mystery — range is populated on 70 of 78, duration on 72, save and SR
-      // on 57 each, target on 50, and none of it reached the reader. Found
-      // 2026-08-23 while wiring delta inheritance: the inherited values had
-      // nowhere to land, which is how the display gap surfaced.
-      ['Casting',    ['casting_time']],
-      ['Range',      ['range']],
-      ['Target',     ['target']],
-      ['Area',       ['area']],
-      ['Effect',     ['effect']],
-      ['Duration',   ['duration']],
-      ['Save',       ['saving_throw']],
-      ['SR',         ['spell_resistance']],
+      // NB the rest of a mystery's stat block — range, area, target,
+      // duration, save, SR, casting time — is rendered by
+      // renderMysteryExtra() BELOW the description, not here. I briefly added
+      // it to this strip on 2026-08-23 having "found" it missing; I had
+      // checked this list and not the type-specific renderer, so the claim
+      // was wrong and the change printed everything twice (Ryan spotted it
+      // immediately). Inherited values are rendered by that same function.
     ],
     utterance: [
       ['Lexicon',    ['lexicon']],
@@ -2834,14 +2828,33 @@
 
   function renderMysteryExtra(d) {
     const lines = [];
-    if (d.range)            lines.push(`<b>Range:</b> ${escapeHtml(d.range)}`);
-    if (d.area)             lines.push(`<b>Area:</b> ${escapeHtml(d.area)}`);
-    if (d.target)           lines.push(`<b>Target:</b> ${escapeHtml(d.target)}`);
-    if (d.duration)         lines.push(`<b>Duration:</b> ${escapeHtml(d.duration)}`);
-    if (d.saving_throw)     lines.push(`<b>Save:</b> ${escapeHtml(d.saving_throw)}`);
-    if (d.spell_resistance) lines.push(`<b>SR:</b> ${escapeHtml(d.spell_resistance)}`);
+    // A shadowcaster mystery that is a delta of a PHB spell prints only what
+    // it CHANGES, so 19 of the 20 that resolve are missing part of this
+    // block. Fill those from the base, italicised and naming their source —
+    // same contract as the spell/power meta strip. `level` is deliberately
+    // NOT inheritable (0 of 78 mysteries carry one); see XREF_INHERIT.
+    const inh = inheritedStatBlock(d, 'mystery');
+    const put = (label, key, val) => {
+      if (val) { lines.push(`<b>${label}:</b> ${escapeHtml(val)}`); return; }
+      const got = inh && inh.fields[key];
+      if (!got) return;
+      lines.push(`<span class="lookup-meta-inherited" title="Inherited from ` +
+        `${escapeHtml(got.from)}"><b>${label}:</b> ` +
+        `${escapeHtml(String(got.value))}</span>`);
+    };
+    put('Range', 'range', d.range);
+    put('Area', 'area', d.area);
+    put('Target', 'target', d.target);
+    put('Duration', 'duration', d.duration);
+    put('Save', 'saving_throw', d.saving_throw);
+    put('SR', 'spell_resistance', d.spell_resistance);
     if (d.casting_time)     lines.push(`<b>Casting time:</b> ${escapeHtml(d.casting_time)}`);
     if (d.descriptor)       lines.push(`<b>Descriptor:</b> ${escapeHtml(d.descriptor)}`);
+    if (inh && Object.keys(inh.fields).length) {
+      const froms = [...new Set(Object.values(inh.fields).map(f => f.from))];
+      lines.push(`<span class="lookup-meta-inherit-note">italic values are ` +
+        `inherited from ${escapeHtml(froms.join(' → '))}</span>`);
+    }
     return lines.length
       ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
   }
