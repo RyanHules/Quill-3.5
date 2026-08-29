@@ -259,8 +259,37 @@ const Senses = (function () {
 
     // Manual rows are editable; auto rows are not, because editing one would
     // just be overwritten on the next recalc.
+    // Never rebuild the manual rows while the user is typing in one. The
+    // explicit `skipManual` covers this module's own edit handler; the guard
+    // below covers everyone else, and everyone else is who actually broke it:
+    // typing fires a global recalc, and character.js's recalc path calls
+    // `Senses.render()` with no arguments, so the parameter alone fixed
+    // nothing. Verified in the browser — the node was still being detached.
+    //
+    // Safe to skip, because `manual` is the USER's own list. Nothing derived
+    // writes to it: a race, template, soulmeld or essentia change moves the
+    // RESOLVED senses above, not these rows. So there is no stale-row risk,
+    // only a preserved caret. Guarded on a focused field specifically, so the
+    // add/remove buttons (which do mutate `manual`) still redraw.
+    // `skipManual` is THREE-state on purpose:
+    //   true      — caller knows it is mid-edit; never touch the rows.
+    //   false     — caller changed `manual` STRUCTURALLY (add / remove /
+    //               kind switch); always rebuild, even mid-edit.
+    //   undefined — an incidental render from outside this module; rebuild
+    //               only if the user is not typing in one of the rows.
+    // The undefined case is the one that matters: typing fires a global
+    // recalc and character.js's recalc path calls `Senses.render()` with no
+    // arguments, so a plain parameter fixed nothing — verified in the browser,
+    // the node was still being detached. But a blanket focus guard then broke
+    // "+ sense" (model gained a row, DOM did not), so the internal callers
+    // have to be able to override it. Both halves verified in the browser.
     const mHost = byId('senses-manual');
-    if (mHost && !skipManual) {
+    const ae = document.activeElement;
+    const typingHere = !!(mHost && ae && mHost.contains(ae)
+      && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
+    const skip = skipManual === true
+      || (skipManual === undefined && typingHere);
+    if (mHost && !skip) {
       mHost.innerHTML = manual.map((m, i) => {
         const opts = SENSE_KINDS.map(([k, label]) =>
           `<option value="${k}"${k === m.sense ? ' selected' : ''}>${esc(label)}</option>`).join('');
@@ -341,13 +370,13 @@ const Senses = (function () {
       }
       if (ev.target.closest('#senses-add')) {
         manual.push({ sense: 'darkvision', range_ft: 60 });
-        render(); return;
+        render(false); return;   // structural (add) — force it
       }
       const rm = ev.target.closest('.sense-remove');
       if (rm) {
         const row = rm.closest('.sense-row');
         manual.splice(parseInt(row.dataset.idx, 10), 1);
-        render(); return;
+        render(false); return;   // structural (remove) — force it
       }
     });
 
@@ -366,7 +395,7 @@ const Senses = (function () {
         // Switching kind drops a value that no longer means anything.
         if (KIND_OF[m.sense] !== 'range') delete m.range_ft;
         if (KIND_OF[m.sense] !== 'mult') delete m.multiplier;
-        render(); return;
+        render(false); return;   // structural (kind switch) — force it
       }
       if (ev.target.classList.contains('sense-val')) {
         const v = parseInt(ev.target.value, 10) || 0;
@@ -380,7 +409,7 @@ const Senses = (function () {
     };
     host.addEventListener('input', onEdit);
     host.addEventListener('change', onEdit);
-    render();
+    render(false);   // structural (first paint) — force it
   }
 
   // ---- save / load --------------------------------------------------------
@@ -396,7 +425,7 @@ const Senses = (function () {
       ? { source: d.light.source || '', used: parseInt(d.light.used, 10) || 0 }
       : { source: '', used: 0 };
     build();
-    render();
+    render(false);   // structural (load) — force it
   }
 
   return {
