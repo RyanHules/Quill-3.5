@@ -237,7 +237,13 @@ const Senses = (function () {
     return label;
   }
 
-  function render() {
+  // `skipManual` leaves the editable manual rows alone and refreshes only the
+  // derived chips. Needed because this runs on every `input` event: rebuilding
+  // `senses-manual` replaces the very <input> being typed into, so the browser
+  // drops focus and the caret — the user got one character per click (report
+  // rmtbznnor-6ayt). The derived chips DO need updating live, so the answer is
+  // to re-render the half the user is not standing in, not to defer both.
+  function render(skipManual) {
     const host = byId('senses-list');
     if (!host) return;
     const rows = resolved();
@@ -254,7 +260,7 @@ const Senses = (function () {
     // Manual rows are editable; auto rows are not, because editing one would
     // just be overwritten on the next recalc.
     const mHost = byId('senses-manual');
-    if (mHost) {
+    if (mHost && !skipManual) {
       mHost.innerHTML = manual.map((m, i) => {
         const opts = SENSE_KINDS.map(([k, label]) =>
           `<option value="${k}"${k === m.sense ? ' selected' : ''}>${esc(label)}</option>`).join('');
@@ -365,7 +371,11 @@ const Senses = (function () {
       if (ev.target.classList.contains('sense-val')) {
         const v = parseInt(ev.target.value, 10) || 0;
         if (KIND_OF[m.sense] === 'mult') m.multiplier = v; else m.range_ft = v;
-        render();
+        // Skip the manual rows: this fires per keystroke and the target IS a
+        // manual row's input. The sense-kind branch above still does a full
+        // render, correctly — switching kind changes which control the row
+        // needs, and a <select> change does not leave a caret to preserve.
+        render(true);
       }
     };
     host.addEventListener('input', onEdit);
