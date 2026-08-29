@@ -472,7 +472,7 @@ const Spells = (function () {
           </div>
         </details>
         <div class="spell-header">
-          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"${data.clDerivation ? ` title="${esc(data.clDerivation)}"` : ""}><span class="sc-cl-bonus derived-note" hidden></span>${data.clDerivation ? `<span class="sc-cl-derivation derived-note">${esc(data.clDerivation)}</span>` : ""}${data.clAltLabel ? `<label class="sc-cl-alt-wrap" title="${esc(data.clAltNote)}"><input type="checkbox" class="sc-cl-alt"${data.clAlt ? " checked" : ""}> ${esc(data.clAltLabel)}</label>` : ""}</div>
+          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"${data.clDerivation ? ` title="${escAttr(data.clDerivation)}"` : ""}><span class="sc-cl-bonus derived-note" hidden></span>${data.clDerivation ? `<span class="sc-cl-derivation derived-note">${escHtml(data.clDerivation)}</span>` : ""}${data.clAltLabel ? `<label class="sc-cl-alt-wrap" title="${escAttr(data.clAltNote)}"><input type="checkbox" class="sc-cl-alt"${data.clAlt ? " checked" : ""}> ${escHtml(data.clAltLabel)}</label>` : ""}</div>
           <div class="field"><label>Spellcasting Ability</label><select class="sc-ability">${buildAbilityOptions(data.ability || "", false)}</select></div>
           <div class="field"
                title="Optional override. Set ONLY for classes whose bonus spells per day use a different ability than DCs (Favored Soul: CHA bonus / WIS DC; Spirit Shaman: WIS bonus / CHA DC). Leave blank for everyone else — bonus spells fall back to Spellcasting Ability.">
