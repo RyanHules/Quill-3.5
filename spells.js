@@ -188,6 +188,10 @@ const Spells = (function () {
     panel.className = "inner-tab-content";
     panel.id = `caster-${idx}`;
     panel.dataset.casterType = type;
+    // The tab's class name. Stamped because the cross-class caster-level
+    // toggle needs to tell ClassPicker WHICH class entry the ruling is for,
+    // and the name otherwise lives only in the tab button's text.
+    panel.dataset.casterName = name;
 
     // Sub-tab notes field (for differentiating multiple tabs of same type).
     // Multi-line textarea — auto-expands to fit content via app.js's
@@ -468,7 +472,7 @@ const Spells = (function () {
           </div>
         </details>
         <div class="spell-header">
-          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"><span class="sc-cl-bonus derived-note" hidden></span></div>
+          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"${data.clDerivation ? ` title="${esc(data.clDerivation)}"` : ""}><span class="sc-cl-bonus derived-note" hidden></span>${data.clDerivation ? `<span class="sc-cl-derivation derived-note">${esc(data.clDerivation)}</span>` : ""}${data.clAltLabel ? `<label class="sc-cl-alt-wrap" title="${esc(data.clAltNote)}"><input type="checkbox" class="sc-cl-alt"${data.clAlt ? " checked" : ""}> ${esc(data.clAltLabel)}</label>` : ""}</div>
           <div class="field"><label>Spellcasting Ability</label><select class="sc-ability">${buildAbilityOptions(data.ability || "", false)}</select></div>
           <div class="field"
                title="Optional override. Set ONLY for classes whose bonus spells per day use a different ability than DCs (Favored Soul: CHA bonus / WIS DC; Spirit Shaman: WIS bonus / CHA DC). Leave blank for everyone else — bonus spells fall back to Spellcasting Ability.">
@@ -1298,6 +1302,22 @@ const Spells = (function () {
     function toggleColumns(panel, colClass, show) {
       panel.querySelectorAll(`.${colClass}`).forEach((el) => {
         el.style.display = show ? "" : "none";
+      });
+    }
+
+    // RAW/RAI caster-level toggle (Ur-Priest). Pushes the ruling onto the
+    // character's class entry and asks for a recalc, which re-seeds the
+    // caster-level field and its derivation through the normal path rather
+    // than writing a number here.
+    const clAltToggle = panel.querySelector(".sc-cl-alt");
+    if (clAltToggle) {
+      clAltToggle.addEventListener("change", () => {
+        const name = panel.dataset.casterName || "";
+        if (typeof ClassPicker !== "undefined"
+            && ClassPicker.setCasterLevelCountsAlt) {
+          ClassPicker.setCasterLevelCountsAlt(name, clAltToggle.checked);
+        }
+        if (typeof recalcAll === "function") recalcAll();
       });
     }
 
@@ -2895,6 +2915,10 @@ const Spells = (function () {
 
       if (type === "spellcasting") {
         caster.casterLevel = panel.querySelector(".sc-caster-level")?.value || "";
+        // RAW/RAI caster-level reading (Ur-Priest today). Persisted per
+        // character, because it is a table ruling and not a property of
+        // the class — two characters in different campaigns can differ.
+        caster.clCountsAlt = !!panel.querySelector(".sc-cl-alt")?.checked;
         caster.ability = panel.querySelector(".sc-ability").value;
         // v2 Phase B: quickened-spells-this-round runtime counter.
         // Persisted so it survives a save/reload mid-combat, but

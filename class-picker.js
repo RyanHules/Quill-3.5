@@ -620,6 +620,7 @@
       "json_extract(data, '$.spellcasting.key_ability')           AS key_ability, " +
       "json_extract(data, '$.spellcasting.bonus_spell_ability')   AS bonus_spell_ability, " +
       "json_extract(data, '$.spellcasting.no_save_dc')            AS no_save_dc, " +
+      "json_extract(data, '$.caster_level_rule')                 AS caster_level_rule, " +
       "json_extract(data, '$.class_skills')                       AS class_skills, " +
       "json_extract(data, '$.advancement')                        AS advancement, " +
       "json_extract(data, '$.maneuver_advancement')               AS maneuver_advancement, " +
@@ -710,6 +711,12 @@
         maneuverAdvancement: madv,
         invocationAdvancement: iadv,
         mysteryAdvancement: mystadv,
+        // Cross-class caster-level formula (six PrCs). Parsed here so the
+        // panel reads a rule instead of the picker carrying its own table.
+        casterLevelRule: (() => {
+          try { return r.caster_level_rule ? JSON.parse(r.caster_level_rule) : null; }
+          catch (e) { return null; }
+        })(),
         keyAbility: _normalizeAbility(r.key_ability),
         // Optional override — only set for Favored Soul / Spirit
         // Shaman style classes. Null when bonus spells use the same
@@ -735,6 +742,11 @@
     const m = _dbMetaCache.get(className);
     if (m && m.style != null) return m.style;
     return _FALLBACK_CASTER_STYLE[className] ?? null;
+  }
+  function getCasterLevelRule(className) {
+    loadDbMetadata();
+    const m = _dbMetaCache.get(className);
+    return (m && m.casterLevelRule) || null;
   }
   function getAdvancementSpec(className) {
     loadDbMetadata();
@@ -3254,6 +3266,94 @@
     return Math.min(20, target.level + bonus);
   }
 
+  // ---- cross-class caster level (DB `caster_level_rule`) --------------------
+  //
+  // Most spellcasting PrCs advance an existing class, which effectiveSpellLevel
+  // above already handles. Six define caster level as ARITHMETIC OVER OTHER
+  // CLASSES instead, and the sheet used to seed the panel with the PrC's own
+  // level — so a Bard 8 / Sublime Chord 5 showed CL 5 instead of 13, and the
+  // number had to be typed in by hand every time.
+  //
+  // The formula is DATA (`caster_level_rule`, stamped by normalize_schema from
+  // `_caster_level_rules_data.py`), so this reads a rule rather than carrying
+  // its own table of PrCs.
+  //
+  //   half_of_all_other  self + floor(sum of qualifying others / 2)
+  //   full_of_one_other  self + the highest qualifying other
+  //   full_of_base       self + the highest qualifying other (base casting)
+  //
+  // `full_of_one_other` is "chosen" in the book; taking the HIGHEST is Ryan's
+  // policy (2026-08-29) — there is no legitimate reason to pick a lower one.
+  //
+  // ⚠ counts === 'class_levels' MUST COUNT ADVANCER PrC LEVELS. Ur-Priest's
+  // "levels in other spellcasting classes" is class levels by RAW, and an
+  // advancing PrC is a spellcasting class under that reading: Wizard 5 /
+  // Loremaster 5 / Ur-Priest 10 halves TEN, not five. Counting only base
+  // casting classes silently undercounts by half of every advancer level held.
+  //
+  // ⚠ counts === 'caster_levels' MUST NOT. An advancer's contribution is
+  // already inside the caster level of the class it advances, so adding it
+  // again double-counts. That asymmetry is the whole reason the two modes are
+  // separate fields rather than one.
+  function classTypeMatches(className, want) {
+    const t = getClassType(className);
+    return Array.isArray(t) ? t.includes(want) : t === want;
+  }
+
+  function crossClassCasterLevel(target, rule, useAlt) {
+    if (!target || !rule || !rule.mode) return null;
+    const counts = (useAlt && rule.counts_alt) ? rule.counts_alt : rule.counts;
+    const arcaneOnly = rule.scope === 'arcane';
+    const self = target.level || 0;
+    const parts = [];
+
+    for (const e of classPool()) {
+      if (e === target || !e.classId) continue;
+      const isAdvancer = !!((e.advancesTargets && e.advancesTargets.length) ||
+                            (e.advancementSlots && e.advancementSlots.length));
+      const sc = getSpellcastingDataAtLevel(e.classId, e.level);
+      if (!sc && !isAdvancer) continue;                 // not a casting class
+      if (arcaneOnly && !classTypeMatches(e.className, 'arcane')) continue;
+
+      let n;
+      if (counts === 'caster_levels') {
+        if (isAdvancer && !sc) continue;                // already counted
+        n = effectiveSpellLevel(e);
+      } else {
+        n = e.level || 0;                               // advancers count here
+      }
+      if (n > 0) parts.push({ name: e.className, n });
+    }
+
+    if (!parts.length) return { total: self, parts, note: 'no other casting classes' };
+
+    let total;
+    if (rule.mode === 'half_of_all_other') {
+      const sum = parts.reduce((s, p) => s + p.n, 0);
+      total = self + Math.floor(sum / 2);
+    } else {
+      const best = parts.reduce((a, b) => (b.n > a.n ? b : a));
+      total = self + best.n;
+      parts.length = 0;
+      parts.push(best);                                  // only the winner counts
+    }
+    return { total: Math.max(self, total), parts, counts };
+  }
+
+  // A one-line "why" for the panel, so a derived CL is auditable instead of a
+  // bare integer the player has to trust.
+  function casterLevelDerivation(target, rule, calc, useAlt) {
+    if (!calc || !rule) return '';
+    const unit = calc.counts === 'caster_levels' ? 'CL' : 'lv';
+    const bits = calc.parts.map(p => `${p.name} ${p.n}${unit}`).join(' + ');
+    if (!calc.parts.length) return `${target.className} ${target.level} (no other casting classes)`;
+    const how = rule.mode === 'half_of_all_other'
+      ? `+ ½(${bits})`
+      : `+ ${bits}`;
+    const alt = useAlt ? ' [RAI: caster levels]' : '';
+    return `${target.className} ${target.level} ${how} = ${calc.total}${alt}`;
+  }
+
   // ============================================================
   // Maneuver-advancement pillar (Tome of Battle)
   //
@@ -4910,6 +5010,17 @@
   function upsertSpellcastingPanel(className, classLevel, sc, offset, targetPanel) {
     const notesText = KNOWS_WHOLE_LIST_NOTES[className] || className;
     const style = getCasterStyle(className);
+    // Cross-class caster-level rule, if this class has one. `entry` is the
+    // pool member for THIS class — the rule needs its own level and needs to
+    // exclude itself from the "other classes" sum, so it works off the entry
+    // rather than the bare className.
+    const clEntry = classPool().find(e => e.className === className);
+    const clRule = getCasterLevelRule(className);
+    const clUseAlt = clRule && clRule.counts_alt
+      && !!(clEntry && clEntry.clCountsAlt);
+    const clCalc = clRule ? crossClassCasterLevel(clEntry, clRule, clUseAlt) : null;
+    const clDeriv = clCalc
+      ? casterLevelDerivation(clEntry, clRule, clCalc, clUseAlt) : '';
     // Spontaneous casters don't prepare — hide Prepared column by default.
     // Prepared-from-whole-list casters don't track a personal Known list —
     // hide Known column by default. Other prepared casters (Wizard /
@@ -4923,7 +5034,22 @@
     const data = {
       name: className,
       notes: notesText,
-      casterLevel: classLevel,
+      // Cross-class caster level, when the class carries a `caster_level_rule`
+      // (Sublime Chord, Ur-Priest, Green Star Adept, Nar Demonbinder, Apostle
+      // of Peace, Hierophant). `classLevel` is the caller's effectiveSpellLevel,
+      // which is right for an ADVANCING PrC and wrong for these six — their CL
+      // is arithmetic over other classes, so it seeded a Bard 8 / Sublime
+      // Chord 5 at 5 instead of 13.
+      //
+      // Seeded, not forced: the field stays editable and persisted, and the
+      // derivation renders beside it so a computed number is auditable rather
+      // than something the player has to take on faith.
+      casterLevel: (clCalc ? clCalc.total : classLevel),
+      clRule: clRule || null,
+      clDerivation: clDeriv,
+      clAlt: !!clUseAlt,
+      clAltLabel: (clRule && clRule.counts_alt_label) || '',
+      clAltNote: (clRule && clRule.counts_alt_note) || '',
       ability: getKeyAbility(className) || '',
       // Set only when the class uses a different ability for bonus
       // spells than for DCs (Favored Soul / Spirit Shaman). Blank
@@ -6679,5 +6805,16 @@
     // Post-load: re-derive invocation/maneuver/mystery/psionic counts once
     // their panels exist, self-healing the auto-fill markers lost on save.
     reconcileClassPillars,
+    // Cross-class caster-level rule (six PrCs; see crossClassCasterLevel).
+    // `setCasterLevelCountsAlt` is how the spellcasting panel's RAW/RAI
+    // toggle reaches the computation — the flag is a TABLE RULING and so
+    // lives on the character's class entry, not on the class in the DB.
+    getCasterLevelRule,
+    setCasterLevelCountsAlt(className, on) {
+      const e = classPool().find(x => x.className === className);
+      if (!e) return false;
+      e.clCountsAlt = !!on;
+      return true;
+    },
   };
 })();
