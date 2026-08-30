@@ -3184,6 +3184,16 @@
       // Creature filter columns (report rmsur3jhq-gtgo). These are real
       // columns on `entry`, not JSON — only hit_dice has to be dug out.
       "  creature_size, creature_type, cr, alignment, " +
+      // Former names, and what this entry absorbed. A later book routinely
+      // RENAMES what it reprints — Spell Compendium's "Renamed Spells" table
+      // alone retitles 85 spells (Snilloc's snowball swarm -> snowball swarm)
+      // — and the DB records the old name in `also_known_as` rather than
+      // overwriting the printed one. Indexing it is what makes a search for
+      // the name actually on the reader's page find the entry. `incorporates`
+      // names a spell that was FOLDED INTO this one and no longer exists
+      // separately; used by the dedupe below to hide the absorbed entry.
+      "  json_extract(data, '$.also_known_as') AS also_known_as_json, " +
+      "  json_extract(data, '$.incorporates')  AS incorporates_json, " +
       "  CASE WHEN type = 'creature' " +
       "       THEN json_extract(data, '$.hit_dice') ELSE NULL END AS hit_dice " +
       "FROM entry WHERE name IS NOT NULL"
@@ -3266,6 +3276,21 @@
       // matches in rankEntry. Includes class-feature text for
       // class/prc entries so "Wild Shape" finds Druid.
       const bodyKey = squash(((r.body || '') + ' ' + featureBody).trim());
+      // Former names + absorbed names. Both are JSON arrays on the entry (a
+      // bare string is tolerated because older rows may carry one). Defensive
+      // parse: a single malformed value must not blank the whole index.
+      const jsonList = (raw) => {
+        if (!raw) return [];
+        try {
+          const v = JSON.parse(raw);
+          if (Array.isArray(v)) return v.filter(x => typeof x === 'string');
+          return typeof v === 'string' ? [v] : [];
+        } catch { return typeof raw === 'string' ? [raw] : []; }
+      };
+      const aliasKeys = jsonList(r.also_known_as_json)
+        .map(squash).filter(Boolean);
+      const incorporatesNames = jsonList(r.incorporates_json)
+        .map(s => s.toLowerCase()).filter(Boolean);
       return {
         id: r.id,
         name: r.name,
@@ -3287,9 +3312,16 @@
         // searchKey lets a fuzzy fallback hit tag names and the type
         // label (so a user typing "evocation" still surfaces evocation
         // spells even if their names don't include the word).
+        // Former names (see the index query). Squashed the same way nameKey
+        // is, so an alias can be ranked with the same comparisons.
+        aliasKeys,
+        // Names this entry ABSORBED — those entries are hidden by the dedupe
+        // when this one is present. Lowercased for comparison.
+        incorporates: incorporatesNames,
         searchKey: nameKey + '·' +
           (TYPE_LABELS[r.type] || r.type).toLowerCase() + '·' +
           (r.source || '').toLowerCase() + '·' +
+          aliasKeys.join('·') + '·' +
           [...tags].join('·'),
         bodyKey,
         featureNames,    // null OR list of preserved-case names
@@ -3648,6 +3680,12 @@
     //    20 — searchKey contains (type/source fallback)
     //    10 — bodyKey contains (description/benefit/effect full-text)
     if (entry.nameKey === q) return 100;
+    // An exact hit on a FORMER name ranks just under an exact name hit. A
+    // reader typing "snilloc's snowball swarm" — the name printed in the book
+    // in their hands — is being every bit as precise as one typing "snowball
+    // swarm"; the only reason it is not 100 is so a genuine name match wins a
+    // tie against an alias on some other entry.
+    if (entry.aliasKeys && entry.aliasKeys.some(a => a === q)) return 95;
     if (entry.nameKey.startsWith(q)) {
       // A name-prefix hit on a magic ITEM/GEAR is a weak signal for a
       // mechanic/build query: the ~35 "Metamagic Rod (X)" SKUs and the
@@ -4116,12 +4154,32 @@
         bestByKey.set(k, { entry, score });
       }
     }
+    // ABSORBED spells drop out when the spell that absorbed them is also in
+    // the results. Spell Compendium did not RENAME "great shout" — it folded
+    // it into Shout, Greater, so the old spell no longer exists as its own
+    // game element. Showing both invites a reader to cast something that was
+    // retired, and the two rows do NOT collide under the dedupe key above,
+    // because their NAMES differ — that key only catches same-name reprints.
+    //
+    // Conditioned on the survivor actually being PRESENT in these results: on
+    // a query that surfaces only the absorbed spell, hiding it would return
+    // nothing at all, which is strictly worse than showing a real historical
+    // printing. The survivor carries the explanation in its errata note.
+    const absorbed = new Set();
+    for (const { entry } of scored) {
+      for (const n of (entry.incorporates || [])) absorbed.add(n);
+    }
     const seen = new Set();
     const out = [];
     for (const { entry } of scored) {
       const key = entry.type + '\u0000' + (entry.version || '') +
         '\u0000' + (entry.name || '').toLowerCase();
       if (seen.has(key)) continue;
+      if (entry.type === 'spell' &&
+          absorbed.has((entry.name || '').toLowerCase())) {
+        seen.add(key);
+        continue;
+      }
       seen.add(key);
       // The best-ranked row's POSITION, the newest printing's CONTENT.
       out.push((bestByKey.get(key) || { entry }).entry);

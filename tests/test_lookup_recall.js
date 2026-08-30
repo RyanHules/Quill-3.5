@@ -86,6 +86,28 @@ const CASES = [
   { query: 'detect magic',    expect: { name: 'Detect Magic', type: 'spell' },  maxRank: 3 },
   { query: 'cloak of resistance', expect: { name: 'Cloak of Resistance' },      maxRank: 3 },
 
+  // --- former names (aliases) ---
+  // A later book routinely RENAMES what it reprints, and the DB records the old
+  // name in `also_known_as` rather than overwriting the printed one (CLAUDE.md,
+  // "A RENAME is an ALIAS"). Spell Compendium's table alone retitles 85 spells.
+  // These are the teeth for that being SEARCHABLE: a reader types the name in
+  // the book in their hands, which is not the name the DB entry carries.
+  // Before 2026-08-30 the field existed and nothing read it, so every one of
+  // these queries missed entirely.
+  { query: "snilloc's snowball swarm", expect: { name: 'Snowball Swarm', type: 'spell' }, maxRank: 3,
+    note: 'alias: Magic of Faerun name -> Spell Compendium name' },
+  { query: 'undeniable gravity', expect: { name: 'Earthbind', type: 'spell' }, maxRank: 3,
+    note: 'alias: a rename with no shared words at all' },
+  { query: "mordenkainen's force missiles", expect: { name: 'Force Missiles', type: 'spell' }, maxRank: 3,
+    note: 'alias: proper noun stripped on reprint' },
+
+  // --- absorbed spells (incorporates) ---
+  // Spell Compendium did not rename "great shout", it FOLDED it into Shout,
+  // Greater. The old spell should still be reachable by name and should lead to
+  // the survivor; the survivor is what the reader can actually cast.
+  { query: 'great shout', expect: { name: 'Shout, Greater', type: 'spell' }, maxRank: 3,
+    note: 'incorporation: FRCS 3.0 spell absorbed into the PHB 3.5 one' },
+
   // --- rules / mechanics by common phrasing ---
   { query: 'flanking',        expect: { name: 'Flanking', type: 'rule' },       maxRank: 5 },
   { query: 'grapple',         expect: { name: 'Grapple', type: 'rule' },        maxRank: 5 },
