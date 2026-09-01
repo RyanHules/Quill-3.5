@@ -6316,8 +6316,36 @@
     });
 
     // 2. Add new cumulative entries.
+    //
+    // ⚠ The BLAST line is re-read at the effective invocation level.
+    //
+    // `cumulative` is built from the class's own table at its RAW level, which
+    // is right for every feature EXCEPT the one a prestige class advances.
+    // Aku (Warlock 12 / Hellfire Warlock 3) blasts for 7d6 — the attack row
+    // says so, because it uses effectiveInvocationLevel — while this list
+    // regenerated "eldritch blast 6d6" off Warlock 12's own row. His SAVE held
+    // the correct 7d6, so the two only diverged when a class was next applied:
+    // a level-up silently downgraded the number in front of him.
+    //
+    // Narrow on purpose. Rebuilding the whole list at the effective level
+    // would ALSO grant Warlock 13-15's other features (fiendish resilience 3,
+    // DR 4/cold iron), and Hellfire Warlock advances invocations, blast damage
+    // and caster level — not the rest of the class. So only the dice move.
+    //
+    // `firstLevel` deliberately stays 11: it marks when the feature was FIRST
+    // gained, not what it currently deals. "[Warlock 11] eldritch blast 7d6"
+    // is the correct reading of both halves.
+    const blastNow = INVOCATION_USING_CLASSES.has(className)
+      ? eldritchBlastDamage() : null;
     for (const c of cumulative) {
-      const text = `[${className} ${c.firstLevel}] ${c.label}`;
+      let label = c.label;
+      if (blastNow) {
+        // Absolute notation only — a "+Nd6" row is a separate class's delta
+        // and is not this class's total.
+        label = label.replace(ELDRITCH_BLAST_RE, (m, sign) =>
+          (sign === '+' ? m : m.replace(/\d+d\d+/, blastNow.damage)));
+      }
+      const text = `[${className} ${c.firstLevel}] ${label}`;
       Feats.addSpecialAbility(text);
       const rows = container.querySelectorAll('.feat-row');
       const lastTa = rows[rows.length - 1]?.querySelector(
@@ -6746,10 +6774,43 @@
     return { damage: `${base + bonus}${die}`, effectiveLevel: atLevel };
   }
 
+  // Keep the Special Abilities blast line in step with the attack row.
+  //
+  // ⚠ Rewriting it inside populateSpecialAbilities is NOT enough, and the
+  // reason is the ORDER classes get applied in. That function runs for the
+  // class being applied, so it refreshes the warlock's line only when the
+  // WARLOCK is re-applied. Apply Warlock 12 first and Hellfire Warlock after —
+  // the ordinary way a character is built — and the advancer's apply touches
+  // only its own entries, leaving the warlock line frozen at the pre-advancer
+  // 6d6 while the attack row moved to 7d6. Caught by ADV7 after I had
+  // "verified" the fix against the one order that happened to work.
+  //
+  // Riding `classes-changed` (via syncClassGrantedAttacks) covers every order,
+  // both apply directions, and removal.
+  function syncBlastSpecialAbility(blast) {
+    const container = document.getElementById('special-abilities-container');
+    if (!container || !blast) return;
+    container.querySelectorAll('.special-ability-entry').forEach((ta) => {
+      const from = ta.dataset.fromClass;
+      if (!from || !INVOCATION_USING_CLASSES.has(from)) return;
+      const cur = String(ta.value || '');
+      const m = ELDRITCH_BLAST_RE.exec(cur);
+      // Absolute notation only — a "+Nd6" delta belongs to another class.
+      if (!m || m[1] === '+') return;
+      const next = cur.replace(ELDRITCH_BLAST_RE,
+        (whole) => whole.replace(/\d+d\d+/, blast.damage));
+      if (next !== cur) {
+        ta.value = next;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  }
+
   function syncClassGrantedAttacks() {
     if (typeof Character === 'undefined' ||
         typeof Character.upsertClassAttack !== 'function') return;
     const blast = eldritchBlastDamage();
+    syncBlastSpecialAbility(blast);
     // Equivalent SPELL level — "one-half the warlock's class level (round
     // down), with a minimum spell level of 1st and a maximum of 9th"
     // (CArc p.8). Worth surfacing: it drives spell resistance, dispel checks

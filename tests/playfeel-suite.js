@@ -1356,6 +1356,55 @@
     expect((mt()?.advancementSlots || []).length, 5, 'ADV6: the new level added a 5th slot');
   });
 
+  regression('ADV7: the Special Abilities blast line tracks the EFFECTIVE level', async () => {
+    // Ryan, 2026-09-01, off Aku (Warlock 12 / Hellfire Warlock 3).
+    //
+    // The attack row reads the blast at effectiveInvocationLevel (7d6);
+    // populateSpecialAbilities rebuilt its line from the class's RAW level
+    // (6d6). His save held the correct 7d6, so the two only diverged the next
+    // time a class was applied — a level-up silently downgraded the number.
+    // Two places in the sheet stating different damage for one attack.
+    await newCharacter();
+    await applyClass('Warlock', 12);
+    await applyClass('Hellfire Warlock', 3);
+    await wait(400);
+
+    const blastSA = () => [...document.querySelectorAll(
+      '#special-abilities-container .special-ability-entry')]
+      .map(t => String(t.value || ''))
+      .find(v => /eldritch blast/i.test(v)) || '';
+    const blastAtk = () => {
+      const a = [...document.querySelectorAll('#attacks-container .attack-entry')]
+        .find(x => /eldritch/i.test(x.querySelector('.atk-name')?.value || ''));
+      return a?.querySelector('.atk-damage')?.value || '';
+    };
+
+    expect(blastAtk(), '7d6', 'ADV7: the attack row blasts at the effective level');
+    expect(/7d6/.test(blastSA()), true,
+      `ADV7: the Special Abilities line must agree, got "${blastSA()}"`);
+
+    // The label keeps the level the feature was FIRST gained at — 7d6 arrives
+    // at Warlock 14, but you have had eldritch blast since 11. Both halves of
+    // "[Warlock 11] eldritch blast 7d6" are correct and mean different things.
+    expect(/\[Warlock 11\]/.test(blastSA()), true,
+      'ADV7: the tag marks first acquisition, not the current value');
+
+    // The regression is on RE-APPLY, which is what a level-up does.
+    await applyClass('Warlock', 13);
+    await wait(400);
+    expect(/7d6/.test(blastSA()), true,
+      `ADV7: a level-up must not downgrade it, got "${blastSA()}"`);
+    expect(blastAtk(), '7d6', 'ADV7: ...and the attack row still agrees');
+
+    // Hellfire Warlock's own "+Nd6" is a DELTA from a different class and must
+    // NOT be rewritten with the warlock's absolute total.
+    const hf = [...document.querySelectorAll(
+      '#special-abilities-container .special-ability-entry')]
+      .map(t => String(t.value || '')).find(v => /hellfire blast/i.test(v)) || '';
+    expect(/\+6d6/.test(hf), true,
+      `ADV7: the hellfire rider must keep its own +Nd6, got "${hf}"`);
+  });
+
   regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
     // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
     // progression feeds the synthesis (it fills Side A's empty L6 here), and
