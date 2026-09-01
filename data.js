@@ -642,16 +642,68 @@ const DND35 = {
   },
 
   // Size categories and their modifiers
+  // `space` / `reach` / `reachLong` are PHB Table 8-4, added 2026-09-01 for the
+  // live bus (the consuming rig needs them for grapple / bull rush / AoO and
+  // was deriving them from memory).
+  //
+  // Reach is TWO numbers for Large and up because the book splits it by body
+  // shape — a Large TALL creature (an ogre) threatens 10 ft., a Large LONG one
+  // (a horse) threatens 5. The sheet has no tall/long field, so `reach` is the
+  // TALL value and `reachLong` is published beside it rather than picked
+  // between: guessing a PC's body shape from its size is exactly the kind of
+  // plausible default that reads as authoritative and is wrong half the time.
+  // Tiny and smaller have no natural reach at all (they must enter your square).
   sizes: {
-    "Fine": { acMod: 8, grappleMod: -16, hideMod: 16, carryMult: 1/8 },
-    "Diminutive": { acMod: 4, grappleMod: -12, hideMod: 12, carryMult: 1/4 },
-    "Tiny": { acMod: 2, grappleMod: -8, hideMod: 8, carryMult: 1/2 },
-    "Small": { acMod: 1, grappleMod: -4, hideMod: 4, carryMult: 3/4 },
-    "Medium": { acMod: 0, grappleMod: 0, hideMod: 0, carryMult: 1 },
-    "Large": { acMod: -1, grappleMod: 4, hideMod: -4, carryMult: 2 },
-    "Huge": { acMod: -2, grappleMod: 8, hideMod: -8, carryMult: 4 },
-    "Gargantuan": { acMod: -4, grappleMod: 12, hideMod: -12, carryMult: 8 },
-    "Colossal": { acMod: -8, grappleMod: 16, hideMod: -16, carryMult: 16 },
+    "Fine": { acMod: 8, grappleMod: -16, hideMod: 16, carryMult: 1/8, space: 0.5, reach: 0, reachLong: 0 },
+    "Diminutive": { acMod: 4, grappleMod: -12, hideMod: 12, carryMult: 1/4, space: 1, reach: 0, reachLong: 0 },
+    "Tiny": { acMod: 2, grappleMod: -8, hideMod: 8, carryMult: 1/2, space: 2.5, reach: 0, reachLong: 0 },
+    "Small": { acMod: 1, grappleMod: -4, hideMod: 4, carryMult: 3/4, space: 5, reach: 5, reachLong: 5 },
+    "Medium": { acMod: 0, grappleMod: 0, hideMod: 0, carryMult: 1, space: 5, reach: 5, reachLong: 5 },
+    "Large": { acMod: -1, grappleMod: 4, hideMod: -4, carryMult: 2, space: 10, reach: 10, reachLong: 5 },
+    "Huge": { acMod: -2, grappleMod: 8, hideMod: -8, carryMult: 4, space: 15, reach: 15, reachLong: 10 },
+    "Gargantuan": { acMod: -4, grappleMod: 12, hideMod: -12, carryMult: 8, space: 20, reach: 20, reachLong: 15 },
+    "Colossal": { acMod: -8, grappleMod: 16, hideMod: -16, carryMult: 16, space: 30, reach: 30, reachLong: 20 },
+  },
+
+  // Creature-type skill-ability overrides (MM type traits).
+  //
+  // Undead: "Uses its Charisma modifier for Concentration checks" (MM p.317,
+  // the undead type traits). This is not a house rule and not optional — it
+  // exists because undead have NO Constitution score, so the printed key
+  // ability for Concentration is unusable for them. The two halves belong
+  // together: see the nonability flag in app.js's getAbilityMod, which is what
+  // stops the Con column reading -5/-6 in the first place.
+  //
+  // Deliberately UNDEAD-ONLY. Constructs also lack a Constitution score, but
+  // the MM construct traits grant no equivalent substitution — so a construct
+  // simply cannot make Concentration checks, and inventing a Cha swap for them
+  // would be homebrew wearing a rules citation.
+  //
+  // Keyed by lowercase skill name -> {type-regex, ability}. Resolved at RECALC
+  // time rather than when the skill rows are built, so changing the creature
+  // type updates the sheet immediately instead of on the next full rebuild.
+  skillAbilityOverrides: [
+    { skill: 'concentration', type: /\bundead\b/i, ability: 'CHA',
+      why: 'Undead use Cha for Concentration (MM undead traits)' },
+  ],
+
+  // The key ability a skill actually uses for THIS character. `printed` is the
+  // value from the skills table. Returns {ability, why} — `why` is non-null
+  // only when an override fired, so the UI can explain a swapped column
+  // instead of silently showing a different letter.
+  effectiveSkillAbility(skillName, printed) {
+    const out = { ability: printed, why: null };
+    if (typeof document === 'undefined') return out;
+    const name = String(skillName || '').trim().toLowerCase();
+    if (!name) return out;
+    // Matches "Undead" and "Undead (Augmented Humanoid)" alike.
+    const creatureType = document.getElementById('char-type')?.value || '';
+    for (const rule of this.skillAbilityOverrides) {
+      if (rule.skill !== name) continue;
+      if (!rule.type.test(creatureType)) continue;
+      return { ability: rule.ability, why: rule.why };
+    }
+    return out;
   },
 
   // Read an ability MOD straight off the Character tab — the same four
@@ -669,6 +721,11 @@ const DND35 = {
     const field = (id) => document.getElementById(`${ab}-${id}`);
     const base = field('score')?.value;
     if (base == null) return null;
+    // Nonability — mirrors app.js's getAbilityMod. Must stay in step with it:
+    // these are the two readers of the same four fields, and the whole reason
+    // the dash guard below went unnoticed as dead code for months is that both
+    // copies carried it and neither could ever fire.
+    if (field('nonability')?.checked) return 0;
     if (base === '—' || base === '–' || base === '-') return 0;
     let score = parseInt(base) || 0;
     score += parseInt(field('race')?.value) || 0;
@@ -946,6 +1003,34 @@ const DND35 = {
     const situational = [];
     for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
       if (!b || b.bonus_type !== 'initiative') continue;
+      if (!this.flatBonusRowOk(b)) continue;
+      const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
+      if (!amt || isNaN(amt)) continue;
+      const cond = (b.condition == null) ? '' : String(b.condition).trim();
+      const cat = b.bonus_category != null ? b.bonus_category : null;
+      if (cond) situational.push({ amount: amt, condition: cond, category: cat, source: b.source });
+      else direct.push({ amount: amt, bonus_category: cat, source: b.source });
+    }
+    return { direct, situational };
+  },
+
+  // Natural-reach bonus aggregator (2026-09-01, rig ask).
+  //
+  // Reach adders in 3.5 come from feats (Extended Reach +5 ft), spells
+  // (longarm), and size changes — and the sheet modelled NONE of them, so the
+  // live bus published a Medium character's flat 5 ft. while Kell was actually
+  // threatening 10. Mirrors categorizeInitiativeBonuses exactly: `direct` is a
+  // TYPED list rather than a pre-stacked number so the consumer can stack
+  // across every source at once, and condition-bearing rows become situational
+  // instead of being silently added.
+  //
+  // Measured in FEET. A size change is NOT handled here — that moves the base
+  // reach via DND35.sizes and is a different mechanism.
+  categorizeReachBonuses(bonuses) {
+    const direct = [];
+    const situational = [];
+    for (const b of (Array.isArray(bonuses) ? bonuses : [])) {
+      if (!b || b.bonus_type !== 'reach') continue;
       if (!this.flatBonusRowOk(b)) continue;
       const amt = (typeof b.amount === 'number') ? b.amount : parseInt(b.amount, 10);
       if (!amt || isNaN(amt)) continue;

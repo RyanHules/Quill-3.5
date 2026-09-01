@@ -216,14 +216,56 @@
     [/\b(belt|girdle|sash)\b/i, "waist"],
     [/\b(boots|shoes|slippers|sandals|anklets?)\b/i, "feet"],
   ];
+  // Body slots that come in PAIRS. Rings are the only one in 3.5 — a character
+  // wears two, and every rule above resolves a ring to "ring1" because the
+  // inference works off the item's NAME and both slots are named the same
+  // thing. So picking a second ring targeted the occupied slot and silently
+  // replaced the first (report rmt7gwnx1).
+  const PAIRED_SLOTS = { ring1: "ring2" };
+
+  // Is a slot already holding something?
+  //
+  // ⚠ Must check BOTH places a worn item can live, because the sheet has two:
+  // the paper-doll slot inputs (`#slot-ring1`), and the Magic Items list,
+  // where each entry carries its OWN `.mi-slot` dropdown. The "+ Magic Item"
+  // path this function serves writes to the SECOND one, so checking only the
+  // first would have made this guard look right and never fire.
+  function slotOccupied(id) {
+    const el = document.getElementById(`slot-${id}`);
+    if (el && String(el.value || "").trim()) return true;
+    return [...document.querySelectorAll("#magic-items-container .magic-item-entry")]
+      .some((entry) => {
+        const sel = entry.querySelector(".mi-slot");
+        if (!sel || sel.value !== id) return false;
+        // An empty row that merely has a slot selected is not wearing anything.
+        return !!String(entry.querySelector(".mi-name")?.value || "").trim();
+      });
+  }
+
+  // Move to the free half of a paired slot when the inferred one is taken.
+  // Only ever steps SIDEWAYS within a pair, and only when the first is full
+  // and the second is empty — with both full it returns the original, so the
+  // player still gets the normal "this slot is occupied" behaviour rather than
+  // a silent no-op or a third ring appearing from nowhere.
+  function resolvePairedSlot(id) {
+    const partner = PAIRED_SLOTS[id];
+    if (!partner) return id;
+    if (slotOccupied(id) && !slotOccupied(partner)) return partner;
+    return id;
+  }
+
   function inferItemSlot(full, name) {
     const bs = String((full && full.body_slot) || "").toLowerCase().trim();
     if (bs) {
-      if (SLOT_TEXT_TO_ID[bs]) return SLOT_TEXT_TO_ID[bs];
+      if (SLOT_TEXT_TO_ID[bs]) return resolvePairedSlot(SLOT_TEXT_TO_ID[bs]);
       // body_slot may be a phrase ("throat (amulet)"); scan its word tokens.
-      for (const tok of bs.split(/[^a-z]+/)) if (tok && SLOT_TEXT_TO_ID[tok]) return SLOT_TEXT_TO_ID[tok];
+      for (const tok of bs.split(/[^a-z]+/)) {
+        if (tok && SLOT_TEXT_TO_ID[tok]) return resolvePairedSlot(SLOT_TEXT_TO_ID[tok]);
+      }
     }
-    for (const [re, id] of NAME_SLOT_RULES) if (re.test(name || "")) return id;
+    for (const [re, id] of NAME_SLOT_RULES) {
+      if (re.test(name || "")) return resolvePairedSlot(id);
+    }
     return "";
   }
 

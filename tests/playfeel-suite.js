@@ -1224,6 +1224,138 @@
       + 'slots the way advancement would');
   });
 
+  regression('ADV4: cross-class caster level is REACHABLE, not just correct', async () => {
+    // ⚠ This test exists because ADV3 passing did not mean the feature worked.
+    //
+    // ADV3 drives applyClass, which is the ONE path that recomputed caster
+    // level. Load a saved character instead and nothing recomputed at all: the
+    // panels kept whatever number was in them, forever. Verified 2026-09-01 by
+    // poisoning all three of a loaded character's CL inputs to 1 and running a
+    // full recalc — they stayed at 1, with ADV3 green the whole time.
+    //
+    // So this asserts REACHABILITY: poison the values, run the post-load
+    // reconcile, and require the sheet to repair them. An arithmetic test
+    // cannot catch a wiring bug; only a test that goes through the wiring can.
+    await newCharacter();
+    await applyClass('Bard', 8);
+    await applyClass('Wizard', 2);
+    await applyClass('Sublime Chord', 5);
+    await wait(400);
+
+    const panels = () =>
+      [...document.querySelectorAll('#spells-content [data-caster-type="spellcasting"]')];
+    const clOf = (name) => panels()
+      .find(p => (p.querySelector('.caster-notes')?.value || '').trim() === name)
+      ?.querySelector('.sc-caster-level')?.value ?? null;
+
+    expect(clOf('Bard'), '13', 'ADV4: baseline — apply path computes 13');
+
+    // Poison every caster level, the way a stale/hand-edited save would.
+    panels().forEach(p => {
+      const el = p.querySelector('.sc-caster-level');
+      if (el) { el.value = '1'; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    expect(clOf('Bard'), '1', 'ADV4: poisoned');
+
+    // A plain recalc must NOT be relied on — this is the post-load hook.
+    ClassPicker.reconcileClassPillars();
+    await wait(300);
+    expect(clOf('Bard'), '13',
+      'ADV4: the post-load reconcile repairs the Bard CL (this is the wiring '
+      + 'that was missing — reconcileClassPillars never called it)');
+    expect(clOf('Sublime Chord'), '13',
+      'ADV4: ...and the sublime chord itself');
+  });
+
+  regression('ADV5: Ur-Priest CL counts POST-override arcane caster levels', async () => {
+    // Ryan's adjudication, 2026-09-01, off his own character (Uta):
+    //   ur-priest 2, advanced by Mystic Theurge 8 on the divine side  -> self 10
+    //   a Sublime Chord sets EVERY arcane class's CL to its own       -> 13 each
+    //   RAI reading counts CASTER levels, halved                      -> +13
+    //                                                                 =  23
+    // Two things this pins that the first implementation got wrong: `self` is
+    // the EFFECTIVE ur-priest level (advanced by the theurge), not its class
+    // level; and the other classes contribute their POST-Sublime-Chord caster
+    // level, which makes evaluation order load-bearing.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('B');
+    await applyClass('Bard', 4);
+    await applyClass('Ur-Priest', 2);
+    await applyClass('Mystic Theurge', 8);
+    await applyClass('Sublime Chord', 1);
+    await wait(400);
+
+    // RAW default first: counts CLASS levels.
+    const raw = ClassPicker.computeCasterLevel('Ur-Priest');
+    if (!raw) fail('ADV5: no caster_level_rule resolved for Ur-Priest');
+    expect(raw.counts, 'class_levels', 'ADV5: RAW default counts class levels');
+
+    // The RAI table ruling.
+    ClassPicker.setCasterLevelCountsAlt('Ur-Priest', true);
+    const rai = ClassPicker.computeCasterLevel('Ur-Priest');
+    expect(rai.counts, 'caster_levels', 'ADV5: the alt toggle switches to caster levels');
+    const names = rai.parts.map(p => `${p.name} ${p.n}`).sort().join(', ');
+    expect(names, 'Bard 13, Sublime Chord 13',
+      'ADV5: the Bard contributes its POST-sublime-chord CL of 13, not its 8');
+    expect(rai.total, 23, 'ADV5: 10 + floor((13+13)/2) = 23');
+
+    // The toggle is a table ruling and belongs to the CHARACTER, so it has to
+    // survive a save/load round-trip — and it did not. Its ONE home is
+    // `casters[].clCountsAlt` (spells.js persists it); the failure was that
+    // the checkbox is only RENDERED by the class-apply path, so a panel built
+    // from a save had no control for the saved value to land in and the ruling
+    // silently reverted to RAW on every load.
+    //
+    // ⚠ Assert the caster blob, NOT a class stub. An earlier cut of this fix
+    // added `clCountsAlt` to the multiclass stub as well, which is a second
+    // home for one value — the exact drift this project forbids. If that ever
+    // comes back, this test should be the thing that argues against it.
+    const blob = App.collectData();
+    const caster = (blob.casters || []).find(c => (c.notes || '') === 'Ur-Priest');
+    if (!caster) fail('ADV5: Ur-Priest caster panel missing from the save blob');
+    expect(!!caster.clCountsAlt, true,
+      'ADV5: the ruling persists on the caster blob (its single home)');
+    const stub = (blob._multiclassB || []).concat(blob._multiclass || [])
+      .find(s => s.className === 'Ur-Priest');
+    expect(stub && stub.clCountsAlt === undefined, true,
+      'ADV5: ...and NOT duplicated onto the class stub');
+  });
+
+  regression('ADV6: a PROMOTED per-level allocation survives re-applying the PrC', async () => {
+    // report rmtbrjgj4. Mystic Theurge, Archmage, Loremaster and Eldritch
+    // Knight do not DECLARE per-level allocation — they are promoted to it at
+    // runtime once a second eligible target exists. Slot preservation on
+    // re-apply was gated on the NEW entry's perLevelChoice, which is false for
+    // exactly those, so a level-up silently reset the player's allocation to
+    // the default pair.
+    await newCharacter();
+    await applyClass('Bard', 4);
+    await applyClass('Cleric', 3);
+    await applyClass('Mystic Theurge', 4);
+    await applyClass('Sorcerer', 2);        // second arcane target -> promotion
+    await wait(300);
+
+    const mt = () => (ClassPicker.getState() || [])
+      .find(e => /mystic theurge/i.test(e.className || ''));
+    const slots = () => (mt()?.advancementSlots || [])
+      .map(s => `${s.prcLevel}:${(s.targets || []).join('+')}`);
+
+    if (!mt()?.perLevelChoice)
+      fail('ADV6: Mystic Theurge was not promoted to per-level with two arcane targets');
+
+    // Hand-allocate, the way the per-level UI does.
+    mt().advancementSlots[0].targets = ['Bard'];
+    mt().advancementSlots[1].targets = ['Sorcerer'];
+    expect(slots()[0], '1:Bard', 'ADV6: allocation set');
+
+    await applyClass('Mystic Theurge', 5);   // the reported trigger
+    await wait(300);
+    expect(slots()[0], '1:Bard', 'ADV6: slot 1 survives the level-up');
+    expect(slots()[1], '2:Sorcerer', 'ADV6: slot 2 survives the level-up');
+    expect((mt()?.advancementSlots || []).length, 5, 'ADV6: the new level added a 5th slot');
+  });
+
   regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
     // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
     // progression feeds the synthesis (it fills Side A's empty L6 here), and

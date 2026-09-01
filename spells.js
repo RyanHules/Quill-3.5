@@ -192,6 +192,18 @@ const Spells = (function () {
     // toggle needs to tell ClassPicker WHICH class entry the ruling is for,
     // and the name otherwise lives only in the tab button's text.
     panel.dataset.casterName = name;
+    // The saved RAW/RAI caster-level ruling, stashed where the post-load pass
+    // can find it.
+    //
+    // The toggle's checkbox is only RENDERED when `data.clAltLabel` is
+    // supplied, and only class-picker's upsertSpellcastingPanel supplies it —
+    // i.e. only when a class is applied. Building this panel from a SAVE
+    // therefore produced no checkbox at all, so the persisted `clCountsAlt`
+    // had nowhere to land and the ruling silently reverted to RAW on every
+    // load. Stamping it here keeps the saved value's ONE home
+    // (`casters[].clCountsAlt`) while letting class-picker restore both the
+    // control and the model after the panels exist.
+    if (data && data.clCountsAlt) panel.dataset.clCountsAlt = "1";
 
     // Sub-tab notes field (for differentiating multiple tabs of same type).
     // Multi-line textarea — auto-expands to fit content via app.js's
@@ -472,7 +484,7 @@ const Spells = (function () {
           </div>
         </details>
         <div class="spell-header">
-          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"${data.clDerivation ? ` title="${escAttr(data.clDerivation)}"` : ""}><span class="sc-cl-bonus derived-note" hidden></span>${data.clDerivation ? `<span class="sc-cl-derivation derived-note">${escHtml(data.clDerivation)}</span>` : ""}${data.clAltLabel ? `<label class="sc-cl-alt-wrap" title="${escAttr(data.clAltNote)}"><input type="checkbox" class="sc-cl-alt"${data.clAlt ? " checked" : ""}> ${escHtml(data.clAltLabel)}</label>` : ""}</div>
+          <div class="field field-sm"><label>Caster Level</label><input type="number" class="sc-caster-level" min="1" value="${data.casterLevel || ""}"${data.clDerivation ? ` title="${escAttr(data.clDerivation)}"` : ""}><span class="sc-cl-bonus derived-note" hidden></span>${data.clDerivation ? `<span class="sc-cl-derivation derived-note">${escHtml(data.clDerivation)}</span>` : ""}${data.clAltLabel ? `<label class="sc-cl-alt-wrap" title="${escAttr(data.clAltLabel + (data.clAltNote ? " — " + data.clAltNote : ""))}"><input type="checkbox" class="sc-cl-alt"${data.clAlt ? " checked" : ""}><span>RAI</span></label>` : ""}</div>
           <div class="field"><label>Spellcasting Ability</label><select class="sc-ability">${buildAbilityOptions(data.ability || "", false)}</select></div>
           <div class="field"
                title="Optional override. Set ONLY for classes whose bonus spells per day use a different ability than DCs (Favored Soul: CHA bonus / WIS DC; Spirit Shaman: WIS bonus / CHA DC). Leave blank for everyone else — bonus spells fall back to Spellcasting Ability.">
@@ -1316,6 +1328,13 @@ const Spells = (function () {
         if (typeof ClassPicker !== "undefined"
             && ClassPicker.setCasterLevelCountsAlt) {
           ClassPicker.setCasterLevelCountsAlt(name, clAltToggle.checked);
+        }
+        // Recompute explicitly — nothing on the plain recalc path re-derives
+        // caster level, so setting the ruling without this left the panel
+        // showing the previous number.
+        if (typeof ClassPicker !== "undefined"
+            && ClassPicker.applyCrossClassCasterLevels) {
+          ClassPicker.applyCrossClassCasterLevels();
         }
         if (typeof recalcAll === "function") recalcAll();
       });

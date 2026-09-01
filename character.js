@@ -235,8 +235,19 @@ const Character = (function () {
       if (tplblVal !== 0) anyTplbl = true;
       // Total = effective score incl. Temp (shown only when there's a base
       // score). Modifier = the same effective mod via getAbilityMod.
+      //
+      // A NONABILITY shows the dash the books print rather than a number. The
+      // contributor columns above still render their values — they are real
+      // and they come back if the flag is unticked — but they must not reach
+      // the Total, or the row would read "-2" for a creature that has no score
+      // to reduce. getAbilityMod already returns +0 here.
+      const nonAbility = !!$(`#${lower}-nonability`)?.checked;
       const totalEl = $(`#${lower}-total`);
-      if (totalEl) totalEl.textContent = rawScore ? totalScore : "";
+      if (totalEl) {
+        totalEl.textContent = nonAbility ? "—" : (rawScore ? totalScore : "");
+      }
+      if (nonAbility) $(`#${lower}-score`).classList.add("is-nonability");
+      else $(`#${lower}-score`).classList.remove("is-nonability");
       $(`#${lower}-mod`).textContent = fmt(getAbilityMod(ab));
     });
     // Hide the derived columns entirely when nothing's in them (common case).
@@ -1226,6 +1237,12 @@ const Character = (function () {
       data[`${lower}-race`] = $(`#${lower}-race`)?.value || "";
       data[`${lower}-template`] = $(`#${lower}-template`)?.value || "";
       data[`${lower}-temp-adj`] = $(`#${lower}-temp`)?.value || "";
+      // Nonability flag (2026-09-01). Persisted as a BOOLEAN because the
+      // score field is `type=number` and physically cannot hold the dash the
+      // books print — see app.js getAbilityMod. The modifier fields are saved
+      // alongside it and deliberately kept: unticking the box has to restore
+      // them, so the flag makes them inert rather than erasing them.
+      data[`${lower}-nonability`] = !!$(`#${lower}-nonability`)?.checked;
     });
 
     // HP
@@ -1341,6 +1358,15 @@ const Character = (function () {
       if (data[`${lower}-temp-adj`] !== undefined) {
         const el = $(`#${lower}-temp`);
         if (el) el.value = data[`${lower}-temp-adj`];
+      }
+      const naEl = $(`#${lower}-nonability`);
+      if (naEl) {
+        // Absent key => false, so every pre-2026-09-01 save loads unchanged.
+        // A legacy dash sitting in the score field (from an import, or from
+        // before the field was numeric) counts as the flag being set.
+        const legacyDash = ["—", "–", "-"]
+          .indexOf(String(data[`${lower}-score`] ?? "").trim()) !== -1;
+        naEl.checked = !!data[`${lower}-nonability`] || legacyDash;
       }
     });
 

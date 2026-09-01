@@ -1238,20 +1238,60 @@ const Equipment = (function () {
   // {name, limit, volume, …, contents} — see containers.js. Containers are
   // looked for in BOTH lists: a bag of holding is slotless, so it lands in
   // Possessions for one player and in the Magic Items grid for the next.
+  // ⚠ Containers are deduped by the NAME AS WRITTEN, not by what kind of
+  // container it is (report rmtd59njx).
+  //
+  // Two rows both called "Bag of Holding" are one container here, because
+  // nothing downstream could tell which of them a stowed row means: the
+  // Location field is free text, so "Bag of Holding" matches both equally and
+  // the contents would be attributed arbitrarily. Collapsing them keeps the
+  // carried-weight total CORRECT (identical either way — a stowed row weighs
+  // nothing to the character regardless of which bag it is in) while making
+  // the per-container capacity readout honest about what it can and cannot
+  // distinguish.
+  //
+  // The fix for a player carrying two is therefore to NAME them differently
+  // ("Bag of Holding (spares)"), which the disambiguation note below tells
+  // them. Auto-numbering them here would be worse: it invents a distinction
+  // the Location text cannot address, so rows would scatter between bags by
+  // whichever happened to be first.
+  // ONE ENTRY PER PHYSICAL CONTAINER. Two "Bag of Holding (Type I)" rows are
+  // two bags, and they used to be collapsed into one — which pooled their
+  // contents against a single capacity and reported a rupture that was not
+  // happening. They are kept separate now and the stowed rows are PACKED
+  // across them (see packAmbiguousGroups).
+  //
+  // `instance` numbers the same-named ones so the readout can tell them apart;
+  // `groupKey` is what makes them a group for packing.
   function findContainers() {
     if (typeof Containers === "undefined") return [];
     const out = [];
+    const seen = new Map();
     const consider = (name) => {
       const d = Containers.describe(name);
-      if (d && !out.some((c) => Containers.norm(c.name) === Containers.norm(d.name))) {
-        out.push(Object.assign({ contents: 0, items: [] }, d));
-      }
+      if (!d) return;
+      const key = Containers.norm(d.name);
+      const n = (seen.get(key) || 0) + 1;
+      seen.set(key, n);
+      out.push(Object.assign(
+        { contents: 0, items: [], instance: n, groupKey: key, overflow: [] }, d));
     };
     $$("#gear-body tr.gear-row").forEach((row) =>
       consider(row.querySelector(".gear-name")?.value));
     $$("#magic-items-container .magic-item-entry").forEach((entry) =>
       consider(entry.querySelector(".mi-name")?.value));
+    // How many share each name — the renderer uses it to decide whether to
+    // number them at all.
+    for (const c of out) c.siblings = seen.get(c.groupKey) || 1;
     return out;
+  }
+
+  // Place the rows whose Location cannot pick between identical containers.
+  // The packing itself lives in containers.js (Containers.pack) — it is pure
+  // container semantics over plain objects, which is also what makes it
+  // unit-testable outside a browser.
+  function packAmbiguousGroups(pending) {
+    for (const [, group] of pending) Containers.pack(group.bags, group.items);
   }
 
   // THE carried-weight calculation. One implementation, because there used to
@@ -1273,14 +1313,40 @@ const Equipment = (function () {
     // the carried total. The container's own row still counts, which is the
     // whole point of the item.
     const containers = findContainers();
+    // Rows whose Location cannot pick between identical containers. Collected
+    // during the row pass and packed after it — see packAmbiguousGroups.
+    const pending = new Map();
     $$("#gear-body tr.gear-row").forEach((row) => {
       const w = parseFloat(row.querySelector(".gear-weight")?.value) || 0;
       const loc = row.querySelector(".gear-location")?.value || "";
       const name = row.querySelector(".gear-name")?.value || "";
-      const holder = containers.find((c) =>
-        Containers.sameContainer(loc, c.name)
-        // A container cannot be inside itself; that would zero its own weight.
-        && !Containers.sameContainer(name, c.name));
+      // CLOSEST match, not the first one that matches (report rmtd59njx).
+      //
+      // A Location of "Bag of Holding Type IV" matches only that bag now that
+      // matching is token-wise, but a bare "bag of holding" still matches every
+      // typed bag the character owns — and `find` silently returned whichever
+      // was earlier in the DOM. Ranking by distance puts an exact name on its
+      // own bag; anything still tied afterwards is genuinely undecidable from
+      // the text and gets PACKED across the tied bags instead of guessed.
+      const candidates = containers
+        .filter((c) => Containers.matchDistance(loc, c.name) !== Infinity
+          // A container cannot be inside itself; that would zero its own weight.
+          && !Containers.sameContainer(name, c.name))
+        .map((c) => ({ c, d: Containers.matchDistance(loc, c.name) }))
+        .sort((x, y) => x.d - y.d);
+      const tied = candidates.filter((x) => x.d === candidates[0]?.d).map((x) => x.c);
+      if (tied.length > 1) {
+        // Deferred: the row is inside ONE of these, and which one is a choice
+        // rather than a fact. Held back so every such row can be placed
+        // together once they are all known — packing greedily in row order
+        // fills the first bag and reports a false overflow.
+        const key = tied.map((c) => c.groupKey + "#" + c.instance).join("|");
+        if (!pending.has(key)) pending.set(key, { bags: tied, items: [] });
+        pending.get(key).items.push({ name: name || "(unnamed)", w });
+        row.classList.add("gear-stowed");
+        return;
+      }
+      const holder = tied.length ? tied[0] : null;
       if (holder) {
         holder.contents += w;
         holder.items.push(name || "(unnamed)");
@@ -1290,6 +1356,8 @@ const Equipment = (function () {
       row.classList.remove("gear-stowed");
       totalWeight += w;
     });
+    // Place the undecidable rows now that all of them are known.
+    packAmbiguousGroups(pending);
     totalWeight += parseFloat($("#armor-weight").value) || 0;
     totalWeight += parseFloat($("#shield-weight").value) || 0;
     // Magic items: every .magic-item-entry has its own weight input.
@@ -1356,13 +1424,28 @@ const Equipment = (function () {
         ? ` <span class="container-note">· volume limit ${escapeHtml(c.volume)}, ` +
           `not tracked</span>`
         : "";
+      // Carrying more than one container by the SAME name. Their loads are
+      // pooled against a single capacity, which will read as over-full sooner
+      // than the real bags are — say so rather than let the number quietly
+      // mean something other than it appears to (report rmtd59njx).
+      const dupes = (c.siblings || 1) > 1
+        ? ` <span class="container-note">· one of ${c.siblings} you carry under ` +
+          `this name; contents are distributed between them to fit</span>`
+        : "";
+      // Items that fit in NO bag of the group. Named, because "over by 12 lb."
+      // does not tell a player which thing to take out.
+      const ambig = (c.overflow && c.overflow.length)
+        ? ` <b class="container-over">· won't fit in any of them: ` +
+          `${escapeHtml(c.overflow.join(", "))}</b>`
+        : "";
       const items = c.items.length
         ? ` <span class="container-note">· holding ${c.items.length} ` +
           `item${c.items.length === 1 ? "" : "s"}</span>`
         : ` <span class="container-note">· empty — put its name in a row's ` +
           `Location to stow it</span>`;
       return `<div class="container-line${over ? " container-line-over" : ""}">` +
-        `<b>${escapeHtml(c.name)}</b>: ${load}${warn}${assumed}${items}${vol}</div>`;
+        `<b>${escapeHtml(c.name)}${(c.siblings || 1) > 1 ? " #" + c.instance : ""}</b>: ` +
+        `${load}${warn}${assumed}${items}${vol}${dupes}${ambig}</div>`;
     }).join("");
     host.style.display = "";
   }
@@ -1376,11 +1459,22 @@ const Equipment = (function () {
       dl.id = "container-options";
       document.body.appendChild(dl);
     }
-    const want = containers.map((c) => c.name).join(" | ");
+    // Deduped: identical containers are separate bags for PACKING, but
+    // offering the same name twice in a completion list is just noise, and
+    // picking either one means the same thing to the matcher anyway.
+    const uniq = [];
+    const seenName = new Set();
+    for (const c of containers) {
+      const k = Containers.norm(c.name);
+      if (seenName.has(k)) continue;
+      seenName.add(k);
+      uniq.push(c);
+    }
+    const want = uniq.map((c) => c.name).join(" | ");
     if (dl.dataset.names === want) return;      // no churn while typing
     dl.dataset.names = want;
     dl.innerHTML = "";
-    for (const c of containers) {
+    for (const c of uniq) {
       const opt = document.createElement("option");
       opt.value = c.name;      // no `label` — Firefox renders it as the text
       dl.appendChild(opt);

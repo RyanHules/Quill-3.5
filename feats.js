@@ -1250,6 +1250,13 @@ const Feats = (function () {
       ? DND35.categorizeInitiativeBonuses(getResolvedFeatBonuses())
       : { direct: [], situational: [] };
   }
+  // Natural-reach feat bonuses (2026-09-01). Same shape as initiative;
+  // Extended Reach (Savage Species, +5 ft) is the case that prompted it.
+  function getActiveReachBonuses() {
+    return (typeof DND35 !== "undefined" && DND35.categorizeReachBonuses)
+      ? DND35.categorizeReachBonuses(getResolvedFeatBonuses())
+      : { direct: [], situational: [] };
+  }
   // Movement-speed feat bonuses (effects-aggregator P2). Returns the RAW
   // speed-typed entries; app.js concats + categorizes across all sources.
   // Empty until feats carry structured `bonus_type:'speed'` (P4 data pass).
@@ -1407,6 +1414,7 @@ const Feats = (function () {
     getResolvedFeatBonuses, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
     getActiveInitiativeBonuses,
+    getActiveReachBonuses,
     getWeaponFocusBonuses, getWeaponSpecBonuses, getNaturalAttackSteps,
     getSpellFocusBonuses,
     getCritConfirmBonuses, getGrappleBonus,

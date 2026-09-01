@@ -486,6 +486,23 @@
   // No "advancing-types" axis because there's only one invocation-track
   // base class in the current DB (Warlock). When DFA gets extracted,
   // advancement still resolves to "the picked base invocation-user".
+  // ⚠ KEEP THIS IN STEP WITH THE DB. It is the fallback used whenever the
+  // DB metadata lookup yields nothing, and a PrC missing from BOTH advances
+  // nothing at all — silently. The symptom is precise and looks like a
+  // different bug entirely: the invocation panel and the eldritch-blast
+  // damage row fall back to the BASE class's progression, exactly as though
+  // the prestige levels were not there.
+  //
+  // Hellfire Warlock was absent here while carrying `invocation_advancement`
+  // in the DB (report rmtbqw7ib, added 2026-09-01). The DB path resolves it
+  // correctly — verified at W11 → +HFW3 → W12, which is CL 11/14/15 and
+  // 6d6/7d6/7d6 — so this closes the one route that reproduces the report
+  // rather than a confirmed cause.
+  //
+  // The four the DB carries today: Demonbinder (DotU), Eldritch Disciple and
+  // Eldritch Theurge (CMage), Hellfire Warlock (FC2). Query to re-check:
+  //   SELECT name FROM entry
+  //    WHERE json_extract(data,'$.invocation_advancement') IS NOT NULL;
   const _FALLBACK_INVOCATION_ADVANCERS = {
     'Eldritch Disciple': {
       advancingLevels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -495,6 +512,11 @@
     },
     'Demonbinder': {
       advancingLevels: [2, 3, 4, 5, 6, 7, 8, 9, 10],
+    },
+    // FC2: all three levels advance the invocation-using class, alongside its
+    // own separate "Hellfire blast +2d6/+4d6/+6d6" rider.
+    'Hellfire Warlock': {
+      advancingLevels: [1, 2, 3],
     },
   };
 
@@ -3300,17 +3322,67 @@
     return Array.isArray(t) ? t.includes(want) : t === want;
   }
 
+  // Is this entry a spellcasting-advancement PrC (Mystic Theurge et al.)?
+  function isSpellAdvancer(e) {
+    return !!((e.advancesTargets && e.advancesTargets.length) ||
+              (e.advancementSlots && e.advancementSlots.length));
+  }
+
+  // Every Sublime Chord total in the build.
+  //
+  // Needed because a Sublime Chord does not merely set its OWN caster level —
+  // CArc p.87 sets the CL of every other arcane class the character has to the
+  // same number. So any rule that counts other classes' CASTER LEVELS has to
+  // read the post-override value, and that makes the evaluation ORDER
+  // load-bearing: Sublime Chord settles first, everyone else reads the result.
+  //
+  // Computed directly rather than by recursing into crossClassCasterLevel,
+  // which would be circular — the SC total is derived FROM the other arcane
+  // classes it then overrides.
+  function sublimeChordTotals() {
+    const out = [];
+    for (const e of classPool()) {
+      if (!e.classId || !e.className) continue;
+      if (!/sublime chord/i.test(e.className)) continue;
+      let best = 0;
+      for (const o of classPool()) {
+        if (o === e || !o.classId || !o.className) continue;
+        if (/sublime chord/i.test(o.className)) continue;
+        if (!classTypeMatches(o.className, 'arcane')) continue;
+        const sc = getSpellcastingDataAtLevel(o.classId, o.level);
+        // An advancer's contribution already sits inside the caster level of
+        // the class it advances; counting it too would double it.
+        if (!sc) continue;
+        best = Math.max(best, effectiveSpellLevel(o));
+      }
+      out.push(effectiveSpellLevel(e) + best);
+    }
+    return out;
+  }
+
   function crossClassCasterLevel(target, rule, useAlt) {
     if (!target || !rule || !rule.mode) return null;
     const counts = (useAlt && rule.counts_alt) ? rule.counts_alt : rule.counts;
     const arcaneOnly = rule.scope === 'arcane';
-    const self = target.level || 0;
+    // ⚠ SELF IS THE EFFECTIVE LEVEL, NOT THE CLASS LEVEL.
+    //
+    // These PrCs can themselves be advanced by another PrC, and when they are,
+    // the advanced level is the one the rule means. Uta is the worked example:
+    // Ur-Priest 2 with a Mystic Theurge 8 whose divine half advances the
+    // ur-priest is an ur-priest of CASTER LEVEL 10, and it is that 10 the "add
+    // the character's ur-priest levels to..." clause starts from. Reading the
+    // raw 2 here understated her by eight levels.
+    const self = effectiveSpellLevel(target) || target.level || 0;
     const parts = [];
+    // Not applied when the TARGET is the sublime chord: it is the source of the
+    // override, so feeding its own result back in would be circular.
+    const scTotals = /sublime chord/i.test(target.className || '')
+      ? [] : sublimeChordTotals();
+    const scMax = scTotals.length ? Math.max.apply(null, scTotals) : 0;
 
     for (const e of classPool()) {
       if (e === target || !e.classId) continue;
-      const isAdvancer = !!((e.advancesTargets && e.advancesTargets.length) ||
-                            (e.advancementSlots && e.advancementSlots.length));
+      const isAdvancer = isSpellAdvancer(e);
       const sc = getSpellcastingDataAtLevel(e.classId, e.level);
       if (!sc && !isAdvancer) continue;                 // not a casting class
       if (arcaneOnly && !classTypeMatches(e.className, 'arcane')) continue;
@@ -3319,6 +3391,19 @@
       if (counts === 'caster_levels') {
         if (isAdvancer && !sc) continue;                // already counted
         n = effectiveSpellLevel(e);
+        // A sublime chord in the build raises every OTHER arcane class to its
+        // own caster level, so that — not the class's own progression — is the
+        // caster level this rule must count.
+        //
+        // ⚠ KNOWN RAW CONSEQUENCE, not a bug: because the override applies to
+        // every arcane class regardless of level, a one-level dip into Wizard
+        // and another into Sorcerer each arrive at the sublime chord's full
+        // caster level and each contribute it in full to a half-of-all-other
+        // sum. Two throwaway levels can therefore add more to an ur-priest's
+        // caster level than the classes they came from could ever justify.
+        // The rules say what they say; the sheet computes them faithfully
+        // rather than quietly capping it. (Ryan, 2026-09-01.)
+        if (scMax && classTypeMatches(e.className, 'arcane')) n = Math.max(n, scMax);
       } else {
         n = e.level || 0;                               // advancers count here
       }
@@ -3474,115 +3559,153 @@
         applyClassSpellAdditions(e);
       }
     }
-    applyUrPriestCasterLevel();
-    // After Ur-Priest, and after every normal per-class CL has been written:
-    // this one overrides OTHER classes' panels, so it must see their settled
-    // values rather than race them.
-    applySublimeChordCasterLevel();
+    applyCrossClassCasterLevels();
   }
 
-  // Ur-Priest caster level (report rmseczjok). Complete Divine: "add the
-  // character's ur-priest levels to one-half of his levels in other
-  // spellcasting classes" (ex-cleric levels don't count). Its spells_per_day
-  // come from its own class level (handled by the panel loop above), but its
-  // CASTER LEVEL is boosted by other casters — so it's overridden here, after
-  // the normal per-class CL was written. The prereq forbids any other divine
-  // casting, so in practice only arcane classes ever contribute; per RAW,
-  // cleric levels are excluded but other divine (which can't legally coexist)
-  // would count. The sum ur-level + floor(other/2) is inherently <= character
-  // level, so no explicit cap is needed.
-  function urPriestCasterLevel(urPriestLevel) {
-    let other = 0;
+  // The cross-class caster-level overrides, for all six rule-bearing PrCs.
+  //
+  // ⚠ THIS REPLACED TWO HARDCODED FUNCTIONS (2026-09-01, reports rmt7r0yt6 and
+  // rmt7r19zf), and the reason is the drift this project keeps paying for:
+  // there were TWO implementations of one concept. `crossClassCasterLevel`
+  // (rule-driven, reads the DB's `caster_level_rule`) seeds a panel when the
+  // class is applied. A separate hardcoded `urPriestCasterLevel` /
+  // `applySublimeChordCasterLevel` pair then ran on every later refresh — and
+  // they disagreed, so the correct seeded value was silently overwritten by
+  // the wrong one the next time ANY class was applied or removed.
+  //
+  // They disagreed because the legacy pair counted raw CLASS LEVELS of things
+  // that carry their own spellcasting table, which drops ADVANCER PrCs
+  // entirely. The rule says the opposite — `counts_include_advancer_prcs:
+  // true` — and the comment on crossClassCasterLevel already spelled it out
+  // ("Wizard 5 / Loremaster 5 / Ur-Priest 10 halves TEN, not five"). Measured
+  // on Uta (Bard 4 / Ur-Priest 2 / Mystic Theurge 8 / Sublime Chord 1): the
+  // legacy pair produced Bard 5 / Ur-Priest 4 / Sublime Chord 5, because it
+  // could not see the Mystic Theurge 8 advancing her Bard.
+  //
+  // Sublime Chord keeps a propagation step the generic rule cannot express:
+  // CArc p.87 sets the CL "for her sublime chord spells, AS WELL AS FOR SPELLS
+  // SHE GAINS FROM ANY OTHER ARCANE SPELLCASTING CLASS" — so its total is
+  // written to every arcane panel, not just its own.
+  //
+  // ⚠ OPEN RULES QUESTION, awaiting Ryan — Sublime Chord's `counts` value.
+  // The DB rule says `class_levels`, and the printed text agrees on its face:
+  // "her level in one chosen arcane spellcasting class she belonged to before
+  // adding this prestige class." On Uta that is Bard 4, giving CL 5. But her
+  // Bard is advanced by Mystic Theurge 8, and her sheet has carried a
+  // hand-typed 13 — which is 1 + the Bard's EFFECTIVE caster level of 12, i.e.
+  // `caster_levels`, not `class_levels`. Both readings are defensible and they
+  // differ by eight caster levels, so this stays as the DB prints it until he
+  // rules. Do NOT "fix" it to match the hand-typed value: that would be
+  // reading a table ruling back into the rule as though the book said it.
+  // Restore the RAW/RAI toggle on a panel built from a SAVE.
+  //
+  // The control is part of upsertSpellcastingPanel's markup, so it exists only
+  // when the class was applied this session. Load a character and the checkbox
+  // is simply absent — leaving the ruling unreachable AND unreadable, which is
+  // how Uta's Ur-Priest reverted from her RAI 23 to the RAW 21 on every load
+  // with no visible control to explain it.
+  //
+  // The saved value's one home stays `casters[].clCountsAlt` in the caster
+  // blob; spells.js stamps it onto the panel and this reads it back. Nothing
+  // is written to a second place.
+  function ensureCasterLevelAltControl(panel, entry, rule) {
+    if (!panel || !rule || !rule.counts_alt) return;
+    // Sync the model from the saved flag once, before the first computation.
+    if (entry.clCountsAlt === undefined) {
+      entry.clCountsAlt = panel.dataset.clCountsAlt === '1';
+    }
+    let box = panel.querySelector('.sc-cl-alt');
+    if (!box) {
+      const clEl = panel.querySelector('.sc-caster-level');
+      if (!clEl || !clEl.parentNode) return;
+      const wrap = document.createElement('label');
+      wrap.className = 'sc-cl-alt-wrap';
+      // The visible token is just "RAI" — the full sentence lives in the
+      // tooltip. This is a once-per-character switch and the field it sits in
+      // is 140px wide, so rendering the whole label cost three wrapped lines
+      // of vertical space in a panel that is read constantly (Ryan, 2026-09-01).
+      // The CSS lifts it onto the "Caster Level" caption row, so it costs no
+      // height at all.
+      const label = rule.counts_alt_label || 'Count caster levels instead (RAI)';
+      wrap.title = label + (rule.counts_alt_note ? ' — ' + rule.counts_alt_note : '');
+      box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'sc-cl-alt';
+      const tag = document.createElement('span');
+      tag.textContent = 'RAI';
+      wrap.appendChild(box);
+      wrap.appendChild(tag);
+      clEl.parentNode.appendChild(wrap);
+      // Same handler spells.js wires on the freshly-built panel: push the
+      // ruling onto the class entry and let the normal recalc re-derive,
+      // rather than writing a number here.
+      box.addEventListener('change', () => {
+        setCasterLevelCountsAltInternal(panel.dataset.casterName || entry.className,
+                                        box.checked);
+        // ⚠ recalcAll alone is NOT enough and this is the third time today the
+        // same shape has bitten: nothing on the recalc path re-derives caster
+        // level, so the toggle flipped the model and the panel kept showing
+        // the old number. Recompute explicitly, then recalc for everything
+        // downstream of the new CL.
+        applyCrossClassCasterLevels();
+        if (typeof recalcAll === 'function') recalcAll();
+      });
+    }
+    if (box.checked !== !!entry.clCountsAlt) box.checked = !!entry.clCountsAlt;
+  }
+
+  function setCasterLevelCountsAltInternal(className, on) {
+    const e = classPool().find(x => x.className === className);
+    if (!e) return false;
+    e.clCountsAlt = !!on;
+    return true;
+  }
+
+  function applyCrossClassCasterLevels() {
+    // Two passes, deliberately: every PrC's own panel first, so the Sublime
+    // Chord propagation below writes over SETTLED values rather than racing
+    // whichever order classPool happens to be in.
+    const scTotals = [];
     for (const e of classPool()) {
       if (!e.classId || !e.className) continue;
-      if (/ur-?priest/i.test(e.className)) continue;     // not itself
-      if (/^cleric$/i.test(e.className)) continue;       // ex-cleric levels don't count
-      if (!getSpellcastingDataAtLevel(e.classId, e.level)) continue;  // spellcasting classes only
-      other += Number(e.level) || 0;
+      const rule = getCasterLevelRule(e.className);
+      if (!rule) continue;
+      // Restore the ruling BEFORE computing with it — otherwise the first
+      // post-load pass computes under RAW and writes that over the saved RAI
+      // value, which is the bug this whole block exists to stop.
+      ensureCasterLevelAltControl(
+        findExistingCasterPanel('spellcasting', e.className), e, rule);
+      const calc = crossClassCasterLevel(
+        e, rule, !!(rule.counts_alt && e.clCountsAlt));
+      if (!calc || calc.total == null) continue;
+      writeCasterLevel(e.className, calc.total);
+      if (/sublime chord/i.test(e.className)) scTotals.push(calc.total);
     }
-    return urPriestLevel + Math.floor(other / 2);
-  }
-
-  function applyUrPriestCasterLevel() {
-    for (const e of classPool()) {
-      if (!e.classId || !e.className || !/ur-?priest/i.test(e.className)) continue;
-      const panel = findExistingCasterPanel('spellcasting', e.className);
-      const clEl = panel && panel.querySelector('.sc-caster-level');
-      if (!clEl) continue;
-      const cl = String(urPriestCasterLevel(Number(e.level) || 0));
-      if (clEl.value !== cl) {
-        clEl.value = cl;
-        clEl.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-  }
-
-  // SUBLIME CHORD (CArc p.87) — a caster-level OVERRIDE, not advancement.
-  //
-  // report rmt4jl5z0-3qpq. The printed text:
-  //
-  //   "The sublime chord's caster level for her sublime chord spells, AS
-  //    WELL AS FOR SPELLS SHE GAINS FROM ANY OTHER ARCANE SPELLCASTING
-  //    CLASS, is equal to her sublime chord level plus her level in one
-  //    chosen arcane spellcasting class she belonged to before adding this
-  //    prestige class."
-  //
-  // Two things follow, and both are easy to get wrong:
-  //
-  // 1. It reaches EVERY arcane panel, not just the sublime chord's own. A
-  //    Bard 8 / Sublime Chord 5 casts her BARD spells at caster level 13.
-  //    (The DB's condensed `description` for this feature says only "CL =
-  //    sublime chord + chosen arcane class" and omits the clause entirely —
-  //    building from it would have shipped half the rule. The verbatim
-  //    raw_text is the authority.)
-  //
-  // 2. It is CASTER LEVEL ONLY. It must not run through effectiveSpellLevel,
-  //    which also re-derives slots and spells known from the base class's
-  //    table — a Bard 8 with a sublime chord still has a Bard 8's slots, she
-  //    just casts them at 13. Hence an override pass after the normal CL is
-  //    written, exactly like Ur-Priest above.
-  //
-  // The "one chosen" class is auto-resolved to the character's HIGHEST-level
-  // other arcane class. That is not a guess dressed as a default: caster
-  // level is monotonically good, so the highest is always the optimal choice
-  // and there is no build in which a player wants less. If a reason to
-  // choose otherwise ever appears, this is where the picker goes.
-  function sublimeChordStackTarget(scEntry) {
-    let best = null;
-    for (const e of classPool()) {
-      if (e === scEntry || !e.classId || !e.className) continue;
-      if (/sublime chord/i.test(e.className)) continue;
-      const t = getClassType(e.className);
-      const ts = Array.isArray(t) ? t : [t];
-      if (!ts.includes('arcane')) continue;
-      if (!best || (Number(e.level) || 0) > (Number(best.level) || 0)) best = e;
-    }
-    return best;
-  }
-
-  function applySublimeChordCasterLevel() {
-    for (const sc of classPool()) {
-      if (!sc.className || !/sublime chord/i.test(sc.className)) continue;
-      const stack = sublimeChordStackTarget(sc);
-      // No pre-existing arcane class means nothing to stack with; the sublime
-      // chord's own level stands rather than being silently doubled.
-      const cl = (Number(sc.level) || 0) + (stack ? (Number(stack.level) || 0) : 0);
+    for (const total of scTotals) {
       for (const e of classPool()) {
         if (!e.classId || !e.className) continue;
-        const t = getClassType(e.className);
-        const ts = Array.isArray(t) ? t : [t];
-        const isSelf = /sublime chord/i.test(e.className);
-        if (!isSelf && !ts.includes('arcane')) continue;   // divine is untouched
-        const panel = findExistingCasterPanel('spellcasting', e.className);
-        const clEl = panel && panel.querySelector('.sc-caster-level');
-        if (!clEl) continue;
-        if (clEl.value !== String(cl)) {
-          clEl.value = String(cl);
-          clEl.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+        if (/sublime chord/i.test(e.className)) continue;     // already written
+        if (!classTypeMatches(e.className, 'arcane')) continue; // divine untouched
+        writeCasterLevel(e.className, total);
       }
     }
   }
+
+  function writeCasterLevel(className, total) {
+    const panel = findExistingCasterPanel('spellcasting', className);
+    const clEl = panel && panel.querySelector('.sc-caster-level');
+    if (!clEl) return;
+    if (clEl.value !== String(total)) {
+      clEl.value = String(total);
+      clEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  // (The legacy hardcoded `urPriestCasterLevel` / `sublimeChordStackTarget` /
+  // `applySublimeChordCasterLevel` trio lived here until 2026-09-01. They were
+  // a second implementation of applyCrossClassCasterLevels' job that ignored
+  // advancer PrCs and silently overwrote the rule-driven value on every class
+  // apply. Deleted rather than kept in parallel — see that function.)
 
   // ============================================================
   // Invocation-advancement pillar (Warlock-style)
@@ -3891,6 +4014,23 @@
     refreshAllInvocationTabs();
     refreshAllMysteryTabs();
     refreshAllPsionicTabs();
+    // The cross-class caster levels have the same never-ran-on-load bug this
+    // function exists to fix (verified 2026-09-01: poison all three of Uta's
+    // CL inputs to 1, run a full recalc, they stay at 1 — because the only
+    // caller, refreshAllSpellTabs, fires on class apply/remove).
+    //
+    // Safe to run here, and the reason is worth stating because the first
+    // attempt at this was NOT safe: it needs each advancer PrC to be
+    // recognisable as an advancer, and on load `hydrateStub` restores
+    // `advancesTargets` / `advancementSlots` straight from the save — so
+    // effectiveSpellLevel already resolves correctly without a target refresh.
+    // Confirmed against Uta: her Mystic Theurge's 4/4 Bard/Sublime-Chord split
+    // is intact after this runs, and the panels derive 13 / 23 / 13, matching
+    // the values she had carried by hand.
+    //
+    // It writes `.sc-caster-level` ONLY — never the per-day slot counts the
+    // "does NOT touch the spellcasting slot panels" rule above is protecting.
+    applyCrossClassCasterLevels();
   }
 
   // Strip parser-leaked sample character names (e.g. "Krusk", "Alhandra")
@@ -4518,10 +4658,42 @@
       // L4+ disappear).
       const prev = arr[existingIdx];
       if (prev.advancesTargets) entry.advancesTargets = prev.advancesTargets;
+      // ⚠ Carry the PROMOTION forward, not just the slots (report rmtbrjgj4,
+      // fixed 2026-09-01).
+      //
+      // `entry` is rebuilt from scratch on every re-apply, so its
+      // `perLevelChoice` reflects only what the class DECLARES in its
+      // advancement spec. Ultimate Magus declares it; Mystic Theurge,
+      // Archmage, Loremaster and Eldritch Knight do NOT — they are promoted to
+      // per-level allocation at runtime by promoteAdvancerIfAmbiguous, once a
+      // second eligible target appears.
+      //
+      // So gating slot preservation on `entry.perLevelChoice` silently dropped
+      // the slots for exactly the promoted ones: the flag was false on the new
+      // entry, the saved allocation was discarded, and the re-promotion that
+      // followed re-seeded every slot to its default. A player who had put
+      // three Mystic Theurge levels into Wizard and two into Sorcerer got all
+      // five reset to the default pair on the next level-up. Reproduced in the
+      // browser (Bard 4 / Sorcerer 2 / Cleric 3 / MT 4 → hand-allocate → apply
+      // MT 5 → allocation gone).
+      //
+      // Read `prev.perLevelChoice` because that is where the runtime promotion
+      // lives; `perLevelAuto` rides along so the UI still knows the promotion
+      // was automatic rather than declared.
+      if (prev.perLevelChoice) {
+        entry.perLevelChoice = true;
+        if (prev.perLevelAuto) entry.perLevelAuto = true;
+      }
       if (prev.advancementSlots && entry.perLevelChoice) {
-        const keep = new Set(entry.advancingLevels);
-        entry.advancementSlots = prev.advancementSlots
-          .filter(s => keep.has(s.prcLevel));
+        // Slots outside the new advancingLevels list are dropped (the player
+        // lowered the PrC's level). An advancer always carries
+        // advancingLevels; fall back to keeping everything rather than
+        // wiping the allocation if it is somehow absent.
+        const keep = Array.isArray(entry.advancingLevels)
+          ? new Set(entry.advancingLevels) : null;
+        entry.advancementSlots = keep
+          ? prev.advancementSlots.filter(s => keep.has(s.prcLevel))
+          : prev.advancementSlots;
       }
       // Same for the invocation pillar (matters once we extract more
       // than one invocation-using base class).
@@ -6810,10 +6982,30 @@
     // toggle reaches the computation — the flag is a TABLE RULING and so
     // lives on the character's class entry, not on the class in the DB.
     getCasterLevelRule,
+    // Recompute + write every cross-class caster level. Exposed for the tests
+    // and for whatever eventually fixes the load path (see reconcileClassPillars
+    // for why it is not wired there yet).
+    applyCrossClassCasterLevels,
+    // Read-only: what the rule computes for one class, without writing it.
+    // Returns {total, parts, counts} or null.
+    computeCasterLevel(className) {
+      const e = classPool().find(x => x.className === className);
+      const rule = e && getCasterLevelRule(className);
+      if (!rule) return null;
+      return crossClassCasterLevel(e, rule, !!e.clCountsAlt);
+    },
     setCasterLevelCountsAlt(className, on) {
       const e = classPool().find(x => x.className === className);
       if (!e) return false;
       e.clCountsAlt = !!on;
+      // Sync the checkbox too. The model is what the COMPUTATION reads, but
+      // the checkbox is what SAVE reads (spells.js collects
+      // `casters[].clCountsAlt` off `.sc-cl-alt`), so setting one without the
+      // other gives the value two in-session states and persists the wrong
+      // one. Caught by ADV5: the ruling computed 23 and saved as false.
+      const panel = findExistingCasterPanel('spellcasting', className);
+      const rule = getCasterLevelRule(className);
+      if (panel && rule) ensureCasterLevelAltControl(panel, e, rule);
       return true;
     },
   };

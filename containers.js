@@ -142,19 +142,122 @@ const Containers = (function () {
     return null;
   }
 
-  // Two names refer to the same container when either contains the other,
-  // case- and punctuation-insensitively: the Location column gets "bag of
-  // holding" while the item row says "Bag of Holding (Type II)".
+  // Two names refer to the same container when one is a token-wise SUBSEQUENCE
+  // of the other: the Location column gets "bag of holding" while the item row
+  // says "Bag of Holding (Type II)".
+  //
+  // ⚠ TOKENS, NEVER RAW SUBSTRINGS (fixed 2026-09-01, report rmtd59njx).
+  //
+  // This used to be `a.includes(b) || b.includes(a)` on the normalised strings,
+  // and roman numerals are prefixes of each other: "bag of holding type iv"
+  // literally contains "bag of holding type i". So Gorrash's 500 lb of coin
+  // stowed in his Type IV was attributed to his Type I — the first match won —
+  // which showed the small bag 238 lb over its 250 limit (a bag of holding
+  // that goes over RUPTURES) while the big one read empty.
+  //
+  // Comparing TOKEN LISTS fixes it without losing the loose match, because "i"
+  // and "iv" are different tokens while "bag of holding" is still a subsequence
+  // of "bag of holding type ii". This is the same word-boundary trap
+  // item-bonuses.js already carries a comment about ("attack rolls" contains
+  // the letters "ac").
   function norm(s) {
     return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
 
-  function sameContainer(location, containerName) {
-    const a = norm(location), b = norm(containerName);
-    if (!a || !b || a.length < 3) return false;
-    return a === b || a.includes(b) || b.includes(a);
+  function tokens(s) {
+    const t = norm(s);
+    return t ? t.split(' ') : [];
   }
 
-  window.Containers = { describe, sameContainer, norm };
+  // Is `needle` an ordered (not necessarily contiguous) subsequence of `hay`?
+  // Non-contiguous on purpose: "Bag of Holding I" must still match the item
+  // row "Bag of Holding (Type I)", where "type" sits between them.
+  function isSubsequence(needle, hay) {
+    let i = 0;
+    for (const h of hay) {
+      if (i < needle.length && needle[i] === h) i++;
+    }
+    return i === needle.length;
+  }
+
+  function sameContainer(location, containerName) {
+    return matchDistance(location, containerName) !== Infinity;
+  }
+
+  // How CLOSE a match is: the number of tokens the longer name carries that
+  // the shorter does not. 0 is exact. Infinity is no match.
+  //
+  // Needed because a bare "bag of holding" in the Location column matches every
+  // typed bag equally, and picking whichever happened to be found first is how
+  // the original bug expressed itself. The caller takes the smallest distance
+  // and treats a TIE as genuinely ambiguous rather than guessing.
+  function matchDistance(location, containerName) {
+    const a = tokens(location), b = tokens(containerName);
+    if (!a.length || !b.length) return Infinity;
+    // Guard kept from the original: a one- or two-character Location is not
+    // enough to identify anything.
+    if (norm(location).length < 3) return Infinity;
+    const short = a.length <= b.length ? a : b;
+    const long = a.length <= b.length ? b : a;
+    if (!isSubsequence(short, long)) return Infinity;
+    return long.length - short.length;
+  }
+
+  // Distribute items across several INTERCHANGEABLE containers so as much as
+  // possible fits before any one of them overflows (Ryan, 2026-09-01).
+  //
+  // Only reached when the Location text cannot pick between them — two bags
+  // written under the same name. A row that names one exactly is placed
+  // directly and never comes here.
+  //
+  // Bin packing is NP-hard in general; the input here is a handful of items
+  // into two or three identical bags, where BEST-FIT DECREASING is the
+  // standard heuristic and is optimal or near-optimal at this size:
+  //
+  //   * Heaviest first — placing the big awkward items while every bag is
+  //     still empty is exactly why this beats arrival order.
+  //   * Into the FULLEST bag that still takes it, keeping the slack together
+  //     in one bag rather than stranding a few pounds across all of them.
+  //   * Items are NEVER split. An 8 lb item puts all 8 lb in one bag; a bag of
+  //     holding is not a bucket of sand.
+  //
+  // ⚠ Anything that fits nowhere is held back and dumped at the END into the
+  // single roomiest bag. Placing each leftover as it is met — into whichever
+  // bag happened to be emptiest right then — spreads the failure across every
+  // bag: five items into two 250 lb bags ruptured BOTH (280 and 320) where the
+  // right answer is one bag exactly full at 250, one at 230, and one named
+  // item over. A rupture destroys the contents, so two instead of one is not a
+  // cosmetic difference.
+  //
+  // Mutates each bag's `contents` / `items` / `overflow`. A null `limit`
+  // (portable hole) is unbounded.
+  function pack(bags, items) {
+    if (!Array.isArray(bags) || !bags.length) return;
+    const cap = (c) => (c.limit == null ? Infinity : c.limit);
+    const unplaced = [];
+    for (const it of items.slice().sort((a, b) => b.w - a.w)) {
+      let best = null;
+      for (const c of bags) {
+        if (c.contents + it.w > cap(c)) continue;
+        if (!best || c.contents > best.contents) best = c;
+      }
+      if (best) {
+        best.contents += it.w;
+        best.items.push(it.name);
+      } else {
+        unplaced.push(it);
+      }
+    }
+    if (!unplaced.length) return;
+    const dump = bags.reduce((a, b) =>
+      ((cap(b) - b.contents) > (cap(a) - a.contents) ? b : a));
+    for (const it of unplaced) {
+      dump.contents += it.w;
+      dump.items.push(it.name);
+      dump.overflow.push(it.name);
+    }
+  }
+
+  window.Containers = { describe, sameContainer, matchDistance, norm, pack };
   return window.Containers;
 })();

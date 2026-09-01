@@ -87,11 +87,27 @@
     const base = $(`#${ab}-score`)?.value;
     const race = $(`#${ab}-race`)?.value;
     const tpl  = $(`#${ab}-template`)?.value;
-    // "—" (em dash), "–" (en dash), or "-" (hyphen) means "no ability
-    // score" — RAW says constructs/undead with no score get +0 mod, not
-    // the -5 a literal 0 would produce. Short-circuit before the
-    // arithmetic so racial/template/bonus/temp adjustments don't bring a
-    // scoreless ability back into negative-mod territory.
+    // NONABILITY (PHB): no score at all, which is NOT a score of 0. The
+    // modifier is +0 and nothing adjusts it — "a creature with no
+    // Constitution score" cannot have that score raised or lowered, so
+    // racial / template / temp / item modifiers are inert rather than summed.
+    //
+    // ⚠ This is a CHECKBOX, not a dash typed into the score. It used to be
+    // the latter, and that guard was DEAD CODE for its entire life: the score
+    // fields are `<input type="number">`, and the HTML5 value-sanitization
+    // algorithm discards any non-numeric assignment, so `el.value = "—"`
+    // stores "". Verified in the browser 2026-09-01 — em dash, en dash and
+    // hyphen all round-trip to "". Ryan reported the symptom ("it blanks on
+    // reload"); the cause is that the field could never hold the value.
+    //
+    // The live consequence was not theoretical: Uta (no Con, template -2) was
+    // computing a Con modifier of -6, and Kell (blank Con, +2) -4, both
+    // feeding HP, Fort saves and Concentration. Blank base parsed as 0, then
+    // the modifiers were added on top.
+    if ($(`#${ab}-nonability`)?.checked) return 0;
+    // Legacy: a dash that reached the field before it was `type=number`
+    // (or via an imported save). Kept so such a value still reads as a
+    // nonability rather than silently becoming 0.
     if (base === "—" || base === "–" || base === "-") return 0;
     let score = parseInt(base) || 0;
     score += parseInt(race) || 0;  // racial adjustment always applies
@@ -1026,6 +1042,12 @@
 
   // Also recalc on change events (dropdowns, checkboxes)
   $("#char-size").addEventListener("change", recalcAll);
+  // Nonability toggles — one per ability. Every downstream number (HP, Fort,
+  // Concentration, carrying capacity) rides on the ability modifier, so this
+  // has to drive a FULL recalc, not just a re-render of its own row.
+  ["str", "dex", "con", "int", "wis", "cha"].forEach((ab) => {
+    $(`#${ab}-nonability`)?.addEventListener("change", recalcAll);
+  });
   $("#armor-worn").addEventListener("change", recalcAll);
   $("#shield-worn").addEventListener("change", recalcAll);
   $("#armor-touch-ac").addEventListener("change", recalcAll);

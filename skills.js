@@ -543,7 +543,27 @@ const Skills = (function () {
     $$("#skills-body-left tr, #skills-body-right tr").forEach((row) => {
       if (row.classList.contains("subtype-header-row") || row.classList.contains("skill-notes-row-container")) return;
 
-      const abilityKey = row.dataset.ability;
+      // The PRINTED key ability is stamped on the row at build time; the
+      // EFFECTIVE one can differ by creature type (an undead rolls
+      // Concentration on Cha, because it has no Con score to roll on). Resolved
+      // here rather than at build time so switching #char-type updates the
+      // sheet immediately instead of waiting for a full skill rebuild.
+      const printedAbility = row.dataset.ability;
+      const abilityRule = (typeof DND35 !== "undefined" && DND35.effectiveSkillAbility)
+        ? DND35.effectiveSkillAbility(getRowSkillName(row), printedAbility)
+        : { ability: printedAbility, why: null };
+      const abilityKey = abilityRule.ability;
+      // Show the swap in the ability column, so a Cha-based Concentration
+      // reads as a rule rather than as a bug.
+      const abilCell = row.querySelector(".skill-ability-col");
+      if (abilCell && abilCell.textContent !== abilityKey) {
+        abilCell.textContent = abilityKey;
+      }
+      if (abilCell) {
+        abilCell.classList.toggle("skill-ability-swapped", !!abilityRule.why);
+        if (abilityRule.why) abilCell.title = abilityRule.why;
+        else abilCell.removeAttribute("title");
+      }
       if (!abilityKey || abilityKey === "NONE") {
         const ranks = int(row.querySelector(".skill-ranks")?.value);
         const misc = expr(row.querySelector(".skill-misc")?.value);

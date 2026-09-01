@@ -412,12 +412,12 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td class="ability-label">STR<span>Strength</span></td><td><input type="number" id="str-score" class="ability-score"></td><td><input type="number" id="str-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="str-template"><span id="str-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="str-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="str-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Bull's Strength, -2 damage)"></td><td><span id="str-total" class="calc-field ability-total"></span></td><td><span id="str-mod" class="calc-field">+0</span></td></tr>
-              <tr><td class="ability-label">DEX<span>Dexterity</span></td><td><input type="number" id="dex-score" class="ability-score"></td><td><input type="number" id="dex-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="dex-template"><span id="dex-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="dex-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="dex-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Cat's Grace, -2 damage)"></td><td><span id="dex-total" class="calc-field ability-total"></span></td><td><span id="dex-mod" class="calc-field">+0</span></td></tr>
-              <tr><td class="ability-label">CON<span>Constitution</span></td><td><input type="number" id="con-score" class="ability-score"></td><td><input type="number" id="con-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="con-template"><span id="con-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="con-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="con-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Bear's Endurance, -2 damage)"></td><td><span id="con-total" class="calc-field ability-total"></span></td><td><span id="con-mod" class="calc-field">+0</span></td></tr>
-              <tr><td class="ability-label">INT<span>Intelligence</span></td><td><input type="number" id="int-score" class="ability-score"></td><td><input type="number" id="int-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="int-template"><span id="int-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="int-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="int-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Fox's Cunning, -2 damage)"></td><td><span id="int-total" class="calc-field ability-total"></span></td><td><span id="int-mod" class="calc-field">+0</span></td></tr>
-              <tr><td class="ability-label">WIS<span>Wisdom</span></td><td><input type="number" id="wis-score" class="ability-score"></td><td><input type="number" id="wis-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="wis-template"><span id="wis-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="wis-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="wis-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Owl's Wisdom, -2 damage)"></td><td><span id="wis-total" class="calc-field ability-total"></span></td><td><span id="wis-mod" class="calc-field">+0</span></td></tr>
-              <tr><td class="ability-label">CHA<span>Charisma</span></td><td><input type="number" id="cha-score" class="ability-score"></td><td><input type="number" id="cha-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="cha-template"><span id="cha-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="cha-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="cha-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Eagle's Splendor, -2 damage)"></td><td><span id="cha-total" class="calc-field ability-total"></span></td><td><span id="cha-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">STR<span>Strength</span></td><td class="ability-score-cell"><input type="number" id="str-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="str-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="str-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="str-template"><span id="str-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="str-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="str-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Bull's Strength, -2 damage)"></td><td><span id="str-total" class="calc-field ability-total"></span></td><td><span id="str-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">DEX<span>Dexterity</span></td><td class="ability-score-cell"><input type="number" id="dex-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="dex-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="dex-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="dex-template"><span id="dex-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="dex-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="dex-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Cat's Grace, -2 damage)"></td><td><span id="dex-total" class="calc-field ability-total"></span></td><td><span id="dex-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">CON<span>Constitution</span></td><td class="ability-score-cell"><input type="number" id="con-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="con-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="con-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="con-template"><span id="con-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="con-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="con-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Bear's Endurance, -2 damage)"></td><td><span id="con-total" class="calc-field ability-total"></span></td><td><span id="con-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">INT<span>Intelligence</span></td><td class="ability-score-cell"><input type="number" id="int-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="int-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="int-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="int-template"><span id="int-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="int-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="int-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Fox's Cunning, -2 damage)"></td><td><span id="int-total" class="calc-field ability-total"></span></td><td><span id="int-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">WIS<span>Wisdom</span></td><td class="ability-score-cell"><input type="number" id="wis-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="wis-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="wis-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="wis-template"><span id="wis-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="wis-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="wis-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Owl's Wisdom, -2 damage)"></td><td><span id="wis-total" class="calc-field ability-total"></span></td><td><span id="wis-mod" class="calc-field">+0</span></td></tr>
+              <tr><td class="ability-label">CHA<span>Charisma</span></td><td class="ability-score-cell"><input type="number" id="cha-score" class="ability-score"><label class="nonability-toggle" title="Nonability (PHB): this creature has NO score here — not a score of 0. The modifier is +0 and racial/template/temp adjustments do not apply."><input type="checkbox" id="cha-nonability" class="nonability-box"><span>&mdash;</span></label></td><td><input type="number" id="cha-race" class="ability-score ability-race"></td><td class="ability-col-tplbl"><input type="hidden" id="cha-template"><span id="cha-tplbl" class="calc-field ability-tplbl-bonus"></span></td><td class="ability-col-misc"><span id="cha-misc" class="calc-field ability-misc-bonus"></span></td><td><input type="number" id="cha-temp" class="ability-score ability-temp" title="Temporary adjustment (e.g. +4 Eagle's Splendor, -2 damage)"></td><td><span id="cha-total" class="calc-field ability-total"></span></td><td><span id="cha-mod" class="calc-field">+0</span></td></tr>
             </tbody>
           </table>
           <!-- Ability-CHECK bonuses. Distinct from a bonus to the SCORE: these
@@ -605,26 +605,6 @@
           <div id="ac-situational-auto" class="save-situational-auto" style="display:none"></div>
         </section>
 
-        <!-- Senses (senses.js). The race's canonical `senses` list has been
-             parsed and variant-merged in race-picker for months and only ever
-             reached one sentence in the race panel; soulmelds grant darkvision
-             too. This is the central place for "what can this character
-             perceive", plus what it is currently lighting. Ranges DO NOT add —
-             the best applies. -->
-        <section class="section" id="senses-block">
-          <h2>Senses
-            <span id="illumination-chip" class="derived-note" hidden></span>
-          </h2>
-          <div id="senses-list" class="senses-list"></div>
-          <div class="light-row">
-            <label for="light-source">Light</label>
-            <select id="light-source" title="Radius and burn time are the PHB's own values. A bullseye lantern is a 60-ft. CONE, not a radius."></select>
-            <span id="light-ticks" class="light-ticks"></span>
-            <button type="button" id="light-reset" class="btn-small" title="Lit a fresh one — refill the burn ticks.">reset</button>
-          </div>
-          <div id="senses-manual" class="senses-manual"></div>
-          <button type="button" id="senses-add" class="btn-small">+ sense</button>
-        </section>
 
         <!-- Saving Throws -->
         <section class="section">
@@ -674,6 +654,27 @@
 
           <div id="save-situational-auto" class="save-situational-auto" style="display:none"></div>
           <div class="field"><label>Conditional Save Modifiers</label><textarea id="save-conditional" rows="1" placeholder="e.g. +2 vs. enchantments"></textarea></div>
+        </section>
+
+        <!-- Senses (senses.js). The race's canonical `senses` list has been
+             parsed and variant-merged in race-picker for months and only ever
+             reached one sentence in the race panel; soulmelds grant darkvision
+             too. This is the central place for "what can this character
+             perceive", plus what it is currently lighting. Ranges DO NOT add —
+             the best applies. -->
+        <section class="section" id="senses-block">
+          <h2>Senses
+            <span id="illumination-chip" class="derived-note" hidden></span>
+          </h2>
+          <div id="senses-list" class="senses-list"></div>
+          <div class="light-row">
+            <label for="light-source">Light</label>
+            <select id="light-source" title="Radius and burn time are the PHB's own values. A bullseye lantern is a 60-ft. CONE, not a radius."></select>
+            <span id="light-ticks" class="light-ticks"></span>
+            <button type="button" id="light-reset" class="btn-small" title="Lit a fresh one — refill the burn ticks.">reset</button>
+          </div>
+          <div id="senses-manual" class="senses-manual"></div>
+          <button type="button" id="senses-add" class="btn-small">+ sense</button>
         </section>
 
         <!-- Conditions tracker -->

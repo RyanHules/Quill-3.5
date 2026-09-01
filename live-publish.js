@@ -75,7 +75,29 @@
   //    mid-combat. These are the first LISTS published here; see the schema-7
   //    block below for why the "resolved numbers, not lists" rule had to
   //    bend for exactly this case. Additive.
-  var SCHEMA = 7;
+  // 8: the CURRENT side of every daily pool, plus `feats`, `size`, structured
+  //    `senses`, per-caster `caster_level`, and the spell repertoire.
+  //
+  //    ⚠ This REVERSES schema 2's "capacities only, never current values"
+  //    rule, and the reason is not that a consumer asked. It is that the
+  //    ownership split the rule protected had ALREADY moved and this half
+  //    never caught up: live-commands.js's allowlist (its `pools.power_points
+  //    .<id>.spent`, `pools.spell_slots.<id>.<lvl>.used` and `uses_per_day
+  //    .rage.used` patterns) lets a consumer WRITE depletion into these very
+  //    inputs. The sheet has been the store of record for those numbers since
+  //    that landed. Publishing capacity only meant the rig could write a value
+  //    and then had no way to read it back, so it kept a second copy — which
+  //    is the two-writers collision the original rule existed to prevent,
+  //    arrived at from the other direction. One owner per number still holds;
+  //    the owner is just the sheet now, and an owner that will not answer
+  //    queries forces everyone else to guess.
+  //
+  //    ⚠ NON-ADDITIVE, once, deliberately: `uses_per_day` entries were bare
+  //    integers (the capacity) and are now objects. Every other schema bump
+  //    here has been purely additive; this one cannot be, because the field's
+  //    whole problem was that it had exactly one number and needed three.
+  //    Called out rather than slipped in.
+  var SCHEMA = 8;
   var DEBOUNCE_MS = 400;      // recalcAll can fire in bursts; publish the tail
   var WATCH_MS = 1500;        // change-detection poll (the reliable path)
   var HEARTBEAT_MS = 20000;   // well inside the server's 90s stale window
@@ -109,10 +131,19 @@
     return m ? parseInt(m[0], 10) : v;
   }
 
+  // `nonability: true` means the creature has NO score here — not a score of
+  // 0, and not an unfilled field. `score` is null in that case and `mod` is 0.
+  // Published because the distinction changes what a consumer may do with it:
+  // a nonability is immune to ability damage and drain, and nothing raises it.
   function abilities() {
     var out = {};
     ['str', 'dex', 'con', 'int', 'wis', 'cha'].forEach(function (a) {
-      out[a] = { score: num(a + '-total'), mod: num(a + '-mod') };
+      var na = !!(document.getElementById(a + '-nonability') || {}).checked;
+      out[a] = {
+        score: na ? null : num(a + '-total'),
+        mod: na ? 0 : num(a + '-mod'),
+        nonability: na
+      };
     });
     return out;
   }
@@ -541,14 +572,17 @@
     } catch (e) { return null; }
   }
 
-  // Daily pools: CAPACITY ONLY, deliberately.
+  // Daily pools: capacity AND current, since schema 8. See the SCHEMA 8 note
+  // at the top for why the capacity-only rule reversed — short version, the
+  // sheet already owns these numbers because live-commands.js lets a consumer
+  // write them here, and an owner that publishes only the ceiling forces every
+  // reader to keep a shadow copy of the floor.
   //
-  // The ownership split says current/spent values belong to the consumer that
-  // narrates the change — it tracks depletion, the sheet hands it the ceiling.
-  // So `.sc-used`, `.sc-remain` and `.psi-pp-spent` are NOT published even
-  // though they sit in the same rows. One owner per number; publishing them
-  // would invite two writers for the same quantity, which is the collision the
-  // split exists to prevent.
+  // `remaining` is read from the sheet's own computed field rather than
+  // recomputed as max - spent. Those should agree, and when they do not the
+  // sheet's is the number the player is looking at, which is this file's whole
+  // premise. Falls back to the subtraction only when the display element is
+  // missing (a panel shape that predates it).
   function pools() {
     var out = { power_points: [], spell_slots: [], uses_per_day: {} };
 
@@ -556,7 +590,14 @@
       var maxPP = intOf(cell(p, '.psi-pp-day'));
       if (maxPP == null) return;
       var pid = casterIdentity(p, i);
-      out.power_points.push({ id: pid.id, label: pid.label, max: maxPP });
+      var spent = intOf(cell(p, '.psi-pp-spent'));
+      var remain = intOf(cell(p, '.psi-pp-remaining'));
+      if (remain == null && spent != null) remain = maxPP - spent;
+      out.power_points.push({
+        id: pid.id, label: pid.label, max: maxPP,
+        spent: spent, current: remain,
+        manifester_level: intOf(cell(p, '.psi-manifester-level'))
+      });
     });
 
     document.querySelectorAll('[data-caster-type="spellcasting"]').forEach(function (p, i) {
@@ -570,6 +611,9 @@
         var total = perDay + bonus + domain + spec + extra;
         var known = intOf(cell(row, '.sc-known'));
         var dc = intOf(cell(row, '.sc-dc'));
+        var used = intOf(cell(row, '.sc-used'));
+        var remain = intOf(cell(row, '.sc-remain'));
+        if (remain == null && used != null) remain = total - used;
         if (!total && known == null && dc == null) return;   // unused level
         var lvlEl = row.querySelector('[data-lvl]');
         levels.push({
@@ -577,21 +621,234 @@
           known: known, dc: dc,
           per_day: perDay, bonus: bonus, domain: domain,
           specialist: spec, extra: extra,
-          capacity: total
+          capacity: total,
+          used: used, remaining: remain
         });
       });
       if (levels.length) {
         var cid = casterIdentity(p, i);
-        out.spell_slots.push({ id: cid.id, label: cid.label, levels: levels });
+        out.spell_slots.push({
+          id: cid.id, label: cid.label,
+          // The panel's OWN caster level, including the cross-class overrides
+          // class-picker writes into it (Sublime Chord, Ur-Priest and four
+          // others whose CL is arithmetic over OTHER classes). Published as
+          // the input's value rather than re-derived here, so a house rule or
+          // a hand-typed correction ships too — same reason every other field
+          // in this file reads the DOM.
+          caster_level: intOf(cell(p, '.sc-caster-level')),
+          levels: levels
+        });
       }
     });
 
-    // Class daily uses that live as plain top-level fields.
+    // Class daily uses. Objects since schema 8 (they were bare capacities) —
+    // `used` is published only where the sheet actually has an input for it,
+    // which today is Rage and not Turning. A null there means "the sheet does
+    // not track this", not "zero used"; inventing a 0 would read as authority.
     var rage = num('rage-per-day'), turn = num('turn-per-day');
-    if (rage != null) out.uses_per_day.rage = rage;
-    if (turn != null) out.uses_per_day.turn_undead = turn;
+    if (rage != null) {
+      var rageUsed = num('rage-used');
+      out.uses_per_day.rage = {
+        max: rage, used: rageUsed,
+        remaining: (typeof rage === 'number' && typeof rageUsed === 'number')
+          ? rage - rageUsed : null
+      };
+    }
+    // turn-per-day is a TEXT field ("3 + CHA mod"), so `max` here may be a
+    // string. Published as-is rather than coerced — see num().
+    if (turn != null) out.uses_per_day.turn_undead = { max: turn, used: null, remaining: null };
 
     return out;
+  }
+
+  // Feats, as a list (rig ask, 2026-09-01 — there was no feats field at all,
+  // so a consumer checking "does he have Combat Reflexes" was reading a
+  // hand-maintained party file).
+  //
+  // `.feat-entry` is the canonical value on EVERY row, structured or not: a
+  // DB-matched row hides the textarea and renders a chip, but the textarea is
+  // still the value everything else in feats.js reads (hasFeat, the bonus
+  // aggregators). Reading the chip instead would silently drop the
+  // specialization on "Weapon Focus (longsword)".
+  function feats() {
+    try {
+      var root = document.getElementById('feats-container');
+      if (!root) return null;
+      var out = [];
+      root.querySelectorAll('.feat-row').forEach(function (row) {
+        var ta = row.querySelector('.feat-entry');
+        var text = ta && ta.value != null ? String(ta.value).trim() : '';
+        if (!text) return;
+        // Split "Weapon Focus (longsword)" into name + specialization. Only a
+        // TRAILING parenthetical, matching feats.js's own parseFeatText.
+        var m = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(text);
+        var tag = row.querySelector('.feat-source-tag');
+        out.push({
+          name: m ? m[1].trim() : text,
+          specialization: m ? m[2].trim() : null,
+          text: text,
+          // Non-null only on a DERIVED row — the class / bloodline / template
+          // that granted it. Null means the player chose it.
+          granted_by: tag && tag.textContent ? tag.textContent.trim() : null,
+          granted_at_level: row.dataset && row.dataset.featLevel != null
+            ? intOf(row.dataset.featLevel) : null
+        });
+      });
+      return out;
+    } catch (e) { return null; }
+  }
+
+  // Size, space and reach (rig ask — needed for grapple / bull rush / AoO and
+  // absent entirely). Space and reach come from PHB Table 8-4 via DND35.sizes.
+  //
+  // `reach_ft` is the TALL-body value and `reach_ft_long` sits beside it
+  // because the sheet has no body-shape field; for Small and Medium they are
+  // equal, so this only ever matters to a Large-or-bigger character, and there
+  // it is a real fork the consumer has to make rather than one to guess.
+  function size() {
+    try {
+      var cat = txt('char-size');
+      if (!cat) return null;
+      var row = (typeof DND35 !== 'undefined' && DND35.sizes) ? DND35.sizes[cat] : null;
+      var baseReach = row ? row.reach : null;
+      // Reach MODIFIERS, kept separate from the body reach they adjust.
+      //
+      // `reach_ft` alone was wrong for anyone with a reach adder — Kell holds
+      // Extended Reach (+5 ft) and the bus published his Medium body's 5 ft.,
+      // understating his threatened area by a full square. Published as
+      // base + itemised modifiers + resolved total, the same way the senses
+      // block names every contributing source rather than handing over one
+      // number: a consumer narrating an attack of opportunity needs to know
+      // WHY the reach is 10, and a conditional one must not be silently
+      // folded in.
+      var mods = [];
+      var situational = [];
+      try {
+        if (typeof Feats !== 'undefined' && Feats.getActiveReachBonuses) {
+          var fb = Feats.getActiveReachBonuses();
+          (fb.direct || []).forEach(function (b) {
+            mods.push({ source: b.source || 'feat', amount: b.amount,
+                        bonus_category: b.bonus_category || null, active: true });
+          });
+          (fb.situational || []).forEach(function (b) {
+            situational.push({ source: b.source || 'feat', amount: b.amount,
+                               condition: b.condition, active: false });
+          });
+        }
+      } catch (e) { /* aggregator absent mid-load */ }
+      var total = baseReach;
+      if (typeof baseReach === 'number') {
+        total = mods.reduce(function (n, m) {
+          return n + (typeof m.amount === 'number' ? m.amount : 0);
+        }, baseReach);
+      }
+      return {
+        category: cat,
+        space_ft: row ? row.space : null,
+        // Body reach from PHB Table 8-4, BEFORE modifiers.
+        reach_ft: baseReach,
+        reach_ft_long: row ? row.reachLong : null,
+        // Everything adding to it, itemised, and the resolved sum. Prefer
+        // `reach_total_ft` at the table; `reach_ft` is the body's own.
+        reach_modifiers: mods,
+        // Conditional adders are listed but NOT summed — they need a ruling
+        // about whether the condition is live, which is the consumer's call.
+        reach_modifiers_situational: situational,
+        reach_total_ft: total,
+        ac_mod: row ? row.acMod : null,
+        grapple_mod: row ? row.grappleMod : null
+      };
+    } catch (e) { return null; }
+  }
+
+  // Structured senses (rig ask — it was keyword-scraping darkvision et al. out
+  // of the free-text special_abilities, which works until a sense is worded
+  // differently). Senses.resolved() is the module's own settled list: one row
+  // per sense with the WINNING range already picked across race, template,
+  // soulmeld and manual sources, and every contributing source named.
+  //
+  // This is the one place here that reads a module instead of the DOM. The
+  // rendered chips are lossy on purpose — they collapse range and provenance
+  // into a display string — so scraping them back out would be parsing our own
+  // formatting. The resolved list IS the resolved value.
+  function senses() {
+    try {
+      if (typeof Senses === 'undefined' || !Senses.resolved) return null;
+      return Senses.resolved().map(function (r) {
+        return {
+          sense: r.sense,
+          range_ft: r.range_ft == null ? null : r.range_ft,
+          multiplier: r.multiplier == null ? null : r.multiplier,
+          extended_ft: r.extended || null,
+          from: Array.isArray(r.froms) ? r.froms : []
+        };
+      });
+    } catch (e) { return null; }
+  }
+
+  // The spell repertoire — known and prepared, per caster, per level (rig ask,
+  // phase 2; also open sheet report rmtbvn6vt).
+  //
+  // This is the list schema 7's note said this bus does not publish, and the
+  // reasoning there still stands for the general case — a slot COUNT degrades
+  // gracefully, a name list does not, and it churns on every prep. Two things
+  // make this one worth its weight anyway: a prepared row carries its own
+  // `used` flag, which is depletion state the consumer needs and cannot derive
+  // from the level totals; and metamagic means the prepared NAME is not the
+  // known name ("Empowered Fireball" occupies a 5th-level slot), so no
+  // consumer can reconstruct the prepared list from the known list plus slots.
+  function repertoire() {
+    try {
+      var panels = document.querySelectorAll('[data-caster-type="spellcasting"]');
+      if (!panels.length) return null;
+      var out = [];
+      panels.forEach(function (p, i) {
+        var cid = casterIdentity(p, i);
+        var known = [], prepared = [];
+        p.querySelectorAll('.sc-known-list').forEach(function (list) {
+          var lvl = intOf(list.getAttribute('data-lvl'));
+          list.querySelectorAll('.sc-known-row').forEach(function (row) {
+            var nameEl = row.querySelector('.sc-known-name');
+            var nm = nameEl && nameEl.value != null ? String(nameEl.value).trim() : '';
+            if (!nm) return;
+            known.push({
+              level: lvl, name: nm,
+              // A granted row (class feature, feat) vs one the player picked.
+              source: (row.dataset && row.dataset.source) || null
+            });
+          });
+        });
+        p.querySelectorAll('.sc-prepared-list').forEach(function (list) {
+          var lvl = intOf(list.getAttribute('data-lvl'));
+          list.querySelectorAll('.sc-prepared-row').forEach(function (row) {
+            var base = (row.dataset && row.dataset.base) || '';
+            var nameEl = row.querySelector('.sc-prep-name');
+            var shown = nameEl
+              ? String(nameEl.value != null ? nameEl.value : nameEl.textContent || '').trim()
+              : '';
+            if (!base && !shown) return;
+            var mm = [];
+            try { mm = JSON.parse((row.dataset && row.dataset.metamagic) || '[]'); } catch (e) { mm = []; }
+            var box = row.querySelector('.sc-prep-used');
+            prepared.push({
+              level: lvl,
+              // `base` is the spell; `name` is what the slot actually holds
+              // once metamagic is folded in. Both, because a consumer asking
+              // "is fireball prepared" wants the first and one narrating the
+              // cast wants the second.
+              base: base || shown,
+              name: shown || base,
+              metamagic: Array.isArray(mm) ? mm : [],
+              used: box ? !!box.checked : null
+            });
+          });
+        });
+        if (known.length || prepared.length) {
+          out.push({ id: cid.id, label: cid.label, known: known, prepared: prepared });
+        }
+      });
+      return out.length ? out : null;
+    } catch (e) { return null; }
   }
 
   // Caster blocks have NO class-name field of their own, which matters when a
@@ -734,6 +991,7 @@
       initiative: num('init-total'),
       grapple: num('grapple-total'),
       bab: num('bab-1'),
+      size: size(),
       hp: {
         total: num('hp-total'),
         current: num('hp-current'),
@@ -749,8 +1007,12 @@
       // panel / no special-abilities container at all.
       invocations: invocations(),
       special_abilities: sa,
+      // Structured senses beside the free text they were being scraped out of.
+      senses: senses(),
+      feats: feats(),
       skills: skills(),
       pools: pools(),
+      spells: repertoire(),
       conditions: conditions(),
       // Null when nothing is shaped — an incarnum character with no melds up
       // and a character who has never heard of incarnum are different states,

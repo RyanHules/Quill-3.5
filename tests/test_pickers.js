@@ -6016,6 +6016,135 @@ test('containers: a stowed row leaves the carried total, and only that', () => {
     'the readout must say the volume limit is not tracked');
 });
 
+test('containers: roman-numeral bag types must not match each other', () => {
+  // Report rmtd59njx, second cause. Container matching was raw substring
+  // containment on the normalised names, and "bag of holding type iv"
+  // literally CONTAINS "bag of holding type i". Gorrash carries both, so his
+  // 500 lb of coin in the Type IV was attributed to the Type I — the first
+  // match won — pushing a 250 lb bag to 738 and warning that it would RUPTURE,
+  // while the big bag read empty.
+  //
+  // Behavioural, not a source grep: containers.js is an IIFE that assigns to
+  // `window`, so it is evaluated here against a stub. Worth the setup — the
+  // source-text assertion above did catch a real edit, but only a real call
+  // can tell "i" from "iv".
+  const src = readSource('containers.js');
+  const sandbox = { window: {}, DB: undefined };
+  new Function('window', 'DB', src)(sandbox.window, undefined);
+  const C = sandbox.window.Containers;
+  assert(C && typeof C.sameContainer === 'function',
+    'containers.js must expose sameContainer');
+
+  // The bug, both directions.
+  assert(!C.sameContainer('Bag of Holding Type IV', 'Bag of Holding Type I'),
+    'a Type IV location must NOT match the Type I container');
+  assert(!C.sameContainer('Bag of Holding Type I', 'Bag of Holding Type IV'),
+    'a Type I location must NOT match the Type IV container');
+  assert(!C.sameContainer('Bag of Holding III', 'Bag of Holding II'),
+    'III must not match II — the same prefix trap one numeral down');
+
+  // …without losing the loose match the free-text Location column depends on.
+  assert(C.sameContainer('bag of holding', 'Bag of Holding (Type II)'),
+    'a bare "bag of holding" must still match a typed bag');
+  assert(C.sameContainer('Bag of Holding I', 'Bag of Holding (Type I)'),
+    'the same bag written two ways must still match');
+  assert(C.sameContainer('Bag of Holding Type I', 'Bag of Holding Type I'),
+    'an exact name must match itself');
+  assert(!C.sameContainer('Handy Haversack', 'Bag of Holding Type I'),
+    'different containers must not match at all');
+
+  // Distance is what lets the caller pick the CLOSEST container rather than
+  // whichever was found first — an exact name must beat a vague one.
+  assert(C.matchDistance('Bag of Holding Type I', 'Bag of Holding Type I') === 0,
+    'an exact match is distance 0');
+  assert(C.matchDistance('bag of holding', 'Bag of Holding Type I')
+       > C.matchDistance('Bag of Holding Type I', 'Bag of Holding Type I'),
+    'a vaguer location must rank further away than an exact one');
+
+  // The caller must actually USE the ranking; `find` returns the first match.
+  const eq = readSource('equipment.js');
+  assert(/matchDistance/.test(eq) && /\.sort\(/.test(eq),
+    'equipment.js must rank containers by match distance, not take the first');
+});
+
+test('invocations: the hardcoded fallback covers every advancer the DB carries', (db) => {
+  // Report rmtbqw7ib. A PrC that advances invocations resolves from the DB's
+  // `invocation_advancement`, with _FALLBACK_INVOCATION_ADVANCERS used when
+  // that lookup yields nothing. A class missing from BOTH advances nothing —
+  // silently — and the symptom is that the invocation panel and the
+  // eldritch-blast damage fall back to the BASE class's progression, which
+  // reads as a completely different bug.
+  //
+  // Hellfire Warlock was in the DB and absent from the fallback. This keeps
+  // the two in step: the fallback is a hand-maintained list, and every
+  // hand-maintained registry in these projects has rotted at least once.
+  const rows = execAll(db,
+    "SELECT name FROM entry "
+    + "WHERE json_extract(data, '$.invocation_advancement') IS NOT NULL");
+  assert(rows.length >= 4,
+    `expected the DB to carry invocation advancers, got ${rows.length}`);
+  const cp = readSource('class-picker.js');
+  const block = cp.slice(cp.indexOf('_FALLBACK_INVOCATION_ADVANCERS'));
+  const fallback = block.slice(0, block.indexOf('};'));
+  for (const r of rows) {
+    assert(fallback.includes(`'${r.name}'`),
+      `${r.name} carries invocation_advancement in the DB but is missing from `
+      + `_FALLBACK_INVOCATION_ADVANCERS — if the DB lookup ever fails it will `
+      + `advance nothing, and the blast will silently show base progression`);
+  }
+});
+
+test('containers: identical bags are PACKED, and never split an item', () => {
+  const src = readSource('containers.js');
+  const w = {};
+  new Function('window', 'DB', src)(w, undefined);
+  const C = w.Containers;
+  assert(typeof C.pack === 'function', 'containers.js must expose pack()');
+
+  const bags = (n, limit) => Array.from({ length: n }, () =>
+    ({ limit, contents: 0, items: [], overflow: [] }));
+  const items = (pairs) => pairs.map(([name, wt]) => ({ name, w: wt }));
+
+  // 400 lb across two 250 lb bags. Pooled into one this was 400/250 and
+  // reported a rupture; distributed it fits with room to spare.
+  let b = bags(2, 250);
+  C.pack(b, items([['Anvil', 150], ['Ingots', 120], ['Ore', 80], ['Statue', 50]]));
+  assert(b.every(x => x.contents <= 250),
+    `both bags must stay within limit, got ${b.map(x => x.contents)}`);
+  assert(b[0].contents + b[1].contents === 400, 'all 400 lb must be placed');
+  assert(b.every(x => x.overflow.length === 0), 'nothing should overflow here');
+
+  // NO ITEM IS SPLIT: every item appears exactly once, whole.
+  const placed = b.flatMap(x => x.items).sort();
+  assert(placed.length === 4 && new Set(placed).size === 4,
+    `each item must land in exactly one bag, got ${JSON.stringify(placed)}`);
+
+  // 600 lb into 500 lb of capacity. One bag must absorb the excess — NOT all
+  // of them. The naive "put it in whichever is emptiest right now" ruptured
+  // both (280 / 320); a bag of holding rupturing destroys its contents, so
+  // this distinction is the point of the test.
+  b = bags(2, 250);
+  C.pack(b, items([['Marble', 200], ['Anvil', 150], ['Ingots', 120],
+                   ['Ore', 80], ['Statue', 50]]));
+  const over = b.filter(x => x.contents > 250);
+  assert(over.length === 1,
+    `exactly one bag may exceed its limit, got ${b.map(x => x.contents)}`);
+  assert(b.reduce((n, x) => n + x.contents, 0) === 600,
+    'no weight may be lost — everything is still being carried');
+  assert(over[0].overflow.length > 0 && over[0].overflow.every(n => typeof n === 'string'),
+    'the over-capacity bag must NAME what would not fit');
+  // The bag that is not over should be packed tight rather than half empty.
+  const under = b.find(x => x.contents <= 250);
+  assert(under.contents >= 230,
+    `the in-limit bag should be well filled, got ${under.contents}`);
+
+  // A limitless container (portable hole) swallows everything.
+  const hole = bags(1, null);
+  C.pack(hole, items([['Siege Engine', 5000]]));
+  assert(hole[0].contents === 5000 && hole[0].overflow.length === 0,
+    'a null limit is unbounded');
+});
+
 test('containers: the DB still carries the Bag of Holding capacity table', (db) => {
   const row = execOne(db,
     "SELECT json_extract(data, '$.tables') AS t FROM entry "

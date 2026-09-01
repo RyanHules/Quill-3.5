@@ -215,14 +215,39 @@
     // ability_changes: dict like {Str: "+4", Cha: "+2"} → list of
     // {ability, modifier:int} rows for the existing apply loop.
     const mods = [];
+    const nonAbilities = [];
+    // Ability changes the template DOES express structurally.
     if (parsed.ability_changes && typeof parsed.ability_changes === 'object'
         && !Array.isArray(parsed.ability_changes)) {
       for (const [ab, raw] of Object.entries(parsed.ability_changes)) {
-        const n = parseInt(String(raw).replace(/^\+/, ''), 10);
+        const s = String(raw).trim();
+        // "—" / "–" / "-" is a NONABILITY: the template removes the score
+        // outright (undead have no Con, constructs no Con or Int). Not a
+        // modifier — it cannot be added to anything, so it is collected
+        // separately and applied as the score's nonability flag.
+        if (s === '—' || s === '–' || s === '-') { nonAbilities.push(ab); continue; }
+        const n = parseInt(s.replace(/^\+/, ''), 10);
         if (!Number.isFinite(n) || n === 0) continue;
         mods.push({ ability: ab, modifier: n });
       }
     }
+    // ⚠ Ability changes it does NOT express structurally.
+    //
+    // 49 of 186 templates carry `ability_changes` as free PROSE ("Str +2, Wis
+    // +4, Cha +2. As an undead creature…", "Intelligence is at least 3", "per
+    // the size-indexed Titanic Modifiers table"). The dict check above simply
+    // skipped them, so applying one of those templates changed nothing and
+    // said nothing — the player had no way to tell the template from a broken
+    // one (report rmtd8xl0n).
+    //
+    // Surfaced rather than parsed. A regex over that prose would produce
+    // plausible-but-wrong numbers on the third of them that express minimums,
+    // conditionals and table lookups rather than deltas — which is the exact
+    // failure mode this project deleted its parsers over. Showing the printed
+    // text and letting the player apply it is honest; guessing is not.
+    const abilityProse =
+      (typeof parsed.ability_changes === 'string' && parsed.ability_changes.trim())
+        ? parsed.ability_changes.trim() : null;
 
     // Traits: union of special_qualities_added + special_attacks_added.
     // Each item may be a string ("Name: description") or {name, description}.
@@ -274,7 +299,7 @@
         }
       }
     }
-    return { tpl, mods, traits, movement, resistance };
+    return { tpl, mods, nonAbilities, abilityProse, traits, movement, resistance };
   }
 
   // Human display for a template record's natural-armor effect: an additive
@@ -315,6 +340,24 @@
     // doesn't change creature type records type_change "None" (or
     // null/empty). Clean + enum-friendly — no prose to parse.
     if (/^none$/i.test(s)) return null;
+
+    // ⚠ An EXPLICIT type change wins over every no-change heuristic below, and
+    // must be tested first (2026-09-01).
+    //
+    // The `\bunchanged\b` fallback three lines down was swallowing seven
+    // templates whose type change is real and stated plainly, because the same
+    // sentence goes on to say what does NOT change: "Type changes to undead.
+    // Do not recalculate base attack bonus, saves, or skill points. Size
+    // unchanged." That trailing "unchanged" is about SIZE. Dry Lich, Dustform
+    // Creature, Husk Vermin, Mirage Mullah, Tainted Minion, Unholy Scion and
+    // Vivacious all applied with typeChange null — so a Dry Lich stayed
+    // Humanoid, and every downstream rule keyed on creature type (an undead's
+    // Cha-based Concentration, for one) silently never fired.
+    //
+    // Greedy to the first period so parenthetical subtypes survive
+    // ("undead (augmented vermin)", "outsider (evil, native)").
+    const explicit = s.match(/^Type changes to\s+([^.]+)/i);
+    if (explicit) return titleCaseHead(explicit[1].trim());
     // LEGACY FALLBACK for the ~57 un-canonized templates whose type_change
     // is free-text "no change" prose ("Same as base creature (unchanged)",
     // "Unchanged (type does not change)", …). Pending a DB canon sweep to
@@ -405,6 +448,19 @@
       ).join(', ');
       bits.push(`<b>Ability:</b> ${fmt}`);
     }
+    if (detail.nonAbilities && detail.nonAbilities.length) {
+      bits.push(`<b>No score:</b> ${detail.nonAbilities.join(', ')} ` +
+        `<span style="opacity:.7">(nonability — modifier +0, and nothing raises it)</span>`);
+    }
+    // A template whose ability changes are PROSE. Applying it will not move
+    // any ability, so say so in the panel — the alternative is a template that
+    // looks applied and silently did nothing to the scores it names.
+    if (detail.abilityProse) {
+      bits.push(`<b>Ability (not auto-applied):</b> ` +
+        `<span style="opacity:.85">${escapeHtml(detail.abilityProse)}</span> ` +
+        `<span style="opacity:.7">— apply by hand; this template states it as ` +
+        `text rather than as numbers.</span>`);
+    }
     if (tpl.new_creature_type) {
       bits.push(`<b>Type → ${escapeHtml(tpl.new_creature_type)}</b>`);
     }
@@ -491,6 +547,21 @@
       typeChange: full.new_creature_type_clean || null,
     };
 
+    // 1a. Nonabilities. A template that REMOVES a score (undead lose Con,
+    //     constructs lose Con and Int) ticks the ability's nonability flag
+    //     rather than writing a number, because there is no number to write —
+    //     the score stops existing. Records which ones IT set so removal only
+    //     unticks the ones it is responsible for, never one the player set by
+    //     hand or one an earlier template already owned.
+    reversal.nonAbilities = [];
+    for (const ab of (detail.nonAbilities || [])) {
+      const box = document.getElementById(`${ab.toLowerCase()}-nonability`);
+      if (!box || box.checked) continue;
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      reversal.nonAbilities.push(ab);
+    }
+
     // 1. Stack ability mods into the Template column.
     for (const m of detail.mods) {
       const a = m.ability.toLowerCase();
@@ -556,6 +627,14 @@
       t.name.toLowerCase() === name.toLowerCase());
     if (idx < 0) return;
     const reversal = appliedTemplates.splice(idx, 1)[0];
+
+    // 1a. Untick only the nonabilities THIS template set.
+    for (const ab of (reversal.nonAbilities || [])) {
+      const box = document.getElementById(`${ab.toLowerCase()}-nonability`);
+      if (!box || !box.checked) continue;
+      box.checked = false;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
     // 1. Subtract ability mods.
     for (const [ab, amt] of Object.entries(reversal.abilityMods)) {
