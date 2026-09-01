@@ -6067,30 +6067,55 @@ test('containers: roman-numeral bag types must not match each other', () => {
     'equipment.js must rank containers by match distance, not take the first');
 });
 
-test('invocations: the hardcoded fallback covers every advancer the DB carries', (db) => {
-  // Report rmtbqw7ib. A PrC that advances invocations resolves from the DB's
-  // `invocation_advancement`, with _FALLBACK_INVOCATION_ADVANCERS used when
-  // that lookup yields nothing. A class missing from BOTH advances nothing —
-  // silently — and the symptom is that the invocation panel and the
-  // eldritch-blast damage fall back to the BASE class's progression, which
-  // reads as a completely different bug.
+test('advancement: each small fallback registry mirrors what the DB carries', (db) => {
+  // Report rmtbqw7ib. An advancing PrC resolves from a DB field, with a
+  // hand-coded _FALLBACK_* map used when that lookup yields nothing. A class
+  // missing from BOTH advances nothing — SILENTLY — and the symptom reads as a
+  // completely different bug: the pillar's panel and any damage row driven off
+  // it drop to the BASE class's progression, as though the prestige levels
+  // were not there.
   //
-  // Hellfire Warlock was in the DB and absent from the fallback. This keeps
-  // the two in step: the fallback is a hand-maintained list, and every
-  // hand-maintained registry in these projects has rotted at least once.
-  const rows = execAll(db,
-    "SELECT name FROM entry "
-    + "WHERE json_extract(data, '$.invocation_advancement') IS NOT NULL");
-  assert(rows.length >= 4,
-    `expected the DB to carry invocation advancers, got ${rows.length}`);
+  // Hellfire Warlock was in the DB and absent from the invocation fallback.
+  // Derived from the DB rather than hand-listed here, because every
+  // hand-maintained registry in these two projects has rotted at least once.
+  //
+  // ⚠ SCOPE: only the three SMALL, CLOSED pillars. The spell-advancement
+  // fallback is deliberately NOT checked — the DB carries 161 advancing
+  // class/prc entries against its 58, and mirroring those would be the
+  // hand-maintained-registry anti-pattern this test exists to catch. That
+  // fallback is a defensive floor for old blobs, not a mirror.
+  const PILLARS = [
+    ['invocation_advancement', '_FALLBACK_INVOCATION_ADVANCERS', 4],
+    ['mystery_advancement',    '_FALLBACK_MYSTERY_ADVANCERS',    2],
+    ['maneuver_advancement',   '_FALLBACK_MANEUVER_ADVANCERS',   3],
+  ];
   const cp = readSource('class-picker.js');
-  const block = cp.slice(cp.indexOf('_FALLBACK_INVOCATION_ADVANCERS'));
-  const fallback = block.slice(0, block.indexOf('};'));
-  for (const r of rows) {
-    assert(fallback.includes(`'${r.name}'`),
-      `${r.name} carries invocation_advancement in the DB but is missing from `
-      + `_FALLBACK_INVOCATION_ADVANCERS — if the DB lookup ever fails it will `
-      + `advance nothing, and the blast will silently show base progression`);
+  for (const [field, mapName, atLeast] of PILLARS) {
+    const rows = execAll(db,
+      `SELECT name FROM entry WHERE json_extract(data, '$.${field}') IS NOT NULL`);
+    assert(rows.length >= atLeast,
+      `expected the DB to carry ${atLeast}+ ${field} entries, got ${rows.length}`);
+    // Anchor on the DECLARATION, not the first mention: each of these map
+    // names also appears in a comment ("Parallels `_FALLBACK_MANEUVER_
+    // ADVANCERS` but tracks…") EARLIER in the file, and slicing from there
+    // read a neighbouring map instead — which failed on a class that was
+    // present. Caught by this test failing on data that was fine.
+    const decl = cp.indexOf(`const ${mapName} = {`);
+    assert(decl !== -1, `${mapName} declaration not found in class-picker.js`);
+    const block = cp.slice(decl);
+    // Terminate on the map's closing brace at its own indent level. Written
+    // as a character class rather than an escape sequence so a scripted edit
+    // cannot turn it into a real line break — which is precisely what happened
+    // writing this line the first time.
+    const endRe = /[\r\n]\s{0,2}\};/;
+    const m = endRe.exec(block);
+    const fallback = block.slice(0, m ? m.index : block.length);
+    for (const r of rows) {
+      assert(fallback.includes(`'${r.name}'`),
+        `${r.name} carries ${field} in the DB but is missing from ${mapName} — `
+        + `if the DB lookup ever fails it advances nothing, silently, and the `
+        + `pillar shows the base class's progression instead`);
+    }
   }
 });
 
