@@ -8609,6 +8609,64 @@ test('senses: the trait picker feeds the Senses block', () => {
     'the source of a plus_ft extension must reach the rendered row');
 });
 
+test('senses: a MONSTER CLASS still resolves its race senses', () => {
+  // Normalise CRLF first: this file is checked out with Windows line endings,
+  // so a '\n  }\n' probe silently returns -1 and slices a 3-character string
+  // that every assertion below then passes/fails against nothing.
+  const rp = fs.readFileSync(path.join(ROOT, 'race-picker.js'), 'utf8')
+    .replace(/\r\n/g, '\n');
+  const start = rp.indexOf('function getActiveSenses()');
+  assert(start !== -1, 'getActiveSenses must exist in race-picker.js');
+  const body = rp.slice(start);
+  const end = body.indexOf('\n  }\n');
+  assert(end > 0, 'could not find the end of getActiveSenses');
+  const fn = body.slice(0, end + 4);
+  assert(fn.length > 200, 'extracted function body is implausibly short');
+
+  // class-picker sets #char-race to "Ogre (Monster Class)" ON PURPOSE so the
+  // auto-fill misses the race index and the racial package is not applied
+  // twice. That same miss used to strip the character's senses, because this
+  // reader keys off the same index — a Mind Flayer PC published no structured
+  // senses and the only signal reaching a consumer was free-text
+  // special_abilities.
+  // NOTE: every assertion here runs against COMMENT-STRIPPED code. The first
+  // version of this test matched the function's own explanatory comment, so
+  // deleting the actual lookup left it green — caught by a negative control
+  // that neutralised the lookup line and saw 392/392 anyway.
+  const code0 = fn.replace(/\/\/[^\n]*/g, '');
+  // Matches the words only: in code the qualifier lives inside a regex
+  // literal as \(Monster Class\), so a literal "(Monster Class)" probe finds
+  // nothing and the assertion fails for the wrong reason.
+  assert(/Monster Class/i.test(code0),
+    'getActiveSenses must fall back past the "(Monster Class)" qualifier');
+  assert(/let raceId/.test(code0),
+    'the fallback needs a reassignable raceId, not a const');
+  // The load-bearing one: the stripped name must actually be looked up.
+  assert(/raceIndex\.get\(\s*base/.test(code0),
+    'the monster-class fallback must LOOK UP the stripped base name — ' +
+    'without this the fix is a comment');
+
+  // The fallback must stay READ-ONLY. If this function ever applies ability
+  // mods, the qualified name stops protecting against the double-apply that
+  // class-picker.js documents.
+  assert(!/\.value\s*=|dispatchEvent/.test(fn),
+    'getActiveSenses must not write to the sheet — the qualified name exists ' +
+    'to prevent a double-applied racial package');
+
+  // It must read the CANONICAL senses list. `racial_traits.darkvision_ft`
+  // covers more monster classes today (51) but every one of them is Savage
+  // Species, which is UNWALKED and gets re-extracted wholesale at walk time —
+  // keying on it would hard-wire the sheet to a shape due to disappear.
+  // Comments are stripped first: the function DOCUMENTS why it avoids
+  // darkvision_ft, so a naive substring test fails on its own rationale.
+  const code = fn.replace(/\/\/[^\n]*/g, '');
+  assert(!/darkvision_ft/.test(code),
+    'must not read racial_traits.darkvision_ft — legacy shape from an ' +
+    'unwalked book (Savage Species), replaced when that book is walked');
+  assert(/mergeSenses|\.senses/.test(code),
+    'it must read the canonical senses list');
+});
+
 // ---- tests: audit family mutes (report rmszxyryb-l93o) --------------------
 
 test('save: audit mutes round-trip and survive an older save', () => {

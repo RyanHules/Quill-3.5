@@ -1273,7 +1273,32 @@
     const name = ((input && input.value) || '').trim()
       .replace(/\s*\(3\.0\)\s*$/, '').replace(/\s*\(3\.5\)\s*$/, '');
     if (!name) return [];
-    const raceId = raceIndex.get(name.toLowerCase());
+    let raceId = raceIndex.get(name.toLowerCase());
+    // MONSTER CLASSES: class-picker sets #char-race to the QUALIFIED name
+    // ("Mind Flayer (Monster Class)") deliberately, so the auto-fill misses
+    // the race index and the full racial package is not applied on top of the
+    // monster class's own starting adjustments. That deliberate miss silently
+    // cost those characters their SENSES too, because this reader keys off the
+    // same index — a Mind Flayer PC published NO structured senses at all, so
+    // the only sense signal reaching a consumer was the free-text
+    // `special_abilities`, and the player had to type darkvision in by hand.
+    //
+    // Falling back to the base race is safe HERE and nowhere else: this
+    // function only READS the canonical `senses` list and applies nothing, so
+    // it cannot double-apply the ability mods the qualified name exists to
+    // avoid. (Verified: senses.js is the only caller.)
+    //
+    // Deliberately reads the canonical top-level `senses` list, NOT
+    // `racial_traits.darkvision_ft` — that field exists on 51 entries, all of
+    // them Savage Species, which is UNWALKED and gets re-extracted wholesale
+    // at walk time. Keying on it would hard-wire the sheet to a legacy shape
+    // that is due to disappear. Coverage today is 13 of 53 monster classes
+    // (all backed by walked Monster Manual race entries); the rest gain senses
+    // when their book is walked, with no change needed here.
+    if (raceId === undefined) {
+      const base = name.replace(/\s*\(Monster Class\)\s*$/i, '').trim();
+      if (base && base !== name) raceId = raceIndex.get(base.toLowerCase());
+    }
     if (raceId === undefined) return [];
     const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
     if (!row) return [];

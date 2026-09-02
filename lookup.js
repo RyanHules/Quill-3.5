@@ -2594,9 +2594,25 @@
     if (d.speed)          lines.push(`<b>Speed:</b> ${escapeHtml(formatValue(d.speed))}`);
     if (d.armor_class)    lines.push(`<b>AC:</b> ${escapeHtml(formatValue(d.armor_class))}`);
     if (d.saves || (d.fort_save != null || d.ref_save != null || d.will_save != null)) {
-      const sv = d.saves || {
-        Fort: d.fort_save, Ref: d.ref_save, Will: d.will_save,
-      };
+      // `creature.saves` became a STRUCTURED dict on 2026-09-02
+      // ({fort, ref, will, conditional?, text}). `text` is the book's printed
+      // line kept verbatim, so it is what a reader should see — it already
+      // includes any situational bonus ("Fort +13 (+17 against poison)").
+      //
+      // Without this branch `formatValue` would render the dict by joining its
+      // entries and print "fort 13, ref 8, will 10, text Fort +13 (…),
+      // conditional [object Object]" — lowercased, unsigned, and with the
+      // internals leaking into the UI.
+      let sv;
+      if (d.saves && typeof d.saves === 'object' && !Array.isArray(d.saves)) {
+        sv = d.saves.text || formatValue({
+          Fort: d.saves.fort, Ref: d.saves.ref, Will: d.saves.will,
+        });
+      } else {
+        sv = d.saves || {
+          Fort: d.fort_save, Ref: d.ref_save, Will: d.will_save,
+        };
+      }
       lines.push(`<b>Saves:</b> ${escapeHtml(formatValue(sv))}`);
     }
     if (d.base_attack || d.grapple)
