@@ -2305,7 +2305,20 @@ test('lookup: DB spell_like_abilities all render without object leak', (db) => {
     assert(!/\[object Object\]/.test(out), `${r.name}: SLA render leaked object`);
     if (Array.isArray(d.spell_like_abilities)) nStruct++;
   }
-  assertGE(nStruct, 150);  // 200 structured today
+  // FLOOR LOWERED 150 -> 100 on 2026-09-02, and the reason matters: the test
+  // did not start failing because something broke, but because the DB it was
+  // calibrated against deliberately changed. The load-bearing assertion is the
+  // no-object-leak check INSIDE the loop, which still runs over every row; this
+  // floor only guards against the query silently matching nothing.
+  //
+  // 200 -> 125 structured, and the drop is fully accounted for: Draconomicon's
+  // legacy layer held 144 PER-AGE dragon entries (12 varieties x 12 age
+  // categories), most carrying spell-like abilities. The v3 walk stores true
+  // dragons ONE ENTRY PER VARIETY with a per-age table, matching how MM I
+  // already did it, so those 144 became 12 (8 with SLAs). A further 5 sit in
+  // the 131 pre-built NPCs held back pending an `npc` entry type — when those
+  // land they will be type='npc', so this query will not see them again.
+  assertGE(nStruct, 100);  // 125 structured today (was 200 pre-Draconomicon-walk)
 });
 
 // ---- tests: class-picker multiclass advancement metadata -----------------
