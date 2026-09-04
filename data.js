@@ -539,12 +539,44 @@ const DND35 = {
   //   "1/2 d8"         → 1 (the half-HD edge case clamps to 1 since
   //                         BAB/skill formulas assume hd >= 1)
   // Returns null if the string doesn't match the expected pattern.
+  //   "225 hp (20 HD)"  → 20   (MM IV/V compact stat block — see below)
+  //   "13 HD (127 hp)"  → 13
+  //   "4 HD"            → 4
+  //   "90 (12 HD)"      → 12
+  //
+  // The "N HD" family is NOT a stylistic variant to tolerate — it is the only
+  // form several books print. MM IV and MM V use the compact Dungeon-magazine
+  // stat block, which gives "hp 45 (6 HD)" and NEVER dice notation: "Hit Dice"
+  // appears 8 times in all of MM V, every one of them prose. Before this
+  // fallback existed, `parseHitDieCount` returned null for **130 shipped
+  // creatures** across MM IV (30), Drow of the Underdark (14), Dragon Magic
+  // (13), Draconomicon (13), Complete Psionic (9), MM (9), MM V (9) and more —
+  // and both callers in companion.js do `parseHitDieCount(...) || 0`, so those
+  // creatures silently computed BAB, skills and saves off **zero** Hit Dice.
+  // A companion or mount is exactly what MM V ships (Blackwing, Deadborn
+  // Vulture, Gem Scarab as an improved familiar, Steelwing, Tirbana Eyewing),
+  // so this was live and silent.
+  //
+  // Fixing the READER rather than the data is deliberate: the alternative was
+  // deriving "NdN+M" for entries whose books never print it, which means
+  // inventing a die type and a Con modifier per creature. One such derivation
+  // in MM V had already produced a fabricated "+3" on a Constitution-— undead.
   parseHitDieCount(raw) {
     if (!raw) return null;
     const s = String(raw).trim();
-    if (/^1\/2\s*d/i.test(s)) return 1;
+    // Any fractional HD clamps to 1 — BAB/skill formulas assume hd >= 1. The
+    // check was `^1/2` only, so 1/4 and 1/8 creatures fell through to null and
+    // then to 0 HD in companion.js: Bat, Rat, Raven, Toad, Moonrat, Puppeteer,
+    // Soul Tick, Tiny Viper, Tiny Centipede, Neogi Spawn and Hoard Scarab (1/8)
+    // — several of them familiars, which is exactly where this is used.
+    if (/^1\/\d+\s*d/i.test(s)) return 1;
     const m = s.match(/^(\d+)\s*d/i);
-    return m ? parseInt(m[1], 10) : null;
+    if (m) return parseInt(m[1], 10);
+    // Fallback: an explicit "N HD" anywhere in the string. Runs only after the
+    // dice-notation attempt, so "2d8+4 (13 hp)" still resolves via the die
+    // expression and this can never override it.
+    const hd = s.match(/(\d+)\s*HD\b/i);
+    return hd ? parseInt(hd[1], 10) : null;
   },
 
   // Speed reduction table from PHB p.162 (also used for medium/heavy
