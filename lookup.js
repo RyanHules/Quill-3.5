@@ -2889,9 +2889,15 @@
     const nested = !!(opts && opts.nested);
     const parts = [];
 
-    // PAGE (small, leading) — only if not already shown above
+    // PAGE (small, leading) — only if not already shown above.
+    // Cite the entry's OWN book. This used to print the hardcoded string
+    // "PHB / DMG / MM p.N" for every rule, which was wrong for most of them:
+    // rules carrying a page come from 17 different books, so a Monster Manual V
+    // rule on page 83 rendered as "PHB / DMG / MM p.83" (found 2026-09-06 while
+    // measuring `page` coverage DB-wide — 2,722 entries, 20 of 73 books).
     if (d.page) {
-      parts.push(`<div class="lookup-rule-page">PHB / DMG / MM p.${escapeHtml(String(d.page))}</div>`);
+      const book = d.source ? `${escapeHtml(String(d.source))} ` : '';
+      parts.push(`<div class="lookup-rule-page">${book}p.${escapeHtml(String(d.page))}</div>`);
     }
 
     // MECHANICS — structured dict rendered as <dl>. Recursively
