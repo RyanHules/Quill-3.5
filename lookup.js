@@ -83,6 +83,12 @@
     condition: 'Condition', legacy_item: 'Legacy item',
     bloodline: 'Bloodline', mantle: 'Mantle',
     trait: 'Trait', flaw: 'Flaw',
+    // `npc` (2026-09-06) — a NAMED INDIVIDUAL, statted: Elminster,
+    // Draconomicon's per-age sample dragons, Libris Mortis' Thraesus. It
+    // carries the full creature stat block plus an identity line, so it
+    // renders through renderCreatureExtra. A reusable class-levelled sample
+    // build ("Drow Priestess") is NOT an npc and stays a creature.
+    npc: 'NPC',
   };
 
   function ensureModal() {
@@ -1424,7 +1430,10 @@
     if (type === 'class' || type === 'prc') return renderClassExtra(d);
     if (type === 'race')        return renderRaceExtra(d);
     if (type === 'template')    return renderTemplateExtra(d);
-    if (type === 'creature')    return renderCreatureExtra(d);
+    // `npc` shares the creature stat block; the identity fields it adds
+    // (gender / age_category / gender_race / class_levels) fall through to the
+    // catch-all field renderer, so no separate renderer is needed.
+    if (type === 'creature' || type === 'npc') return renderCreatureExtra(d);
     if (type === 'weapon')      return renderWeaponExtra(d);
     if (type === 'item' || type === 'armor' || type === 'gear')
       return renderItemExtra(d);
@@ -3229,7 +3238,7 @@
       // separately; used by the dedupe below to hide the absorbed entry.
       "  json_extract(data, '$.also_known_as') AS also_known_as_json, " +
       "  json_extract(data, '$.incorporates')  AS incorporates_json, " +
-      "  CASE WHEN type = 'creature' " +
+      "  CASE WHEN type IN ('creature', 'npc') " +
       "       THEN json_extract(data, '$.hit_dice') ELSE NULL END AS hit_dice " +
       "FROM entry WHERE name IS NOT NULL"
     );
@@ -3362,7 +3371,10 @@
         featureNames,    // null OR list of preserved-case names
         // Creature facts, pre-parsed once, for the cr:/hd:/size:/align:
         // filters. null for everything that isn't a creature.
-        creature: r.type === 'creature' ? {
+        // `npc` shares the creature stat block, so it gets the same
+        // pre-parsed facts -- a DM filtering cr:/hd:/size: wants the
+        // named individuals too, not just the monsters.
+        creature: (r.type === 'creature' || r.type === 'npc') ? {
           cr:    parseCRSpan(r.cr),
           hd:    parseHDCount(r.hit_dice),
           size:  (r.creature_size || '').toLowerCase(),
