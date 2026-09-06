@@ -3193,6 +3193,19 @@
       "   COALESCE(json_extract(data, '$.special'),       '') || ' ' || " +
       "   COALESCE(json_extract(data, '$.effect'),        '') || ' ' || " +
       "   COALESCE(json_extract(data, '$.granted_power'), '') || ' ' || " +
+      // `sections` is the walk's container for the book's OWN named sections —
+      // {heading, text} rows carrying SAMPLE ENCOUNTERS, ECOLOGY, SOCIETY,
+      // IN EBERRON, IN FAERUN. Same failure as rmsf7qe99 one field over: the
+      // content is in the entry and was invisible to search because its field
+      // was not in this list. It matters most for MM IV and MM V, where the
+      // book REPLACED the one-line Organization entry with a full Sample
+      // Encounters section (MM IV says so itself: "The older monster write-ups
+      // had a one-line entry titled Organization. This adds more depth and
+      // detail."), so the ELs and adventure seeds a DM searches for live here
+      // and nowhere else. json_extract on an array yields its JSON text, which
+      // carries the headings and a little punctuation along with the prose —
+      // fine for substring matching, marginally noisier than plain prose.
+      "   COALESCE(json_extract(data, '$.sections'),       '') || ' ' || " +
       "   COALESCE(json_extract(data, '$.text'),          '')) AS body, " +
       "  CASE WHEN type IN ('class','prc') " +
       "       THEN json_extract(data, '$.class_features') ELSE NULL END " +

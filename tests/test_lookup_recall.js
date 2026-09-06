@@ -108,6 +108,28 @@ const CASES = [
   { query: 'great shout', expect: { name: 'Shout, Greater', type: 'spell' }, maxRank: 3,
     note: 'incorporation: FRCS 3.0 spell absorbed into the PHB 3.5 one' },
 
+  // --- book sections (`sections`) ---
+  // The SECOND instance of the rmsf7qe99 bug, one field over: content sits in
+  // the entry and is invisible to search because its field was not in the
+  // indexed COALESCE. MM IV and MM V REPLACED the one-line Organization entry
+  // with a full Sample Encounters section — MM IV says so itself ("The older
+  // monster write-ups had a one-line entry titled Organization. This adds more
+  // depth and detail.") — so the ELs and adventure seeds a DM searches for live
+  // in `sections` and nowhere else.
+  // This phrase was chosen because it appears ONLY inside a sections row (it is
+  // in no description, benefit, normal, special or lore field anywhere in the
+  // DB), so nothing but the index change can make this case pass.
+  // maxRank 20 is CALIBRATED, not tuned to pass: measured rank is 17 of 21,100
+  // entries. The first draft said 15, copied from the `selected weapon` anchor
+  // before any measurement — a guess, and the measurement beats it. What this
+  // case guards is REACHABILITY: verified by A/B on 2026-09-06, the query is a
+  // flat MISS without the `sections` term in the index and rank 17 with it. A
+  // tighter gate would assert a ranking claim for a fuzzy three-word body match
+  // that nothing has earned; 20 still catches the regression that matters (back
+  // to MISS), and the harness's `vs gate` column reports drift long before then.
+  { query: 'patient cunning killers', expect: { name: 'Bloodsilk Spider', type: 'creature' }, maxRank: 20,
+    note: 'body-text match on sections/SAMPLE ENCOUNTERS; MISS before the 2026-09-06 index fix' },
+
   // --- rules / mechanics by common phrasing ---
   { query: 'flanking',        expect: { name: 'Flanking', type: 'rule' },       maxRank: 5 },
   { query: 'grapple',         expect: { name: 'Grapple', type: 'rule' },        maxRank: 5 },
