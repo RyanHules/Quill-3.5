@@ -6780,7 +6780,7 @@ test('monster-class: SS monster classes have the extended class_table fields', (
   // fields. SS classes all have these. Guard at the DB layer.
   const rows = execAll(db,
     "SELECT name, json_extract(data, '$.class_table') AS ct "
-    + "FROM entry WHERE type='class' AND name LIKE '%(Monster Class)' LIMIT 5");
+    + "FROM entry WHERE type='class' AND source='Savage Species' LIMIT 5");
   assertGE(rows.length, 5,
     'expected at least 5 monster classes in the DB');
   for (const row of rows) {
@@ -6802,7 +6802,7 @@ test('monster-class: Ogre L3 aggregates the right ability bumps', (db) => {
   // So at L3 the aggregate is STR +2, CON +2.
   const row = execOne(db,
     "SELECT json_extract(data, '$.class_table') AS ct FROM entry "
-    + "WHERE type='class' AND name='Ogre (Monster Class)'");
+    + "WHERE type='class' AND source='Savage Species' AND name='Ogre'");
   const table = JSON.parse(row.ct || '[]');
   const acc = {};
   for (const r of table) {
