@@ -8997,7 +8997,14 @@ test('xref: a delta inherits the stat block it does not print', (db) => {
     + "json_extract(data,'$.duration')         AS d_duration, "
     + "json_extract(data,'$.saving_throw')     AS d_saving_throw, "
     + "json_extract(data,'$.spell_resistance') AS d_spell_resistance, "
-    + "json_extract(data,'$.target')           AS d_target "
+    + "json_extract(data,'$.target')           AS d_target, "
+    // PROVENANCE, shipped by the pipeline (apply_spell_inheritance, step 9b).
+    // Since 2026-09-17 the DB resolves spell inheritance and WRITES the value
+    // into the entry, so the sheet reads this instead of recomputing — which is
+    // why the test now selects it. Without these two columns the fixture looks
+    // like a spell that simply prints its own stat block.
+    + "json_extract(data,'$.inherited_fields')     AS d_inherited_fields, "
+    + "json_extract(data,'$.inheritance_skipped')  AS d_inheritance_skipped "
     + "FROM entry WHERE name=? AND source=? AND type=? LIMIT 1",
     [name, source, type]);
   // Greater Teleport prints NONE of its own stat block — it is all teleport's.
@@ -9008,7 +9015,18 @@ test('xref: a delta inherits the stat block it does not print', (db) => {
                components: gtRow.d_components, duration: gtRow.d_duration,
                saving_throw: gtRow.d_saving_throw,
                spell_resistance: gtRow.d_spell_resistance,
-               target: gtRow.d_target };
+               target: gtRow.d_target,
+               inherited_fields: gtRow.d_inherited_fields,
+               inheritance_skipped: gtRow.d_inheritance_skipped };
+  // The values are PRESENT on the entry now; what must still be true is that
+  // every one of them is MARKED as inherited and names where it came from.
+  // An inherited value that cannot be told from a printed one is the legacy
+  // layer's failure mode rebuilt, which is the whole point of the provenance.
+  assert(gtRow.d_casting_time,
+    'the pipeline should have filled Greater Teleport\'s casting time');
+  assert(gtRow.d_inherited_fields,
+    'and it must say so — a filled value with no provenance is indistinguishable '
+    + 'from a printed one');
   const inh = L.inheritedStatBlock(gt, 'spell');
   assert(inh, 'Greater Teleport must inherit a stat block');
   for (const f of ['casting_time', 'range', 'components', 'duration',
@@ -9028,18 +9046,35 @@ test('xref: a mass variant does NOT inherit what its base hits', (db) => {
     const r = execOne(db,
       "SELECT id, name, source, json_extract(data,'$.description') AS description, "
       + "json_extract(data,'$.target') AS target, "
-      + "json_extract(data,'$.range')  AS range "
+      + "json_extract(data,'$.range')  AS range, "
+      + "json_extract(data,'$.casting_time') AS casting_time, "
+      + "json_extract(data,'$.components')   AS components, "
+      + "json_extract(data,'$.duration')     AS duration, "
+      + "json_extract(data,'$.inherited_fields')    AS inherited_fields, "
+      + "json_extract(data,'$.inheritance_skipped') AS inheritance_skipped "
       + "FROM entry WHERE name=? AND type=? LIMIT 1", [name, type]);
     assert(r, `fixture missing: ${name}`);
     return r;
   };
   // Mass Contagion is an area; inheriting Contagion's "Living creature
   // touched" would print a WRONG target on a spell about to be cast.
-  const mc = L.inheritedStatBlock(stub('Contagion, Mass', 'spell'), 'spell');
-  assert(mc, 'Mass Contagion still inherits the safe fields');
-  assert(!mc.fields.target, 'target must NOT be inherited by a mass variant');
-  assert((mc.skipped || []).includes('target'),
+  //
+  // ⚠ The pipeline shipped exactly that on 2026-09-17 — it had no shape rule —
+  // and this test is what caught it. The rule was then ported from lookup.js
+  // into apply_spell_inheritance, so the refusal now happens upstream and
+  // arrives as `inheritance_skipped`. Both halves are asserted below: the wrong
+  // value must be absent AND the silence must be explained.
+  const mcRow = stub('Contagion, Mass', 'spell');
+  assert(!mcRow.target,
+    'Mass Contagion must not carry contagion\'s "Living creature touched" — '
+    + 'Spell Compendium prints "As contagion, but 20-ft. radius"');
+  assert(String(mcRow.inheritance_skipped || '').includes('target'),
     'and the omission must be reported, not silent');
+  const mc = L.inheritedStatBlock(mcRow, 'spell');
+  assert(mc, 'Mass Contagion still reports its inheritance');
+  assert(!mc.fields.target, 'target must NOT be presented as inherited');
+  assert((mc.skipped || []).includes('target'),
+    'the sheet must surface the refusal the pipeline shipped');
   assert(mc.fields.casting_time || mc.fields.duration || mc.fields.components,
     'the non-shape fields are still inherited');
   // But a mass spell whose BASE is already mass is right to inherit it —

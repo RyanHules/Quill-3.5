@@ -875,13 +875,62 @@
   // does NOT print itself, taken from the NEAREST base that has one. Never
   // overwrites a printed value: a delta that states its own duration is
   // stating a change, and that is the whole point of the entry.
+  // The PIPELINE resolves spell inheritance now (apply_spell_inheritance.py,
+  // rebuild step 9b) and ships the answer: the value is written into the entry,
+  // with `inherited_fields` naming the parent per field and `inheritance_skipped`
+  // listing what it refused. Read that instead of recomputing it.
+  //
+  // WHY, and it is not tidiness (Ryan, 2026-09-17). Two implementations of one
+  // rule is the drift this project keeps paying for, and it had already started:
+  // the pipeline shipped Mass Contagion with contagion's "Living creature
+  // touched" because it lacked the mass/chain shape rule THIS FILE had already
+  // worked out and covered with tests. The rule had to be hand-ported to fix it.
+  // Whichever side computes, the other must be told — so only one side computes.
+  //
+  // The sheet still computes for types the pipeline does not touch (`mystery`)
+  // and for spells it skipped, and the two can never collide: the computed path
+  // fills only fields the entry does NOT carry, and a shipped field is carried
+  // by definition. So this merges rather than replaces.
+  function shippedInheritance(d) {
+    const blob = (d && d.data) || {};
+    const map = (d && d.inherited_fields) || blob.inherited_fields;
+    const parsed = typeof map === 'string' ? (() => {
+      try { return JSON.parse(map); } catch (e) { return null; }
+    })() : map;
+    const rawSkip = (d && d.inheritance_skipped) || blob.inheritance_skipped;
+    const skip = typeof rawSkip === 'string' ? (() => {
+      try { return JSON.parse(rawSkip); } catch (e) { return null; }
+    })() : rawSkip;
+    return { map: (parsed && typeof parsed === 'object') ? parsed : null,
+             skipped: Array.isArray(skip) ? skip : [] };
+  }
+
   function inheritedStatBlock(d, type) {
+    const shipped = shippedInheritance(d);
     const chain = resolveBaseChain(d, type);
-    if (!chain.length) return null;
+    // A shipped answer stands on its own — the chain is only needed to COMPUTE
+    // one, and an entry the pipeline resolved may no longer look like a delta.
+    if (!chain.length && !shipped.map && !shipped.skipped.length) return null;
     const wanted = XREF_INHERIT[type];
     if (!wanted) return null;
     const fields = {};
-    const skipped = [];
+    const skipped = shipped.skipped.slice();
+    if (shipped.map) {
+      // `inherited_fields` maps field -> parent NAME, not parent book. The
+      // tooltip shows the book, so recover it from the chain when the entry
+      // still resolves to the same parent — and degrade to no book rather than
+      // guess when it does not, since `got.source` is already optional there.
+      const bookOfParent = {};
+      for (const hop of chain) {
+        if (hop.detail && hop.detail.name) bookOfParent[hop.detail.name] = hop.detail.source;
+      }
+      for (const [f, from] of Object.entries(shipped.map)) {
+        if (!wanted.includes(f)) continue;
+        const v = d[f] != null ? d[f] : (d.data && d.data[f]);
+        if (xrefEmpty(v)) continue;   // shipped then cleared: do not claim it
+        fields[f] = { value: v, from, source: bookOfParent[from] || null };
+      }
+    }
     for (const f of wanted) {
       if (!xrefEmpty(d[f]) || !xrefEmpty(d.data && d.data[f])) continue;
       for (const hop of chain) {
