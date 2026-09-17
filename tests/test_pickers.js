@@ -3353,6 +3353,18 @@ test('companion: every relevant class feature has metadata or explicit exclusion
   // (We could DB-query for the OVERRIDES set but a Python-vs-JS mirror
   // is simpler and self-documents the intentional exclusions here.)
   const EXCLUSIONS = new Set([
+    // 2026-09-17: two ORDINARY-ENGLISH collisions with KEYWORDS, both verified
+    // by reading the matched sentence rather than the feature name. Mirrors the
+    // None entries in _companion_metadata.OVERRIDES.
+    //   Primeval Form (Frostburn): "...can be from any terrain FAMILIAR to the
+    //   character" — the adjective.
+    //   Second Circle (Savage Species): "abominations form the LEADERSHIP
+    //   within the temple hierarchy" — the noun, not the feat.
+    // A third feature was on this list as a supposed false positive and was
+    // NOT one: Emancipated Spawn's "Recall Class Features" really does restore
+    // a former class's familiar/companion, and now carries metadata instead.
+    'Primeval/Primeval Form (Su)',
+    'Yuan-Ti Cultist/Second Circle',
     // 2026-07-09 Races of the Wild walk: Arcane Hierophant's "Channel Animal"
     // lets you channel touch spells THROUGH your existing animal companion —
     // it names the keyword but grants no companion (the advanced druid levels
