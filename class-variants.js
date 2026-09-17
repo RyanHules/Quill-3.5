@@ -283,16 +283,54 @@ const ClassVariants = (function () {
     const cd = getClassData(className);
     if (cd && cd.variant_of) {
       const fmap = buildFeatureLevelMap(cd);
+      const parentCd = getClassData(cd.variant_of);
+      const parentFmap = parentCd ? buildFeatureLevelMap(parentCd) : null;
       for (const r of rows) {
         if (!bookOk(r, 'subst_level') || !matchesEither(cd.variant_of, r)) continue;
         const ev = evaluateReplaces(r.replaces, fmap, /* strict */ false);
         if (!ev.ok) continue;
-        own.push({ ...r, _effLevel: ev.level != null ? ev.level : r.level,
+        let eff = ev.level;
+        if (!r.replaces) {
+          // A sub level with no `replaces` may still PRESUPPOSE a feature.
+          const need = presupposedFeature(r, parentFmap);
+          if (need) {
+            const vl = matchFeatureLevel(need, fmap);
+            if (vl == null) continue;      // the variant traded it away
+            if (eff == null) eff = vl;
+          }
+        }
+        own.push({ ...r, _effLevel: eff != null ? eff : r.level,
                    _inheritedFrom: cd.variant_of, _effClass: className,
                    _missing: ev.missing });
       }
     }
     return sortByEffLevel(own);
+  }
+
+  // A substitution level that says it REPLACES something is handled by
+  // `evaluateReplaces`. Some say nothing and still depend on a feature,
+  // because they ALTER it rather than replace it — and the book is
+  // deliberate about the difference. Planar Handbook's ranger levels are the
+  // worked example: L8 and L13 each print "This benefit replaces the swift
+  // tracker / camouflage class feature", while L4's Planar Animal Companion
+  // prints no such sentence anywhere (corpus L3200-3223). It does not replace
+  // the companion — it lets you pick a celestial or fiendish one at -1
+  // effective druid level. You must therefore already HAVE a companion, which
+  // a Mystic Ranger has traded away.
+  //
+  // ⚠ DELIBERATELY CONSERVATIVE: this can only ever EXCLUDE when there is
+  // positive evidence, because the failure mode on the other side is hiding a
+  // legitimate sub level, which is silent and worse than showing a spurious
+  // one. The name must resolve against the PARENT's feature map first; if the
+  // parent has no such feature the sub level is granting something new, and it
+  // is kept exactly as before.
+  function presupposedFeature(r, parentFmap) {
+    if (!parentFmap) return null;
+    // "Planar Animal Companion (Ranger Planar Substitution Level 4)"
+    //   -> "Planar Animal Companion"
+    const bare = String(r.name || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (!bare) return null;
+    return matchFeatureLevel(bare, parentFmap) == null ? null : bare;
   }
 
   // ---- Replaces / Grants extraction (C1/C2, 2026-07-13) -------------
