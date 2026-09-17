@@ -295,7 +295,19 @@
       // (Piercing/Slashing/Bludgeoning) is a different thing and lives in the
       // JSON blob. Aliasing them both to `type` is why the attack row's Type
       // field read "Weapon" instead of "Piercing" (report fms3gefge-2qzn).
-      + "json_extract(data, '$.type')                  AS damage_type, "
+      //
+      // ⚠ READ `damage_type`, NOT `type` (2026-09-16). That earlier fix aliased
+      // the RIGHT column to the WRONG field: `$.type` on a weapon holds the
+      // damage type in only 79 entries and the item CATEGORY in others, so the
+      // attack row went on reading "Weapon" for any weapon whose extraction
+      // filed the category there (XPH's Gythka, Chatkcha, Silver Sword — and
+      // XPH wins the recency tiebreak over Savage Species, which has the same
+      // weapons correct). The DB now coerces `weapon.type` -> `damage_type` by
+      // value (normalize_schema._resolve_weapon_type), so the canonical name is
+      // the one to read. `$.type` stays as a FALLBACK so an older deployed
+      // dnd35.db still resolves.
+      + "COALESCE(json_extract(data, '$.damage_type'), "
+      +          "json_extract(data, '$.type'))        AS damage_type, "
       // Weapon special qualities ("Reach, Trip, Disarm, Finesse", "Double").
       + "json_extract(data, '$.special')               AS special, "
       + "json_extract(data, '$.tables')                AS tables_json "
