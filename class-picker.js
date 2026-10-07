@@ -2525,6 +2525,11 @@
     return {
       level: row.level,
       special: row.special || '',
+      // The caster-advancement cell ("+1 level of existing arcane spellcasting
+      // class"). Canonically `row.spellcasting` since DB build 2026-10-07;
+      // before that the same text sat in `spells_per_day` as a string, which
+      // the preview below still falls back to for an older blob.
+      advance_text: typeof row.spellcasting === 'string' ? row.spellcasting : null,
       spells_per_day_json:
         spd === undefined || spd === null ? null : JSON.stringify(spd),
       spells_known_json:
@@ -4490,6 +4495,11 @@
         bits.push(`<b>Spells/Day:</b> ${formatSpellArray(spd)}`);
       } else if (typeof spd === 'string' && /level of existing/i.test(spd)) {
         bits.push(`<b>Advances:</b> ${escapeHtml(spd)}`);
+      }
+      // Canonical home (see rowToLevelDetail). Independent of the branch
+      // above: a current blob has no string in spells_per_day at all.
+      if (lvlRow.advance_text && !(typeof spd === 'string')) {
+        bits.push(`<b>Advances:</b> ${escapeHtml(lvlRow.advance_text)}`);
       }
       const sk = parseJsonArray(lvlRow.spells_known_json);
       if (Array.isArray(sk) && sk.some(x => x !== null && x !== undefined)) {

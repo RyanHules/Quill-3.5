@@ -2195,6 +2195,12 @@
           return v != null && v !== '' && v !== '-' && v !== '—' && v !== 0;
         }));
       const COL_LABELS = {
+        // `spellcasting` is the ONE home of a PrC's caster-advancement cell
+        // ("+1 level of existing arcane spellcasting class") since DB build
+        // 2026-10-07 — it used to sit in `special`, `spells_per_day` or
+        // `spells` depending on the book. The older shapes are still handled
+        // by extractAdvance / effectiveSpd above for a blob built before that.
+        spellcasting: 'Spellcasting',
         spells: 'Spells', spells_per_day: 'Spells/Day', spells_known: 'Spells Known',
         power_points_day: 'PP/Day', powers_known: 'Powers Known',
         max_power_level: 'Max Lvl', invocations_known: 'Invocations',

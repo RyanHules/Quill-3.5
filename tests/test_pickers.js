@@ -2540,7 +2540,17 @@ test('class-picker: every advancer PrC is wired (Source A regex or HARDCODED_ADV
   const rows = execAll(db,
     "SELECT name, " +
     "json_extract(data, '$.class_features') AS features_json, " +
-    "json_extract(data, '$.class_table')    AS table_json " +
+    "json_extract(data, '$.class_table')    AS table_json, " +
+    // The DB's resolved advancement specs. Since DB build 2026-10-07 the
+    // spell marker lives in the row's `spellcasting` cell, not `special`, and
+    // every advancer ships a DERIVED `advancement` — so this is now the
+    // primary wiring and "Source A" below is the fallback for an older blob.
+    // (test_class_audit.js has accepted these fields since it was written;
+    // this test had not, and would have reported ~130 classes as unwired.)
+    "(json_extract(data, '$.advancement') IS NOT NULL " +
+    " OR json_extract(data, '$.maneuver_advancement') IS NOT NULL " +
+    " OR json_extract(data, '$.invocation_advancement') IS NOT NULL " +
+    " OR json_extract(data, '$.mystery_advancement') IS NOT NULL) AS has_db_spec " +
     "FROM entry WHERE type = 'prc'");
 
   // Match "as if [pronoun] gained a level" — historical pattern that
@@ -2584,6 +2594,7 @@ test('class-picker: every advancer PrC is wired (Source A regex or HARDCODED_ADV
     const tableSpecials = table.map(t => t.special || '').join(' ');
     const hasCanonical = CANONICAL_MARKER.test(tableSpecials);
 
+    if (r.has_db_spec) continue;                           // DB spec (primary)
     if (hasCanonical) continue;                            // Source A catches it
     if (HARDCODED_ADVANCERS_KEYS.has(r.name)) continue;    // Source B catches it
     missed.push(r.name);
