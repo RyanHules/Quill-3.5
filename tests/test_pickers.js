@@ -6155,6 +6155,168 @@ test('advancement: each small fallback registry mirrors what the DB carries', (d
   }
 });
 
+// ---- tests: "one of" spell advancement (advancement.choice = 'one') ------
+//
+// Two entries in an advancement spec's `types` mean DUAL-track: one class of
+// EACH type, every level (Mystic Theurge). Sanctified Mind (Lords of Madness)
+// prints "+1 level of existing divine spellcasting class or manifesting
+// class" — ONE class, divine OR psionic — and there was no way to say that.
+// The DB marks such a spec `choice: "one"`; the picker runs it down the
+// single-track path 'any' already uses, narrowed to the listed types.
+//
+// No entry in the blob carries `choice` yet, so every spec here is
+// CONSTRUCTED and fed through a stub DB — these tests must not start passing
+// or failing because of what the database happens to ship.
+//
+// Same approach as loadFindReplacement: the functions are lifted out of the
+// real source text, so this is the shipped code, not a copy. Only the leaves
+// that reach the DOM or the class table (classPool, levelsUpTo, …) are stubs.
+function loadAdvancement(specs, pool) {
+  const src = readSource('class-picker.js');
+  const grab = (re, what) => {
+    const m = src.match(re);
+    if (!m) throw new Error(`could not lift ${what} out of class-picker.js`);
+    return m[0];
+  };
+  const fn = (name) =>
+    grab(new RegExp(`function ${name}\\s*\\([\\s\\S]*?[\\r\\n]  \\}`), name);
+  const parts = [
+    'const _dbMetaCache = new Map(); let _dbMetaLoaded = false;',
+    'const _FALLBACK_SPELLCASTING_TYPE = {}, _FALLBACK_CASTER_STYLE = {},',
+    '      _FALLBACK_HARDCODED_ADVANCERS = {};',
+    grab(/const _ABILITY_TO_CODE\s*=[\s\S]*?[\r\n]  \};/, '_ABILITY_TO_CODE'),
+    ...['_normalizeAbility', 'loadDbMetadata', 'getClassType', 'getCasterStyle',
+        'getAdvancementSpec', 'classHasOwnSpellsPerDay',
+        'detectSpellAdvancement', 'pickAdvanceTarget', 'seedAdvancementSlots',
+        'eligibleTargetsForType', 'advanceTypeMatches', 'advancerIsAmbiguous',
+        'promoteAdvancerIfAmbiguous', 'refreshAdvanceTargets'].map(fn),
+    'return { getAdvancementSpec, detectSpellAdvancement,',
+    '         eligibleTargetsForType, refreshAdvanceTargets };',
+  ];
+  // One row per class, in the column shape loadDbMetadata SELECTs.
+  const rows = Object.entries(specs).map(([name, s]) => ({
+    name, entry_type: s.entry_type || 'prc',
+    class_type: s.class_type || null,
+    advancement: s.advancement ? JSON.stringify(s.advancement) : null,
+  }));
+  const DB = { isLoaded: () => true, query: () => rows };
+  const levelsUpTo = (id, level) =>
+    Array.from({ length: level }, (_, i) => ({ level: i + 1, special: '' }));
+  // A manifester has no spells_per_day row, so the has-slots test plain 'any'
+  // auto-picks by is false for it — as it is against the real table.
+  const getSpellcastingDataAtLevel = (id) =>
+    pool.some(e => e.classId === id && e.className !== 'Psion') ? {} : null;
+  return new Function('window', 'DB', 'classPool', 'fetchClassTable',
+    'levelsUpTo', 'getSpellcastingDataAtLevel', parts.join('\n'))(
+    { DB }, DB, () => pool, () => [], levelsUpTo, getSpellcastingDataAtLevel);
+}
+
+const ONE_OF_SPECS = {
+  Cleric: { entry_type: 'class', class_type: 'divine' },
+  Psion:  { entry_type: 'class', class_type: 'psionic' },
+  Wizard: { entry_type: 'class', class_type: 'arcane' },
+  'One-Of PrC': { advancement: {
+    types: ['divine', 'psionic'], advances_all_levels: true, choice: 'one' } },
+  'Dual PrC': { advancement: {
+    types: ['divine', 'psionic'], advances_all_levels: true } },
+  'Any PrC': { advancement: { types: ['any'], advances_all_levels: true } },
+};
+
+// Stand up an advancer entry the way applyClass does, from the real
+// detectSpellAdvancement result, and append it to the pool.
+function addAdvancer(A, pool, className, level) {
+  const adv = A.detectSpellAdvancement(className, 900, level);
+  assert(adv, `${className} should resolve as a spell advancer`);
+  const entry = { className, classId: 900, level,
+    advancesTypes: adv.types, advancesLevels: adv.levels,
+    advancingLevels: adv.advancingLevels };
+  if (adv.oneOf) entry.advancesOneOf = adv.oneOf;
+  pool.push(entry);
+  return entry;
+}
+
+test('advancement choice: the spec mapping carries `choice` through', () => {
+  const A = loadAdvancement(ONE_OF_SPECS, []);
+  const one = A.getAdvancementSpec('One-Of PrC');
+  assertEq(one.choice, 'one', 'choice must survive the snake→camel mapping');
+  assertEq(one.types.join(','), 'divine,psionic', 'types are left as shipped');
+  assert(one.advancesAllLevels === true, 'the rest of the spec still maps');
+  assert(A.getAdvancementSpec('Dual PrC').choice === undefined,
+    'a spec without `choice` must not grow one');
+  // The entry-side half: applyClass stamps it and the save stub keeps it —
+  // without the stub line a reloaded one-of reverts to an unrestricted 'any'.
+  const cp = readSource('class-picker.js');
+  assert(/if \(adv\.oneOf\) entry\.advancesOneOf = adv\.oneOf;/.test(cp),
+    'applyClass must copy the detected oneOf onto the entry');
+  assertEq((cp.match(/advancesOneOf:\s+(?:e|stub)\.advancesOneOf/g) || []).length,
+    3, 'advancesOneOf must be in mapEntryToStub and both hydrateStub branches');
+});
+
+test('advancement choice: one-of is ONE track with every listed type eligible', () => {
+  const pool = [
+    { className: 'Cleric', classId: 1, level: 5 },
+    { className: 'Psion',  classId: 2, level: 5 },
+  ];
+  const A = loadAdvancement(ONE_OF_SPECS, pool);
+  const e = addAdvancer(A, pool, 'One-Of PrC', 4);
+  assertEq(e.advancesTypes.length, 1, 'one track, not one per listed type');
+  assertEq(e.advancesLevels, 4, 'still +1 per PrC level');
+  const eligible = e.advancesTypes.map(
+    t => A.eligibleTargetsForType(e, t).map(x => x.className).join(','));
+  assertEq(eligible.join('|'), 'Cleric,Psion',
+    'the single track offers both the divine caster and the manifester');
+  // Two eligible targets promote it to per-level allocation, exactly like an
+  // ambiguous 'any' advancer — and each level advances ONE class. Dual-track
+  // would have seeded two targets per slot.
+  A.refreshAdvanceTargets(e);
+  assert(e.perLevelChoice === true, 'two eligible targets => per-level choice');
+  assertEq(e.advancementSlots.length, 4, 'one slot per advancing level');
+  for (const s of e.advancementSlots) {
+    assertEq(s.targets.join(','), 'Cleric',
+      `L${s.prcLevel} must advance exactly one class`);
+  }
+});
+
+test('advancement choice: one-of rejects a class outside the listed types', () => {
+  const pool = [{ className: 'Wizard', classId: 3, level: 5 }];
+  const A = loadAdvancement(ONE_OF_SPECS, pool);
+  const e = addAdvancer(A, pool, 'One-Of PrC', 4);
+  assertEq(A.eligibleTargetsForType(e, e.advancesTypes[0]).length, 0,
+    'an arcane caster is not a divine-or-psionic target');
+  A.refreshAdvanceTargets(e);
+  assert(e.advancesTargets.length === 1 && e.advancesTargets[0] === null,
+    `no target should be picked, got ${JSON.stringify(e.advancesTargets)}`);
+  // The filter is the ONLY difference from 'any': the same wizard IS a
+  // target for an unrestricted 'any' advancer.
+  const pool2 = [{ className: 'Wizard', classId: 3, level: 5 }];
+  const A2 = loadAdvancement(ONE_OF_SPECS, pool2);
+  const any = addAdvancer(A2, pool2, 'Any PrC', 4);
+  A2.refreshAdvanceTargets(any);
+  assertEq(any.advancesTargets.join(','), 'Wizard', "plain 'any' is unchanged");
+  // And a lone manifester is picked, though it has no spell slots — the
+  // has-slots test plain 'any' auto-picks by would have skipped it.
+  const pool3 = [{ className: 'Psion', classId: 2, level: 5 }];
+  const A3 = loadAdvancement(ONE_OF_SPECS, pool3);
+  const p = addAdvancer(A3, pool3, 'One-Of PrC', 4);
+  A3.refreshAdvanceTargets(p);
+  assertEq(p.advancesTargets.join(','), 'Psion', 'a lone manifester is a target');
+});
+
+test('advancement choice: two types WITHOUT `choice` are still dual-track', () => {
+  const pool = [
+    { className: 'Cleric', classId: 1, level: 5 },
+    { className: 'Psion',  classId: 2, level: 5 },
+  ];
+  const A = loadAdvancement(ONE_OF_SPECS, pool);
+  const e = addAdvancer(A, pool, 'Dual PrC', 4);
+  assertEq(e.advancesTypes.join(','), 'divine,psionic', 'one track per type');
+  assert(e.advancesOneOf === undefined, 'no one-of restriction without `choice`');
+  A.refreshAdvanceTargets(e);
+  assertEq(e.advancesTargets.join(','), 'Cleric,Psion',
+    'each type advances its own class');
+  assert(!e.perLevelChoice, 'one candidate per type leaves nothing to choose');
+});
+
 test('containers: identical bags are PACKED, and never split an item', () => {
   const src = readSource('containers.js');
   const w = {};

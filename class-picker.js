@@ -327,6 +327,7 @@
   //     perLevelChoice: bool,            // optional — Ultimate Magus
   //     requiresStyles: ['prepared'|'spontaneous', …]  // optional
   //     allowsMultiAdvance: bool         // optional — multi-target/level
+  //     choice: 'one'                    // optional — types are alternatives
   //   }
   // - advancesAllLevels=true means the PrC's full level count is the
   //   advancement count (Mystic Theurge, Archmage, Loremaster, …).
@@ -343,6 +344,11 @@
   // - allowsMultiAdvance=true means the player can pick MORE THAN ONE
   //   target per slot (UM: both prepared + spontaneous at the same
   //   level). Without this flag, each slot accepts exactly one target.
+  // - choice='one' means the PrC advances a SINGLE existing class drawn from
+  //   any of the listed types (Sanctified Mind: "+1 level of existing divine
+  //   spellcasting class or manifesting class"). Without it, two entries in
+  //   `types` mean DUAL-track — one class of EACH type, like Mystic Theurge —
+  //   and there was no way to say "one class, from these types".
   const _FALLBACK_HARDCODED_ADVANCERS = {
     'Mystic Theurge':   { types: ['arcane', 'divine'], advancesAllLevels: true },
     'Archmage':         { types: ['arcane'],           advancesAllLevels: true },
@@ -680,6 +686,9 @@
             perLevelChoice: !!adv.per_level_choice,
             requiresStyles: adv.requires_styles,
             allowsMultiAdvance: !!adv.allows_multi_advance,
+            // 'one' = the listed types are ALTERNATIVES for a single track,
+            // not one track each. Absent on every dual-track spec.
+            choice: adv.choice,
           };
         }
       }
@@ -1577,7 +1586,8 @@
       const tgt = (adv.advancesTargets || [])[i];
       const eligible = eligibleTargetsForType(adv, t);
       if (!tgt && !eligible.length) {
-        const typeLabel = t === 'any' ? 'spellcasting' : t;
+        const typeLabel = t !== 'any' ? t
+          : (adv.advancesOneOf ? adv.advancesOneOf.join(' or ') : 'spellcasting');
         issues.push(
           `no ${typeLabel} class to advance — add one to enable this`
         );
@@ -1603,8 +1613,21 @@
       const t = getClassType(e.className);
       if (t == null) return false;
       const ts = Array.isArray(t) ? t : [t];
-      return typeStr === 'any' || ts.includes(typeStr);
+      return advanceTypeMatches(advancerEntry, typeStr, ts);
     });
+  }
+
+  // Does a class whose type list is `ts` satisfy the advancer's `want`?
+  // 'any' matches every caster — unless the advancer is a ONE-OF
+  // (`advancesOneOf`, from the spec's `choice: 'one'`), where 'any' means
+  // "any of THESE types": Sanctified Mind advances a divine caster or a
+  // manifester, never a wizard. This is the whole difference between a
+  // one-of advancer and a plain 'any' one; everything downstream (single
+  // target, per-level promotion, slot seeding) is shared.
+  function advanceTypeMatches(advancerEntry, want, ts) {
+    if (want !== 'any') return ts.includes(want);
+    const oneOf = advancerEntry && advancerEntry.advancesOneOf;
+    return !(oneOf && oneOf.length) || ts.some(x => oneOf.includes(x));
   }
 
   function renderSimpleChooser(listEl, adv) {
@@ -2104,6 +2127,7 @@
       advancesTypes:   e.advancesTypes,
       advancesLevels:  e.advancesLevels,
       advancesTargets: e.advancesTargets,
+      advancesOneOf:   e.advancesOneOf,
       perLevelChoice:         e.perLevelChoice,
       advancingLevels:        e.advancingLevels,
       autoAdvanceLowerLevels: e.autoAdvanceLowerLevels,
@@ -2159,6 +2183,7 @@
         advancesTypes:   stub.advancesTypes   || undefined,
         advancesLevels:  stub.advancesLevels  || undefined,
         advancesTargets: stub.advancesTargets || undefined,
+        advancesOneOf:   stub.advancesOneOf   || undefined,
         perLevelChoice:         stub.perLevelChoice         || undefined,
         advancingLevels:        stub.advancingLevels        || undefined,
         autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
@@ -2190,7 +2215,8 @@
       advancesTypes:   stub.advancesTypes   || undefined,
       advancesLevels:  stub.advancesLevels  || undefined,
       advancesTargets: stub.advancesTargets || undefined,
-      perLevelChoice:         stub.perLevelChoice         || undefined,
+      advancesOneOf:   stub.advancesOneOf   || undefined,
+      perLevelChoice:        stub.perLevelChoice         || undefined,
       advancingLevels:        stub.advancingLevels        || undefined,
       autoAdvanceLowerLevels: stub.autoAdvanceLowerLevels || undefined,
       requiresStyles:         stub.requiresStyles         || undefined,
@@ -2977,6 +3003,17 @@
       }
       if (effective <= 0) return null;
       const out = { types: hard.types.slice(), levels: effective };
+      // choice: 'one' — the listed types are alternatives for ONE track, not
+      // a track apiece. That is exactly what 'any' already is (one track, one
+      // target, promoted to per-level once two are eligible), so it rides the
+      // 'any' machinery and differs only in `oneOf`, which narrows who counts
+      // as eligible (see advanceTypeMatches). A spec that already says 'any',
+      // or names a single type, has nothing to narrow and is left alone.
+      if (hard.choice === 'one' && out.types.length > 1
+          && !out.types.includes('any')) {
+        out.oneOf = out.types;
+        out.types = ['any'];
+      }
       // Computed for EVERY advancer now, not only the per-level ones: it is
       // just a list of which PrC levels advance, and the per-level allocation
       // UI needs it the moment a second eligible target shows up.
@@ -3004,7 +3041,10 @@
     for (const e of classPool()) {   // union — target either side
       if (e === advancerEntry) continue;
       if (!e.classId) continue;
-      if (typeStr === 'any') {
+      // A one-of advancer is 'any' restricted by TYPE, so it takes the type
+      // comparison below rather than this has-spell-slots test — which a
+      // manifester (no spells_per_day row) would fail outright.
+      if (typeStr === 'any' && !advancerEntry.advancesOneOf) {
         if (getSpellcastingDataAtLevel(e.classId, e.level)) return e.className;
         continue;
       }
@@ -3013,7 +3053,7 @@
       const t = getClassType(e.className);
       if (t == null) continue;
       const types = Array.isArray(t) ? t : [t];
-      if (types.includes(typeStr)) return e.className;
+      if (advanceTypeMatches(advancerEntry, typeStr, types)) return e.className;
     }
     return null;
   }
@@ -3037,7 +3077,7 @@
       if (t == null) return false;
       const ts = Array.isArray(t) ? t : [t];
       // 'any' matches anything; specific type must be in the class's type list.
-      return types.some(want => want === 'any' || ts.includes(want));
+      return types.some(want => advanceTypeMatches(entry, want, ts));
     });
     // Pick a default target per CHOICE slot. For UM-style PrCs with
     // requiresStyles=['prepared','spontaneous'] and allowsMultiAdvance,
@@ -3061,7 +3101,7 @@
           if (defaultChoiceTargets.includes(e.className)) return false;
           const t = getClassType(e.className);
           const ts = Array.isArray(t) ? t : [t];
-          return want === 'any' || ts.includes(want);
+          return advanceTypeMatches(entry, want, ts);
         });
         if (match) defaultChoiceTargets.push(match.className);
       }
@@ -3796,7 +3836,10 @@
         continue;   // counted — don't also count its spell advancement
       }
       if (!e.advancesLevels) continue;
-      const types = e.advancesTypes || [];
+      // A one-of advancer carries 'any' as its track token, but the types it
+      // really names are in advancesOneOf — "divine or manifesting" must not
+      // read as the generic "existing spellcasting class" and stack here.
+      const types = e.advancesOneOf || e.advancesTypes || [];
       if (types.some(t => INVOCATION_STACKING_SPELL_TYPES.has(String(t).toLowerCase()))) {
         bonus += e.advancesLevels;
       }
@@ -4619,6 +4662,8 @@
       // allocation once a second eligible target appears, and it cannot do
       // that without knowing which PrC levels advance.
       if (adv.advancingLevels) entry.advancingLevels = adv.advancingLevels;
+      // One-of advancer: advancesTypes is ['any'] and this narrows it.
+      if (adv.oneOf) entry.advancesOneOf = adv.oneOf;
       if (adv.perLevelChoice) {
         // Mark the entry so the UI renders per-level pickers and
         // effectiveSpellLevel routes to advancementSlots.
@@ -4804,7 +4849,9 @@
     if (entry.advancesTargets && entry.advancesTargets.some(t => t)) {
       advParts.push(entry.advancesTargets.filter(Boolean).join(' + '));
     } else if (entry.advancesTypes && entry.advancesTypes.length) {
-      advParts.push(`${entry.advancesTypes.join('+')} caster — no target found`);
+      const want = entry.advancesOneOf
+        ? entry.advancesOneOf.join(' or ') : entry.advancesTypes.join('+');
+      advParts.push(`${want} caster — no target found`);
     }
     // ToB IL-advancers (RKV / JPM / MoN) are all-target — they add their
     // full level to EVERY martial adept's IL — so the note names no
