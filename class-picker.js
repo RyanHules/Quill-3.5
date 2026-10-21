@@ -372,7 +372,10 @@
     // falls back HERE whenever the DB entry has no advancement, leaving this
     // row in would have re-granted ten arcane caster levels. Do not re-add it.
     'Dweomerkeeper':    { types: ['divine'],           advancesAllLevels: true },
-    'Hierophant':       { types: ['divine'],           advancesAllLevels: true },
+    // NOT here: Hierophant (DMG / FRCS). Its levels "do not advance spell
+    // progression in the character's base class" (DMG L23775); they only stack
+    // for CASTER LEVEL, which the DB carries as caster_level_rule full_of_base.
+    // Removed from the DB 2026-10-21 for the same reason as Dragon Disciple.
     'Hospitaler':       { types: ['divine'],           advancesAllLevels: true },
     'Mage of the Arcane Order': { types: ['arcane'],   advancesAllLevels: true },
     'Master Specialist': { types: ['arcane'],          advancesAllLevels: true },

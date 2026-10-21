@@ -3216,8 +3216,11 @@ test('class metadata: advancement spec populated for parser-missed advancer PrCs
   assert(missing.length === 0,
     `${missing.length} PrC(s) in the JS fallback have no advancement ` +
     `spec in the DB:\n  ${missing.join('\n  ')}\n` +
-    `Add them to ADVANCEMENT_METADATA in _class_metadata.py and ` +
-    `rebuild the DB.`);
+    `EITHER add them to ADVANCEMENT_METADATA in _class_metadata.py and ` +
+    `rebuild the DB, OR - if the book says the class does NOT advance ` +
+    `spellcasting (Dragon Disciple, Hierophant) - remove them from ` +
+    `_FALLBACK_HARDCODED_ADVANCERS. Read the corpus to decide; re-adding a ` +
+    `row the book contradicts is how the old wrong value comes back.`);
 });
 
 // The inverse guard: advancement metadata (spell / maneuver / invocation /
