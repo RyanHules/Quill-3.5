@@ -366,7 +366,11 @@
     // caster-levels CL boost is a special rule (applyUrPriestCasterLevel), not
     // standard advancement.
     'Contemplative':    { types: ['divine'],           advancesAllLevels: true },
-    'Dragon Disciple':  { types: ['arcane'],           advancesAllLevels: true },
+    // NOT here: Dragon Disciple (DMG). It gains BONUS SPELLS "as if from having
+    // a high ability score" (DMG Table 6-7), not caster levels, and the DB
+    // dropped its advancement row on 2026-10-21. Because getAdvancementSpec
+    // falls back HERE whenever the DB entry has no advancement, leaving this
+    // row in would have re-granted ten arcane caster levels. Do not re-add it.
     'Dweomerkeeper':    { types: ['divine'],           advancesAllLevels: true },
     'Hierophant':       { types: ['divine'],           advancesAllLevels: true },
     'Hospitaler':       { types: ['divine'],           advancesAllLevels: true },
