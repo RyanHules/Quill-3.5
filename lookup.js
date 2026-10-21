@@ -2831,6 +2831,10 @@
       'id', 'school', 'subschool', 'descriptor', 'types_csv', 'item_type',
       'body_slot', 'aura', 'caster_level', 'price', 'weight',
       'creature_size', 'creature_type', 'cr', 'alignment', 'discipline',
+      // The extractor's notes on the entry (OCR repairs, why a value is
+      // stored as it is) - an audit trail, not book text. Split out of
+      // `notes` on the DB side 2026-10-21.
+      'extraction_notes',
     ]);
     for (const k of Object.keys(d)) {
       if (shown.has(k) || skip.has(k)) continue;
