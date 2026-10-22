@@ -471,12 +471,27 @@
     // do not use that field.
     bits.push(renderBaseReference(d, type));
     bits.push(renderTypeSpecific(d, type));
+    // Text the BOOK prints trailing the entry - a caveat, a table footnote, a
+    // labelled Skills/Society paragraph, a PrC epigraph. Every type, once,
+    // here; until 2026-10-22 only the template catch-all showed it.
+    bits.push(renderPrintedNotes(d));
     // Structured data tables for every non-rule type (rules render
     // theirs inside renderRuleExtra, ordered before See-also).
     if (type !== 'rule') bits.push(renderEntryTables(d));
     bits.push(renderTags(d));
     bits.push(renderFlagRow({ name: d.name || '', source: d.source || '', type }));
     return bits.filter(Boolean).join('');
+  }
+
+  // `notes` is the book's own words, as one string with blank-line paragraph
+  // breaks (the DB split the extractor's commentary out into
+  // `extraction_notes`, which is never shown here). A non-string `notes` is
+  // the pre-split shape, which mixed in that commentary - so it is not shown.
+  function renderPrintedNotes(d) {
+    const n = typeof d.notes === 'string' ? d.notes.trim() : '';
+    if (!n) return '';
+    return `<div class="lookup-detail-notes"><b>Notes:</b>` +
+      `<div class="lookup-detail-desc">${escapeHtml(n)}</div></div>`;
   }
 
   // Entry-review flag control (DB-facing). Shows any open flags for this entry
@@ -2835,6 +2850,8 @@
       // stored as it is) - an audit trail, not book text. Split out of
       // `notes` on the DB side 2026-10-21.
       'extraction_notes',
+      // Rendered for every type by renderPrintedNotes (2026-10-22).
+      'notes',
     ]);
     for (const k of Object.keys(d)) {
       if (shown.has(k) || skip.has(k)) continue;

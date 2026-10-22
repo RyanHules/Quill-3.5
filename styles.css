@@ -3386,6 +3386,13 @@ tr.gear-stowed .gear-weight {
   margin-top: 0.3rem;
   color: #ccd;
 }
+.lookup-detail-notes {
+  margin-top: 0.3rem;
+  color: #ccd;
+}
+.lookup-detail-notes .lookup-detail-desc {
+  margin-top: 0.15rem;
+}
 .lookup-detail-tags {
   margin-top: 0.5rem;
   display: flex;
