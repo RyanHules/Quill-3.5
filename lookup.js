@@ -2138,7 +2138,11 @@
     // as redundant (the class table now IS the spells/day grid).
     let mainTableHasSpdCols = false;
     if (Array.isArray(d.class_table) && d.class_table.length) {
-      const VISIBLE = 5;
+      // Every level shown (Ryan, 2026-10-22): the table now sits at the top of
+      // the entry and is what a class is opened for, and a 5-row cut meant
+      // re-expanding it every time the lookup was reopened. The expand footer
+      // only renders when rows are hidden, so it simply drops out.
+      const VISIBLE = Infinity;
       // Unified class table that combines:
       //   - BAB / Fort / Ref / Will / Special (always)
       //   - Spells/Day column when ANY row carries spells_per_day
@@ -2402,7 +2406,9 @@
   // table — uses the existing data-action="expand-table" handler.
   function renderProgressionTables(classTable, suppressPatternB, suppressSpd) {
     if (!Array.isArray(classTable) || !classTable.length) return '';
-    const VISIBLE = 5;
+    // Every level shown (Ryan, 2026-10-22), like the main class table: the
+    // expand footer only renders when rows are hidden, so it simply drops out.
+    const VISIBLE = Infinity;
     const blocks = [];
 
     // --- Normalize spells_per_day across the 4 PrC data shapes -------
