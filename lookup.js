@@ -462,6 +462,8 @@
     const bits = [];
     bits.push(renderHeader(d, type));
     bits.push(renderMeta(d, type));
+    // A class's level table comes first: it is what a reader opens a class for.
+    if (type === 'class' || type === 'prc') bits.push(renderClassTableBlock(d));
     if (d.description) {
       bits.push(renderDescription(d, type));
     }
@@ -2115,6 +2117,16 @@
       }).join('');
       lines.push(`<b>Class features:</b>${feats}`);
     }
+    return lines.length
+      ? `<div class="lookup-detail-extra">${lines.join('<br>')}</div>` : '';
+  }
+
+  // The class table and its spells/day / resource progression tables, as their
+  // own block so renderDetailHtml can put them FIRST on a class or PrC - above
+  // the description (Ryan, 2026-10-22: "that's usually the first thing I look at
+  // when I pull up a class", and the panel resets its scroll when reopened).
+  function renderClassTableBlock(d) {
+    const lines = [];
     // Class table — first 5 rows visible; the rest render hidden so
     // the "… N more levels" footer can reveal them on click without
     // re-running the renderer. The "Special" cell renders full — it
@@ -3214,8 +3226,10 @@
     // raw_text they stay visible in the nested view. Rule entries
     // already include theirs via renderRuleExtra above.
     if (type !== 'rule') extras += renderEntryTables(data);
+    // A class's level table first, as in the full view.
+    const tableTop = (type === 'class' || type === 'prc') ? renderClassTableBlock(data) : '';
     return `<div class="lookup-nested-expansion" data-nested-name="${escapeHtml(name)}">` +
-      head + desc + extras + `</div>`;
+      head + tableTop + desc + extras + `</div>`;
   }
 
   function truncate(s, n) {
