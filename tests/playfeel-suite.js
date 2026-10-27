@@ -3643,6 +3643,42 @@
       'SS22: value identical after a collect/load round-trip');
   });
 
+  regression('SS23: staff charges and runestaff attunement round-trip by name + source', async () => {
+    await newCharacter();
+    document.querySelector('.tab[data-tab="tab-equipment"]').click();
+    const addGear = (name) => {
+      document.getElementById('btn-add-gear').click();
+      const inp = [...document.querySelectorAll('#gear-body tr.gear-row .gear-name')].pop();
+      inp.value = name;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    addGear('Staff of Fire');
+    addGear('Runestaff of Frost');
+    await wait(400);
+    const FIRE = "staff of fire|Dungeon Master's Guide";
+    const FROST = "runestaff of frost|Magic Item Compendium";
+    const block = (k) => document.querySelector(`#staff-use .staff-use-staff[data-key="${k}"]`);
+    if (!block(FIRE) || !block(FROST)) fail('SS23: both staffs render under Possessions');
+    const ch = block(FIRE).querySelector('.staff-use-charges');
+    ch.value = '31';
+    ch.dispatchEvent(new Event('change', { bubbles: true }));
+    const att = block(FROST).querySelector('.staff-use-attuned');
+    att.checked = true;
+    att.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(60);
+    const blob = App.collectData();
+    const su = blob._staff_use || {};
+    expect(su[FIRE] && su[FIRE].charges, 31, 'SS23: charges captured, keyed by name + source');
+    expect(!!(su[FROST] && su[FROST].attuned), true, 'SS23: attunement captured');
+    App.loadData(blob);
+    window.recalcAll(); await wait(400);
+    if (!block(FIRE) || !block(FROST)) fail('SS23: the staffs did not re-render after the load');
+    expect(block(FIRE).querySelector('.staff-use-charges').value, '31',
+      'SS23: charges identical after a collect/load round-trip');
+    expect(block(FROST).querySelector('.staff-use-attuned').checked, true,
+      'SS23: attunement identical after a collect/load round-trip');
+  });
+
   regression('SS21: item-borne armour bonuses reach the Defense Onion armor box', async () => {
     await newCharacter();
     const box = (id) => document.getElementById(id).textContent;

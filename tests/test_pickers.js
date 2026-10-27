@@ -9662,6 +9662,108 @@ test('feat-picker: the dedupe refusal is now conditional on repeatability', () =
 
 // ---- runner ---------------------------------------------------------------
 
+// ---- tests: StaffUse — the Possessions "Staffs" panel --------------------
+//
+// Reads the DB's build-derived `item.staff_spells`. The rules it encodes are
+// DMG p.243 (charged staffs: wielder's DC, caster level = max(staff, wielder),
+// spell trigger needs the spell on a class list) and MIC p.224 (runestaffs:
+// arcane class list only, the wielder's own caster level).
+function loadStaffUse(db) {
+  const src = readSource('staff-use.js');
+  const stubDB = db ? {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+    queryOne: (sql, params) => {
+      const rows = execAll(db, sql, params);
+      return rows.length ? rows[0] : null;
+    },
+  } : undefined;
+  const factory = new Function('window', 'DB', src + '\nreturn StaffUse;');
+  return factory({}, stubDB);
+}
+
+test('StaffUse: resolves a DMG staff and a runestaff from Possessions names', (db) => {
+  const SU = loadStaffUse(db);
+  const fire = SU.resolveStaff('Staff of Fire');
+  assert(fire && fire.kind === 'charged', 'Staff of Fire resolves as a charged staff');
+  const fb = fire.rows.find((r) => r.spell === 'Fireball');
+  assert(fb && fb.charges === 1, `Fireball costs 1 charge (got ${JSON.stringify(fb)})`);
+  assert(fire.cl === 8, `Staff of Fire is CL 8 (got ${fire.cl})`);
+  // The gear row's own fallback: a trailing "(...)" is stripped and retried.
+  assert(SU.resolveStaff('staff of fire (31 charges)'), 'a trailing parenthetical still resolves');
+  const frost = SU.resolveStaff('Runestaff of Frost');
+  assert(frost && frost.kind === 'rune', 'Runestaff of Frost resolves as a runestaff');
+  assert(frost.rows.every((r) => r.per_day === 3 && r.expends), 'runestaff rows carry per_day + expends');
+  assert(SU.resolveStaff('Cloak of Resistance +1') === null, 'a non-staff resolves to nothing');
+});
+
+test('StaffUse: spell levels resolve both spellings of a mass spell', (db) => {
+  const SU = loadStaffUse(db);
+  const a = SU.spellLevels('Suggestion, mass');   // DMG staff of enchantment
+  const b = SU.spellLevels('mass suggestion');    // MIC runestaff of enchantment
+  assert(a.get('wizard') && a.get('wizard').level === 6, `Suggestion, mass is Wizard 6 (got ${JSON.stringify([...a])})`);
+  assert(b.get('wizard') && b.get('wizard').level === 6, 'mass suggestion resolves to the same spell');
+  const fb = SU.spellLevels('Fireball');
+  assert(fb.get('sorcerer').level === 3 && fb.get('wizard').level === 3, 'Fireball is Sor/Wiz 3');
+  // Per class, not "3.5 printings only": Wither Limb's 3.5 entries list just a
+  // domain, and preferring them wholesale dropped BoVD's Sor/Wiz 2.
+  const wl = SU.spellLevels('Wither limb');
+  assert(wl.get('wizard') && wl.get('wizard').level === 2, `Wither limb keeps Wizard 2 (got ${JSON.stringify([...wl])})`);
+});
+
+test('StaffUse: castInfo applies the class-list, caster-level and arcane rules', () => {
+  const SU = loadStaffUse();
+  const casters = [
+    { name: 'Cleric', cl: 9, dc: (l) => 10 + l + 3, arcane: false },
+    { name: 'Wizard', cl: 5, dc: (l) => 10 + l + 4, arcane: true },
+  ];
+  const onWiz = new Map([['wizard', { cls: 'Wizard', level: 3 }]]);
+  const charged = SU.castInfo({ spell: 'Fireball', charges: 1 }, 'charged', casters, onWiz, 8);
+  assert(charged && charged.caster === 'Wizard' && charged.dc === 17, `cast as Wizard, DC 17 (got ${JSON.stringify(charged)})`);
+  assert(charged.cl === 8, 'charged staff: the staff CL wins when higher than the wielder (DMG p.243)');
+  const hi = SU.castInfo({ spell: 'Fireball', charges: 1 }, 'charged',
+    [{ name: 'Wizard', cl: 12, dc: (l) => 17, arcane: true }], onWiz, 8);
+  assert(hi.cl === 12, 'charged staff: the wielder CL wins when higher');
+  const rune = SU.castInfo({ spell: 'Fireball', per_day: 3 }, 'rune', casters, onWiz, 12);
+  assert(rune && rune.cl === 5, 'runestaff: the wielder casts at his own CL (MIC p.224)');
+  const onCleric = new Map([['cleric', { cls: 'Cleric', level: 2 }]]);
+  assert(SU.castInfo({ spell: 'x', per_day: 3 }, 'rune', casters, onCleric, 12) === null,
+    'runestaff: a divine class list does not qualify');
+  assert(SU.castInfo({ spell: 'x', charges: 1 }, 'charged', casters, onCleric, 8).caster === 'Cleric',
+    'charged staff: any class list qualifies');
+  assert(SU.castInfo({ spell: 'x', charges: 1 }, 'charged', casters, new Map(), 8) === null,
+    'not on any list: no cast info (the panel says Use Magic Device)');
+  // "heightened to 6th level" casts at 6th: Shriveling is Wizard 2, so the DC
+  // moves from 16 (10 + 2 + 4) to 20 (10 + 6 + 4), including past 9th level.
+  const onWiz2 = new Map([['wizard', { cls: 'Wizard', level: 2 }]]);
+  const h = SU.castInfo({ spell: 'Shriveling', charges: 1, note: 'heightened to 6th level, 10d4 damage' },
+    'charged', casters, onWiz2, 17);
+  assert(h.dc === 20 && h.castLevel === 6, `heightened DC uses the heightened level (got ${JSON.stringify(h)})`);
+  const epic = SU.castInfo({ spell: 'Finger of death', charges: 2, note: 'improved heightened to 16th' },
+    'charged', casters, new Map([['wizard', { cls: 'Wizard', level: 7 }]]), 27);
+  assert(epic.dc === 10 + 16 + 4, `epic heightening past 9th (got ${epic.dc})`);
+});
+
+test('save: StaffUse round-trips by name + source and is wired into app.js', () => {
+  const SU = loadStaffUse();
+  const saved = { _staff_use: {
+    'staff of fire|Dungeon Master\'s Guide': { charges: 31, used: {}, attuned: false },
+    'runestaff of frost|Magic Item Compendium': { charges: 50, used: { 'ice storm': 2 }, attuned: true },
+  } };
+  SU.loadData(saved);
+  const out = SU.collectData();
+  assert(JSON.stringify(out) === JSON.stringify(saved), `round-trip (got ${JSON.stringify(out)})`);
+  SU.loadData({});
+  assert(JSON.stringify(SU.collectData()) === '{}', 'an old save without _staff_use loads clean and saves nothing');
+  const app = readSource('app.js');
+  const iCollect = app.indexOf('StaffUse.collectData()');
+  const iLoad = app.indexOf('StaffUse.loadData(data)');
+  assert(iCollect > 0 && iLoad > 0, 'app.js collects and loads StaffUse');
+  assert(app.indexOf('Equipment.loadData(data)') < iLoad, 'StaffUse loads after Equipment, whose gear rows it reads');
+  const html = readSource('index.html');
+  assert(html.includes("'staff-use.js'") && html.includes('id="staff-use"'), 'index.html loads the module and hosts the panel');
+});
+
 (async function main() {
   let db;
   try {

@@ -446,6 +446,7 @@
       typeof DefenseRiders !== "undefined" ? DefenseRiders.collectData() : {},
       typeof CombatOptions !== "undefined" ? CombatOptions.collectData() : {},
       typeof SoulmeldEffects !== "undefined" ? SoulmeldEffects.collectData() : {},
+      typeof StaffUse !== "undefined" ? StaffUse.collectData() : {},
       typeof Senses !== "undefined" ? Senses.collectData() : {},
       typeof Audit !== "undefined" ? Audit.collectData() : {},
       typeof CharacterHistory !== "undefined" ? CharacterHistory.collectData() : {},
@@ -468,6 +469,8 @@
     if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData(data);
     if (typeof CombatOptions !== "undefined") CombatOptions.loadData(data);
     if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.loadData(data);
+    // After Equipment.loadData, whose gear rows it reads.
+    if (typeof StaffUse !== "undefined") StaffUse.loadData(data);
     if (typeof Senses !== "undefined") Senses.loadData(data);
     if (typeof Audit !== "undefined") Audit.loadData(data);
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);

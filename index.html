@@ -921,6 +921,11 @@
                with what is stowed in it and whether that is over its limit.
                Hidden until there is one. -->
           <div id="container-summary" class="container-summary" style="display:none"></div>
+          <!-- Staffs (staff-use.js): every Possessions row that names a staff
+               with a printed spell list, with the DC / caster level the wielder
+               casts each spell at and the charges or daily uses spent. Hidden
+               until there is one. -->
+          <div id="staff-use" class="staff-use" style="display:none"></div>
           <button id="btn-add-gear" class="btn-add">+ Add Item</button>
           <div class="field" style="margin-top:0.5rem"><label>Possessions Notes</label><textarea id="possessions-notes" rows="2" placeholder="Additional rules, item properties, etc."></textarea></div>
         </section>
@@ -1127,6 +1132,9 @@
       // failing to load these leaves the sheet operating in manual-
       // entry mode.
       'vendor/sql-wasm.js', 'database.js',
+      // staff-use.js — the Possessions "Staffs" panel. Reads DB at run time
+      // only, and the Spells tab's DC cells, so any slot after database.js works.
+      'staff-use.js',
       // -- Pickers + universal lookup. book-filter.js loads early so
       // pickers can consult it during their initial buildIndex;
       // book-filter-ui.js loads at the END (after lookup.js) so its

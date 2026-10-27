@@ -2048,6 +2048,36 @@ input.atk-bonus-auto { background: var(--calc-bg); color: var(--calc-text); font
 }
 .container-over { color: #e08585; }
 .container-note { opacity: 0.6; }
+
+/* Staffs panel under Possessions (staff-use.js) */
+.staff-use { margin-top: 0.5rem; font-size: 0.85em; }
+.staff-use-head { font-weight: bold; margin-bottom: 0.25rem; }
+.staff-use-staff {
+  padding: 0.3rem 0.4rem;
+  border-left: 3px solid rgba(150, 120, 200, 0.6);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 0.4rem;
+  border-radius: 0 3px 3px 0;
+}
+.staff-use-title { margin-bottom: 0.2rem; }
+/* Outranks the global input[type="number"] { width: 100% }, as the gear table does. */
+.staff-use input[type="number"].staff-use-charges { width: 4rem; display: inline-block; }
+.staff-use-table { width: 100%; border-collapse: collapse; }
+.staff-use-table th { text-align: left; opacity: 0.7; font-weight: normal; }
+.staff-use-table td, .staff-use-table th { padding: 0.1rem 0.35rem; vertical-align: top; }
+.staff-use-table td:nth-child(2), .staff-use-table td:nth-child(3),
+.staff-use-table td:nth-child(4) { white-space: nowrap; }
+/* The lookup pills' colour, so a spell link reads on the dark panel. */
+.staff-use-spell { color: rgba(200, 215, 235, 0.95); text-decoration: underline dotted; }
+.staff-use-spell:hover { color: #fff; }
+.staff-use-note { opacity: 0.6; }
+.staff-use-warn { color: #d9a35b; }
+.staff-use-act { white-space: nowrap; }
+.staff-use-pip {
+  background: none; border: none; cursor: pointer; padding: 0 1px;
+  color: rgba(255, 255, 255, 0.35); font-size: 1em;
+}
+.staff-use-pip.used { color: #c9a0ff; }
 /* A row whose weight is riding in a container rather than on the character. */
 tr.gear-stowed .gear-weight {
   opacity: 0.55;
