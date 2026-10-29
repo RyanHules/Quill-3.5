@@ -1,0 +1,3637 @@
+{
+  "char-name": "Kell",
+  "char-player": "",
+  "char-class": "Mind Flayer (Monster Class) 15 / Mindspy 3 // Chaos Monk 1 / Psion 2 / Swashbuckler 3 / Illithid Savant 10 / Paladin 2",
+  "char-race": "Mind Flayer (Monster Class)",
+  "char-type": "Undead (augmented aberration)",
+  "char-alignment": "Chaotic Evil",
+  "char-deity": "",
+  "char-level": "18",
+  "char-size": "Medium",
+  "char-age": "",
+  "char-gender": "Male?",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "156838",
+  "damage-reduction": "",
+  "speed-land": "40",
+  "speed-fly": "50",
+  "speed-fly-maneuver": "good",
+  "speed-swim": "",
+  "speed-burrow": "",
+  "speed-climb": "",
+  "str-score": "14",
+  "str-race": "",
+  "str-template": "2",
+  "str-temp-adj": "",
+  "str-nonability": false,
+  "dex-score": "12",
+  "dex-race": "",
+  "dex-template": "4",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "",
+  "con-race": "",
+  "con-template": "2",
+  "con-temp-adj": "",
+  "con-nonability": true,
+  "int-score": "24",
+  "int-race": "2",
+  "int-template": "8",
+  "int-temp-adj": "",
+  "int-nonability": false,
+  "wis-score": "10",
+  "wis-race": "",
+  "wis-template": "8",
+  "wis-temp-adj": "",
+  "wis-nonability": false,
+  "cha-score": "19",
+  "cha-race": "",
+  "cha-template": "8",
+  "cha-temp-adj": "",
+  "cha-nonability": false,
+  "hp-total": "124",
+  "hp-current": "124",
+  "hp-temp": "0",
+  "hp-nonlethal": "",
+  "ac-natural": "7",
+  "ac-misc": "",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "Reflective SR\nImmune to Fort saves unless they also affect objects",
+  "ability-ac-bonuses": [
+    {
+      "ability": "INT",
+      "type": "Untyped",
+      "stack": true
+    }
+  ],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
+  "fort-base": "9",
+  "fort-magic": "0",
+  "fort-misc": "",
+  "fort-temp": "0",
+  "ref-base": "7",
+  "ref-magic": "0",
+  "ref-misc": "",
+  "ref-temp": "0",
+  "will-base": "10",
+  "will-magic": "0",
+  "will-misc": "",
+  "will-temp": "0",
+  "save-conditional": "",
+  "init-misc": "2",
+  "bab-1": "11",
+  "grapple-misc": "1",
+  "spell-resistance": "34",
+  "attacks": [
+    {
+      "name": "Tentacle x4",
+      "bonus": "+16",
+      "damage": "d4+18",
+      "crit": "x2",
+      "range": "",
+      "type": "Bludgeoning",
+      "notes": "",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "d4",
+        "style": "natural",
+        "enh": "",
+        "misc": "",
+        "auto": true,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          },
+          {
+            "ability": "INT",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    },
+    {
+      "name": "+3 Keen Longsword",
+      "bonus": "+18",
+      "damage": "d8+7",
+      "crit": "17-20/x2",
+      "range": "",
+      "type": "Slashing",
+      "notes": "",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "d8",
+        "style": "one-hand",
+        "enh": "3",
+        "misc": "",
+        "auto": true,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    }
+  ],
+  "_fromClassMarkers": {
+    "char-size": "Mind Flayer (Monster Class)",
+    "char-race": "Mind Flayer (Monster Class)",
+    "sm-max-soulmelds": "Totemist",
+    "sm-max-essentia": "Totemist",
+    "sm-max-binds": "Totemist",
+    "rage-per-day": "Barbarian",
+    "rage-duration": "Barbarian",
+    "rage-str-con": "Barbarian",
+    "rage-will": "Barbarian",
+    "rage-ac": "Barbarian"
+  },
+  "_multiclass": [
+    {
+      "className": "Mind Flayer (Monster Class)",
+      "level": 15,
+      "classId": 18785,
+      "version": "3.0",
+      "source": "Savage Species",
+      "monsterExt": {
+        "abilityMods": {
+          "STR": 2,
+          "WIS": 6,
+          "CON": 2,
+          "INT": 6,
+          "DEX": 4,
+          "CHA": 6
+        },
+        "naturalArmor": 3,
+        "size": "Medium",
+        "racialHD": 8,
+        "spellResistance": 25,
+        "naStacking": null,
+        "appliedNA": 3
+      },
+      "monsterRacial": {
+        "abilityMods": {
+          "INT": 2
+        },
+        "setRace": true,
+        "setType": false,
+        "setSpeeds": [],
+        "setLangs": false
+      }
+    },
+    {
+      "className": "Mindspy",
+      "level": 3,
+      "classId": 3226,
+      "version": "3.5",
+      "source": "Complete Warrior"
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Chaos Monk",
+      "level": 1,
+      "classId": 5547,
+      "version": "3.5",
+      "source": "Dragon Magazine #335"
+    },
+    {
+      "className": "Psion",
+      "level": 2,
+      "classId": 20791,
+      "version": "3.5",
+      "source": "Expanded Psionics Handbook"
+    },
+    {
+      "className": "Swashbuckler",
+      "level": 3,
+      "classId": 3073,
+      "version": "3.5",
+      "source": "Complete Warrior"
+    },
+    {
+      "className": "Illithid Savant",
+      "level": 10,
+      "classId": 18953,
+      "version": "3.0",
+      "source": "Savage Species"
+    },
+    {
+      "className": "Paladin",
+      "level": 2,
+      "classId": 14704,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "_traits": [
+    {
+      "name": "Aggressive (Trait)",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Quick (Trait)",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_flaws": [
+    {
+      "name": "Shaky",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Murky-Eyed",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_templates": [
+    {
+      "name": "Alhoon",
+      "templateId": 9860,
+      "source": "Lords of Madness",
+      "version": "3.5",
+      "abilityMods": {
+        "Int": 2,
+        "Wis": 2,
+        "Cha": 2
+      },
+      "naturalArmorAdded": 0,
+      "typeChange": "Undead (augmented aberration)"
+    }
+  ],
+  "_templateBaseType": "Aberration (Psionic)",
+  "armor-name": "Inertial Armor",
+  "armor-type": "",
+  "armor-ac-bonus": "12",
+  "armor-max-dex": "",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "",
+  "armor-speed": "",
+  "armor-weight": "",
+  "armor-special": "",
+  "shield-name": "Force Screen",
+  "shield-ac-bonus": "4",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": false,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [
+    {
+      "name": "Cloak of Resistance +1",
+      "weight": "1",
+      "special": "These garments offer magic protection in the form of a +1 to +5 resistance bonus on all saving throws (Fortitude, Reflex, and Will).",
+      "slot": "shoulders",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": true,
+      "saveBonuses": {
+        "type": "resistance",
+        "fort": "1",
+        "ref": "1",
+        "will": "1"
+      }
+    },
+    {
+      "name": "Gauntlets of Ogre Power +2",
+      "weight": "4",
+      "special": "These gauntlets are made of tough leather with iron studs running across the back of the hands and fingers. They grant the wearer great strength, adding a +2 enhancement bonus to his Strength score. B…",
+      "slot": "hands",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "STR": "2"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Boots of Speed",
+      "weight": "1",
+      "special": "As a free action, the wearer can click her boot heels together, enabling her to act as though affected by a haste spell for up to 10 rounds each day. The duration of the haste effect need not be conse…",
+      "slot": "feet",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Mind Shielding",
+      "weight": "",
+      "special": "This ring is usually of fine workmanship and wrought from heavy gold. The wearer is continually immune to detect thoughts, discern lies, and any attempt to magically discern her alignment.",
+      "slot": "ring2",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Headband of Intellect +4",
+      "weight": "",
+      "special": "This device is a light cord with a small gem set so that it rests upon the forehead of the wearer. The headband adds to the wearer's Intelligence score in the form of an enhancement bonus of +2, +4, o…",
+      "slot": "head",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "INT": "4"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Freedom of Movement",
+      "weight": "",
+      "special": "This gold ring allows the wearer to act as if continually under the effect of a freedom of movement spell.",
+      "slot": "ring1",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    }
+  ],
+  "slotSoulmelds": {},
+  "slot-head": "Headband of Intellect +4",
+  "slot-eyes": "",
+  "slot-neck": "",
+  "slot-shoulders": "Cloak of Resistance +1",
+  "slot-ring1": "Ring of Freedom of Movement",
+  "slot-ring2": "Ring of Mind Shielding",
+  "slot-hands": "Gauntlets of Ogre Power +2",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "Boots of Speed",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "1",
+  "gear": [
+    {
+      "name": "Rations, Trail (Per Day) (7)",
+      "location": "",
+      "weight": "7"
+    },
+    {
+      "name": "Elixir of Swimming",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CLW potion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CMW potion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Warhammer",
+      "location": "",
+      "weight": "5"
+    },
+    {
+      "name": "Longsword",
+      "location": "",
+      "weight": "4"
+    },
+    {
+      "name": "Diamonds (75k)",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "3500",
+  "money-pp": "0",
+  "casters": [
+    {
+      "type": "psionics",
+      "name": "Psionics",
+      "notes": "Psion",
+      "followClass": "Psion",
+      "followLevel": "11",
+      "followOpen": true,
+      "discipline": "Telepathy",
+      "manifesterLevel": "18",
+      "ppBase": "106",
+      "ppExtra": "",
+      "ppSpent": "84",
+      "powersKnown": "22",
+      "ability": "INT",
+      "mantleAccess": false,
+      "mantles": [
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "knownPowersList-1": [
+        "Inertial Armor",
+        "Force Screen",
+        "Charm, Psionic",
+        "Energy Arc",
+        "Vigor",
+        "Mind Thrust",
+        "Empty Mind",
+        "Precognition, Defensive"
+      ],
+      "knownPowersList-2": [
+        "Larval Flayers",
+        "Brain Lock",
+        "Levitate, Psionic",
+        "Read Thoughts",
+        "Energy Push"
+      ],
+      "knownPowersList-3": [
+        "Time Hop",
+        "Dimension Twister",
+        "Telekinetic Thrust",
+        "Body Adjustment",
+        "Solicit Psicrystal",
+        "Dispel Psionics"
+      ],
+      "knownPowersList-4": [
+        "Telekinetic Maneuver",
+        "Psychic Reformation",
+        "Dimension Door, Psionic",
+        "Power Leech",
+        "Trace Teleport",
+        "Schism",
+        "Detect Remote Viewing"
+      ],
+      "knownPowersList-5": [
+        "Crystal Body",
+        "Anticipatory Strike",
+        "Shatter Mind Blank",
+        "Adapt Body"
+      ],
+      "knownPowersList-6": [
+        "Co-Opt Concentration",
+        "Temporal Acceleration",
+        "Contingency, Psionic"
+      ],
+      "knownPowersList-7": [
+        "Ultrablast",
+        "Energy Wave"
+      ],
+      "knownPowersList-8": [
+        "Mind Blank, Psionic",
+        "Recall Death",
+        "Teleport, Psionic Greater",
+        "Bend Reality"
+      ],
+      "knownPowersList-9": [
+        "Microcosm",
+        "Reality Revision",
+        "Timeless Body",
+        "Etherealness, Psionic"
+      ],
+      "ppClass": "Psion/Wilder"
+    },
+    {
+      "type": "spellcasting",
+      "name": "Cleric",
+      "notes": "Cleric",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "20",
+      "clCountsAlt": false,
+      "ability": "WIS",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": true,
+      "showKnown": false,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "Evil",
+          "power": "You cast evil spells at +1 caster level."
+        },
+        {
+          "name": "Chaos",
+          "power": "You cast chaos spells at +1 caster level."
+        },
+        {
+          "name": "Destruction",
+          "power": "You gain the smite power, the supernatural ability to make a single melee attack with a +4 bonus on attack rolls and a bonus on damage rolls equal to your cleric level (if you hit). You must declare the smite before making the attack. This ability is usable once per day."
+        },
+        {
+          "name": "War",
+          "power": "Free Martial Weapon Proficiency with deity's favored weapon (if necessary) and Weapon Focus with the deity's favored weapon. The favored weapons of the war deities are as follows: Corellon, longsword; Erythnul, morningstar; Gruumsh, spear (or longspear); Heironeous, longsword; Hextor, flail (light or heavy)."
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "4",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Read Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "known-1": "",
+      "perDay-1": "4",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [
+        {
+          "baseName": "Shield of Faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield of Faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Entropic Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Entropic Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield of Faith",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "4",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [
+        {
+          "baseName": "Extend Tentacles",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Extend Tentacles",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Elation",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Extend Tentacles",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Extend Tentacles",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "4",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [
+        {
+          "baseName": "Investiture of the Chain Devil",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Investiture of the Chain Devil",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Investiture of the Chain Devil",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Investiture of the Chain Devil",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Investiture of the Chain Devil",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "1",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [
+        {
+          "baseName": "Yochlol Blessing",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Yochlol Blessing",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "1",
+      "bonus-5": "",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [
+        {
+          "baseName": "Revivify",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "1",
+      "bonus-6": "",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [
+        {
+          "baseName": "Harm",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "1",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [
+        {
+          "baseName": "Restoration, Greater",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "1",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [
+        {
+          "baseName": "Cloak of Chaos",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "1",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [
+        {
+          "baseName": "Word of Genesis",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Wizard",
+      "notes": "Wizard",
+      "followClass": "Wizard",
+      "followLevel": "10",
+      "followOpen": true,
+      "casterLevel": "10",
+      "clCountsAlt": false,
+      "ability": "INT",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": true,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "4",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [
+        {
+          "name": "Detect Magic",
+          "locked": true
+        },
+        {
+          "name": "read magic",
+          "locked": true
+        },
+        {
+          "name": "ray of frost",
+          "locked": true
+        },
+        {
+          "name": "light",
+          "locked": true
+        },
+        {
+          "name": "Mage Hand",
+          "locked": true
+        },
+        {
+          "name": "Daze",
+          "locked": true
+        },
+        {
+          "name": "Resistance",
+          "locked": true
+        },
+        {
+          "name": "Ghost Sound",
+          "locked": true
+        }
+      ],
+      "preparedList-0": [
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Detect Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "read magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "read magic",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "known-1": "",
+      "perDay-1": "4",
+      "bonus-1": "4",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [
+        {
+          "name": "Magic Missile",
+          "locked": true
+        },
+        {
+          "name": "Shield",
+          "locked": true
+        },
+        {
+          "name": "Mage Armor",
+          "locked": true
+        },
+        {
+          "name": "Burning Hands",
+          "locked": true
+        },
+        {
+          "name": "Charm Person",
+          "locked": true
+        },
+        {
+          "name": "Alarm",
+          "locked": true
+        },
+        {
+          "name": "Color Spray",
+          "locked": true
+        },
+        {
+          "name": "Ray of Enfeeblement",
+          "locked": true
+        },
+        {
+          "name": "Silent Image",
+          "locked": true
+        },
+        {
+          "name": "Grease",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Color Spray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Color Spray",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Grease",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "4",
+      "bonus-2": "3",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [
+        {
+          "name": "Scorching Ray",
+          "locked": true
+        },
+        {
+          "name": "Mirror Image",
+          "locked": true
+        },
+        {
+          "name": "Web",
+          "locked": true
+        },
+        {
+          "name": "Invisibility",
+          "locked": true
+        },
+        {
+          "name": "blur",
+          "locked": true
+        },
+        {
+          "name": "Bull's Strength",
+          "locked": true
+        },
+        {
+          "name": "Darkness",
+          "locked": true
+        },
+        {
+          "name": "Fox's Cunning",
+          "locked": true
+        },
+        {
+          "name": "See Invisibility",
+          "locked": true
+        },
+        {
+          "name": "Glitterdust",
+          "locked": true
+        }
+      ],
+      "preparedList-2": [
+        {
+          "baseName": "Mirror Image",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Invisibility",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Invisibility",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "blur",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "blur",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "blur",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Fox's Cunning",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "4",
+      "bonus-3": "3",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [
+        {
+          "name": "Fireball",
+          "locked": true
+        },
+        {
+          "name": "Dispel Magic",
+          "locked": true
+        },
+        {
+          "name": "Haste",
+          "locked": true
+        },
+        {
+          "name": "Magic Weapon, Greater",
+          "locked": true
+        },
+        {
+          "name": "Displacement",
+          "locked": true
+        },
+        {
+          "name": "Fly",
+          "locked": true
+        },
+        {
+          "name": "Lightning Bolt",
+          "locked": true
+        }
+      ],
+      "preparedList-3": [
+        {
+          "baseName": "Dispel Magic",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Displacement",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Displacement",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Haste",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Haste",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Haste",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Fly",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "1",
+      "bonus-4": "3",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [
+        {
+          "name": "Dimension Door",
+          "locked": true
+        },
+        {
+          "name": "Invisibility, Greater",
+          "locked": true
+        },
+        {
+          "name": "Phantasmal Killer",
+          "locked": true
+        },
+        {
+          "name": "Scrying",
+          "locked": true
+        },
+        {
+          "name": "Stoneskin",
+          "locked": true
+        }
+      ],
+      "preparedList-4": [
+        {
+          "baseName": "Invisibility, Greater",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scrying",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Scrying",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Phantasmal Killer",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "1",
+      "bonus-5": "3",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [
+        {
+          "name": "Hold Monster",
+          "locked": true
+        },
+        {
+          "name": "Wall of Force",
+          "locked": true
+        }
+      ],
+      "preparedList-5": [
+        {
+          "baseName": "Wall of Force",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Hold Monster",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Wall of Force",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Hold Monster",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "2",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "2",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "2",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "2",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Sorcerer",
+      "notes": "Sorcerer",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "7",
+      "clCountsAlt": false,
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "4",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [
+        {
+          "name": "Mage Hand",
+          "locked": true
+        },
+        {
+          "name": "Ghost Sound",
+          "locked": true
+        },
+        {
+          "name": "Detect Magic",
+          "locked": true
+        },
+        {
+          "name": "Message",
+          "locked": true
+        }
+      ],
+      "preparedList-0": [],
+      "known-1": "",
+      "perDay-1": "4",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [
+        {
+          "name": "Charm Person",
+          "locked": true
+        },
+        {
+          "name": "Silent Image",
+          "locked": true
+        },
+        {
+          "name": "Ray of Enfeeblement",
+          "locked": true
+        },
+        {
+          "name": "Shield",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [
+        {
+          "baseName": "Charm Person",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "4",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [
+        {
+          "name": "Invisibility",
+          "locked": true
+        },
+        {
+          "name": "Web",
+          "locked": true
+        },
+        {
+          "name": "Bear's Endurance",
+          "locked": true
+        }
+      ],
+      "preparedList-2": [
+        {
+          "baseName": "Invisibility",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "4",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [
+        {
+          "name": "haste",
+          "locked": true
+        },
+        {
+          "name": "Lightning Bolt",
+          "locked": true
+        },
+        {
+          "name": "Suggestion",
+          "locked": true
+        }
+      ],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "1",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "1",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "sla",
+      "name": "Spell-Like Abilities",
+      "notes": "",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "slas": [
+        {
+          "spell": "Faerie Fire",
+          "freq": "1",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "19",
+          "dcAuto": true,
+          "source": "",
+          "fromSource": "",
+          "used": 0
+        },
+        {
+          "spell": "Clairaudience/Clairvoyance",
+          "freq": "2",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "21",
+          "dcAuto": true,
+          "source": "",
+          "fromSource": "",
+          "used": 0
+        },
+        {
+          "spell": "Wish",
+          "freq": "6",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "27",
+          "dcAuto": true,
+          "source": "",
+          "fromSource": "",
+          "used": 5
+        },
+        {
+          "spell": "Teleport, Greater",
+          "freq": "at will",
+          "casterLevel": "15",
+          "ability": "CHA",
+          "dc": "25",
+          "dcAuto": true,
+          "source": "",
+          "fromSource": "",
+          "used": 0
+        },
+        {
+          "spell": "Detect Thoughts",
+          "freq": "at will",
+          "casterLevel": "18",
+          "ability": "CHA",
+          "dc": "20",
+          "dcAuto": true,
+          "source": "",
+          "fromSource": "",
+          "used": 0
+        }
+      ]
+    }
+  ],
+  "feats": [
+    "Improved Grapple",
+    "Extended Reach",
+    "Kung Fu Genius",
+    "Combat Reflexes",
+    "Psicrystal Affinity",
+    "Laborious Training",
+    "Mindsight",
+    "Alertness",
+    "Weapon Focus (Tentacle)",
+    "Iron Will",
+    "Great Fortitude",
+    "Improved Initiative",
+    "Blind-fight",
+    "Power Attack",
+    "Stealthy",
+    "Multigrab",
+    "Combat Casting",
+    "Spell Penetration",
+    "Scribe Scroll",
+    "Maximize Spell",
+    "Empower Spell",
+    "Heighten Spell",
+    "Quick Draw",
+    "Combat Expertise",
+    "Improved Trip",
+    "Toughness x4",
+    "Multiattack",
+    "Dodge",
+    "Lightning Reflexes",
+    "Point Blank Shot",
+    "Precise Shot",
+    "Weapon Focus (Grapple)",
+    "Weapon Focus (Scimitar)",
+    "Spell Focus (Enchantment)",
+    "Spell Focus (Illusion)",
+    "Eschew Materials",
+    "Two-weapon Fighting",
+    "Mobility",
+    "Quicken Spell-like Ability",
+    "Flyby Attack",
+    "Hover",
+    "Improved Natural Armor",
+    "Run",
+    "Track",
+    "Improved Natural Armor",
+    "Improved Natural Armor",
+    "Improved Natural Armor",
+    "Extend Spell",
+    "Weapon Focus (Short Sword)",
+    "Ability Focus (Freezing Gaze)",
+    "Cleave",
+    "Great Cleave",
+    "Improved Sunder",
+    "Sense Quintessence",
+    "Ability Focus (Confusion Sphere)",
+    "Empower Spell-like Ability",
+    "Far Shot",
+    "Combat Manifestation",
+    "Weapon Focus (Spiked Chain)",
+    "Skill Focus (Diplomacy)",
+    "Skill Focus (Truespeak)"
+  ],
+  "specialAbilities": [
+    {
+      "text": "[Chaos Monk 1] flailing strike –2",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Chaos Monk 1] unarmed strike",
+      "fromClass": "Chaos Monk"
+    },
+    "Darkvision (70 ft)",
+    {
+      "text": "[Psion 1] Bonus feat",
+      "fromClass": "Psion"
+    },
+    {
+      "text": "[Psion 1] discipline",
+      "fromClass": "Psion"
+    },
+    "[Rogue 2] Evasion",
+    "[Rogue 5] Sneak Attack +3d6",
+    "[Umber Hulk] Tremorsense (60 ft)",
+    "[Umber Hulk] Confusing Gaze",
+    "Blindsight (100 ft)",
+    "[Delver] Corrosive Slime",
+    {
+      "text": "[Swashbuckler 1] Weapon Finesse",
+      "fromClass": "Swashbuckler"
+    },
+    {
+      "text": "[Swashbuckler 2] Grace +1",
+      "fromClass": "Swashbuckler"
+    },
+    {
+      "text": "[Swashbuckler 3] Insightful strike",
+      "fromClass": "Swashbuckler"
+    },
+    "[Medusa] Petrifying Gaze",
+    "[Cloaker] Shadow Shift",
+    "[Wizard 1] Summon familiar",
+    "[Thoon Elder Brain] Telepathy 1 mile",
+    "[Great Fihyr] Invisibility",
+    {
+      "text": "[Mind Flayer (Monster Class) 1] +1 natural armor",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 1] 2 tentacles 1d4",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 1] Feat ×3",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 2] +2 Str",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 3] +2 Wis ×3",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 3] psionics (detect thoughts, levitate)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 4] +2 Con",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 5] +2 Int ×3",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 5] 3 tentacles 1d4",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 5] psionics (suggestion)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 6] +2 Dex ×2",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 6] +2 natural armor",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 6] spell resistance",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 7] +2 Cha ×3",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 7] psionics (charm monster)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 8] Improved grab",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 9] 4 tentacles 1d4",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 9] telepathy 100 ft.",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 10] +3 natural armor",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 12] Extract",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 12] mind blast 3/day (30-ft. cone, 2d4 rounds)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 12] psionics (plane shift 1/day)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 14] mind blast at will (60-ft. cone, 3d4 rounds)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    {
+      "text": "[Mind Flayer (Monster Class) 15] psionics (astral projection, plane shift)",
+      "fromClass": "Mind Flayer (Monster Class)"
+    },
+    "[Ethereal Defiler] Anchoring Aura",
+    "[Ethereal Defiler] Ethereal Bore",
+    "[Great Fihyr] Frightful Presence",
+    "[Great Fihyr] Emotion Control",
+    "[Blink Dog] Blink",
+    "[Blink Dog] Dimension Door",
+    "[Rakshasa] Detect Thoughts",
+    "[Rakshasa, Naztharune] Hide in Plain Sight",
+    "[Rakshasa, Naztharune] Change Shape",
+    "[Rogue 4] Uncanny Dodge",
+    "[Rakshasa, Naztharune] Improved Evasion",
+    "[Rejkar] Freezing Gaze",
+    "[Varoot] Mirror Jump",
+    "[Alhoon] All standard lich special qualities (DR 15/bludgeoning and magic; immunity to cold, electricity, polymorph, and mind-affecting; turn resistance +4; undead traits).",
+    "[Alhoon] All standard lich special attacks: fear aura, paralyzing touch, retained spellcasting.",
+    "[Alhoon] Negative Energy Touch (Su): Melee touch attack dealing 1d8+5 negative energy damage to living creatures (Will half, Cha-based DC). Can replace a tentacle attack or be added to one. When used as a melee touch attack, also triggers paralyzing touch.",
+    "[Archon, Word] Magic Circle Against Evil",
+    "[Archon, Word] Utterances",
+    "[Thoon Elder Brain] Confusion Sphere",
+    "[Thoon Elder Brain] Overmind Blast",
+    "[Ethereal Defiler] Tainted Energy",
+    "[Chuul] Paralytic Tentacles",
+    {
+      "text": "[Illithid Savant 8] acquire feat 4",
+      "fromClass": "Illithid Savant"
+    },
+    {
+      "text": "[Illithid Savant 8] Acquire skill 4",
+      "fromClass": "Illithid Savant"
+    },
+    {
+      "text": "[Illithid Savant 9] Acquire special attack or special quality 2",
+      "fromClass": "Illithid Savant"
+    },
+    {
+      "text": "[Illithid Savant 9] lore 8/day",
+      "fromClass": "Illithid Savant"
+    },
+    {
+      "text": "[Illithid Savant 10] Acquire class feature 3",
+      "fromClass": "Illithid Savant"
+    },
+    "[Marshal 1] Minor Aura (Motivate Dexterity)\n(Ex): 60 ft range, add Cha bonus to Dexterity checks, Dexterity-based skill checks, and initiative checks for you and all allies in range; active until you turn it off or you become dazed, unconscious, stunned ,paralyzed, or otherwise unable to be heard or understood by your allies",
+    "[Marshal 2] Major Aura (Resilient Troops)\n(Ex): Same restrictions and range as minor aura; allies in range gain a +1 bonus on all saves",
+    "[Horned Devil (Cornugon)] Summon Baatezu",
+    "[Horned Devil (Cornugon)] Infernal Wound",
+    {
+      "text": "[Paladin 1] Aura of good",
+      "fromClass": "Paladin"
+    },
+    {
+      "text": "[Paladin 1] detect evil",
+      "fromClass": "Paladin"
+    },
+    {
+      "text": "[Paladin 1] smite evil 1/day",
+      "fromClass": "Paladin"
+    },
+    {
+      "text": "[Paladin 2] Divine grace",
+      "fromClass": "Paladin"
+    },
+    {
+      "text": "[Paladin 2] lay on hands",
+      "fromClass": "Paladin"
+    },
+    {
+      "text": "[Mindspy 1] Anticipate",
+      "fromClass": "Mindspy"
+    },
+    {
+      "text": "[Mindspy 1] combat telepathy",
+      "fromClass": "Mindspy"
+    },
+    {
+      "text": "[Mindspy 1] spherical detect thoughts",
+      "fromClass": "Mindspy"
+    },
+    {
+      "text": "[Mindspy 2] Faster mindscan",
+      "fromClass": "Mindspy"
+    },
+    {
+      "text": "[Mindspy 3] Multiple surface thoughts (two)",
+      "fromClass": "Mindspy"
+    }
+  ],
+  "languages": "Undercommon",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "psicrystal",
+      "compSize": "Diminutive",
+      "isFamiliar": false,
+      "compMode": "auto",
+      "compBaseCreature": "Psicrystal",
+      "compTemplate": "",
+      "comp-str-score": "1",
+      "comp-str-boost": "",
+      "comp-dex-score": "15",
+      "comp-dex-boost": "",
+      "comp-con-score": "0",
+      "comp-con-boost": "",
+      "comp-int-score": "6",
+      "comp-int-boost": "",
+      "comp-wis-score": "10",
+      "comp-wis-boost": "",
+      "comp-cha-score": "10",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "30 ft. (6 squares), climb 20 ft.*",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "0",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "Nimble",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        }
+      ],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "Planned Progression:\nSide A - Psionic Mind Flayer 15 -> ??? 5\nSide B - Chaos Monk 1 -> Psion (Telepath) 1 -> Swashbuckler 1 -> Psion (Telepath) 2 -> Swashbuckler 2 -> Illithid Savant 5 -> Swashbuckler 3 -> Illithid Savant 10 -> Psion (Telepath) 6?\n\nInherent Bonuses:\n+5 Int\n+5 Cha",
+  "customizations": [
+    {
+      "kind": "ACF",
+      "name": "Paladin Variant: Paladin of Slaughter",
+      "class": "Paladin",
+      "level": null,
+      "race": "",
+      "replaces": "Class Skills (Diplomacy->Intimidate), Aura of Good->Aura of Evil, Detect Evil->Detect Good, Smite Evil->Smite Good, Lay on Hands->Deadly Touch, Aura of Courage->Debilitating Aura, Turn Undead->Rebuke Undead, Remove Disease->Cause Disease, Code of Conduct, Spellcasting",
+      "replacesFeatures": "class skills|aura of good->aura of evil|detect evil->detect good|smite evil->smite good|lay on hands->deadly touch|aura of courage->debilitating aura|turn undead->rebuke undead|remove disease->cause disease|code of conduct|spellcasting",
+      "saveProgressions": null,
+      "classSkillChanges": {
+        "add": [
+          "Intimidate"
+        ],
+        "remove": [
+          "Diplomacy"
+        ]
+      },
+      "babProgression": "",
+      "hitDie": null,
+      "skillPointsPerLevel": null,
+      "grants": "The paladin of slaughter has all the standard paladin class features, except as noted below. Class Skills: Replace Diplomacy with Intimidate on the class skill list. Aura of Evil (Ex): The power of a paladin of slaughter's aura of evil (see the detect evil spell) is equal to her paladin of slaughter level, just as with the aura of a cleric of an evil deity. Detect Good (Sp): At will, a paladin of slaughter can use detect good, as the spell. Smite Good (Su): Once per day, a paladin of slaughter may attempt to smite good with one normal melee attack. This ability is otherwise identical to the standard paladin's ability to smite evil, including increased daily uses as the paladin of slaughter gains class levels. Deadly Touch (Su): Beginning at 2nd level, a paladin of slaughter can cause wounds with a successful touch attack. Each day she can deal a total number of hit points of damage equal to her paladin level x her Charisma bonus. An opponent subjected to this attack can make a Will save (DC 10 + 1/2 paladin level + paladin's Cha modifier) to halve the damage dealt. Alternatively, a paladin of slaughter can use any or all of this power to cure damage to undead creatures, just as an inflict wounds spell does. This power otherwise functions identically to the paladin's lay on hands ability. Debilitating Aura (Su): Beginning at 3rd level, a paladin of slaughter radiates a malign aura that causes enemies within 10 feet of her to take a -1 penalty to Armor Class. This ability otherwise functions identically to the paladin's aura of courage class feature. Rebuke Undead (Su): A paladin of slaughter rebukes undead rather than turning undead. Cause Disease (Sp): A paladin of slaughter can inflict disease with her touch (as the contagion spell) a number of times per week that a standard paladin of her level would normally be able to remove disease. Spellcasting: Replace the standard paladin's spell list with the following spell list: 1st-bane, cause fear, corrupt weapon, create water, curse water, detect poison, detect undead, divine favor, endure elements, inflict light wounds, magic weapon, protection from good, protection from law, read magic, resistance, virtue; 2nd-bull's strength, cure light wounds, darkness, delay poison, eagle's splendor, inflict moderate wounds, owl's wisdom, resist energy, undetectable alignment; 3rd-blindness/deafness, cure moderate wounds, deeper darkness, dispel magic, greater magic weapon, heal mount, prayer, inflict serious wounds, magic circle against good/law; 4th-break enchantment, cure serious wounds, dispel good, dispel law, inflict critical wounds, poison, unholy sword. Code of Conduct: A paladin of slaughter must be of chaotic evil alignment and loses all class abilities if she ever willingly commits a good act. Additionally, a paladin of slaughter's code requires that she disrespect all authority figures who have not proven their physical superiority to her, refuse help to those in need, and sow destruction and death at all opportunities. Associates: While she may adventure with characters of any evil or neutral alignment, a paladin of slaughter will never knowingly associate with good characters, nor will she continue an association with someone who consistently offends her moral code. A paladin of tyranny may accept only henchmen, followers, and cohorts who are chaotic evil.",
+      "source": "Unearthed Arcana",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [
+    {
+      "kind": "immunity",
+      "type": "Electricity",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "Charms and Compulsions",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "Fire",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "resistance",
+      "type": "acid",
+      "amount": 10,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "cold",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "poison",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "sleep",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "paralysis",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "stunning",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "disease",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "death effects",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "death from massive damage",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "critical hits",
+      "amount": null,
+      "from": null
+    }
+  ],
+  "_dr_entries": [
+    {
+      "amount": 15,
+      "bypass": "magic",
+      "stacks_with": "none",
+      "from": null
+    },
+    {
+      "amount": 15,
+      "bypass": "good",
+      "stacks_with": "none",
+      "from": null
+    },
+    {
+      "amount": 15,
+      "bypass": "piercing",
+      "stacks_with": "none",
+      "from": null
+    },
+    {
+      "amount": 15,
+      "bypass": "bludgeoning",
+      "stacks_with": "none",
+      "from": null
+    },
+    {
+      "amount": 10,
+      "bypass": "silver",
+      "stacks_with": "none",
+      "from": null
+    }
+  ],
+  "_regeneration": [
+    {
+      "amount": 10,
+      "bypass": "holy/blessed weapons",
+      "from": null
+    },
+    {
+      "amount": 15,
+      "bypass": "epic and evil",
+      "from": null
+    }
+  ],
+  "fast-healing": "7",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [
+      {
+        "sense": "darkvision",
+        "range_ft": 70
+      },
+      {
+        "sense": "mindsight",
+        "range_ft": 5280
+      },
+      {
+        "sense": "tremorsense",
+        "range_ft": 60
+      },
+      {
+        "sense": "blindsight",
+        "range_ft": 100
+      }
+    ],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [
+    "m7:hp-not-set",
+    "m7:no-skill-ranks",
+    "history:prereq-unmet:1:Power Attack:ability:STR 13",
+    "history:prereq-unmet:1:Improved Grapple:ability:DEX 13",
+    "history:prereq-not-taken:1:Improved Grapple:Improved Unarmed Strike",
+    "skill:over-cap:Knowledge (Arcana)",
+    "history:total-mismatch",
+    "history:class-mismatch:Mind Flayer (Monster Class)",
+    "history:feat-off-schedule:2",
+    "skill:over-cap:Knowledge (Dungeoneering)",
+    "skill:over-cap:Concentration",
+    "skill:over-cap:Listen",
+    "skill:over-cap:Spot",
+    "skill:over-cap:Hide",
+    "history:feat-off-schedule:7",
+    "history:feat-off-schedule:8",
+    "skill:over-cap:Move Silently",
+    "caster:prepared-full:Cleric:0",
+    "caster:prepared-full:Cleric:1",
+    "caster:prepared-full:Cleric:2",
+    "caster:prepared-full:Cleric:3",
+    "caster:prepared-full:Wizard:0",
+    "caster:prepared-full:Wizard:1",
+    "caster:prepared-full:Wizard:2",
+    "caster:prepared-full:Wizard:3",
+    "skill:over-cap:Climb",
+    "skill:over-cap:Jump",
+    "skill:over-cap:Survival",
+    "history:prereq-not-taken:11:Precise Shot:Point Blank Shot"
+  ],
+  "auditMuted": [
+    "skill:over-cap",
+    "history:feat-off-schedule",
+    "caster:prepared-full",
+    "ability:base-over-ceiling"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Grapple",
+        "Extended Reach",
+        "Kung Fu Genius",
+        "Combat Reflexes"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Chaos Monk"
+    },
+    {
+      "level": 2,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Psicrystal Affinity"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Psion"
+    },
+    {
+      "level": 3,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Swashbuckler"
+    },
+    {
+      "level": 4,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 1,
+      "ability_boost": "INT",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Psion"
+    },
+    {
+      "level": 5,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 7,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Swashbuckler"
+    },
+    {
+      "level": 6,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 7,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Iron Will",
+        "Alertness",
+        "Weapon Focus (Tentacles)",
+        "Blind-Fight"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 8,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": "INT",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Power Attack"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 9,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Multigrab"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 10,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 11,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Point-Blank Shot",
+        "Precise Shot"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Swashbuckler"
+    },
+    {
+      "level": 12,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 2,
+      "ability_boost": "DEX",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Weapon Focus (Grapple)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 13,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 14,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 15,
+      "class_taken": "Mind Flayer (Monster Class)",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Extend Spell"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 16,
+      "class_taken": "Mindspy",
+      "hp_rolled": 8,
+      "ability_boost": "INT",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Illithid Savant"
+    },
+    {
+      "level": 17,
+      "class_taken": "Mindspy",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Paladin"
+    },
+    {
+      "level": 18,
+      "class_taken": "Mindspy",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Skill Focus (Truespeak)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Paladin"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0,
+      "name": "Appraise"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "19",
+      "misc": "0",
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "19",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "19",
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 4,
+      "name": "Climb"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 7
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "9",
+      "misc": "0",
+      "index": 7,
+      "baseName": "Craft",
+      "subtypeName": "Alchemy"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "22",
+      "misc": "0",
+      "index": 8,
+      "name": "Decipher Script"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "22",
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "10",
+      "misc": "0",
+      "index": 10,
+      "name": "Disable Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "28",
+      "misc": "0",
+      "index": 11,
+      "name": "Disguise"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 12,
+      "name": "Escape Artist"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13,
+      "name": "Forgery"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14,
+      "name": "Gather Information"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 15,
+      "name": "Handle Animal"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "19",
+      "misc": "0",
+      "index": 16,
+      "name": "Heal"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 17,
+      "name": "Hide"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18,
+      "name": "Iaijutsu Focus"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "24",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "22",
+      "misc": "0",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "28",
+      "misc": "0",
+      "index": 21,
+      "name": "Knowledge (Arcana)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "36",
+      "misc": "0",
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "33",
+      "misc": "0",
+      "index": 24,
+      "name": "Knowledge (Geography)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "33",
+      "misc": "0",
+      "index": 25,
+      "name": "Knowledge (History)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "13",
+      "misc": "0",
+      "index": 26,
+      "name": "Knowledge (Local)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "33",
+      "misc": "0",
+      "index": 27,
+      "name": "Knowledge (Nature)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "2",
+      "misc": "0",
+      "index": 28,
+      "name": "Knowledge (Nobility)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "25",
+      "misc": "0",
+      "index": 29,
+      "name": "Knowledge (The Planes)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "23",
+      "misc": "0",
+      "index": 30,
+      "name": "Knowledge (Psionics)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "38",
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "22",
+      "misc": "0",
+      "index": 35,
+      "name": "Move Silently"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36,
+      "name": "Open Lock"
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 37
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37,
+      "baseName": "Perform",
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 38
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38,
+      "baseName": "Profession",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 39,
+      "name": "Psicraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 42,
+      "name": "Sense Motive"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 43,
+      "name": "Sleight of Hand"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44,
+      "name": "Speak Language"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 45,
+      "name": "Spellcraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "27",
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "25",
+      "misc": "0",
+      "index": 47,
+      "name": "Survival"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 48,
+      "name": "Swim"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "23",
+      "misc": "0",
+      "index": 49,
+      "name": "Truespeak"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": true,
+      "ranks": "21",
+      "misc": "0",
+      "index": 50,
+      "name": "Tumble"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
+    }
+  ],
+  "customSkills": []
+}

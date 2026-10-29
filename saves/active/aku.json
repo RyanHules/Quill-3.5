@@ -1,0 +1,1888 @@
+{
+  "char-name": "Aku",
+  "char-player": "",
+  "char-class": "Spellthief 12 / Rogue 3 / Chaos Monk 1 / Scout 1 / Binder 1 // Warlock 15 / Hellfire Warlock 3",
+  "char-race": "River Spirit Folk",
+  "char-type": "Becomes fey",
+  "char-alignment": "Chaotic Evil",
+  "char-deity": "",
+  "char-level": "18",
+  "char-size": "Medium",
+  "char-age": "",
+  "char-gender": "Male",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "157288",
+  "damage-reduction": "",
+  "speed-land": "60",
+  "speed-fly": "90",
+  "speed-fly-maneuver": "average",
+  "speed-swim": "30",
+  "speed-burrow": "",
+  "speed-climb": "",
+  "str-score": "13",
+  "str-race": "",
+  "str-template": "-2",
+  "str-temp-adj": "",
+  "str-nonability": false,
+  "dex-score": "24",
+  "dex-race": "",
+  "dex-template": "2",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "14",
+  "con-race": "",
+  "con-template": "-2",
+  "con-temp-adj": "",
+  "con-nonability": false,
+  "int-score": "20",
+  "int-race": "",
+  "int-template": "",
+  "int-temp-adj": "",
+  "int-nonability": false,
+  "wis-score": "14",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "wis-nonability": false,
+  "cha-score": "16",
+  "cha-race": "",
+  "cha-template": "2",
+  "cha-temp-adj": "",
+  "cha-nonability": false,
+  "hp-total": "157",
+  "hp-current": "157",
+  "hp-temp": "0",
+  "hp-nonlethal": "",
+  "ac-natural": "0",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "ability-ac-bonuses": [
+    {
+      "ability": "INT",
+      "type": "Untyped",
+      "stack": true
+    }
+  ],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
+  "fort-base": "8",
+  "fort-magic": "0",
+  "fort-misc": "2",
+  "fort-temp": "0",
+  "ref-base": "8",
+  "ref-magic": "0",
+  "ref-misc": "2",
+  "ref-temp": "0",
+  "will-base": "11",
+  "will-magic": "0",
+  "will-misc": "2",
+  "will-temp": "0",
+  "save-conditional": "",
+  "init-misc": "",
+  "bab-1": "13",
+  "grapple-misc": "",
+  "spell-resistance": "",
+  "attacks": [
+    {
+      "name": "Dagger, Masterwork",
+      "bonus": "+14",
+      "damage": "1d4",
+      "crit": "19-20/x2",
+      "range": "10 ft.",
+      "type": "Weapon",
+      "notes": "Weapon",
+      "calcAbility": "STR",
+      "calcMisc": "1",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "",
+        "style": "one-hand",
+        "enh": "",
+        "misc": "",
+        "auto": false,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    },
+    {
+      "name": "Eldritch Blast",
+      "bonus": "+22",
+      "damage": "8d6",
+      "crit": "19-20/×2",
+      "range": "60 ft.",
+      "type": "Magic",
+      "notes": "Ranged touch attack, at will, no save. Spell-like ability — provokes attacks of opportunity; subject to spell resistance. Equivalent spell level 4. Half damage to objects. Invocation essences/shapes not applied.",
+      "calcAbility": "DEX",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "",
+        "style": "one-hand",
+        "enh": "",
+        "misc": "",
+        "auto": false,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": "Warlock:Eldritch Blast",
+      "playerOwned": true
+    }
+  ],
+  "_fromClassMarkers": {
+    "sm-max-soulmelds": "Totemist",
+    "sm-max-essentia": "Totemist",
+    "sm-max-binds": "Totemist",
+    "rage-per-day": "Barbarian",
+    "rage-duration": "Barbarian",
+    "rage-str-con": "Barbarian",
+    "rage-will": "Barbarian",
+    "rage-ac": "Barbarian"
+  },
+  "_multiclass": [
+    {
+      "className": "Spellthief",
+      "level": 12,
+      "classId": 432,
+      "version": "3.5",
+      "source": "Complete Adventurer"
+    },
+    {
+      "className": "Rogue",
+      "level": 3,
+      "classId": 14206,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Chaos Monk",
+      "level": 1,
+      "classId": 5417,
+      "version": "3.5",
+      "source": "Dragon Magazine #335"
+    },
+    {
+      "className": "Scout",
+      "level": 1,
+      "classId": 431,
+      "version": "3.5",
+      "source": "Complete Adventurer"
+    },
+    {
+      "className": "Binder",
+      "level": 1,
+      "classId": 19034,
+      "version": "3.5",
+      "source": "Tome of Magic"
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Warlock",
+      "level": 15,
+      "classId": 766,
+      "version": "3.5",
+      "source": "Complete Arcane"
+    },
+    {
+      "className": "Hellfire Warlock",
+      "level": 3,
+      "classId": 7574,
+      "version": "3.5",
+      "source": "Fiendish Codex II",
+      "invocationAdvancesLevels": 3,
+      "invocationAdvancesTarget": "Warlock",
+      "invocationAdvancingLevels": [
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "_traits": [
+    {
+      "name": "Aggressive (Trait)",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Dishonest (Trait)",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_flaws": [
+    {
+      "name": "Noncombatant",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Vulnerable",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_templates": [
+    {
+      "name": "Unseelie Fey",
+      "templateId": 3719,
+      "source": null,
+      "version": "3.5",
+      "abilityMods": {
+        "Str": -2,
+        "Dex": 2,
+        "Con": -2,
+        "Cha": 2
+      },
+      "naturalArmorAdded": 0,
+      "typeChange": "Becomes fey"
+    },
+    {
+      "name": "Shadow Creature",
+      "templateId": 9734,
+      "source": "Lords of Madness",
+      "version": "3.5",
+      "abilityMods": {},
+      "naturalArmorAdded": 0,
+      "typeChange": null
+    }
+  ],
+  "_templateBaseType": "Humanoid (spirit folk)",
+  "armor-name": "",
+  "armor-type": "",
+  "armor-ac-bonus": "0",
+  "armor-max-dex": "",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "",
+  "armor-speed": "",
+  "armor-weight": "",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [
+    {
+      "name": "Everburning Torch",
+      "weight": "1",
+      "special": "Everburning Torch:This otherwise normal torch has a continual flame spell cast upon it. An everburning torch clearly illuminates a 20-foot radius and provides shadowy illumination out to a 40-foot rad…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Cloak of Resistance+2",
+      "weight": "1",
+      "special": "These garments offer magic protection in the form of a +1 to +5 resistance bonus on all saving throws (Fortitude, Reflex, and Will).",
+      "slot": "shoulders",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": true,
+      "saveBonuses": {
+        "type": "resistance",
+        "fort": "2",
+        "ref": "2",
+        "will": "2"
+      }
+    },
+    {
+      "name": "Gloves of Dexterity +2",
+      "weight": "",
+      "special": "These thin leather gloves are very flexible and allow for delicate manipulation. They add to the wearer's Dexterity score in the form of an enhancement bonus of +2, +4, or +6. Both gloves must be worn…",
+      "slot": "hands",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "DEX": "2"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Rod of Cancellation",
+      "weight": "5",
+      "special": "This dreaded rod is a bane to magic items, for its touch drains an item of all magical properties. The item touched must make a DC 23 Will save to prevent the rod from draining it. If a creature is ho…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Freedom of Movement",
+      "weight": "",
+      "special": "This gold ring allows the wearer to act as if continually under the effect of a freedom of movement spell.",
+      "slot": "ring1",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Boots of Striding and Springing",
+      "weight": "1",
+      "special": "These boots increase the wearer's base land speed by 10 feet. In addition to this striding ability (considered an enhancement bonus), these boots allow the wearer to make great leaps. She can jump wit…",
+      "slot": "feet",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Amulet of Health +6",
+      "weight": "",
+      "special": "This amulet is a golden disk on a chain. It usually bears the image of a lion or other powerful animal. The amulet grants the wearer an enhancement bonus to Constitution of +2, +4, or +6.",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "CON": "6"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Protection +2",
+      "weight": "",
+      "special": "This ring offers continual magical protection in the form of a deflection bonus of +1 to +5 to AC.",
+      "slot": "ring2",
+      "worn": true,
+      "isProtective": true,
+      "hasAbilityBonuses": false,
+      "acBonuses": [
+        {
+          "ac": "2",
+          "type": "Deflection",
+          "touch": true,
+          "flatfooted": true
+        }
+      ],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Incarnum Shroud",
+      "weight": "",
+      "special": "Invocation",
+      "slot": "",
+      "worn": true,
+      "isProtective": true,
+      "hasAbilityBonuses": false,
+      "acBonuses": [
+        {
+          "ac": "1",
+          "type": "Insight",
+          "touch": false,
+          "flatfooted": true
+        }
+      ],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": true,
+      "saveBonuses": {
+        "type": "insight",
+        "fort": "1"
+      }
+    },
+    {
+      "name": "Beguiling Influence",
+      "weight": "",
+      "special": "Invocation",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": true,
+      "skillBonuses": [
+        {
+          "skill": "Bluff",
+          "bonus": "6"
+        },
+        {
+          "skill": "Diplomacy",
+          "bonus": "6"
+        },
+        {
+          "skill": "Intimidate",
+          "bonus": "6"
+        }
+      ],
+      "hasSaveBonuses": false
+    }
+  ],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "Amulet of Health +6",
+  "slot-shoulders": "Cloak of Resistance+2",
+  "slot-ring1": "Ring of Freedom of Movement",
+  "slot-ring2": "Ring of Protection +2",
+  "slot-hands": "Gloves of Dexterity +2",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "Boots of Striding and Springing",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "1",
+  "gear": [
+    {
+      "name": "Rations, Trail (Per Day) (7)",
+      "location": "",
+      "weight": "7"
+    },
+    {
+      "name": "Backpack",
+      "location": "",
+      "weight": "2"
+    },
+    {
+      "name": "Caltrops (3)",
+      "location": "",
+      "weight": "6"
+    },
+    {
+      "name": "Alchemist's Fire (Flask)",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "Dagger",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "Cracked Skull",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CLW potion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CMW potion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Adamantine Caltrops (2) (Yes, I spent money on this)",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "",
+  "money-pp": "0",
+  "casters": [
+    {
+      "type": "invocations",
+      "name": "Warlock",
+      "notes": "Warlock",
+      "followClass": "Warlock",
+      "followLevel": "11",
+      "followOpen": false,
+      "casterLevel": "18",
+      "highestGrade": "Dark",
+      "knownCount": "11",
+      "conditional": "",
+      "invoClass": "Warlock",
+      "invoList-least": [
+        "See the Unseen",
+        "Beguiling Influence",
+        "Eldritch Spear"
+      ],
+      "invoList-lesser": [
+        "Hellrime Blast",
+        "Flee the Scene",
+        "Eldritch Chain"
+      ],
+      "invoList-greater": [
+        "Vitriolic Blast",
+        "Devour Magic",
+        "Eldritch Cone"
+      ],
+      "invoList-dark": [
+        "Incarnum Shroud",
+        "Utterdark Blast"
+      ]
+    },
+    {
+      "type": "spellcasting",
+      "name": "Spellthief",
+      "notes": "Spellthief",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "12",
+      "clCountsAlt": false,
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "4",
+      "perDay-1": "1",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [
+        {
+          "name": "Golem Strike",
+          "locked": true
+        },
+        {
+          "name": "Nerveskitter",
+          "locked": true
+        },
+        {
+          "name": "Sniper's Shot",
+          "locked": true
+        },
+        {
+          "name": "Feather Fall",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "4",
+      "perDay-2": "1",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [
+        {
+          "name": "Celerity, Lesser",
+          "locked": true
+        },
+        {
+          "name": "Knock",
+          "locked": true
+        },
+        {
+          "name": "Blur",
+          "locked": true
+        },
+        {
+          "name": "Mirror Image",
+          "locked": true
+        }
+      ],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "3",
+      "perDay-3": "1",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [
+        {
+          "name": "False Gravity",
+          "locked": true
+        },
+        {
+          "name": "Displacement",
+          "locked": true
+        },
+        {
+          "name": "Greater Mage Hand",
+          "locked": true
+        }
+      ],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "binding",
+      "name": "Binder",
+      "notes": "Binder",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "binderLevel": "1",
+      "maxVestige": "1",
+      "maxBound": "",
+      "bindCheckMod": "",
+      "bindConditional": "",
+      "vestiges": [
+        {
+          "name": "Naberius, the Grinning Hound",
+          "level": "1",
+          "dc": "15",
+          "goodPact": false,
+          "abilities": "Disguise Self (Su): You can alter the appearance of your form as a standard action. This effect works like the disguise self spell.\nFaster Ability Healing (Su): You heal 1 point in each damaged ability score every round, and 1 point in all drained ability scores every hour.\nNaberius's Skills (Su): At the time you make your pact, you can choose a number of skills equal to your Constitution bonus (if any). Your choices must be skills that can't be used untrained and in which you have no ranks. For the duration of the binding, you can make skill checks with your chosen skills even though you are untrained. If your Constitution modifier decreases after you make the pact, you lose the ability to make untrained checks with an equal number of the chosen skills (chosen randomly), and they remain inaccessible until you make another pact with Naberius.\nPersuasive Words (Su): You can direct a verbal command at a single living target within 30 feet as if using the command spell. A successful Will save negates the effect. When your effective binder level reaches 14th, your words become even more persuasive and this ability functions like the suggestion spell. Once you have used this ability, you cannot do so again for 5 rounds.\nSilver Tongue (Su): You can take 10 on Diplomacy and Bluff checks even if distracted or threatened. In addition, you can make a rushed Diplomacy check as a standard action and take no penalty (normally a rushed Diplomacy check requires a full-round action and imposes a -10 penalty).",
+          "sign": "Sign: Your voice deepens and acquires a gravelly, growling tone. | Influence: While you are influenced by Naberius, you love the sound of your own voice and are constantly pleased by your cleverness. Whenever you are presented with a pulpit, a stage, a talking stick, or any other place or object designed to give a speaker the floor, Naberius requires that you immediately seize the opportunity to speak. Any topic will do, but since Naberius resents others taking control of the discourse, he requires that you either shout them down or mock them. Your speech must last a number of rounds equal to your effective binder level to satisfy Naberius."
+        }
+      ]
+    },
+    {
+      "type": "sla",
+      "name": "Spell-Like Abilities",
+      "notes": "",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "slas": [
+        {
+          "spell": "Plane Shift",
+          "freq": "1",
+          "casterLevel": "15",
+          "ability": "CHA",
+          "dc": "21",
+          "dcAuto": true,
+          "source": "to/from plane of shadow only",
+          "fromSource": "",
+          "used": 0
+        }
+      ]
+    }
+  ],
+  "feats": [
+    "Spell Penetration",
+    "Point Blank Shot",
+    "Precise Shot",
+    "Kung Fu Genius",
+    "Stunning Fist",
+    "Empower Spell-like Ability",
+    "Maximize Spell-like Ability",
+    "Improved Critical (Eldritch Blast)",
+    "Quicken Spell-like Ability",
+    "Master Spellthief"
+  ],
+  "specialAbilities": [
+    "Swim Speed 30 ft.",
+    "Water Breathing",
+    "Low-Light Vision",
+    "Speak with Fish (Sp)",
+    "[Unseelie Fey] DR 5/cold iron at 4-7 HD, 10/cold iron at 8-11 HD, 15/cold iron at 12+ HD",
+    "[Unseelie Fey] Iron Vulnerability (Ex): touch of iron/steel deals 1 damage; iron/steel weapon hits deal +1d6 (DR applies normally)",
+    "[Unseelie Fey] +4 racial bonus on Intimidate checks",
+    "[Unseelie Fey] Fey traits",
+    "[Unseelie Fey] Summer Caress (Su): treated as under magic circle vs all alignments except animal/beast/fey/magical beast",
+    {
+      "text": "[Chaos Monk 1] Bonus feat",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Chaos Monk 1] flailing strike –2",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Chaos Monk 1] unarmed strike",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Scout 1] Skirmish (+1d6)",
+      "fromClass": "Scout"
+    },
+    {
+      "text": "[Scout 1] trapfinding",
+      "fromClass": "Scout"
+    },
+    {
+      "text": "[Rogue 1] trapfinding",
+      "fromClass": "Rogue"
+    },
+    {
+      "text": "[Rogue 2] Evasion",
+      "fromClass": "Rogue"
+    },
+    {
+      "text": "[Rogue 3] Sneak attack +2d6",
+      "fromClass": "Rogue"
+    },
+    {
+      "text": "[Rogue 3] trap sense +1",
+      "fromClass": "Rogue"
+    },
+    {
+      "text": "[Binder 1] Maximum Vestige Level 1st",
+      "fromClass": "Binder"
+    },
+    {
+      "text": "[Binder 1] Soul binding (1 vestige)",
+      "fromClass": "Binder"
+    },
+    {
+      "text": "[Hellfire Warlock 2] hellfire infusion",
+      "fromClass": "Hellfire Warlock"
+    },
+    {
+      "text": "[Hellfire Warlock 2] resistance to fire 10",
+      "fromClass": "Hellfire Warlock"
+    },
+    {
+      "text": "[Hellfire Warlock 3] Hellfire blast +6d6",
+      "fromClass": "Hellfire Warlock"
+    },
+    {
+      "text": "[Hellfire Warlock 3] hellfire shield",
+      "fromClass": "Hellfire Warlock"
+    },
+    "[Shadow Creature] Resistance to cold equal to 5 + 1 per Hit Die (maximum 15).",
+    "[Shadow Creature] Darkvision 60 ft.",
+    "[Shadow Creature] Low-light vision.",
+    "[Shadow Creature] Shadow Blend (Su): In any conditions other than full daylight, the shadow creature can disappear into the shadows, gaining total concealment. Artificial illumination (even a light or continual flame spell) does not negate this ability, but daylight does.",
+    "[Shadow Creature] One additional special ability per 4 Hit Dice (minimum 1) chosen from: +2 luck bonus on all saves; cause fear (Sp, 1/day, CL 5th, Cha-based DC); damage reduction 5/magic; evasion (as the rogue class feature); fast healing 2; mirror image (Sp, 1/day, CL 5th); plane shift (Sp, 1/day, to/from the Plane of Shadow only, CL 15th). If the base creature already has one of these, use the better value.",
+    {
+      "text": "[Spellthief 1] steal spell (0 or 1st)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 1] trapfinding",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 2] Detect magic",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 2] steal spell effect",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 4] Steal spell (2nd)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 5] steal spell-like ability",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 6] Steal spell (3rd)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 7] Absorb spell",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 8] Steal spell (4th)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 9] Arcane sight",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 9] sneak attack +3d6",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 10] Steal spell (5th)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 11] Spellgrace +2",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 11] steal energy resistance 20",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Spellthief 12] Steal spell (6th)",
+      "fromClass": "Spellthief"
+    },
+    {
+      "text": "[Warlock 1] invocation (least)",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 2] Detect magic",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 3] DR 1/cold iron",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 4] Deceive item",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 6] New invocation (least or lesser)",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 7] DR 2/cold iron",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 10] Energy resistance 5",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 11] DR 3/cold iron",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 11] new invocation (least, lesser, or greater)",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 12] Imbue item",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 13] Fiendish resilience 2",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 14] Eldritch blast 8d6",
+      "fromClass": "Warlock"
+    },
+    {
+      "text": "[Warlock 15] DR 4/cold iron",
+      "fromClass": "Warlock"
+    }
+  ],
+  "languages": "Common, Sylvan, Aquan, Auran, Giant, Goblin, Infernal",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "Planned Progression:\nSide A - Spellthief 20\nSide B - Warlock 1 -> Binder 1 -> Warlock 6 -> Hellfire Warlock 3 -> ??? 9 (Maybe just more Warlock)\n\nNeed:\nHellfire Warlock - Intimidate 6, Know (planes) 12, Spellcraft 6, speak Infernal, brimstone blast or hellrime blast\n\nInherent Bonuses:\n+5 Dex",
+  "customizations": [
+    {
+      "kind": "ACF",
+      "name": "Scout: Fast Movement (Swim Speed)",
+      "class": "Scout",
+      "level": 1,
+      "race": "",
+      "replaces": "Fast Movement (land speed)",
+      "replacesFeatures": "fast movement",
+      "saveProgressions": null,
+      "classSkillChanges": null,
+      "babProgression": "",
+      "hitDie": null,
+      "skillPointsPerLevel": null,
+      "grants": "Scouts who possess a racial swim speed can choose to apply their fast movement bonus to their swim speed instead of their land speed. The choice must be made when the character gains the class feature, and cannot be changed later. This benefit still applies only when the scout is wearing no armor or light armor and not carrying a medium or heavy load.",
+      "source": "Stormwrack",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [
+    {
+      "kind": "resistance",
+      "type": "fire",
+      "amount": 10,
+      "from": null
+    },
+    {
+      "kind": "resistance",
+      "type": "cold",
+      "amount": 15,
+      "from": null
+    },
+    {
+      "kind": "resistance",
+      "type": "acid",
+      "amount": 5,
+      "from": null
+    }
+  ],
+  "_dr_entries": [
+    {
+      "amount": 15,
+      "bypass": "Cold Iron",
+      "stacks_with": "none",
+      "from": null
+    }
+  ],
+  "_regeneration": [],
+  "fast-healing": "2",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [
+      {
+        "sense": "darkvision",
+        "range_ft": 60
+      },
+      {
+        "sense": "see_invisibility"
+      }
+    ],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [
+    "m7:hp-not-set",
+    "m7:no-skill-ranks",
+    "history:prereq-unmet:1:Power Attack:ability:STR 13",
+    "history:prereq-not-taken:1:Precise Shot:Point Blank Shot",
+    "ability:base-over-ceiling:CHA",
+    "ability:base-over-ceiling:INT",
+    "history:prereq-unmet:15:Quicken Spell-Like Ability:casterLevel:caster level 10"
+  ],
+  "auditMuted": [
+    "ability:base-over-ceiling"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Spellthief",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Spell Penetration",
+        "Point-Blank Shot",
+        "Precise Shot"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 2,
+      "class_taken": "Rogue",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 3,
+      "class_taken": "Chaos Monk",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 4,
+      "class_taken": "Scout",
+      "hp_rolled": 8,
+      "ability_boost": "CHA",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 5,
+      "class_taken": "Spellthief",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 6,
+      "class_taken": "Spellthief",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 7,
+      "class_taken": "Rogue",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 8,
+      "class_taken": "Rogue",
+      "hp_rolled": 6,
+      "ability_boost": "DEX",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 9,
+      "class_taken": "Spellthief",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Maximize SLA"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 10,
+      "class_taken": "Binder",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Hellfire Warlock"
+    },
+    {
+      "level": 11,
+      "class_taken": "Spellthief",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Hellfire Warlock"
+    },
+    {
+      "level": 12,
+      "class_taken": "Spellthief",
+      "hp_rolled": 5,
+      "ability_boost": "DEX",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Critical (Eldritch Blast)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Hellfire Warlock"
+    },
+    {
+      "level": 13,
+      "class_taken": "Spellthief",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 14,
+      "class_taken": "Spellthief",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 15,
+      "class_taken": "Spellthief",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Quicken Spell-Like Ability"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 16,
+      "class_taken": "Spellthief",
+      "hp_rolled": 4,
+      "ability_boost": "DEX",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 17,
+      "class_taken": "Spellthief",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    },
+    {
+      "level": 18,
+      "class_taken": "Spellthief",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Master Spellthief"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Warlock"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0,
+      "name": "Appraise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 4,
+      "name": "Climb"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 7
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7,
+      "baseName": "Craft",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8,
+      "name": "Decipher Script"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "6",
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 10,
+      "name": "Disable Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11,
+      "name": "Disguise"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 12,
+      "name": "Escape Artist"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13,
+      "name": "Forgery"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14,
+      "name": "Gather Information"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 15,
+      "name": "Handle Animal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 16,
+      "name": "Heal"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 17,
+      "name": "Hide"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18,
+      "name": "Iaijutsu Focus"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 21,
+      "name": "Knowledge (Arcana)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24,
+      "name": "Knowledge (Geography)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25,
+      "name": "Knowledge (History)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26,
+      "name": "Knowledge (Local)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 27,
+      "name": "Knowledge (Nature)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 28,
+      "name": "Knowledge (Nobility)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "18",
+      "misc": "0",
+      "index": 29,
+      "name": "Knowledge (The Planes)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 30,
+      "name": "Knowledge (Psionics)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 35,
+      "name": "Move Silently"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 36,
+      "name": "Open Lock"
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 37
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37,
+      "baseName": "Perform",
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 38
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38,
+      "baseName": "Profession",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 39,
+      "name": "Psicraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 42,
+      "name": "Sense Motive"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 43,
+      "name": "Sleight of Hand"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "1",
+      "misc": "0",
+      "index": 44,
+      "name": "Speak Language"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "7",
+      "misc": "0",
+      "index": 45,
+      "name": "Spellcraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 47,
+      "name": "Survival"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "8",
+      "index": 48,
+      "name": "Swim"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 49,
+      "name": "Truespeak"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 50,
+      "name": "Tumble"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
+    }
+  ],
+  "customSkills": []
+}

@@ -1,0 +1,1634 @@
+{
+  "char-name": "Gorrash Head-Smasher",
+  "char-player": "",
+  "char-class": "Totemist 17 / Necrocarnate 1 // Barbarian 2 / Fighter 2 / Fist of the Forest 1 / Black Blood Cultist 10 / Eye of Gruumsh 3",
+  "char-race": "Water Orc",
+  "char-type": "Humanoid (orc)",
+  "char-alignment": "Chaotic Evil",
+  "char-deity": "",
+  "char-level": "18",
+  "char-size": "Medium",
+  "char-age": "",
+  "char-gender": "Male",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "157288",
+  "damage-reduction": "",
+  "speed-land": "40",
+  "speed-fly": "",
+  "speed-fly-maneuver": "",
+  "speed-swim": "30",
+  "speed-burrow": "",
+  "speed-climb": "",
+  "str-score": "22",
+  "str-race": "4",
+  "str-template": "6",
+  "str-temp-adj": "",
+  "str-nonability": false,
+  "dex-score": "14",
+  "dex-race": "",
+  "dex-template": "",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "24",
+  "con-race": "2",
+  "con-template": "6",
+  "con-temp-adj": "",
+  "con-nonability": false,
+  "int-score": "14",
+  "int-race": "-2",
+  "int-template": "",
+  "int-temp-adj": "",
+  "int-nonability": false,
+  "wis-score": "14",
+  "wis-race": "-2",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "wis-nonability": false,
+  "cha-score": "10",
+  "cha-race": "-2",
+  "cha-template": "",
+  "cha-temp-adj": "",
+  "cha-nonability": false,
+  "hp-total": "370",
+  "hp-current": "370",
+  "hp-temp": "",
+  "hp-nonlethal": "0",
+  "ac-natural": "1",
+  "ac-misc": "",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "ability-ac-bonuses": [
+    {
+      "ability": "CON",
+      "type": "Untyped",
+      "stack": true
+    }
+  ],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
+  "fort-base": "11",
+  "fort-magic": "0",
+  "fort-misc": "0",
+  "fort-temp": "0",
+  "ref-base": "10",
+  "ref-magic": "0",
+  "ref-misc": "0",
+  "ref-temp": "0",
+  "will-base": "7",
+  "will-magic": "0",
+  "will-misc": "0",
+  "will-temp": "0",
+  "save-conditional": "+4 vs the supernatural abilities of magical beasts",
+  "init-misc": "0",
+  "bab-1": "15",
+  "grapple-misc": "0",
+  "spell-resistance": "",
+  "attacks": [
+    {
+      "name": "Claw (Landshark Boots)",
+      "bonus": "+32",
+      "damage": "1d6+21",
+      "crit": "19-20/x2",
+      "range": "",
+      "type": "slashing",
+      "notes": "×2; no shield while these claws are in place. If a move ends in a 5-foot high jump within reach of an opponent, you may attack it with all FOUR claws as a standard action at the same attack bonus, and may make no other attack that round; the book states this damage with no Strength clause; the sheet applies the default for a natural attack; the book does not state the count; the sheet assumes the default",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "1d6",
+        "style": "natural",
+        "enh": "",
+        "misc": "",
+        "auto": true,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": "soulmeld:totem:0|Claw",
+      "playerOwned": true
+    },
+    {
+      "name": "+2 Adamantine Falchion",
+      "bonus": "+30",
+      "damage": "2d4+21",
+      "crit": "18-20/x2",
+      "range": "",
+      "type": "Slashing",
+      "notes": "",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "2d4",
+        "style": "two-hand",
+        "enh": "2",
+        "misc": "",
+        "auto": true,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    }
+  ],
+  "_fromClassMarkers": {
+    "sm-max-soulmelds": "Totemist",
+    "sm-max-essentia": "Totemist",
+    "sm-max-binds": "Totemist",
+    "rage-per-day": "Barbarian",
+    "rage-duration": "Barbarian"
+  },
+  "_multiclass": [
+    {
+      "className": "Totemist",
+      "level": 17,
+      "classId": 13423,
+      "version": "3.5",
+      "source": "Magic of Incarnum"
+    },
+    {
+      "className": "Necrocarnate",
+      "level": 1,
+      "classId": 13503,
+      "version": "3.5",
+      "source": "Magic of Incarnum"
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Barbarian",
+      "level": 2,
+      "classId": 14698,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Fighter",
+      "level": 2,
+      "classId": 14702,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Fist of the Forest",
+      "level": 1,
+      "classId": 1284,
+      "version": "3.5",
+      "source": "Complete Champion"
+    },
+    {
+      "className": "Black Blood Cultist",
+      "level": 10,
+      "classId": 2435,
+      "version": "3.5",
+      "source": "Champions of Ruin"
+    },
+    {
+      "className": "Eye of Gruumsh",
+      "level": 3,
+      "classId": 3213,
+      "version": "3.5",
+      "source": "Complete Warrior"
+    }
+  ],
+  "_traits": [
+    {
+      "name": "Aggressive (Trait)",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Nightsighted (Trait)",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_flaws": [
+    {
+      "name": "Shaky",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Inattentive",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_templates": [
+    {
+      "name": "Lolth-Touched",
+      "templateId": 11574,
+      "source": "Monster Manual IV",
+      "version": "3.5",
+      "abilityMods": {
+        "Str": 6,
+        "Con": 6
+      },
+      "naturalArmorAdded": 0,
+      "typeChange": null
+    }
+  ],
+  "_templateBaseType": "Humanoid (orc)",
+  "armor-name": "",
+  "armor-type": "",
+  "armor-ac-bonus": "",
+  "armor-max-dex": "",
+  "armor-check-pen": "",
+  "armor-spell-fail": "",
+  "armor-speed": "",
+  "armor-weight": "",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": false,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [
+    {
+      "name": "Bag of Holding Type I",
+      "weight": "15",
+      "special": "This appears to be a common cloth sack about 2 feet by 4 feet in size. The bag of holding opens into a nondimensional space: Its inside is larger than its outside dimensions. Regardless of what is put…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Freedom of Movement",
+      "weight": "",
+      "special": "This gold ring allows the wearer to act as if continually under the effect of a freedom of movement spell.",
+      "slot": "ring1",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Belt of Giant Strength +4",
+      "weight": "1",
+      "special": "This wide belt is made of thick leather and studded with iron. The belt adds to the wearer's Strength score in the form of an enhancement bonus of +4 or +6.",
+      "slot": "waist",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "STR": "4"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Evasion",
+      "weight": "",
+      "special": "This ring continually grants the wearer the ability to avoid damage as if she had evasion. Whenever she makes a Reflex saving throw to determine whether she takes half damage, a successful save result…",
+      "slot": "ring2",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Bag of Holding Type IV",
+      "weight": "60",
+      "special": "This appears to be a common cloth sack about 2 feet by 4 feet in size. The bag of holding opens into a nondimensional space: Its inside is larger than its outside dimensions. Regardless of what is put…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Amulet of Health +6",
+      "weight": "",
+      "special": "This amulet is a golden disk on a chain. It usually bears the image of a lion or other powerful animal. The amulet grants the wearer an enhancement bonus to Constitution of +2, +4, or +6.",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "CON": "6"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    }
+  ],
+  "slotSoulmelds": {
+    "neck": {
+      "enabled": true,
+      "name": "Ankheg Breastplate",
+      "bound": false,
+      "split": false,
+      "double": false,
+      "base": "A thick, chitinous breastplate forms around your torso. The green plates of the armor glisten like the thorax of a living insect. Soft tissue and living muscle bind the plates together, rather than the chain and leather of conventional armor. Ankhegs are burrowing predators protected by thick plates of chitin. The totemist tradition reveres them as protectors, but it also seeks to claim the destructive power of their mandibles and their acidic spittle. Your ankheg breastplate grants you a +2 armor bonus to your Armor Class. As always, this bonus does not stack with an armor bonus from a different source (such as actual armor you might be wearing). If you have another armor bonus, the higher bonus applies. This soulmeld has no maximum Dexterity bonus, armor check penalty, or arcane spell failure. It is treated as light armor for the purpose of determining your speed and adjudicating class features dependent on armor. (Essentia: For every point of essentia you invest in your ankheg breastplate, the armor bonus granted by the soulmeld improves by 1.)",
+      "bindEffect": "(Throat) Green chitin spreads from your breastplate up your neck, blending into your skin there. This thickened skin seems to pulse slowly, in a rhythm unrelated to the beat of your heart or the movement of your breath. You gain the ability to spit a line of acid as a standard action. Once per minute, you can emit a line of acid that is 5 feet long plus 5 feet per point of invested essentia. Targets in the line take 2d6 points of acid damage plus 1d6 points for every point of invested essentia. They can reduce this damage by half with a successful Reflex save.",
+      "extraCap": "0",
+      "essentia": 0
+    },
+    "shoulders": {
+      "enabled": true,
+      "name": "Phase Cloak",
+      "bound": true,
+      "split": false,
+      "double": false,
+      "base": "You form incarnum into a gray and white cloak with mottled blue markings that seems to shift and flow over your back like liquid. Phase spiders are magical beasts that resemble spiders, and they represent all of spiderkind in totemist thinking. They are associated with mobility of all sorts, from their ability to climb walls to their ethereal phasing power. You gain a +4 competence bonus on Climb checks. In addition, you can always choose to take 10 on a Climb check, even if rushed or threatened, and you retain your Dexterity bonus to Armor Class while climbing. (Essentia: For every point of essentia you invest in your phase cloak, your competence bonus on Climb checks increases by 2.)",
+      "bindEffect": "(Shoulders) Your phase cloak becomes even more like a silvery gray liquid, seeming to flow like a gentle stream even when completely motionless. Its mottled blue markings also extend to the skin of your shoulders and upper torso. When you use a move action to move at least 5 feet, you can become ethereal during the movement. Among other effects, this means that you can cross difficult terrain without penalty and even pass through walls. While moving, you are not subject to attacks of opportunity except from creatures that can see into the Ethereal Plane and affect ethereal creatures. However, you become material after each move. Thus, if you perform a double move, you must end your first move in a space where you can return to the Material Plane before becoming ethereal again for the second part of your move. If you are within a solid object when your etherealness ends, you are immediately shunted to the nearest open space, taking 1d6 points of damage per 5 feet that you so travel. While using this ability, you are subject to possible attack by creatures on the Ethereal Plane. As a general guideline, the DM should roll once on the Ethereal Plane Encounters table (page 152 of the Dungeon Master's Guide) for each encounter during which you use this ability, with a result of 01-80 indicating that no danger lurks on the Ethereal Plane in that location.",
+      "extraCap": "0",
+      "essentia": 0
+    },
+    "hands": {
+      "enabled": true,
+      "name": "Rageclaws",
+      "bound": false,
+      "split": false,
+      "double": false,
+      "base": "You form incarnum into a pair of furred gloves tipped with short claws. These gloves fit over your hands as well as any other gloves or gauntlets you might wear. When you clench your hands into fists, you can feel a surge of anger and determination well up inside you. The rageclaws soulmeld makes no attempt to channel soul energy from any particular kind of magical beast. Rather, it taps into the primal rage and survival instinct shared by all creatures of that type, a powerful will to survive and prevail. Totemists typically shape this meld when they expect to face overwhelming odds, but some totemists shape it simply to gain courage and fury in battle. While you wear your rageclaws, you can continue to fight without penalty if you are disabled or dying. When reduced to 0 hit points, you can act as if you weren't disabled (that is, you ignore the normal restriction to only a single move or standard action per turn). You do not lose 1 hit point for performing a standard or otherwise strenuous action while at 0 hit points. When reduced to -1 to -9 hit points, you do not fall unconscious. You do not automatically lose 1 hit point each round when at -1 to -9 hit points. When your current hit points drop to -10 or lower, you immediately die. (Essentia: Investing essentia in rageclaws increases the range of negative hit points at which you can continue functioning. Every point of essentia invested effectively reduces the point at which you die by 3 (such as from -10 to -13). You can continue to fight without penalty until you reach that hit point total. If your essentia investment in this soulmeld is reduced (whether voluntarily or involuntarily) and your current hit point total is at or below the point at which you would die, you immediately die. For example, if you are currently at -16 hit points and reduce your essentia investment from 3 points to 2 points, you would die (since your new point of death would be -16).)",
+      "bindEffect": "(Hands) The fur of your rageclaws merges into your hands, and your fingers become tipped with small, dark claws instead of nails. Each blow that lands on your body causes a blood rage to swell up in you, building until you are near death and then erupting in desperate fury. While your hit point total is below 0, you gain a +2 morale bonus on melee attack rolls, melee weapon damage rolls, and Fortitude saves. Though similar in some ways to a barbarian's rage, this state applies no restriction on what actions you can take.",
+      "extraCap": "0",
+      "essentia": 0
+    },
+    "arms": {
+      "enabled": true,
+      "name": "Girallon Arms",
+      "bound": true,
+      "split": false,
+      "double": false,
+      "base": "Incarnum coalesces around your arms and upper torso, forming blue-white fur that seems to enhance your arm and chest muscles. It also extends from your fingers to form ghostly claws that, despite their insubstantial appearance, help you gain purchase while climbing or grappling. Totemists hope to claim the savage ferocity of the girallon as their own by shaping this meld. Known for its great strength and fierce claws, the girallon is a totem of power and aggression. Your girallon arms grant you a +2 competence bonus on Climb checks and grapple checks. (Essentia: Every point of essentia invested in your girallon arms increases the bonus on Climb checks and grapple checks by 2.)",
+      "bindEffect": "(Arms) The blue-white fur of your girallon arms grows longer at your forearms, forming tufts of hair near your elbows. If you hit a single target with at least two claw attacks, whether these attacks come from your girallon arms, a different soulmeld, your own innate abilities, or some other source, you can latch onto the opponent's body and tear the flesh. This attack automatically deals double claw damage, including double your Strength bonus.",
+      "extraCap": "0",
+      "essentia": 0
+    },
+    "torso": {
+      "enabled": true,
+      "name": "Dread Carapace",
+      "bound": false,
+      "split": false,
+      "double": false,
+      "base": "Incarnum forms into a heavy, caramel-brown carapace covering your back. Short spines protrude from this shell, and light gleams from its surface. Though it has no actual protective value (unless you bind it to your heart chakra), the carapace fills you with the destructive power of the tarrasque. Possibly the most dreaded of all magical beasts, the tarrasque is also the only magical beast whose power is channeled and embodied in two different soulmelds— dread carapace and totem avatar. Totemists who shape dread carapace can emulate a variety of the tarrasque's many aspects—primary among them its sheer power in melee combat. While your dread carapace is shaped, you gain a +2 bonus on damage rolls when you are using a bite attack, or a +1 bonus when you are using a claw or other natural attack. In exchange, you take a -1 penalty on attack rolls with natural weapons (Essentia: Every point of essentia you invest in your dread carapace increases your attack penalty by 1 and your damage bonus by 2 (for bite attacks) or 1 (for other natural weapons). Thus, if you invest 5 points of essentia in this soulmeld, you take a -6 penalty on attack rolls and gain a +12 bonus on damage rolls with a bite, or +6 with a different natural weapon)",
+      "bindEffect": "(Heart) Your dread carapace takes on a highly reflective sheen, suggesting the tarrasque's ability to reflect spells back on their casters. Spells have a hard time reaching through your carapace to affect you. You gain spell resistance equal to 5 + 4 per point of essentia you invest in your dread carapace",
+      "extraCap": "0",
+      "essentia": 1
+    },
+    "waist": {
+      "enabled": true,
+      "name": "Phoenix Belt",
+      "bound": false,
+      "split": false,
+      "double": false,
+      "base": "Incarnum forms a wide belt of thick purple scales around your waist. Though the belt does not serve as armor (and easily fits around any armor you might wear), it thickens your skin and tints it a faint purple color. The purple worm is one of the most feared magical beasts, particularly by those who live or adventure far beneath the surface of the earth. Many have despaired of ever penetrating its thick hide before dying in its gullet or being poisoned by the stinger at the tip of its tail. This soulmeld, particularly common among totemists in underground communities, is an attempt to emulate the awesome protection and the dangerous power of the purple worm. You gain a +2 enhancement bonus to your existing natural armor bonus. (If you do not have natural armor, you have an effective natural armor bonus of +0.) (Essentia: The enhancement bonus to your natural armor bonus increases by 1 for every point of essentia you invest in your wormtail belt)",
+      "bindEffect": "(Waist) Rather than forming a belt of purple scales at your waist, the soulmeld shapes plating on the skin of your torso and legs. Dark purple on the back and lighter in front, these scales seem to add to your bulk, and definitely increase your power in melee combat. You gain the Awesome Blow feat (see page 303 of the Monster Manual) and are treated as one size category larger than usual when using it (up to a maximum of Colossal). The save DC to resist your awesome blow is calculated as normal for your soulmelds, rather than being based on the damage you deal",
+      "extraCap": "0",
+      "essentia": 3
+    },
+    "feet": {
+      "enabled": true,
+      "name": "Urskan Greaves",
+      "bound": true,
+      "split": false,
+      "double": false,
+      "base": "Incarnum forms steel plates backed with white fur that fit over your shins, covering any clothing, boots, or armor you might wear. When you walk through ice and snow, your feet find solid purchase. Urskans (magical beasts described in Frostburn: Mastering the Perils of Ice and Snow) are arctic-dwelling creatures much like intelligent polar bears. The other races of the north know and fear them for the heavy plate armor they wear, for their strength and ferocity, and for the fierce power of their charging attacks. It is precisely these qualities that totemists seek to emulate by shaping urskan greaves. You can move across ice and through snow at your normal speed, and you gain a +5 bonus on Balance checks made on ice. (Essentia: If you invest essentia in your urskan greaves, they protect you from cold damage. You gain resistance to cold equal to 5 times the number of points of essentia you invest in this soulmeld.)",
+      "bindEffect": "(Feet) White fur covers your lower legs and your urskan greaves merge into your flesh. Strength seems to radiate up from your greaves through your whole frame, lending power to your attacks when you can build up a good running start. You gain the ability to make a powerful charge. When you charge, if your melee attack hits, you deal an additional +1d4 points of damage per point of essentia you invest in your urskan greaves.",
+      "extraCap": "0",
+      "essentia": 4
+    }
+  },
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "Amulet of Health +6",
+  "slot-shoulders": "",
+  "slot-ring1": "Ring of Freedom of Movement",
+  "slot-ring2": "Ring of Evasion",
+  "slot-hands": "",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "Belt of Giant Strength +4",
+  "slot-feet": "",
+  "sm-max-soulmelds": "8",
+  "sm-max-essentia": "14",
+  "sm-max-binds": "4",
+  "sm-base-capacity": "4",
+  "totem": {
+    "name": "Landshark Boots",
+    "bound": true,
+    "double": true,
+    "base": "You shape incarnum into a pair of boots that resemble the heavy clawed feet of a bulette. Leathery skin encases your legs up to your knees, and enormous claws extend from the front of your feet. The bulette, also called the landshark, is closely associated with the earth in totemist traditions. Totemists channel the spirit energy of the bulette to attain connection with the earth—borrowing a measure of its tremorsense or its ability to burrow through the earth—as well as to mimic its fearsome qualities as a voracious predator. While wearing the landshark boots, you gain a +4 competence bonus on Jump checks. (Essentia: Every point of essentia you invest in the landshark boots increases the competence bonus on Jump checks by 2.)",
+    "bindEffect": "(Totem) Your hands as well as your feet gain the heavy claws of a bulette, including one prominent central claw and two smaller claws on the sides. These massive claws emerge from the backs of your hands so you can bring them to bear while making a fist. You can use the claws on your hands as natural weapons that deal 1d6 points of damage. You cannot use a shield while these claws are in place. For every point of essentia you invest in your landshark boots, you gain a +1 enhancement bonus on attack rolls and damage rolls with these claws. If, as part of a move, you achieve a Jump check result good enough to make a 5 - foot high jump while within reach of an opponent, you can attack that opponent with all four claws as a standard action. You use the same attack bonus for all four attacks. You cannot make any other attacks in the same round, whether from natural weapons or manufactured weapons. The claws do not prevent you from using your hands normally or even binding another soulmeld to your hands chakra. However, you cannot hold an item in your hand and attack with your claws at the same time.",
+    "extraCap": "0",
+    "essentia": 6,
+    "name2": "",
+    "bound2": false,
+    "base2": "",
+    "bindEffect2": "",
+    "extraCap2": "0",
+    "essentia2": 0
+  },
+  "gear": [
+    {
+      "name": "Rations, Trail (Per Day) (19)",
+      "location": "",
+      "weight": "19"
+    },
+    {
+      "name": "Backpack",
+      "location": "",
+      "weight": "2"
+    },
+    {
+      "name": "Rope, Silk (50 Ft.)",
+      "location": "",
+      "weight": "5"
+    },
+    {
+      "name": "Alchemist's Fire (Flask)",
+      "location": "",
+      "weight": "1"
+    },
+    {
+      "name": "CLW Pot x2",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CMW Pot",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Elixir of Fire Breath x6",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "11200 gp",
+      "location": "Bag of Holding Type I",
+      "weight": "224"
+    },
+    {
+      "name": "Ring of Protection +1",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Cloak of Resistance +1",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Gems (~4500 gp)",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "5500 gp",
+      "location": "Bag of Holding Type IV",
+      "weight": "110"
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "",
+  "money-pp": "",
+  "casters": [],
+  "feats": [
+    "Great Fortitude",
+    "Power Attack",
+    "Track",
+    "Improved Unarmed Strike",
+    "Necrocarnum Acolyte",
+    "Deflect Arrows",
+    "Improved Bull Rush",
+    "Improved Grapple",
+    "Shock Trooper",
+    "Leap Attack",
+    "Double Chakra",
+    "Improved Critical (Claw)"
+  ],
+  "specialAbilities": [
+    "Racial Bonus on Attacks Against Fire Subtype",
+    "Vulnerability to Fire Subtype",
+    "Natural Swimmers",
+    "Darkvision (70 ft)",
+    "Light sensitivity",
+    {
+      "text": "[Barbarian 1] Fast movement",
+      "fromClass": "Barbarian"
+    },
+    {
+      "text": "[Barbarian 1] illiteracy",
+      "fromClass": "Barbarian"
+    },
+    {
+      "text": "[Barbarian 1] rage 1/day",
+      "fromClass": "Barbarian"
+    },
+    {
+      "text": "[Barbarian 2] Uncanny dodge",
+      "fromClass": "Barbarian"
+    },
+    {
+      "text": "[Fighter 1] Bonus feat ×2",
+      "fromClass": "Fighter"
+    },
+    {
+      "text": "[Fist of the Forest 1] AC bonus",
+      "fromClass": "Fist of the Forest"
+    },
+    {
+      "text": "[Fist of the Forest 1] fast movement",
+      "fromClass": "Fist of the Forest"
+    },
+    {
+      "text": "[Fist of the Forest 1] feral trance 1/day",
+      "fromClass": "Fist of the Forest"
+    },
+    {
+      "text": "[Fist of the Forest 1] primal living",
+      "fromClass": "Fist of the Forest"
+    },
+    {
+      "text": "[Fist of the Forest 1] unarmed damage 1d8",
+      "fromClass": "Fist of the Forest"
+    },
+    {
+      "text": "[Necrocarnate 1] Harvest soul (1 minute)",
+      "fromClass": "Necrocarnate"
+    },
+    {
+      "text": "[Necrocarnate 1] improved meldshaper level",
+      "fromClass": "Necrocarnate"
+    },
+    {
+      "text": "[Black Blood Cultist 1] damage reduction 1/silver",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 1] Feral rage (claws)",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 2] Improved grapple",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 3] Feral rage (bite)",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 4] DR 3/silver",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 4] Scent",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 5] Stranglehold",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 6] Feral rage (rend)",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 7] Improved natural attacks",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 8] Savage grapple",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 9] DR 5/silver",
+      "fromClass": "Black Blood Cultist"
+    },
+    {
+      "text": "[Black Blood Cultist 10] Feral form",
+      "fromClass": "Black Blood Cultist"
+    },
+    "[Barbarian 11] Greater Rage",
+    "[Lolth-Touched] Fearless (Ex): Lolth-touched creatures have immunity to all fear effects.",
+    {
+      "text": "[Eye of Gruumsh 1] Blind-Fight",
+      "fromClass": "Eye of Gruumsh"
+    },
+    {
+      "text": "[Eye of Gruumsh 1] command the horde",
+      "fromClass": "Eye of Gruumsh"
+    },
+    {
+      "text": "[Eye of Gruumsh 1] rage",
+      "fromClass": "Eye of Gruumsh"
+    },
+    {
+      "text": "[Eye of Gruumsh 2] Swing blindly",
+      "fromClass": "Eye of Gruumsh"
+    },
+    {
+      "text": "[Eye of Gruumsh 3] Ritual scarring +1",
+      "fromClass": "Eye of Gruumsh"
+    },
+    {
+      "text": "[Totemist 1] illiteracy",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 1] Wild empathy",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 2] Totem chakra bind (+1 capacity)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 3] Totem's protection",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 5] Chakra binds (crown, feet, hands)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 6] Totem chakra bind (+1 meldshaper level)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 9] Chakra binds (arms, brow, shoulders)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 11] Totem chakra bind (double bind)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 14] Chakra binds (throat, waist)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 15] Totem chakra bind (+2 capacity)",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 16] Rebind totem soulmeld 3/day",
+      "fromClass": "Totemist"
+    },
+    {
+      "text": "[Totemist 17] Chakra bind (heart)",
+      "fromClass": "Totemist"
+    }
+  ],
+  "languages": "Orc, Common, Gnoll",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "1",
+  "rage-duration": "-1",
+  "rage-str-con": "+6",
+  "rage-will": "+3",
+  "rage-ac": "-3",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "Planned Progression: \nSide A - Totemist 7 -> Necrocarnate 13\nSide B - Barbarian 2 (Berserker Strength) -> Fighter 2 (Dungeon Crasher) -> Fist of the Forest 1 -> Black Blood Cultist 10 -> ??? (Probably Barb) 5\n\nNeed:\nNecrocarnate - Know (arc) 5, Know (rel) 5, Spellcraft 10, Necrocarnum Acolyte, bind (crown, feet, hands)\nBlack Blood Cultist - Know (nat) 2, Survival 8, Track, Improved Unarmed Strike - done\nFist of the Forest - Handle Animal 4, Survival 4, BAB +4, Great Fortitude, Imp Unarmed Strike, Power Attack - done\n\nInherent Bonuses:\n+5 Str",
+  "customizations": [
+    {
+      "kind": "ACF",
+      "name": "Berserker Strength",
+      "class": "Barbarian",
+      "level": null,
+      "race": "",
+      "replaces": "Rage (and any later improvements to that class feature)",
+      "replacesFeatures": "rage",
+      "saveProgressions": null,
+      "classSkillChanges": null,
+      "babProgression": "",
+      "hitDie": null,
+      "skillPointsPerLevel": null,
+      "grants": "Whenever your current hit point total is below 5 x your barbarian level, your berserker strength automatically activates. You gain a +4 bonus to your Strength score, a +2 bonus on saves, damage reduction 2/-, and a -2 penalty to your AC. The damage reduction stacks with any similar kind of damage reduction. There is no limit to the number of times per day it can activate. While active, you have the same limitation on actions as a barbarian in rage (PH 25). You cannot voluntarily end your berserker strength, although you automatically drop out of it while unconscious, helpless, or when you receive healing to bring your current hit points above the threshold. At 11th level (or if you would gain greater rage from any class), it improves: Strength bonus to +6, saves bonus to +3, and DR 3/- (or your existing DR of the same kind improves by 3). At 20th level (or if you would gain mighty rage from any class), it improves again: Strength bonus to +8, saves bonus to +4, and DR 4/- (or your existing DR of the same kind improves by 4). Any effect that would normally apply only during your rage applies whenever your berserker strength is active.",
+      "source": "Player's Handbook II",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [
+    {
+      "kind": "immunity",
+      "type": "fear",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "resistance",
+      "type": "fire",
+      "amount": 15,
+      "from": "soulmeld:Phoenix Belt"
+    },
+    {
+      "kind": "resistance",
+      "type": "cold",
+      "amount": 20,
+      "from": "soulmeld:Urskan Greaves"
+    }
+  ],
+  "_dr_entries": [
+    {
+      "amount": 5,
+      "bypass": "silver",
+      "stacks_with": "all",
+      "from": null
+    }
+  ],
+  "_regeneration": [],
+  "fast-healing": "",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [
+    "m7:hp-not-set",
+    "m7:no-skill-ranks",
+    "history:prereq-unmet:1:Power Attack:ability:STR 13",
+    "history:prereq-not-taken:7:Improved Grapple:Improved Unarmed Strike",
+    "history:feat-off-schedule:4",
+    "history:feat-off-schedule:7",
+    "history:prereq-unmet:12:Leap Attack:skill:Jump 8 ranks"
+  ],
+  "auditMuted": [
+    "ability:base-over-ceiling"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Totemist",
+      "hp_rolled": 12,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Power Attack",
+        "Great Fortitude",
+        "Track"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Barbarian"
+    },
+    {
+      "level": 2,
+      "class_taken": "Totemist",
+      "hp_rolled": 10,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Barbarian"
+    },
+    {
+      "level": 3,
+      "class_taken": "Totemist",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Unarmed Strike",
+        "Necrocarnum Acolyte"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Fighter"
+    },
+    {
+      "level": 4,
+      "class_taken": "Totemist",
+      "hp_rolled": 9,
+      "ability_boost": "CON",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Deflect Arrows"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Fighter"
+    },
+    {
+      "level": 5,
+      "class_taken": "Totemist",
+      "hp_rolled": 7,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Fist of the Forest"
+    },
+    {
+      "level": 6,
+      "class_taken": "Totemist",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Bull Rush"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 7,
+      "class_taken": "Totemist",
+      "hp_rolled": 7,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Grapple"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 8,
+      "class_taken": "Necrocarnate",
+      "hp_rolled": 6,
+      "ability_boost": "WIS",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 9,
+      "class_taken": "Totemist",
+      "hp_rolled": 11,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Shock Trooper"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 10,
+      "class_taken": "Totemist",
+      "hp_rolled": 7,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 11,
+      "class_taken": "Totemist",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 12,
+      "class_taken": "Totemist",
+      "hp_rolled": 7,
+      "ability_boost": "STR",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Leap Attack"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 13,
+      "class_taken": "Totemist",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 14,
+      "class_taken": "Totemist",
+      "hp_rolled": 9,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 15,
+      "class_taken": "Totemist",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Double Chakra (Totem)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Black Blood Cultist"
+    },
+    {
+      "level": 16,
+      "class_taken": "Totemist",
+      "hp_rolled": 2,
+      "ability_boost": "CON",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Eye of Gruumsh"
+    },
+    {
+      "level": 17,
+      "class_taken": "Totemist",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Eye of Gruumsh"
+    },
+    {
+      "level": 18,
+      "class_taken": "Totemist",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Improved Critical (Claw)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Eye of Gruumsh"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0,
+      "name": "Appraise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 4,
+      "name": "Climb"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 7
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7,
+      "baseName": "Craft",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8,
+      "name": "Decipher Script"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 10,
+      "name": "Disable Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11,
+      "name": "Disguise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 12,
+      "name": "Escape Artist"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13,
+      "name": "Forgery"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14,
+      "name": "Gather Information"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 15,
+      "name": "Handle Animal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 16,
+      "name": "Heal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 17,
+      "name": "Hide"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18,
+      "name": "Iaijutsu Focus"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "20",
+      "misc": "0",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 21,
+      "name": "Knowledge (Arcana)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24,
+      "name": "Knowledge (Geography)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25,
+      "name": "Knowledge (History)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26,
+      "name": "Knowledge (Local)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 27,
+      "name": "Knowledge (Nature)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 28,
+      "name": "Knowledge (Nobility)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 29,
+      "name": "Knowledge (The Planes)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 30,
+      "name": "Knowledge (Psionics)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 35,
+      "name": "Move Silently"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36,
+      "name": "Open Lock"
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 37
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37,
+      "baseName": "Perform",
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 38
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38,
+      "baseName": "Profession",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 39,
+      "name": "Psicraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 42,
+      "name": "Sense Motive"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 43,
+      "name": "Sleight of Hand"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44,
+      "name": "Speak Language"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "10",
+      "misc": "0",
+      "index": 45,
+      "name": "Spellcraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "21",
+      "misc": "0",
+      "index": 47,
+      "name": "Survival"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "1",
+      "misc": "0",
+      "index": 48,
+      "name": "Swim"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 49,
+      "name": "Truespeak"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 50,
+      "name": "Tumble"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
+    }
+  ],
+  "customSkills": []
+}
