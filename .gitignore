@@ -6,7 +6,17 @@ data/**
 # Library = archive of imports (currently ~370 chars in various states
 # of completeness). Active characters live in saves/active/ and ARE
 # tracked. Anything you want to commit, move out of library/ first.
-saves/**
+# Until 2026-08-04 the rule was saves/library/**. cd07748 widened it to
+# saves/**, which ignored active/ too, so only the four characters committed
+# before then stayed tracked (narrowed back 2026-10-29).
+# saves/* ignores everything else under saves/, including any new subdir.
+# The negation must name the DIRECTORY, because git cannot re-include a file
+# whose parent dir is excluded. The last two lines are the save server's
+# atomic-write leftovers (<name>.json.tmp, _tmpnorm_*), stranded by a crash.
+saves/*
+!saves/active/
+saves/active/*.tmp
+saves/active/_tmpnorm_*
 # Review-flagging store (2026-07-09): ephemeral working notes (entry-review
 # flags + sheet bug/feature reports), written by save_server /api/flags. Like
 # saves/library, local working data — the DB-side reader reads the live file.

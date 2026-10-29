@@ -1,0 +1,942 @@
+{
+  "char-name": "Avor",
+  "char-player": "",
+  "char-class": "Mystic Ranger 3 // Chaos Monk 2 / Paladin 1 / Silver Dragon Bloodline 1",
+  "char-race": "Silverbrow Human",
+  "char-type": "Humanoid (Dragonblood)",
+  "char-alignment": "Chaotic Good",
+  "char-deity": "Aurel",
+  "char-level": "3",
+  "char-size": "Medium",
+  "char-age": "",
+  "char-gender": "",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "3000",
+  "char-speed": "45 ft.",
+  "damage-reduction": "",
+  "str-score": "18",
+  "str-race": "",
+  "str-template": "6",
+  "str-temp-adj": "",
+  "dex-score": "18",
+  "dex-race": "",
+  "dex-template": "",
+  "dex-temp-adj": "",
+  "con-score": "18",
+  "con-race": "",
+  "con-template": "2",
+  "con-temp-adj": "",
+  "int-score": "15",
+  "int-race": "",
+  "int-template": "-4",
+  "int-temp-adj": "",
+  "wis-score": "19",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "cha-score": "15",
+  "cha-race": "",
+  "cha-template": "-6",
+  "cha-temp-adj": "",
+  "hp-total": "32",
+  "hp-current": "",
+  "hp-temp": "",
+  "hp-nonlethal": "",
+  "ac-natural": "3",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "ability-ac-bonuses": [
+    {
+      "ability": "WIS",
+      "type": "Untyped",
+      "stack": true
+    }
+  ],
+  "ignore-encumbrance": false,
+  "fort-base": "3",
+  "fort-magic": "0",
+  "fort-misc": "0",
+  "fort-temp": "0",
+  "ref-base": "3",
+  "ref-magic": "0",
+  "ref-misc": "0",
+  "ref-temp": "0",
+  "will-base": "3",
+  "will-magic": "0",
+  "will-misc": "0",
+  "will-temp": "0",
+  "save-conditional": "+1 vs Spells/SLAs\n+4 vs Mind-Affecting/ Enchantment spells/effects",
+  "init-misc": "0",
+  "bab-1": "3",
+  "grapple-misc": "0",
+  "spell-resistance": "",
+  "attacks": [
+    {
+      "name": "Unarmed Strike",
+      "bonus": "BAB+S",
+      "damage": "d6+S",
+      "crit": "x2",
+      "range": "",
+      "type": "Bludgeoning",
+      "notes": "",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": false
+    }
+  ],
+  "_multiclass": [
+    {
+      "className": "Mystic Ranger",
+      "level": 3,
+      "classId": 4941,
+      "version": "3.5",
+      "source": "Dragon Magazine #336"
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Chaos Monk",
+      "level": 2,
+      "classId": 4940,
+      "version": "3.5",
+      "source": "Dragon Magazine #335"
+    },
+    {
+      "className": "Paladin",
+      "level": 1,
+      "classId": 13325,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "_templates": [
+    {
+      "name": "Wild",
+      "templateId": 4939,
+      "version": "3.0",
+      "abilityMods": {
+        "Str": 2,
+        "Int": -2,
+        "Cha": -2
+      },
+      "naturalArmorAdded": 0,
+      "typeChange": null
+    },
+    {
+      "name": "Proto-creature",
+      "templateId": 333,
+      "version": "3.5",
+      "abilityMods": {
+        "Str": 4,
+        "Con": 2,
+        "Int": -2,
+        "Cha": -4
+      },
+      "naturalArmorAdded": 3,
+      "typeChange": null
+    }
+  ],
+  "_templateBaseType": "Humanoid",
+  "armor-name": "Vow of Poverty",
+  "armor-type": "",
+  "armor-ac-bonus": "5",
+  "armor-max-dex": "",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "",
+  "armor-speed": "",
+  "armor-weight": "",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "",
+  "slot-shoulders": "",
+  "slot-ring1": "",
+  "slot-ring2": "",
+  "slot-hands": "",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "0",
+  "gear": [
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "0",
+  "money-pp": "0",
+  "casters": [
+    {
+      "type": "spellcasting",
+      "name": "Mystic Ranger",
+      "notes": "Mystic Ranger",
+      "casterLevel": "3",
+      "ability": "WIS",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": true,
+      "showKnown": false,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "2",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [
+        {
+          "baseName": "Create Water",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Purify Food and Drink",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "known-1": "",
+      "perDay-1": "2",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [
+        {
+          "baseName": "Primal Hunter",
+          "metamagic": [],
+          "used": true
+        },
+        {
+          "baseName": "Tern's Persistence",
+          "metamagic": [],
+          "used": true
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    }
+  ],
+  "feats": [
+    "Sacred Vow",
+    "Vow of Poverty",
+    "Nymph's Kiss",
+    "Stunning Fist",
+    "Combat Reflexes",
+    "Power Attack",
+    "Improved Bull Rush",
+    "Touch of Golden Ice",
+    "Weapon Focus (Claw)"
+  ],
+  "specialAbilities": [
+    {
+      "text": "[Chaos Monk 1] flailing strike",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Chaos Monk 1] unarmed strike",
+      "fromClass": "Chaos Monk"
+    },
+    {
+      "text": "[Chaos Monk 2] evasion",
+      "fromClass": "Chaos Monk"
+    },
+    "Dragonblood Subtype",
+    "[Vow of Poverty 3] Endure Elements\n(Ex): You are immune to the effects of being in a hot or cold environment. You can exist comfortably in conditions between -50 and 140 degrees F without having to make Fort saves",
+    {
+      "text": "[Mystic Ranger 1] Track",
+      "fromClass": "Mystic Ranger"
+    },
+    {
+      "text": "[Mystic Ranger 1] wild empathy",
+      "fromClass": "Mystic Ranger"
+    },
+    {
+      "text": "[Mystic Ranger 2] 1st favored enemy",
+      "fromClass": "Mystic Ranger"
+    },
+    {
+      "text": "[Mystic Ranger 3] Combat style",
+      "fromClass": "Mystic Ranger"
+    },
+    "[Wild] Spell-Like Abilities: A wilderness-dweller loses any spell-like abilities her ancestral race might have had.",
+    "[Wild] Favored Class: Ranger. A wilderness-dweller loses the favored class of her ancestral race and always favors ranger instead.",
+    "[Proto-creature] A proto-creature retains all the extraordinary special qualities of the base creature but loses all supernatural and spell-like special qualities, including spell resistance but not including damage reduction. It also gains the following special qualities.",
+    "[Proto-creature] Instability (Ex): Proto-creatures are unstable. When they are reduced to –10 hp, their bodies break down, dissolving and rotting away to proto-matter, dust, or similar base material. Proto-creatures who succumb to instability may not be raised but may be resurrected if the proto-matter is retained.",
+    "[Proto-creature] Madness (Ex): Because of their flawed and poorly developed psyches, proto-creatures are less susceptible to effects that target a rational mind. They gain a +4 racial bonus on saving throws to resist mind-affecting or enchantment spells and effects.",
+    "[Proto-creature] A proto-creature retains all the extraordinary special attacks of the base creature but loses all supernatural and spell-like special attacks. It also gains the following special attack.",
+    "[Proto-creature] Rage (Ex): A proto-creature has the rage ability of a barbarian. The proto-creature’s racial HD act as barbarian levels for the purposes of the number of times per day the proto-creature can rage. A proto-creature with barbarian class levels adds its racial HD to its barbarian levels to determine times per day. Proto-creatures who deal damage to an opponent in combat will automatically enter a rage unless they succeed at a DC 15 Will check."
+  ],
+  "languages": "",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "",
+  "customizations": [
+    {
+      "kind": "Sub Level",
+      "name": "Bird of Prey (Claw of the Sun and the Ankh Substitution Level 1)",
+      "class": "Paladin",
+      "level": 1,
+      "race": "",
+      "replaces": "Smite evil",
+      "source": "Champions of Valor",
+      "notes": ""
+    },
+    {
+      "kind": "ACF",
+      "name": "Favored Enemy Variant: Favored Environment",
+      "class": "Ranger",
+      "level": 2,
+      "race": "",
+      "replaces": "Favored Enemy",
+      "source": "Unearthed Arcana",
+      "notes": "Forest"
+    },
+    {
+      "kind": "ACF",
+      "name": "Other Class Variant: Ranger",
+      "class": "Ranger",
+      "level": 3,
+      "race": "",
+      "replaces": "Combat style, improved combat style, combat style mastery",
+      "source": "Unearthed Arcana",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": [
+    {
+      "name": "Silver Dragon",
+      "source": "Unearthed Arcana",
+      "strength": "major",
+      "slotsPaid": [
+        true,
+        false,
+        false
+      ],
+      "notes": ""
+    }
+  ],
+  "activeConditions": [],
+  "auditDismissed": [
+    "ability:base-over-ceiling:WIS",
+    "history:prereq-not-taken:1:Stunning Fist:Improved Unarmed Strike",
+    "history:prereq-unmet:1:Stunning Fist:bab:BAB +8",
+    "history:feat-off-schedule:2",
+    "history:prereq-same-level:1:Vow of Poverty:Sacred Vow",
+    "caster:prepared-full:Mystic Ranger:0"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Mystic Ranger",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Sacred Vow",
+        "Vow of Poverty",
+        "Nymph's Kiss",
+        "Alertness",
+        "Stunning Fist",
+        "Power Attack"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Chaos Monk"
+    },
+    {
+      "level": 2,
+      "class_taken": "Mystic Ranger",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Touch of Golden Ice",
+        "Combat Reflexes",
+        "Improved Bull Rush"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Chaos Monk"
+    },
+    {
+      "level": 3,
+      "class_taken": "Mystic Ranger",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Weapon Focus (claw)"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Paladin"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 1
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 2
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "5",
+      "index": 3
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 4
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 5
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 5,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 7
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 9
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 10
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 12
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "2",
+      "index": 13
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 15,
+      "notes": "+2 in forest"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 16
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "9",
+      "index": 17
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "1",
+      "misc": "0",
+      "index": 21
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 24,
+      "notes": "+2 for forest-related checks"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "1",
+      "misc": "0",
+      "index": 27
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "2",
+      "index": 28,
+      "notes": "+2 in forest"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 29,
+      "notes": "+2 in forest"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 30
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 31
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 31,
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 32
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 32,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 35
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "2",
+      "index": 39,
+      "notes": "+2 in forest"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 40,
+      "notes": "+2 in forest"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "5",
+      "index": 41
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 42
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "2",
+      "index": 43
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44
+    }
+  ],
+  "customSkills": []
+}

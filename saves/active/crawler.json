@@ -1,0 +1,1022 @@
+{
+  "char-name": "Crawler",
+  "char-player": "",
+  "char-class": "Monk 2 / Hexblade 3 / Warshaper 3 / Binder 1 / Forsaker 5",
+  "char-race": "Karsite",
+  "char-type": "Aberration (Shapechanger)",
+  "char-alignment": "Lawful Evil",
+  "char-deity": "",
+  "char-level": "14",
+  "char-size": "Gargantuan",
+  "char-age": "",
+  "char-gender": "",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "93700",
+  "char-speed": "30 ft, 60 ft (F, Good)",
+  "damage-reduction": "5/magic, 2/-",
+  "str-score": "44",
+  "str-race": "",
+  "str-template": "",
+  "str-temp-adj": "",
+  "dex-score": "12",
+  "dex-race": "",
+  "dex-template": "",
+  "dex-temp-adj": "",
+  "con-score": "38",
+  "con-race": "2",
+  "con-template": "",
+  "con-temp-adj": "",
+  "int-score": "16",
+  "int-race": "",
+  "int-template": "",
+  "int-temp-adj": "",
+  "wis-score": "18",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "cha-score": "20",
+  "cha-race": "2",
+  "cha-template": "",
+  "cha-temp-adj": "",
+  "hp-total": "291",
+  "hp-current": "",
+  "hp-temp": "",
+  "hp-nonlethal": "",
+  "ac-natural": "9",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "Resist 5: Acid, Fire, Cold, Electricity, Sonic\nFast Healing 14 + Escalation\nImmune: Stunning, Critical hits, Flanking",
+  "ability-ac-bonuses": [
+    {
+      "ability": "CON",
+      "type": "Natural Armor",
+      "stack": true
+    },
+    {
+      "ability": "WIS",
+      "type": "Untyped",
+      "stack": true
+    }
+  ],
+  "ignore-encumbrance": false,
+  "fort-base": "8",
+  "fort-magic": "0",
+  "fort-misc": "2",
+  "fort-temp": "0",
+  "ref-base": "7",
+  "ref-magic": "0",
+  "ref-misc": "2",
+  "ref-temp": "0",
+  "will-base": "8",
+  "will-magic": "0",
+  "will-misc": "2",
+  "will-temp": "0",
+  "save-conditional": "+Cha vs Spells / Spell-like effects\nImmune: mind-affecting",
+  "init-misc": "0",
+  "bab-1": "12",
+  "grapple-misc": "0",
+  "spell-resistance": "39",
+  "attacks": [
+    {
+      "name": "Bite",
+      "bonus": "BAB+S-4",
+      "damage": "4d6+S",
+      "crit": "x2",
+      "range": "",
+      "type": "Piercing",
+      "notes": ""
+    },
+    {
+      "name": "Claw x2",
+      "bonus": "BAB+S-6",
+      "damage": "3d6+.5*S",
+      "crit": "x2",
+      "range": "",
+      "type": "Slashing",
+      "notes": ""
+    },
+    {
+      "name": "Unarmed Strike",
+      "bonus": "BAB+S",
+      "damage": "3d6+S",
+      "crit": "x2",
+      "range": "",
+      "type": "Bludgeoning",
+      "notes": ""
+    }
+  ],
+  "_multiclass": [
+    {
+      "className": "Monk",
+      "level": 2,
+      "classId": 13159,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Hexblade",
+      "level": 3,
+      "classId": 2550,
+      "version": "3.5",
+      "source": "Complete Warrior"
+    },
+    {
+      "className": "Warshaper",
+      "level": 3,
+      "classId": 2719,
+      "version": "3.5",
+      "source": "Complete Warrior"
+    },
+    {
+      "className": "Binder",
+      "level": 1,
+      "classId": 17914,
+      "version": "3.5",
+      "source": "Tome of Magic"
+    },
+    {
+      "className": "Forsaker",
+      "level": 5,
+      "classId": 12322,
+      "version": "3.0",
+      "source": "Masters of the Wild"
+    }
+  ],
+  "armor-name": "",
+  "armor-type": "",
+  "armor-ac-bonus": "0",
+  "armor-max-dex": "",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "",
+  "armor-speed": "",
+  "armor-weight": "",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "",
+  "slot-shoulders": "",
+  "slot-ring1": "",
+  "slot-ring2": "",
+  "slot-hands": "",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "0",
+  "gear": [
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "0",
+  "money-pp": "0",
+  "casters": [
+    {
+      "type": "spellcasting",
+      "name": "Hexblade",
+      "notes": "Hexblade",
+      "casterLevel": "3",
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "",
+      "perDay-1": "",
+      "bonus-1": "2",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "binding",
+      "name": "Binder",
+      "notes": "Binder",
+      "binderLevel": "1",
+      "maxVestige": "",
+      "maxBound": "",
+      "bindCheckMod": "",
+      "bindConditional": "",
+      "vestiges": [
+        {
+          "name": "Naberius, the Grinning Hound",
+          "level": "1",
+          "dc": "15",
+          "goodPact": false,
+          "abilities": "Disguise Self (Su): You can alter the appearance of your form as a standard action. This effect works like the disguise self spell.\nFaster Ability Healing (Su): You heal 1 point in each damaged ability score every round, and 1 point in all drained ability scores every hour.\nNaberius's Skills (Su): At the time you make your pact, you can choose a number of skills equal to your Constitution bonus (if any). Your choices must be skills that can't be used untrained and in which you have no ranks. For the duration of the binding, you can make skill checks with your chosen skills even though you are untrained. If your Constitution modifier decreases after you make the pact, you lose the ability to make untrained checks with an equal number of the chosen skills (chosen randomly), and they remain inaccessible until you make another pact with Naberius.\nPersuasive Words (Su): You can direct a verbal command at a single living target within 30 feet as if using the command spell. A successful Will save negates the effect. When your effective binder level reaches 14th, your words become even more persuasive and this ability functions like the suggestion spell. Once you have used this ability, you cannot do so again for 5 rounds.\nSilver Tongue (Su): You can take 10 on Diplomacy and Bluff checks even if distracted or threatened. In addition, you can make a rushed Diplomacy check as a standard action and take no penalty (normally a rushed Diplomacy check requires a full-round action and imposes a -10 penalty).",
+          "sign": "Sign: Your voice deepens and acquires a gravelly, growling tone. | Influence: While you are influenced by Naberius, you love the sound of your own voice and are constantly pleased by your cleverness. Whenever you are presented with a pulpit, a stage, a talking stick, or any other place or object designed to give a speaker the floor, Naberius requires that you immediately seize the opportunity to speak. Any topic will do, but since Naberius resents others taking control of the discourse, he requires that you either shout them down or mock them. Your speech must last a number of rounds equal to your effective binder level to satisfy Naberius."
+        }
+      ]
+    }
+  ],
+  "feats": [
+    "Multiattack",
+    "Lightning Reflexes",
+    "Stunning Fist",
+    "Combat Reflexes",
+    "Psionic Hole",
+    "Diehard",
+    "Iron Will",
+    "Great Fortitude",
+    "Power Attack"
+  ],
+  "specialAbilities": [
+    "[Monk 1] Bonus feat",
+    "[Monk 1] flurry of blows",
+    "[Monk 1] unarmed strike",
+    "[Monk 2] evasion",
+    "[Crawler 1] Escalation\n(Su): The first time each round you take hit-point damage, gain **+1 Escalation**, to a maximum equal to your Crawler level. While you have ≥1 Escalation you gain a morale bonus equal to your Escalation to: attack rolls, natural-weapon damage rolls, **Fortitude saves**, and your fast healing (see below). Escalation resets to 0 at the end of the encounter (or after 1 minute without taking damage).",
+    "[Crawler 1] Adaptive Regeneration\n(Ex): Fast Healing = Crawler level + current Escalation",
+    "[Crawler 2] Regrowth\n(Ex): A natural weapon or sensory organ that is severed or destroyed regrows in 1d6 rounds (1d4 rounds at Crawler 5+, 1 round at Crawler 9+). You never track limb hit points; disabling a limb is temporary.",
+    "Adaptation\n(Ex): You possess permanent Adaptations equal to your Crawler level (your first, the origin scar, is set at 1st level).\n- Banking a Trigger: The first time in an encounter you take ≥5 hit-point damage of an energy/damage type you have no adaptation against, OR you fail a saving throw against an effect type you have no adaptation against,\n  you may bank a Trigger (record the source). You may hold banked Triggers up to your Con modifier (minimum 1).\n- Adapting (consume): During a rest of 10+ minutes — narratively by consuming part of the thing that hurt you — convert one banked Trigger into a permanent Adaptation, themed to the Trigger, chosen from:\n  - Inured (energy): Resistance 5 to that energy type. Re-pick same type → +5 (cap = 5 × Crawler level).\n  - Calloused Hide: DR 2/—. Re-pick → +2 (cap = Crawler level). Does not stack with Forsaker DR — use the better.\n  - Hardened: +4 on saves vs that effect/condition type. Re-pick → immunity, where the GM judges it sensible.\n  - Grown Weapon: gain one additional natural attack (claw/tentacle/gore). Hard cap: +2 extra natural attacks, ever.\n  - Armored Growth: +2 natural armor. Re-pick → +2 (cap = Crawler level).\n- Adaptations are permanent and physically visible — you grow more monstrous with each. You may also leave a slot open and fill it later with a Trigger earned in play.",
+    "Scent",
+    "Adaptations\n1 - +4 vs mind-affecting\n2 - Resist 5 Acid\n3 - DR 2/-\n4 - Immune to mind-affecting\n5 - Resist 5 Fire\n6 - Nondetection (CL = character level)\n7 - Hardened: Unmaking\n8 - Unbound\n9 - Resist 5 Cold\n10 - Resist 5 Electricity\n11 - Hardened: Unwriting\n12 - Resist 5 Sonic\n13 - ",
+    "[Crawler 3] Consume\n(Ex): Spend at least 1 minute devouring the corpse of a creature whose CR ≥ your character level − 4 to gain a temporary benefit drawn from it for 24 hours (GM adjudicates from: one Ex special quality it possessed, a +2 bonus to one ability score, or one of its movement modes). You can hold one Consumed boon at a time.",
+    "[Crawler 4] Improved Grab\n(Ex): If you hit with a claw or bite, you may start a grapple as a free action without provoking an AoO.",
+    "[Crawler 3] Morphic Arsenal\n(Ex): Over 1 minute of reshaping you may change the configuration of your natural weapons (swap claws ↔ tentacles ↔ gore ↔ bite), keeping the same number/type-balance of attacks.",
+    "[Hexblade 1] Hexblade's curse 1/day",
+    "[Hexblade 2] Arcane resistance",
+    "[Hexblade 3] Mettle",
+    "Human Traits",
+    "Damage Reduction",
+    "Spell Resistance",
+    "Magic-Draining Attacks",
+    "Spell Healing",
+    "Spellcasting Inability",
+    "Proficiencies",
+    "[Binder 1] Soul binding",
+    "[Crawler 7] Adaptive Onslaught\n(Su): Your Escalation cap rises to 1.5 × your Crawler level (round down). In addition, once per round when you reduce a creature to 0 or fewer HP, you immediately gain +1 Escalation.",
+    "[Crawler 6] Distributed Anatomy\n(Ex): Your vital organs are spread throughout your body. You are immune to extra damage from critical hits and sneak/precision attacks, and you are **not subject to flanking.",
+    "[Crawler 8] Defer Harm\n(Su): Once per 2 rounds, as an immediate action when you take damage, you may split that damage — take half now and half at the start of your next turn",
+    "[Warshaper 1] Morphic immunities",
+    "[Warshaper 1] morphic weapons",
+    "[Warshaper 2] Morphic body",
+    "[Warshaper 3] Morphic reach",
+    "[Crawler 10] Phoenix Egg\n(Su): When you would be killed, your body instead collapses into a fist-sized obsidian egg with your fast healing, DR, resistances, and immunities, and immune to whatever killed you. If the egg survives 24 hours it bursts and you return at full HP, free of all conditions. The egg can't be dispelled or opened early — only destroyed (it has your HP total and hardness/DR).",
+    "Living Adaptation\n(Su) : Once per encounter, the first time you would bank a Trigger, you may also manifest that Adaptation immediately and\ntemporarily — it functions for the rest of the encounter. At your next rest you may make it permanent (filling an Adaptation slot as normal) or let it fade. You adapt mid-fight, not just at rest — the thing that figures you out while you're still swinging.",
+    "[Crawler 12] Gargantuan Growth\n(Ex): Your size may increase to Gargantuan (standard size modifiers, reach, damage step). You may suppress your size down to Huge or Large as a move action, so confined spaces and stealth remain options.",
+    "[Crawler 13] Regeneration\n(Ex):** Your Adaptive Regeneration becomes true **Regeneration.** Damage from any energy/damage type or effect you have an **Adaptation against** is treated as nonlethal and regenerates — it can no longer *kill* you. Only damage and effects you have **no Adaptation against** deal lethal damage. Death effects, ability damage, and save-or-die still bypass it, exactly as Adaptive Regeneration always has.",
+    "Unmake (1/day/fragment) (Current Fragments: 1)\n(Su): Erase some portion of the target (valid targets improve with fragment count), Fort save (DC 10 + .5 * HD + Con) negates. You must make a Will save (DC 15 + 5 * fragment count) to avoid backlash or collateral damage. May draw unwanted attention.",
+    "[Forsaker 1] Ability bonus +1 ×5",
+    "[Forsaker 1] forsake magic",
+    "[Forsaker 2] damage reduction 3/+1",
+    "[Forsaker 2] magic destruction",
+    "[Forsaker 3] natural weapons",
+    "[Forsaker 3] tough defense",
+    "[Forsaker 4] damage reduction 5/+2",
+    "[Forsaker 5] fast healing 2 (30)",
+    "[Forsaker 5] SR 15",
+    "[Crawler 14] Old-World Dread\n(Su): You are now a horror the world tells stories about. You gain a Frightful Presence (Will DC 10 + ½ HD + Cha mod; range 30 ft + scaling; shaken/panicked per HD as a standard Frightful Presence). In addition, once per round when you reduce a creature to ≤0 HP you may make a single natural attack as a free action. This counts as Cleave for the purposes of prerequisites."
+  ],
+  "languages": "Common",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "",
+  "customizations": [],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "auditDismissed": [
+    "ability:base-over-ceiling:STR",
+    "ability:base-over-ceiling:CON"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Monk",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Multiattack, Lightning Reflexes"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 2,
+      "class_taken": "Monk",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 3,
+      "class_taken": "Hexblade",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 4,
+      "class_taken": "Hexblade",
+      "hp_rolled": 7,
+      "ability_boost": "WIS",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 5,
+      "class_taken": "Hexblade",
+      "hp_rolled": null,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 6,
+      "class_taken": "Warshaper",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Iron Will"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 7,
+      "class_taken": "Binder",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 8,
+      "class_taken": "Warshaper",
+      "hp_rolled": 4,
+      "ability_boost": "DEX",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 9,
+      "class_taken": "Warshaper",
+      "hp_rolled": null,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 10,
+      "class_taken": "Forsaker",
+      "hp_rolled": 8,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 11,
+      "class_taken": "Forsaker",
+      "hp_rolled": 9,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 12,
+      "class_taken": "Forsaker",
+      "hp_rolled": 8,
+      "ability_boost": "CON",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Power Attack"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 13,
+      "class_taken": "Forsaker",
+      "hp_rolled": 11,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    },
+    {
+      "level": 14,
+      "class_taken": "Forsaker",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 1
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 2
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 3
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "2",
+      "misc": "0",
+      "index": 4
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 5
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 5,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 9
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 10
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 12
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "4",
+      "misc": "0",
+      "index": 13
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "5",
+      "misc": "0",
+      "index": 15
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "16",
+      "misc": "0",
+      "index": 16
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "5",
+      "misc": "0",
+      "index": 17
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 18
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 21
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "2",
+      "misc": "0",
+      "index": 27
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "14",
+      "misc": "0",
+      "index": 28
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 29
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 30
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 31
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 31,
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 32
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 32,
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "8",
+      "misc": "0",
+      "index": 35
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "14",
+      "misc": "0",
+      "index": 39
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "6",
+      "misc": "0",
+      "index": 40
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "0",
+      "misc": "8",
+      "index": 41
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "ranks": "9",
+      "misc": "0",
+      "index": 42
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 43
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44
+    }
+  ],
+  "customSkills": []
+}

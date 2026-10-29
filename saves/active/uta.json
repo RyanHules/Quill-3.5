@@ -1,0 +1,3741 @@
+{
+  "char-name": "Uta",
+  "char-player": "",
+  "char-class": "Wilder 5 / Anarchic Initiate 10 / Cerebremancer 3 // Bard 4 / Ur-Priest 2 / Mystic Theurge 8 / Sublime Chord 1 / Duskblade 1 / Wizard 1 / Sorcerer 1",
+  "char-race": "River Spirit Folk",
+  "char-type": "Undead",
+  "char-alignment": "Chaotic Evil",
+  "char-deity": "",
+  "char-level": "18",
+  "char-size": "Medium",
+  "char-age": "",
+  "char-gender": "Female",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "156288",
+  "damage-reduction": "",
+  "speed-land": "40",
+  "speed-fly": "",
+  "speed-fly-maneuver": "",
+  "speed-swim": "30",
+  "speed-burrow": "",
+  "speed-climb": "",
+  "str-score": "12",
+  "str-race": "",
+  "str-template": "-2",
+  "str-temp-adj": "2",
+  "str-nonability": false,
+  "dex-score": "12",
+  "dex-race": "",
+  "dex-template": "2",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "",
+  "con-race": "",
+  "con-template": "-2",
+  "con-temp-adj": "",
+  "con-nonability": true,
+  "int-score": "14",
+  "int-race": "",
+  "int-template": "",
+  "int-temp-adj": "",
+  "int-nonability": false,
+  "wis-score": "20",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "4",
+  "wis-nonability": false,
+  "cha-score": "20",
+  "cha-race": "",
+  "cha-template": "2",
+  "cha-temp-adj": "2",
+  "cha-nonability": false,
+  "hp-total": "205",
+  "hp-current": "205",
+  "hp-temp": "0",
+  "hp-nonlethal": "",
+  "ac-natural": "5",
+  "ac-misc": "",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "fast healing 2 in arid environments\nImmune to Fort saves unless they also affect objects",
+  "ability-ac-bonuses": [],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
+  "fort-base": "7",
+  "fort-magic": "0",
+  "fort-misc": "",
+  "fort-temp": "0",
+  "ref-base": "8",
+  "ref-magic": "0",
+  "ref-misc": "",
+  "ref-temp": "0",
+  "will-base": "11",
+  "will-magic": "0",
+  "will-misc": "",
+  "will-temp": "0",
+  "save-conditional": "",
+  "init-misc": "2",
+  "bab-1": "13",
+  "grapple-misc": "",
+  "spell-resistance": "",
+  "attacks": [
+    {
+      "name": "+1 Dagger",
+      "bonus": "+16",
+      "damage": "1d4+1",
+      "crit": "19-20/x2",
+      "range": "10 ft.",
+      "type": "Weapon",
+      "notes": "Weapon",
+      "calcAbility": "STR",
+      "calcMisc": "1",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "",
+        "style": "one-hand",
+        "enh": "",
+        "misc": "",
+        "auto": false,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    }
+  ],
+  "_fromClassMarkers": {
+    "char-size": "Mind Flayer (Monster Class)",
+    "char-race": "Mind Flayer (Monster Class)",
+    "spell-resistance": "Mind Flayer (Monster Class)",
+    "sm-max-soulmelds": "Totemist",
+    "sm-max-essentia": "Totemist",
+    "sm-max-binds": "Totemist",
+    "turn-per-day": "Ur-Priest",
+    "turn-check": "Ur-Priest",
+    "turn-damage": "Ur-Priest",
+    "rage-per-day": "Barbarian",
+    "rage-duration": "Barbarian",
+    "rage-str-con": "Barbarian",
+    "rage-will": "Barbarian",
+    "rage-ac": "Barbarian"
+  },
+  "_multiclass": [
+    {
+      "className": "Wilder",
+      "level": 5,
+      "classId": 20794,
+      "version": "3.5",
+      "source": "Expanded Psionics Handbook"
+    },
+    {
+      "className": "Anarchic Initiate",
+      "level": 10,
+      "classId": 2773,
+      "version": "3.5",
+      "source": "Complete Psionic",
+      "advancesTypes": [
+        "psionic"
+      ],
+      "advancesLevels": 10,
+      "advancesTargets": [
+        "Wilder"
+      ],
+      "advancingLevels": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "className": "Cerebremancer",
+      "level": 3,
+      "classId": 21354,
+      "version": "3.5",
+      "source": "Expanded Psionics Handbook",
+      "advancesTypes": [
+        "arcane",
+        "psionic"
+      ],
+      "advancesLevels": 3,
+      "perLevelChoice": true,
+      "advancingLevels": [
+        1,
+        2,
+        3
+      ],
+      "advancementSlots": [
+        {
+          "prcLevel": 1,
+          "kind": "choice",
+          "targets": [
+            "Wilder",
+            "Sublime Chord"
+          ]
+        },
+        {
+          "prcLevel": 2,
+          "kind": "choice",
+          "targets": [
+            "Wilder",
+            "Sublime Chord"
+          ]
+        },
+        {
+          "prcLevel": 3,
+          "kind": "choice",
+          "targets": [
+            "Wilder",
+            "Sublime Chord"
+          ]
+        }
+      ]
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Bard",
+      "level": 4,
+      "classId": 14699,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Ur-Priest",
+      "level": 2,
+      "classId": 1606,
+      "version": "3.5",
+      "source": "Complete Divine",
+      "advancesTypes": [
+        "divine"
+      ],
+      "advancesLevels": 2,
+      "advancesTargets": [
+        null
+      ]
+    },
+    {
+      "className": "Mystic Theurge",
+      "level": 8,
+      "classId": 3842,
+      "version": "3.5",
+      "source": "Dungeon Master's Guide",
+      "advancesTypes": [
+        "arcane",
+        "divine"
+      ],
+      "advancesLevels": 8,
+      "advancesTargets": [
+        "Bard",
+        "Ur-Priest"
+      ],
+      "perLevelChoice": true,
+      "advancingLevels": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "advancementSlots": [
+        {
+          "prcLevel": 1,
+          "kind": "choice",
+          "targets": [
+            "Bard",
+            "Ur-Priest"
+          ]
+        },
+        {
+          "prcLevel": 2,
+          "kind": "choice",
+          "targets": [
+            "Bard",
+            "Ur-Priest"
+          ]
+        },
+        {
+          "prcLevel": 3,
+          "kind": "choice",
+          "targets": [
+            "Bard",
+            "Ur-Priest"
+          ]
+        },
+        {
+          "prcLevel": 4,
+          "kind": "choice",
+          "targets": [
+            "Bard",
+            "Ur-Priest"
+          ]
+        },
+        {
+          "prcLevel": 5,
+          "kind": "choice",
+          "targets": [
+            "Ur-Priest",
+            "Sublime Chord"
+          ]
+        },
+        {
+          "prcLevel": 6,
+          "kind": "choice",
+          "targets": [
+            "Ur-Priest",
+            "Sublime Chord"
+          ]
+        },
+        {
+          "prcLevel": 7,
+          "kind": "choice",
+          "targets": [
+            "Ur-Priest",
+            "Sublime Chord"
+          ]
+        },
+        {
+          "prcLevel": 8,
+          "kind": "choice",
+          "targets": [
+            "Ur-Priest",
+            "Sublime Chord"
+          ]
+        }
+      ]
+    },
+    {
+      "className": "Sublime Chord",
+      "level": 1,
+      "classId": 980,
+      "version": "3.5",
+      "source": "Complete Arcane"
+    },
+    {
+      "className": "Duskblade",
+      "level": 1,
+      "classId": 14251,
+      "version": "3.5",
+      "source": "Player's Handbook II"
+    },
+    {
+      "className": "Wizard",
+      "level": 1,
+      "classId": 14708,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    },
+    {
+      "className": "Sorcerer",
+      "level": 1,
+      "classId": 14707,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "_traits": [
+    {
+      "name": "Skinny (Trait)",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Slippery (Trait)",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_flaws": [
+    {
+      "name": "Feeble (Flaw)",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Noncombatant",
+      "source": "Unearthed Arcana"
+    }
+  ],
+  "_templates": [
+    {
+      "name": "Unseelie Fey",
+      "templateId": 3719,
+      "source": null,
+      "version": "3.5",
+      "abilityMods": {
+        "Str": -2,
+        "Dex": 2,
+        "Con": -2,
+        "Cha": 2
+      },
+      "naturalArmorAdded": 0,
+      "typeChange": "Becomes fey"
+    },
+    {
+      "name": "Dry Lich",
+      "templateId": 17223,
+      "source": "Sandstorm",
+      "version": "3.5",
+      "abilityMods": {},
+      "naturalArmorAdded": 5,
+      "typeChange": "Undead"
+    }
+  ],
+  "_templateBaseType": "Humanoid (spirit folk)",
+  "armor-name": "+1 Chain Shirt",
+  "armor-type": "Armor",
+  "armor-ac-bonus": "5",
+  "armor-max-dex": "4",
+  "armor-check-pen": "-2",
+  "armor-spell-fail": "20",
+  "armor-speed": "",
+  "armor-weight": "25",
+  "armor-special": "Light Fortification (from Chain Shirt)",
+  "shield-name": "+1 Buckler",
+  "shield-ac-bonus": "2",
+  "shield-weight": "5",
+  "shield-check-pen": "-1",
+  "shield-spell-fail": "5",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [
+    {
+      "name": "Inertial Armor",
+      "weight": "",
+      "special": "",
+      "slot": "",
+      "worn": true,
+      "isProtective": true,
+      "hasAbilityBonuses": false,
+      "acBonuses": [
+        {
+          "ac": "14",
+          "type": "Armor",
+          "touch": false,
+          "flatfooted": true
+        }
+      ],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Cloak of Resistance +4",
+      "weight": "1",
+      "special": "These garments offer magic protection in the form of a +1 to +5 resistance bonus on all saving throws (Fortitude, Reflex, and Will).",
+      "slot": "shoulders",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": true,
+      "saveBonuses": {
+        "type": "resistance",
+        "fort": "4",
+        "ref": "4",
+        "will": "4"
+      }
+    },
+    {
+      "name": "Ring of Sustenance",
+      "weight": "",
+      "special": "This ring continually provides its wearer with life-sustaining nourishment. The ring also refreshes the body and mind, so that its wearer needs only sleep 2 hours per day to gain the benefit of 8 hour…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Pearl of Power (1st) x2, (3rd), (4th)",
+      "weight": "",
+      "special": "This seemingly normal pearl of average size and luster is a potent aid to all spellcasters who prepare spells (clerics, druids, rangers, paladins, and wizards). Once per day on command, a pearl of pow…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Boots of Striding and Springing",
+      "weight": "1",
+      "special": "These boots increase the wearer's base land speed by 10 feet. In addition to this striding ability (considered an enhancement bonus), these boots allow the wearer to make great leaps. She can jump wit…",
+      "slot": "feet",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Gauntlets of Ogre Power +2",
+      "weight": "4",
+      "special": "These gauntlets are made of tough leather with iron studs running across the back of the hands and fingers. They grant the wearer great strength, adding a +2 enhancement bonus to his Strength score. B…",
+      "slot": "hands",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "STR": "2"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Wizardry Ii",
+      "weight": "",
+      "special": "Useful only to arcane spellcasters; doubles the wearer's 2nd-level arcane spells per day. Bonus spells from high ability scores or specialization are not doubled.",
+      "slot": "ring2",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Rod of Absorption",
+      "weight": "5",
+      "special": "This rod acts as a magnet, drawing spells or spell-like abilities into itself. The magic absorbed must be a single-target spell or a ray directed at either the character possessing the rod or her gear…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Periapt of Wisdom +4",
+      "weight": "",
+      "special": "Although it appears to be a normal pearl on a light chain, a periapt of wisdom actually increases the possessor's Wisdom score in the form of an enhancement bonus of +2, +4, or +6 (depending on the in…",
+      "slot": "neck",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": true,
+      "acBonuses": [],
+      "abilityBonuses": {
+        "WIS": "4"
+      },
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Staff of Abjuration",
+      "weight": "",
+      "special": "Usually carved from the heartwood of an ancient oak or other large tree, this staff allows use of the following spells: Shield (1 charge); Resist energy (1 charge); Dispel magic (1 charge); Lesser glo…",
+      "slot": "",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    },
+    {
+      "name": "Ring of Energy Resistance, Major (fire)",
+      "weight": "",
+      "special": "This reddish iron ring continually protects the wearer from damage from one type of energy—acid, cold, electricity, fire, or sonic (chosen by the creator of the item; determine randomly if found as pa…",
+      "slot": "ring1",
+      "worn": true,
+      "isProtective": false,
+      "hasAbilityBonuses": false,
+      "acBonuses": [],
+      "hasSkillBonuses": false,
+      "hasSaveBonuses": false
+    }
+  ],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "Periapt of Wisdom +4",
+  "slot-shoulders": "Cloak of Resistance +4",
+  "slot-ring1": "Ring of Energy Resistance, Major (fire)",
+  "slot-ring2": "Ring of Wizardry Ii",
+  "slot-hands": "Gauntlets of Ogre Power +2",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "Boots of Striding and Springing",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "1",
+  "gear": [
+    {
+      "name": "Signal Horn",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CLW Potion",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Wand of Lesser Restoration (1 charge used)",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "CLW Wand (22 charges)",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Wand of Dispel Magic (CL 10)",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Wand of Stoneskin (CL 11, 12 charges remaining)",
+      "location": "",
+      "weight": ""
+    },
+    {
+      "name": "Diamonds (75k, for Revivify/True Resurrection)",
+      "location": "",
+      "weight": ""
+    }
+  ],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "",
+  "money-gp": "",
+  "money-pp": "0",
+  "casters": [
+    {
+      "type": "psionics",
+      "name": "Wilder",
+      "notes": "Wilder",
+      "followClass": "Wilder",
+      "followLevel": "14",
+      "followOpen": false,
+      "discipline": "",
+      "manifesterLevel": "18",
+      "ppBase": "280",
+      "ppExtra": "",
+      "ppSpent": "17",
+      "powersKnown": "10",
+      "ability": "CHA",
+      "mantleAccess": false,
+      "mantles": [
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "knownPowersList-1": [
+        "Mind Thrust",
+        "Vigor",
+        "Inertial Armor"
+      ],
+      "knownPowersList-2": [
+        "Energy Stun"
+      ],
+      "knownPowersList-3": [
+        "Energy Burst"
+      ],
+      "knownPowersList-4": [
+        "Freedom of Movement, Psionic"
+      ],
+      "knownPowersList-5": [
+        "Crystal Body"
+      ],
+      "knownPowersList-6": [
+        "Temporal Acceleration"
+      ],
+      "knownPowersList-7": [
+        "Divert Teleport"
+      ],
+      "knownPowersList-8": [
+        "True Metabolism"
+      ],
+      "knownPowersList-9": [
+        "Timeless Body"
+      ],
+      "ppClass": "Psion/Wilder"
+    },
+    {
+      "type": "spellcasting",
+      "name": "Bard",
+      "notes": "Bard",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "16",
+      "clCountsAlt": false,
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "6",
+      "perDay-0": "3",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [
+        {
+          "name": "Mage Hand",
+          "locked": true
+        },
+        {
+          "name": "Message",
+          "locked": true
+        },
+        {
+          "name": "Detect Magic",
+          "locked": true
+        },
+        {
+          "name": "Ghost Sound",
+          "locked": true
+        },
+        {
+          "name": "Dancing Lights",
+          "locked": true
+        },
+        {
+          "name": "Stick",
+          "locked": true
+        }
+      ],
+      "preparedList-0": [],
+      "known-1": "4",
+      "perDay-1": "3",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [
+        {
+          "name": "Cure Light Wounds",
+          "locked": true
+        },
+        {
+          "name": "Tasha's Hideous Laughter",
+          "locked": true
+        },
+        {
+          "name": "Shock and Awe",
+          "locked": true
+        },
+        {
+          "name": "Healthful Rest",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "4",
+      "perDay-2": "3",
+      "bonus-2": "1",
+      "extra-2": "3",
+      "used-2": "3",
+      "knownList-2": [
+        {
+          "name": "Glitterdust",
+          "locked": true
+        },
+        {
+          "name": "Celerity, Lesser",
+          "locked": true
+        },
+        {
+          "name": "Invisibility",
+          "locked": true
+        },
+        {
+          "name": "Cure Moderate Wounds",
+          "locked": true
+        }
+      ],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "3",
+      "perDay-3": "1",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [
+        {
+          "name": "Invisibility Sphere",
+          "locked": true
+        },
+        {
+          "name": "Leomund's Tiny Hut",
+          "locked": true
+        },
+        {
+          "name": "Cure Serious Wounds",
+          "locked": true
+        }
+      ],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "1",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Ur-Priest",
+      "notes": "Ur-Priest",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "50",
+      "clCountsAlt": true,
+      "ability": "WIS",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": true,
+      "showKnown": false,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "6",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Cure Minor Wounds",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "known-1": "",
+      "perDay-1": "5",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [
+        {
+          "baseName": "shield of faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "shield of faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield of Faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield of Faith",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Bless",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Bless",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "5",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [
+        {
+          "baseName": "Fuse Arms",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Bull's Strength",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Bull's Strength",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Elation",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Eagle's Splendor",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Eagle's Splendor",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "4",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [
+        {
+          "baseName": "Fell the Greatest Foe",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "girallon's blessing",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Prayer",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Magic Circle against Evil",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Magic Circle against Good",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "4",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [
+        {
+          "baseName": "Recitation",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Restoration",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Yochlol Blessing",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Dimensional Anchor",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Dimensional Anchor",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "4",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [
+        {
+          "baseName": "Revivify",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Investiture of the Orthon",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Break Enchantment",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Revivify",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Revivify",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "4",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [
+        {
+          "baseName": "Spiritual Guardian",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Heal",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Harm",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Dispel Magic, Greater",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Energy Immunity",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "3",
+      "bonus-7": "1",
+      "extra-7": "",
+      "used-7": "1",
+      "knownList-7": [],
+      "preparedList-7": [
+        {
+          "baseName": "Word of Chaos",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Word of Chaos",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Blasphemy",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Word of Chaos",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "2",
+      "bonus-8": "1",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [
+        {
+          "baseName": "Chain Dispel",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Spell Immunity, Greater",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Chain Dispel",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "1",
+      "bonus-9": "1",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [
+        {
+          "baseName": "True Resurrection",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Implosion",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Sublime Chord",
+      "notes": "Sublime Chord",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "16",
+      "clCountsAlt": false,
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "",
+      "perDay-1": "",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "1",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "4",
+      "perDay-4": "4",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [
+        {
+          "name": "Break Enchantment",
+          "locked": true
+        },
+        {
+          "name": "Invisibility, Greater",
+          "locked": true
+        },
+        {
+          "name": "Celerity",
+          "locked": true
+        },
+        {
+          "name": "Globe of Invulnerability, Lesser",
+          "locked": true
+        }
+      ],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "4",
+      "perDay-5": "4",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [
+        {
+          "name": "Telepathy Block",
+          "locked": true
+        },
+        {
+          "name": "Dispel Magic, Greater",
+          "locked": true
+        },
+        {
+          "name": "Wall of Force",
+          "locked": true
+        },
+        {
+          "name": "Telekinesis",
+          "locked": true
+        }
+      ],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "4",
+      "perDay-6": "3",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "1",
+      "knownList-6": [
+        {
+          "name": "Planar Binding",
+          "locked": true
+        },
+        {
+          "name": "Anticipate Teleportation, Greater",
+          "locked": true
+        },
+        {
+          "name": "Tunnel Swallow",
+          "locked": true
+        }
+      ],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "3",
+      "perDay-7": "3",
+      "bonus-7": "1",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [
+        {
+          "name": "Stone Shape, Greater",
+          "locked": true
+        },
+        {
+          "name": "Teleport, Greater",
+          "locked": true
+        }
+      ],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "2",
+      "perDay-8": "2",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [
+        {
+          "name": "Planar Binding, Greater",
+          "locked": true
+        },
+        {
+          "name": "Invisibility, Superior",
+          "locked": true
+        }
+      ],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Duskblade",
+      "notes": "Duskblade",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "16",
+      "clCountsAlt": false,
+      "ability": "INT",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": false,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "3",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "",
+      "perDay-1": "2",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Wizard",
+      "notes": "Wizard",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "16",
+      "clCountsAlt": false,
+      "ability": "INT",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": true,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "",
+      "perDay-0": "3",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "",
+      "perDay-1": "1",
+      "bonus-1": "1",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [
+        {
+          "name": "Shield",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        },
+        {
+          "baseName": "Shield",
+          "metamagic": [],
+          "used": false
+        }
+      ],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "1",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    },
+    {
+      "type": "spellcasting",
+      "name": "Sorcerer",
+      "notes": "Sorcerer",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "casterLevel": "16",
+      "clCountsAlt": false,
+      "ability": "CHA",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
+      "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
+      "specialtySchool": "",
+      "prohibitedSchools": [],
+      "domainAccess": false,
+      "domains": [
+        {
+          "name": "",
+          "power": ""
+        },
+        {
+          "name": "",
+          "power": ""
+        }
+      ],
+      "maxLevel": 9,
+      "known-0": "4",
+      "perDay-0": "5",
+      "bonus-0": "",
+      "extra-0": "",
+      "used-0": "0",
+      "knownList-0": [],
+      "preparedList-0": [],
+      "known-1": "2",
+      "perDay-1": "3",
+      "bonus-1": "2",
+      "extra-1": "",
+      "used-1": "0",
+      "knownList-1": [],
+      "preparedList-1": [],
+      "domain-1": "",
+      "specialist-1": "",
+      "known-2": "",
+      "perDay-2": "",
+      "bonus-2": "2",
+      "extra-2": "",
+      "used-2": "0",
+      "knownList-2": [],
+      "preparedList-2": [],
+      "domain-2": "",
+      "specialist-2": "",
+      "known-3": "",
+      "perDay-3": "",
+      "bonus-3": "2",
+      "extra-3": "",
+      "used-3": "0",
+      "knownList-3": [],
+      "preparedList-3": [],
+      "domain-3": "",
+      "specialist-3": "",
+      "known-4": "",
+      "perDay-4": "",
+      "bonus-4": "1",
+      "extra-4": "",
+      "used-4": "0",
+      "knownList-4": [],
+      "preparedList-4": [],
+      "domain-4": "",
+      "specialist-4": "",
+      "known-5": "",
+      "perDay-5": "",
+      "bonus-5": "1",
+      "extra-5": "",
+      "used-5": "0",
+      "knownList-5": [],
+      "preparedList-5": [],
+      "domain-5": "",
+      "specialist-5": "",
+      "known-6": "",
+      "perDay-6": "",
+      "bonus-6": "1",
+      "extra-6": "",
+      "used-6": "0",
+      "knownList-6": [],
+      "preparedList-6": [],
+      "domain-6": "",
+      "specialist-6": "",
+      "known-7": "",
+      "perDay-7": "",
+      "bonus-7": "1",
+      "extra-7": "",
+      "used-7": "0",
+      "knownList-7": [],
+      "preparedList-7": [],
+      "domain-7": "",
+      "specialist-7": "",
+      "known-8": "",
+      "perDay-8": "",
+      "bonus-8": "",
+      "extra-8": "",
+      "used-8": "0",
+      "knownList-8": [],
+      "preparedList-8": [],
+      "domain-8": "",
+      "specialist-8": "",
+      "known-9": "",
+      "perDay-9": "",
+      "bonus-9": "",
+      "extra-9": "",
+      "used-9": "0",
+      "knownList-9": [],
+      "preparedList-9": [],
+      "domain-9": "",
+      "specialist-9": ""
+    }
+  ],
+  "feats": [
+    "Spell Focus (Evil)",
+    "Psicrystal Affinity",
+    "Laborious Training",
+    "Expanded Knowledge",
+    "Iron Will",
+    "Empower Power",
+    "Psionic Meditation",
+    "Twin Power",
+    "Sudden Widen"
+  ],
+  "specialAbilities": [
+    "Swim Speed 30 ft.",
+    "Water Breathing",
+    "Low-Light Vision",
+    "Speak with Fish (Sp)",
+    "[Unseelie Fey] DR 5/cold iron at 4-7 HD, 10/cold iron at 8-11 HD, 15/cold iron at 12+ HD",
+    "[Unseelie Fey] Iron Vulnerability (Ex): touch of iron/steel deals 1 damage; iron/steel weapon hits deal +1d6 (DR applies normally)",
+    "[Unseelie Fey] +4 racial bonus on Intimidate checks",
+    "[Unseelie Fey] Fey traits",
+    "[Unseelie Fey] Summer Caress (Su): treated as under magic circle vs all alignments except animal/beast/fey/magical beast",
+    {
+      "text": "[Ur-Priest 2] Rebuke undead",
+      "fromClass": "Ur-Priest"
+    },
+    {
+      "text": "[Sublime Chord 1] Bardic lore",
+      "fromClass": "Sublime Chord"
+    },
+    {
+      "text": "[Sublime Chord 1] bardic music",
+      "fromClass": "Sublime Chord"
+    },
+    {
+      "text": "[Anarchic Initiate 1] Chaotic surge",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 2] Anarchic grace",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 3] psychic enervation",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 4] Clarity of confusion",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 6] Chaotic breach, minor",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 7] Wild surge +2",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 8] Postpone Enervation",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Anarchic Initiate 10] Chaotic breach, complete",
+      "fromClass": "Anarchic Initiate"
+    },
+    {
+      "text": "[Bard 1] bardic knowledge",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Bard 1] Bardic music",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Bard 1] countersong",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Bard 1] fascinate",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Bard 1] inspire courage +1",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Bard 3] Inspire competence",
+      "fromClass": "Bard"
+    },
+    {
+      "text": "[Wilder 1] psychic enervation",
+      "fromClass": "Wilder"
+    },
+    {
+      "text": "[Wilder 2] Elude touch",
+      "fromClass": "Wilder"
+    },
+    {
+      "text": "[Wilder 3] Wild surge +2",
+      "fromClass": "Wilder"
+    },
+    {
+      "text": "[Wilder 4] Surging euphoria +1",
+      "fromClass": "Wilder"
+    },
+    {
+      "text": "[Wilder 5] Volatile mind (1 power point)",
+      "fromClass": "Wilder"
+    },
+    "[Dry Lich] Turn Resistance (Ex): +6 turn resistance.",
+    "[Dry Lich] Damage Reduction (Su): DR 10/bludgeoning and magic.",
+    "[Dry Lich] Fast Healing (Ex): Recovers 2 hp per round as long as it is in an arid environment. Humid climate, water-based effects, or immersion in water prevent fast healing.",
+    "[Dry Lich] Immunities (Ex): Immune to dehydration, heat, polymorph (though it can use polymorph effects on itself), and mind-affecting spells and abilities.",
+    "[Dry Lich] Unholy Toughness (Ex): Bonus hit points equal to Cha bonus (minimum +1) x HD.",
+    "[Dry Lich] Water Weakness: All water deals damage to a dry lich as if it were holy water.",
+    "[Dry Lich] Aura of Despair (Su): Any creature within 60 ft. must succeed on a Will save (DC 10 + 1/2 HD + Cha mod) or be shaken for 1d4 rounds. A creature that successfully saves cannot be affected again by the same dry lich's aura for 24 hours.",
+    "[Dry Lich] Constitution Drain (Su): Any living creature a dry lich hits with its touch attack must succeed on a Fortitude save (DC 10 + 1/2 HD + Cha mod) or take 1d6 Constitution drain. With each successful drain, the dry lich gains 5 temporary hit points.",
+    {
+      "text": "[Duskblade 1] Arcane attunement",
+      "fromClass": "Duskblade"
+    },
+    {
+      "text": "[Duskblade 1] armored mage (light)",
+      "fromClass": "Duskblade"
+    },
+    {
+      "text": "[Wizard 1] Scribe Scroll",
+      "fromClass": "Wizard"
+    },
+    {
+      "text": "[Wizard 1] Summon familiar",
+      "fromClass": "Wizard"
+    },
+    {
+      "text": "[Sorcerer 1] Summon familiar",
+      "fromClass": "Sorcerer"
+    },
+    {
+      "text": "[Cerebremancer 1] +1 level of existing arcane spellcasting class/+1 level of existing manifesting class ×3",
+      "fromClass": "Cerebremancer"
+    }
+  ],
+  "languages": "Common, Sylvan, Goblin, Aquan",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "psicrystal",
+      "compSize": "Diminutive",
+      "isFamiliar": false,
+      "compMode": "auto",
+      "compBaseCreature": "Psicrystal",
+      "compTemplate": "",
+      "comp-str-score": "1",
+      "comp-str-boost": "",
+      "comp-dex-score": "15",
+      "comp-dex-boost": "",
+      "comp-con-score": "0",
+      "comp-con-boost": "",
+      "comp-int-score": "6",
+      "comp-int-boost": "",
+      "comp-wis-score": "10",
+      "comp-wis-boost": "",
+      "comp-cha-score": "10",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "30 ft. (6 squares), climb 20 ft.*",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "0",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "Nimble",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Climb",
+          "ranks": "",
+          "misc": "14"
+        },
+        {
+          "name": "Listen",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Move Silently",
+          "ranks": "",
+          "misc": "6"
+        },
+        {
+          "name": "Search",
+          "ranks": "",
+          "misc": "2"
+        },
+        {
+          "name": "Spot",
+          "ranks": "",
+          "misc": "6"
+        }
+      ],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        },
+        {
+          "name": "Alertness",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "7",
+  "turn-check": "1d20 + 4",
+  "turn-damage": "2d6 + 6",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "Planned Progression:\nSide A - Wilder 3 -> Anarchic Initiate 10 -> Wilder 5 -> Cerebremancer 5\nSide B - Savage Bard 4 -> Ur-Priest 2 -> Mystic Theurge 4 -> Sublime Chord 1 -> Mystic Theurge 4 -> (sorc 1 -> wiz 1)? (would give fuck-loads of CL to ur-priest)\n\nNeed:\nAnarchic Initiate - Chaotic Alignment, Know (psi) 8, Know (planes) 8, Wild Surge or Overchannel - DONE\nUr-Priest - Fort +3, Will +3, Evil, Iron Will, Spell Focus (Evil), Bluff 6, Know (arc) 5, Know (planes) 5, Know (rel) 8, Spellcraft 8, no divine spellcasting - DONE\nMystic Theurge - Know (arc) 6, Know (rel) 6, 2nd-level divine and arcane spellcasting - DONE\nSublime Chord - Bardic Music, Know (arc) 13, Listen 13, Perform (any) 10, Prof (astrologer) 6, 3rd-level arcane spells\nCerebremancer - Know (arc) 6, Know (Psi) 6, 2nd-level powers and arcane spells - DONE\n\nInherent Bonuses:\n+3 Cha\n+5 Wis",
+  "customizations": [
+    {
+      "kind": "ACF",
+      "name": "Bard Variant: Savage Bard",
+      "class": "Bard",
+      "level": null,
+      "race": "",
+      "replaces": "Class Skills, Spellcasting (spell list)",
+      "replacesFeatures": "class skills|spellcasting",
+      "saveProgressions": null,
+      "classSkillChanges": null,
+      "babProgression": "",
+      "hitDie": null,
+      "skillPointsPerLevel": null,
+      "grants": "The savage bard is a warrior at heart, though his arcane powers strike fear into the enemies of his tribe. Savage bards often multiclass as barbarians to improve their combat prowess. Alignment: A savage bard must be chaotic in alignment. A savage bard who becomes nonchaotic cannot progress in levels as a bard, though he retains all his bard abilities. Base Save Bonuses: A savage bard has good Fortitude and Will saves, but has poor Reflex saves. Class Skills: A savage bard loses Decipher Script and Speak Language as class skills. He adds Survival to his list of class skills. The savage bard has all the standard bard class features, except as noted below. Illiteracy: A savage bard is illiterate, just as a barbarian is. An illiterate savage bard cannot use or scribe scrolls. Spellcasting: Remove the following spells from the savage bard's class spell list: calm emotions, comprehend languages, detect secret doors, erase, prestidigitation, read magic, sepia snake sigil, summon monster (I through VI). Add the following spells to the savage bard's class spell list: 1st-calm animals, detect snares and pits, endure elements, summon nature's ally I; 2nd-bull's strength, pass without trace, summon nature's ally II; 3rd-snare, summon nature's ally III; 4th-insect plague, summon nature's ally IV; 5th-commune with nature, summon nature's ally V; 6th-creeping doom, reincarnate, summon nature's ally VI.",
+      "source": "Unearthed Arcana",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [
+    {
+      "kind": "immunity",
+      "type": "dehydration",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "heat",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "polymorphing",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "mind-affecting effects",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "poison",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "sleep",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "paralysis",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "stunning",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "disease",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "death effects",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "death from massive damage",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "immunity",
+      "type": "critical hits",
+      "amount": null,
+      "from": null
+    },
+    {
+      "kind": "resistance",
+      "type": "fire",
+      "amount": 20,
+      "from": null
+    }
+  ],
+  "_dr_entries": [
+    {
+      "amount": 15,
+      "bypass": "Cold Iron",
+      "stacks_with": "none",
+      "from": null
+    },
+    {
+      "amount": 10,
+      "bypass": "bludgeoning and magic",
+      "stacks_with": "none",
+      "from": null
+    }
+  ],
+  "_regeneration": [],
+  "fast-healing": "",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [
+    "caster:known-full:Bard:0",
+    "skill:over-cap:Knowledge (The Planes)",
+    "skill:over-cap:Knowledge (Psionics)",
+    "caster:known-full:Bard:1",
+    "skill:over-cap:Knowledge (Religion)",
+    "skill:over-cap:Spellcraft",
+    "history:total-mismatch",
+    "history:class-mismatch:Anarchic Initiate",
+    "caster:prepared-full:Ur-Priest:0",
+    "caster:prepared-full:Ur-Priest:1",
+    "skill:over-cap:Knowledge (Arcana)",
+    "caster:prepared-full:Ur-Priest:2",
+    "caster:prepared-full:Ur-Priest:3",
+    "caster:prepared-full:Ur-Priest:4"
+  ],
+  "auditMuted": [
+    "caster:prepared-full"
+  ],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Wilder",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Spell Focus (Evil)",
+        "Iron Will",
+        "Psicrystal Affinity"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Bard"
+    },
+    {
+      "level": 2,
+      "class_taken": "Wilder",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Bard"
+    },
+    {
+      "level": 3,
+      "class_taken": "Wilder",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Bard"
+    },
+    {
+      "level": 4,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 6,
+      "ability_boost": "WIS",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Bard"
+    },
+    {
+      "level": 5,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Ur-Priest"
+    },
+    {
+      "level": 6,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 7,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Ur-Priest"
+    },
+    {
+      "level": 7,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 8,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 1,
+      "ability_boost": "WIS",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 9,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Empower Power"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 10,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 11,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 3,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Sublime Chord"
+    },
+    {
+      "level": 12,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 3,
+      "ability_boost": "WIS",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 13,
+      "class_taken": "Anarchic Initiate",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 14,
+      "class_taken": "Wilder",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 15,
+      "class_taken": "Wilder",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Twin Power"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Mystic Theurge"
+    },
+    {
+      "level": 16,
+      "class_taken": "Cerebremancer",
+      "hp_rolled": 9,
+      "ability_boost": "CHA",
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Duskblade"
+    },
+    {
+      "level": 17,
+      "class_taken": "Cerebremancer",
+      "hp_rolled": 1,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Wizard"
+    },
+    {
+      "level": 18,
+      "class_taken": "Cerebremancer",
+      "hp_rolled": 5,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Sudden Widen"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Sorcerer"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_hide_30_mode": "counterpart",
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0,
+      "name": "Appraise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "1",
+      "misc": "0",
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "6",
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 4,
+      "name": "Climb"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "17",
+      "misc": "0",
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 7
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7,
+      "baseName": "Craft",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8,
+      "name": "Decipher Script"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 10,
+      "name": "Disable Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11,
+      "name": "Disguise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 12,
+      "name": "Escape Artist"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13,
+      "name": "Forgery"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14,
+      "name": "Gather Information"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 15,
+      "name": "Handle Animal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 16,
+      "name": "Heal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 17,
+      "name": "Hide"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18,
+      "name": "Iaijutsu Focus"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "5",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "13",
+      "misc": "0",
+      "index": 21,
+      "name": "Knowledge (Arcana)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24,
+      "name": "Knowledge (Geography)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25,
+      "name": "Knowledge (History)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26,
+      "name": "Knowledge (Local)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 27,
+      "name": "Knowledge (Nature)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 28,
+      "name": "Knowledge (Nobility)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "8",
+      "misc": "0",
+      "index": 29,
+      "name": "Knowledge (The Planes)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "8",
+      "misc": "0",
+      "index": 30,
+      "name": "Knowledge (Psionics)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "8",
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "15",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 35,
+      "name": "Move Silently"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 36,
+      "name": "Open Lock"
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 37
+    },
+    {
+      "type": "subtype",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "17",
+      "misc": "0",
+      "index": 37,
+      "baseName": "Perform",
+      "subtypeName": "Singing"
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 38
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "6",
+      "misc": "0",
+      "index": 38,
+      "baseName": "Profession",
+      "subtypeName": "Astrologer"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 39,
+      "name": "Psicraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 42,
+      "name": "Sense Motive"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 43,
+      "name": "Sleight of Hand"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44,
+      "name": "Speak Language"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "8",
+      "misc": "0",
+      "index": 45,
+      "name": "Spellcraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 47,
+      "name": "Survival"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "8",
+      "index": 48,
+      "name": "Swim"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 49,
+      "name": "Truespeak"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 50,
+      "name": "Tumble"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
+    }
+  ],
+  "customSkills": []
+}
