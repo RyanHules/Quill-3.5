@@ -869,33 +869,85 @@ const Companion = (function () {
   // Global #creature-options datalist with every creature name in
   // the DB. Used by the base-creature autocomplete on each companion
   // panel. Built once at DB.ready; tiny (~1,200 names ≈ 30 KB).
+  // The columns both creature datalists read, in the sheet's reprint order
+  // (3.5 first, then newest printing).
+  const CREATURE_OPTION_COLS =
+    "SELECT e.name AS name, e.version AS version, e.cr AS cr, " +
+    "       json_extract(e.data, '$.hit_dice') AS hit_dice, " +
+    "       b.abbreviation AS abbr, e.source AS source " +
+    "FROM entry e LEFT JOIN book b ON b.name = e.source ";
+  const CREATURE_OPTION_ORDER =
+    "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
+    "         b.publication_date DESC, " +
+    "         e.name COLLATE NOCASE";
+
+  // One option per creature name - resolved newest-first, as every picker
+  // here resolves a reprint - plus, where one name is shared by DIFFERENT
+  // creatures, one "Name (ABBR)" option per creature, so each can be chosen.
+  // Fiendish Codex II's Aspect of Bel (CR 20) and the 2007 web enhancement's
+  // (CR 9) share a name; without the qualified option the book's could not be
+  // picked at all. "Different" is Lookup.creatureIdentity (CR + Hit Dice), the
+  // same test the lookup's dedupe uses. Returns the number of names.
+  function fillCreatureOptions(dl, rows) {
+    const identity = (window.Lookup && window.Lookup.creatureIdentity) || (() => '');
+    const groups = new Map();                       // version·name -> rows, in order
+    const names = new Map();                        // lowercased name -> printed name
+    for (const r of rows) {
+      const lname = String(r.name || '').toLowerCase();
+      if (!lname) continue;
+      if (!names.has(lname)) names.set(lname, r.name);
+      const k = (r.version || '') + '\u0000' + lname;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    }
+    const add = (value) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      dl.appendChild(opt);
+    };
+    for (const name of names.values()) add(name);
+    for (const grp of groups.values()) {
+      const firstOf = new Map();                    // identity -> first (preferred) row
+      for (const r of grp) {
+        const id = identity(r.cr, r.hit_dice);
+        if (id && !firstOf.has(id)) firstOf.set(id, r);
+      }
+      if (firstOf.size < 2) continue;
+      for (const r of firstOf.values()) add(`${r.name} (${r.abbr || r.source})`);
+    }
+    return names.size;
+  }
+
+  // "Aspect of Bel (FC2)" -> the FC2 printing; anything else -> the newest
+  // printing of that exact name. A trailing parenthetical that is NOT a book
+  // abbreviation is part of the name ("Smilodon (Saber-Toothed Tiger)").
+  function findBaseCreatureRow(input) {
+    const m = /^(.*\S)\s*\(([^()]+)\)\s*$/.exec(input);
+    if (m) {
+      const row = DB.queryOne(
+        "SELECT e.data AS data FROM entry e JOIN book b ON b.name = e.source " +
+        "WHERE e.type = 'creature' AND e.name = :n COLLATE NOCASE " +
+        "AND (b.abbreviation = :a COLLATE NOCASE OR b.name = :a COLLATE NOCASE) " +
+        "LIMIT 1", { ':n': m[1], ':a': m[2] });
+      if (row) return row;
+    }
+    return DB.queryOne(
+      "SELECT e.data AS data FROM entry e LEFT JOIN book b ON b.name = e.source " +
+      "WHERE e.type = 'creature' AND e.name = :n COLLATE NOCASE " +
+      CREATURE_OPTION_ORDER + " LIMIT 1", { ':n': input });
+  }
+
   function buildGlobalCreatureDatalist() {
     if (document.getElementById('creature-options')) return;
     if (typeof DB === 'undefined' || !DB.isLoaded()) return;
-    // 3.5-first dedup by case-insensitive name; same pattern as the
-    // spell datalist build in spell-picker.js.
-    const rows = DB.query(
-      "SELECT e.name AS name FROM entry e " +
-      "LEFT JOIN book b ON b.name = e.source " +
-      "WHERE e.type = 'creature' AND e.name IS NOT NULL " +
-      "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-      "         b.publication_date DESC, " +
-      "         e.name COLLATE NOCASE"
-    );
-    const seen = new Set();
+    const rows = DB.query(CREATURE_OPTION_COLS +
+      "WHERE e.type = 'creature' AND e.name IS NOT NULL " + CREATURE_OPTION_ORDER);
     const dl = document.createElement('datalist');
     dl.id = 'creature-options';
-    for (const r of rows) {
-      const key = String(r.name || '').toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      const opt = document.createElement('option');
-      opt.value = r.name;
-      dl.appendChild(opt);
-    }
+    const n = fillCreatureOptions(dl, rows);
     document.body.appendChild(dl);
     console.log(`[companion] built #creature-options datalist with ` +
-      `${seen.size} unique creature names`);
+      `${n} unique creature names`);
   }
 
   // ---- Session C: build the global #template-options datalist -----
@@ -983,28 +1035,15 @@ const Companion = (function () {
     let dl = document.getElementById(dlId);
     if (dl) return dlId;
     if (typeof DB === 'undefined' || !DB.isLoaded()) return null;
-    const rows = DB.query(
-      "SELECT e.name AS name FROM entry e " +
-      "LEFT JOIN book b ON b.name = e.source " +
+    const rows = DB.query(CREATURE_OPTION_COLS +
       "WHERE e.type = 'creature' " +
       "AND e.creature_type IS NOT NULL " +
-      "AND e.creature_type LIKE :pfx " +
-      "ORDER BY CASE e.version WHEN '3.5' THEN 0 ELSE 1 END, " +
-      "         b.publication_date DESC, " +
-      "         e.name COLLATE NOCASE",
+      "AND e.creature_type LIKE :pfx " + CREATURE_OPTION_ORDER,
       { ':pfx': typeRoot + '%' });
     if (!rows || !rows.length) return null;
-    const seen = new Set();
     dl = document.createElement('datalist');
     dl.id = dlId;
-    for (const r of rows) {
-      const key = String(r.name || '').toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      const opt = document.createElement('option');
-      opt.value = r.name;
-      dl.appendChild(opt);
-    }
+    fillCreatureOptions(dl, rows);
     document.body.appendChild(dl);
     return dlId;
   }
@@ -1303,9 +1342,9 @@ const Companion = (function () {
     if (typeof DB === 'undefined' || !DB.isLoaded()) return;
     const baseName = panel.querySelector('.comp-base-creature')?.value?.trim();
     if (!baseName) return;
-    const row = DB.queryOne(
-      "SELECT data FROM entry WHERE name = :n COLLATE NOCASE " +
-      "AND type = 'creature' LIMIT 1", { ':n': baseName });
+    // Was "WHERE name = :n LIMIT 1", which took whichever same-named row
+    // SQLite returned first - not even the newest printing.
+    const row = findBaseCreatureRow(baseName);
     if (!row || !row.data) return;
     let creature;
     try { creature = JSON.parse(row.data); } catch { return; }
@@ -1919,5 +1958,8 @@ const Companion = (function () {
   }
   _scheduleCreatureDatalistBuild();
 
-  return { addCompanion, loadData, collectData, recalcAll, setMainGetAbilityMod };
+  return { addCompanion, loadData, collectData, recalcAll, setMainGetAbilityMod,
+           // Test seams (tests/test_same_name_creatures.js): which creature
+           // options exist, and which entry a typed base-creature name means.
+           fillCreatureOptions, findBaseCreatureRow };
 })();

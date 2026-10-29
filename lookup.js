@@ -58,6 +58,11 @@
   // applies (3.5 first, then newest printing) and the lookup did not — see
   // the dedupe in rankParsed. Report fmsuwe0gw-c0rh.
   let bookDateMap = new Map();
+  // Reprint key (type · version · name) → the set of distinct creature
+  // variants (CR span · Hit Dice count) printed under that name. More than
+  // one means the name is shared by DIFFERENT creatures, which the dedupe
+  // must not collapse. Filled by buildIndex; see creatureVariant.
+  let creatureVariants = new Map();
   // Lowercased entry name → [entry, …]. Feeds the "As X, except…" base-entry
   // resolver (report fmt0bmlw6-898g).
   let entriesByName = new Map();
@@ -3485,6 +3490,14 @@
       if (!entriesByName.has(k)) entriesByName.set(k, []);
       entriesByName.get(k).push(e);
     }
+    creatureVariants = new Map();
+    for (const e of entries) {
+      const v = creatureVariant(e);
+      if (!v) continue;
+      const k = reprintKey(e);
+      if (!creatureVariants.has(k)) creatureVariants.set(k, new Set());
+      creatureVariants.get(k).add(v);
+    }
     // Prereq in-degree ("foundational-ness") — a within-tier tiebreak so the
     // feats a build chains OFF of (required by many others) float above their
     // peers instead of sorting alphabetically (Improved Grapple over Clever
@@ -3563,10 +3576,55 @@
     return [Math.min(...vals), Math.max(...vals)];
   }
 
-  // "10d8+20 (65 hp)" → 10.
+  // "10d8+20 (65 hp)" → 10; "22 HD" → 22. The second form is how the
+  // MM IV-style stat blocks print it (every Fiendish Codex aspect), and
+  // reading only the first left those creatures out of hd: filters and out
+  // of the same-name test in creatureVariant below.
   function parseHDCount(raw) {
-    const m = /(\d+)\s*d\s*\d+/i.exec(String(raw || ''));
+    const s = String(raw || '');
+    const m = /(\d+)\s*d\s*\d+/i.exec(s) || /^\s*(\d+)\s*HD\b/i.exec(s);
     return m ? Number(m[1]) : null;
+  }
+
+  // The reprint key: one game element printed in several books shares it.
+  function reprintKey(e) {
+    return e.type + '\u0000' + (e.version || '') + '\u0000' + (e.name || '').toLowerCase();
+  }
+
+  // A creature's identity beyond its name: CR span and Hit Dice count, or ''
+  // when either is unknown (an unknown is no evidence of a different creature).
+  // Measured on 2026-10-27 over every same-name creature group in the DB: the
+  // true reprints agree on both even where a later printing corrected other
+  // numbers (Salt Mummy's hp, Aspect of Bahamut's touch AC), and the different
+  // creatures disagree on at least one - the Fiendish Codex II aspects on both,
+  // and Dragon Magic's vs the web enhancement's Aspect of Tiamat on Hit Dice
+  // alone (both CR 13; 12 HD vs 14 HD). CR alone would have merged those two.
+  function creatureVariant(e) {
+    if (e.type !== 'creature' || !e.creature) return '';
+    return identityOf(e.creature.cr, e.creature.hd);
+  }
+
+  function identityOf(cr, hd) {
+    return (!cr || hd == null) ? '' : cr[0] + '-' + cr[1] + '|' + hd;
+  }
+
+  // The same identity from raw DB columns, for pickers that resolve a creature
+  // by name (companion.js). Exported so there is ONE definition of "same
+  // creature" in the sheet, not one per picker.
+  function creatureIdentity(crRaw, hitDiceRaw) {
+    return identityOf(parseCRSpan(crRaw), parseHDCount(hitDiceRaw));
+  }
+
+  // The dedupe key: the reprint key, split by creature variant only when the
+  // name is shared by creatures that disagree. A variant-less entry under a
+  // split name (Bogun's CR-less Spell Compendium printing, if its sibling ever
+  // gained a twin) stays on the bare key, shown once.
+  function dedupeKeyOf(e) {
+    const k = reprintKey(e);
+    const vs = creatureVariants.get(k);
+    if (!vs || vs.size < 2) return k;
+    const v = creatureVariant(e);
+    return v ? k + '\u0000' + v : k;
   }
 
   // A numeric filter expression: "6", "<=6", "≤6", ">=3", "<6", ">3",
@@ -4284,13 +4342,15 @@
     // entire result list, which is a far larger change than choosing a
     // printing. Row POSITION still comes from the rank order; only which
     // printing sits there changes.
-    const SEP = String.fromCharCode(0);      // same separator as the key below
-    const dedupeKey = (e) => e.type + SEP + (e.version || '') + SEP +
-      (e.name || '').toLowerCase();
+    // Same-name creatures are NOT always reprints: Fiendish Codex II's Aspect
+    // of Bel (CR 20, 22 HD) and the 2007 web enhancement's (CR 9, 11 HD) are
+    // different monsters, and keying on the name alone showed only the newer.
+    // dedupeKeyOf splits a name only when its creatures disagree; see
+    // creatureVariant.
     const pubDate = (e) => bookDateMap.get(e.source) || '';
     const bestByKey = new Map();
     for (const { entry, score } of scored) {
-      const k = dedupeKey(entry);
+      const k = dedupeKeyOf(entry);
       const cur = bestByKey.get(k);
       if (!cur || score > cur.score ||
           (score === cur.score && pubDate(entry) > pubDate(cur.entry))) {
@@ -4315,8 +4375,9 @@
     const seen = new Set();
     const out = [];
     for (const { entry } of scored) {
-      const key = entry.type + '\u0000' + (entry.version || '') +
-        '\u0000' + (entry.name || '').toLowerCase();
+      // The SAME key as bestByKey's: two key builders that drift apart would
+      // re-collapse here what the pass above kept apart.
+      const key = dedupeKeyOf(entry);
       if (seen.has(key)) continue;
       if (entry.type === 'spell' &&
           absorbed.has((entry.name || '').toLowerCase())) {
@@ -4641,6 +4702,9 @@
     // Headless ranking seam for the usability harness (returns the full
     // score-sorted entry list for a raw query; no DOM). See rankResults.
     rankResults,
+    // "Are these two same-named creatures the same creature?" (CR span + Hit
+    // Dice count). Used by companion.js; see creatureVariant.
+    creatureIdentity,
     renderSeeAlsoPill,
     renderSeeAlsoRow,
     renderSiblingsRow,

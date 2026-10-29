@@ -9687,6 +9687,20 @@ test('feat-picker: the dedupe refusal is now conditional on repeatability', () =
     'Toughness is unreachable from the picker again');
 });
 
+// Same-name creatures that are different monsters (Fiendish Codex II's Aspect
+// of Bel at CR 20 vs the 2007 web enhancement's at CR 9) must both be
+// reachable in the lookup and the companion picker. The checks live in their
+// own file, which derives its cases from the DB; this runs it so the deploy's
+// picker-suite gate enforces them.
+test('same-name creatures: lookup + companion keep different creatures apart', () => {
+  const { spawnSync } = require('child_process');
+  const r = spawnSync(process.execPath,
+    [path.join(ROOT, 'tests', 'test_same_name_creatures.js')], { encoding: 'utf8' });
+  const tail = String(r.stdout || '').split('\n').filter(l => /FAIL|same-name/.test(l)).join(' | ');
+  assert(r.status === 0, 'tests/test_same_name_creatures.js failed: ' +
+    (tail || String(r.stderr || '').slice(0, 300)));
+});
+
 // ---- runner ---------------------------------------------------------------
 
 // ---- tests: StaffUse — the Possessions "Staffs" panel --------------------
