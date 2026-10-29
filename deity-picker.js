@@ -1,10 +1,11 @@
 // deity-picker.js — Autocomplete + info panel on the Character tab's
-// Deity field. Queries `entry WHERE type='deity'` (121 entries, all
-// from FRCS today). On exact-match input the info panel renders
+// Deity field. Queries `entry WHERE type='deity'` (every book's
+// deities). On exact-match input the info panel renders
 // alignment / rank / pantheon / domains / favored weapon / symbol /
 // portfolio / worshipers + a short description. Alignment dropdown
-// is auto-filled (when blank) from the deity's `alignment` two-
-// letter code.
+// is auto-filled (when blank) from the deity's `alignment`, which the
+// DB canonizes to one of nine codes (LG ... CE, `N` for true neutral)
+// — tests/test_pickers.js checks every shipped deity resolves here.
 //
 // Future enhancement: clickable domain chips in the info panel that
 // insert into the next-empty `.sc-domain-name` slot on the Spells
@@ -382,7 +383,12 @@
       + (d.title ? ` <span style="opacity:.7">— ${escapeHtml(d.title)}</span>` : '')
       + ` <span style="opacity:.6">(${escapeHtml(row.source || '?')})</span>`);
     const meta = [];
-    if (d.alignment) meta.push(`<b>Alignment:</b> ${escapeHtml(d.alignment)}`);
+    if (d.alignment) {
+      // The DB ships the code; show the words beside it ("NG (Neutral Good)").
+      const words = ALIGNMENT_BY_CODE[String(d.alignment).toUpperCase()];
+      meta.push(`<b>Alignment:</b> ${escapeHtml(d.alignment)}`
+        + (words ? ` (${escapeHtml(words)})` : ''));
+    }
     if (d.rank)      meta.push(`<b>Rank:</b> ${escapeHtml(d.rank)}`);
     if (d.pantheon)  meta.push(`<b>Pantheon:</b> ${escapeHtml(d.pantheon)}`);
     if (meta.length) bits.push(meta.join(' &nbsp;·&nbsp; '));

@@ -6942,6 +6942,33 @@ test('deity-picker: book-filter + alignment-auto-fill wiring present', () => {
     'alignment — user edits could be overwritten on re-render.');
 });
 
+test('deity-picker: every deity alignment resolves to a dropdown value', (db) => {
+  // The auto-fill looks `d.alignment` up in ALIGNMENT_BY_CODE and silently
+  // does nothing on a miss — which is how 233 of 354 deities never filled
+  // while their alignment was spelled out ("Neutral good"). The DB now
+  // canonizes it to a code (2026-10-26); this proves the two halves meet.
+  const src = readSource('deity-picker.js');
+  const block = (src.match(/ALIGNMENT_BY_CODE\s*=\s*\{([\s\S]*?)\};/) || [])[1];
+  assert(block, 'deity-picker.js: ALIGNMENT_BY_CODE literal not found');
+  const map = {};
+  for (const m of block.matchAll(/\b([A-Z]{1,2}):\s*'([^']+)'/g)) map[m[1]] = m[2];
+  // every target must be a real option of the alignment dropdown, or
+  // `sel.value = target` is a silent no-op too
+  const options = (readSource('data.js').match(/alignments:\s*\[([\s\S]*?)\]/) || [])[1] || '';
+  for (const [code, words] of Object.entries(map)) {
+    assert(options.includes(`"${words}"`),
+      `ALIGNMENT_BY_CODE.${code} -> "${words}" is not an alignment dropdown option`);
+  }
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.alignment') AS a " +
+    "FROM entry WHERE type = 'deity'");
+  assertGE(rows.length, 300);
+  const miss = rows.filter(r => r.a != null && !map[String(r.a).toUpperCase()]);
+  assert(miss.length === 0,
+    `${miss.length} deity alignments miss ALIGNMENT_BY_CODE: ` +
+    miss.slice(0, 5).map(r => `${r.name} (${r.source}): ${r.a}`).join('; '));
+});
+
 test('deity-picker: domain chips wire into Spells-tab .sc-domain-name', () => {
   // The clickable-chip flow: chip click → find an empty
   // .sc-domain-name in a Domain-Access panel → fill via dispatch
