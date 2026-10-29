@@ -1,7 +1,7 @@
 {
   "char-name": "Sorel Xivellius (Gareth)",
   "char-player": "Ryan",
-  "char-class": "Sorcerer 4/Shadowcaster 4",
+  "char-class": "Sorcerer 4 // Shadowcaster 4",
   "char-race": "Drow",
   "char-type": "Humanoid",
   "char-alignment": "Chaotic Evil",
@@ -16,35 +16,55 @@
   "char-hair": "White",
   "char-skin": "Ebony",
   "char-campaign": "",
-  "char-xp": "",
-  "char-speed": "30 (L)",
+  "char-xp": "6000",
   "damage-reduction": "",
+  "speed-land": "30",
+  "speed-fly": "",
+  "speed-fly-maneuver": "",
+  "speed-swim": "",
+  "speed-burrow": "",
+  "speed-climb": "",
   "str-score": "8",
-  "str-temp": "",
-  "dex-score": "16",
-  "dex-temp": "",
-  "con-score": "10",
-  "con-temp": "",
-  "int-score": "16",
-  "int-temp": "",
+  "str-race": "",
+  "str-template": "",
+  "str-temp-adj": "",
+  "str-nonability": false,
+  "dex-score": "14",
+  "dex-race": "2",
+  "dex-template": "",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "12",
+  "con-race": "-2",
+  "con-template": "",
+  "con-temp-adj": "",
+  "con-nonability": false,
+  "int-score": "14",
+  "int-race": "2",
+  "int-template": "",
+  "int-temp-adj": "",
+  "int-nonability": false,
   "wis-score": "8",
-  "wis-temp": "",
-  "cha-score": "18",
-  "cha-temp": "",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "wis-nonability": false,
+  "cha-score": "16",
+  "cha-race": "2",
+  "cha-template": "",
+  "cha-temp-adj": "",
+  "cha-nonability": false,
   "hp-total": "16",
   "hp-current": "",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "0",
-  "ac-misc": "-1",
-  "con-to-ac": false,
-  "con-to-ac-type": "Untyped",
-  "int-to-ac": false,
-  "int-to-ac-type": "Untyped",
-  "wis-to-ac": false,
-  "wis-to-ac-type": "Untyped",
-  "cha-to-ac": false,
-  "cha-to-ac-type": "Untyped",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "ability-ac-bonuses": [],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
   "fort-base": "4",
   "fort-magic": "0",
   "fort-misc": "0",
@@ -57,20 +77,67 @@
   "will-magic": "0",
   "will-misc": "0",
   "will-temp": "0",
-  "save-conditional": "+2 vs Spells/ SLA's\n+2 vs other ench",
+  "save-conditional": "",
   "init-misc": "0",
   "bab-1": "2",
   "grapple-misc": "0",
-  "spell-resistance": "",
+  "spell-resistance": "15",
   "attacks": [
     {
       "name": "Tailor's Scissors x2",
-      "bonus": "BAB+D",
-      "damage": "d4+S",
+      "bonus": "+5",
+      "damage": "d4-1",
       "crit": "19-20/x2",
       "range": "10 ft",
       "type": "Slashing",
-      "notes": ""
+      "notes": "",
+      "calcAbility": "DEX",
+      "calcMisc": "",
+      "calcAuto": true,
+      "damageCalc": {
+        "dice": "d4",
+        "style": "one-hand",
+        "enh": "",
+        "misc": "",
+        "auto": true,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    }
+  ],
+  "_multiclass": [
+    {
+      "className": "Sorcerer",
+      "level": 4,
+      "classId": 18109,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "_gestalt": true,
+  "_multiclassB": [
+    {
+      "className": "Shadowcaster",
+      "level": 4,
+      "classId": 23517,
+      "version": "3.5",
+      "source": "Tome of Magic"
+    }
+  ],
+  "_flaws": [
+    {
+      "name": "Vulnerable",
+      "source": "Unearthed Arcana"
+    },
+    {
+      "name": "Murky-Eyed",
+      "source": "Unearthed Arcana"
     }
   ],
   "armor-name": "",
@@ -109,7 +176,7 @@
   "sm-max-soulmelds": "0",
   "sm-max-essentia": "0",
   "sm-max-binds": "0",
-  "sm-base-capacity": "0",
+  "sm-base-capacity": "1",
   "gear": [
     {
       "name": "Spell Component Pouch",
@@ -140,12 +207,20 @@
   "casters": [
     {
       "type": "spellcasting",
-      "name": "Spellcasting",
-      "notes": "Spells (to get): Charm Person, Dominate Person, Thunderlance",
+      "name": "Sorcerer",
+      "notes": "Sorcerer",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
       "casterLevel": "4",
+      "clCountsAlt": false,
       "ability": "CHA",
-      "conditional": "+1 DC Illusion, Necromancy, +3 DC Enchantment",
+      "quickenedThisRound": "0",
+      "bonusAbility": "",
+      "conditional": "",
       "specialist": false,
+      "showPrepared": false,
+      "showKnown": true,
       "specialtySchool": "",
       "prohibitedSchools": [],
       "domainAccess": false,
@@ -163,86 +238,142 @@
       "known-0": "6",
       "perDay-0": "6",
       "bonus-0": "",
+      "extra-0": "",
       "used-0": "0",
-      "text-0": "Prestidigitation, No Light, Acid Splash\nMage Hand, Read Magic, Ghost Sound\n\n1/day - Dancing Lights",
-      "prepared-0": "",
+      "knownList-0": [
+        {
+          "name": "Prestidigitation",
+          "locked": true
+        },
+        {
+          "name": "No Light",
+          "locked": true
+        },
+        {
+          "name": "Acid Splash",
+          "locked": true
+        },
+        {
+          "name": "Mage Hand",
+          "locked": true
+        },
+        {
+          "name": "Read Magic",
+          "locked": true
+        },
+        {
+          "name": "Ghost Sound",
+          "locked": true
+        }
+      ],
+      "preparedList-0": [],
       "known-1": "3",
       "perDay-1": "6",
       "bonus-1": "1",
+      "extra-1": "",
       "used-1": "0",
-      "text-1": "Color Spray, Charm Person, Disguise Self\n1/day - Faerie Fire",
-      "prepared-1": "",
+      "knownList-1": [
+        {
+          "name": "Color Spray",
+          "locked": true
+        },
+        {
+          "name": "Charm Person",
+          "locked": true
+        },
+        {
+          "name": "Disguise Self",
+          "locked": true
+        }
+      ],
+      "preparedList-1": [],
       "domain-1": "",
       "specialist-1": "",
       "known-2": "1",
       "perDay-2": "3",
       "bonus-2": "1",
+      "extra-2": "",
       "used-2": "0",
-      "text-2": "Tasha's Hideous Laughter\n1/day - Darkness",
-      "prepared-2": "",
+      "knownList-2": [
+        {
+          "name": "Tasha's Hideous Laughter",
+          "locked": true
+        }
+      ],
+      "preparedList-2": [],
       "domain-2": "",
       "specialist-2": "",
       "known-3": "",
       "perDay-3": "",
       "bonus-3": "1",
+      "extra-3": "",
       "used-3": "0",
-      "text-3": "",
-      "prepared-3": "",
+      "knownList-3": [],
+      "preparedList-3": [],
       "domain-3": "",
       "specialist-3": "",
       "known-4": "",
       "perDay-4": "",
       "bonus-4": "1",
+      "extra-4": "",
       "used-4": "0",
-      "text-4": "",
-      "prepared-4": "",
+      "knownList-4": [],
+      "preparedList-4": [],
       "domain-4": "",
       "specialist-4": "",
       "known-5": "",
       "perDay-5": "",
       "bonus-5": "",
+      "extra-5": "",
       "used-5": "0",
-      "text-5": "",
-      "prepared-5": "",
+      "knownList-5": [],
+      "preparedList-5": [],
       "domain-5": "",
       "specialist-5": "",
       "known-6": "",
       "perDay-6": "",
       "bonus-6": "",
+      "extra-6": "",
       "used-6": "0",
-      "text-6": "",
-      "prepared-6": "",
+      "knownList-6": [],
+      "preparedList-6": [],
       "domain-6": "",
       "specialist-6": "",
       "known-7": "",
       "perDay-7": "",
       "bonus-7": "",
+      "extra-7": "",
       "used-7": "0",
-      "text-7": "",
-      "prepared-7": "",
+      "knownList-7": [],
+      "preparedList-7": [],
       "domain-7": "",
       "specialist-7": "",
       "known-8": "",
       "perDay-8": "",
       "bonus-8": "",
+      "extra-8": "",
       "used-8": "0",
-      "text-8": "",
-      "prepared-8": "",
+      "knownList-8": [],
+      "preparedList-8": [],
       "domain-8": "",
       "specialist-8": "",
       "known-9": "",
       "perDay-9": "",
       "bonus-9": "",
+      "extra-9": "",
       "used-9": "0",
-      "text-9": "",
-      "prepared-9": "",
+      "knownList-9": [],
+      "preparedList-9": [],
       "domain-9": "",
       "specialist-9": ""
     },
     {
       "type": "shadowcaster",
-      "name": "Shadowcasting",
-      "notes": "",
+      "name": "Shadowcaster",
+      "notes": "Shadowcaster",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
       "casterLevel": "4",
       "ability": "CHA",
       "conditional": "",
@@ -250,22 +381,32 @@
         "uses": "3",
         "mysteries": [
           {
-            "name": "Shadow Hood\nLevel/School: 0/Evocation\nRange: Close (25 ft. + 5 ft./2 levels)\nTarget: One creature\nDuration: 1 round/level (D)\nSaving Throw: Will negates\nSpell Resistance: No\n\nSwirling tendrils and bursts of mystic shadow distract the subject. It takes a –1 penalty on attack rolls and Dexterity-based checks.",
+            "name": "",
+            "level": "0",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Caul of Shadow\nLevel/School: 1st/Abjuration\nRange: Personal\nTarget: You\nDuration: 1 minute/level (D)\n\nCaul of shadow faintly darkens your form, but does not provide any bonuses on Hide checks or similar efforts. You gain a +1 deflection bonus to AC, with an additional +1 for every six caster levels (maximum bonus +4).",
+            "name": "Shadow Hood\nFundamental · Fundamental · LFundamental\nEvocation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Will negates\nSwirling shadows manifest around your foe's head. Swirling tendrils and bursts of mystic shadow distract the subject. It takes a -1 penalty on attack rolls and Dexterity-based checks.",
+            "level": "0",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Sight Obscured\nLevel/School: 0/Illusion (Glamer)\nRange: Touch\nTarget: Creature touched\nDuration: 1 round/level (D)\nSaving Throw: Will negates (harmless)\nSpell Resistance: Yes (harmless)\n\nThis mystery grants a +5 circumstance bonus on Hide checks, Sleight of Hand checks, and any other checks that involve concealing the subject’s actions or gestures.",
+            "name": "Caul of Shadow\nFundamental · Fundamental · LFundamental\nAbjuration · Personal · 1 minute/level (D)\nA shifting, whirling field of semisolid shadows and tiny rifts in the air rises around you. Caul of shadow faintly darkens your form, but does not provide any bonuses on Hide checks or similar efforts. You gain a +1 deflection bonus to AC, with an additional +1 for every six caster levels (maximum bonus +4).",
+            "level": "0",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Umbral Hand\nLevel/School: 1st/Transmutation\nRange: Close (25 ft. + 5 ft./\n2 levels)\nTarget: One unattended\nobject weighing up to\n5 lb./level\nDuration: 1 round/\nlevel (D)\nSaving Throw: Will\nnegates (object)\nSpell Resistance: No\n\nThis mystery functions like the spell mage hand, except you can manipulate heavier objects and magic items. Magic items are allowed a saving throw to negate the effect. You need not concentrate on the effect, but you must direct it with your thoughts once each round (a free action), or the effect ends.",
+            "name": "Sight Obscured\nFundamental · Fundamental · LFundamental\nIllusion · Touch · 1 round/level (D) · Will negates (harmless)\nYou cloak the subject and her movements in subtly shifting shadow. This mystery grants a +5 circumstance bonus on Hide checks, Sleight of Hand checks, and any other checks that involve concealing the subject's actions or gestures.",
+            "level": "0",
+            "extra": "",
+            "used": 0
+          },
+          {
+            "name": "Umbral Hand\nFundamental · Fundamental · LFundamental\nTransmutation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Will negates (object)\nYou point your finger at a distant object, and the shadows seem to grasp and tug at it. This mystery functions like the spell mage hand, except you can manipulate heavier objects and magic items. Magic items are allowed a saving throw to negate the effect. You need not concentrate on the effect, but you must direct it with your thoughts once each round (a free action), or the effect ends.",
+            "level": "0",
             "extra": "",
             "used": 0
           }
@@ -275,22 +416,32 @@
         "uses": "1",
         "mysteries": [
           {
-            "name": "Voice of Shadow (1st)\nLevel/School: 1st/Enchantment (Compulsion) [Language-\nDependent, Mind-Affecting] or Necromancy; see text\nRange: Close (25 ft. + 5 ft./2 levels)\nTarget: One creature\nDuration: 1 round\nSaving Throw: Will negates\nSpell Resistance: Yes\n\nThis mystery functions like the spell command. A second function is a necromancy effect. Undead and constructs that fail their saving throws against this effect are dazed for 1 round. You can only use one version of this mystery in a single casting.\n",
+            "name": "",
+            "level": "1",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Carpet of Shadow\nLevel/School: 1st/Conjuration (Creation)\nRange: Close (25 ft. + 5 ft./2 levels)\nArea: One 5-ft. square/level (S)\nDuration: 1 minute/level (D)\nSaving Throw: None\nSpell Resistance: No\n\nYou cloak the ground with an uneven and hard to traverse surface. The terrain becomes difficult, meaning that each 5-foot square within the area costs double to move into. For instance, each light undergrowth square (normally costing 2 squares of movement to move into) now costs 4 squares of movement to move into. If you cast this mystery a second time on the same area (or a portion of the same area) while the first casting is still active, the second casting does not worsen the terrain further (although it would extend the duration of the effect on that area).",
+            "name": "Voice of Shadow\nPath of Ebon Whispers · Apprentice · L1\nEnchantment · Close (25 ft. + 5 ft./2 levels) · 1 round · Will negates\nBy speaking via a conduit through the Plane of Shadow, you deliver a commanding message. This mystery functions like the spell command. A second function is a necromancy effect. Undead and constructs that fail their saving throws against this effect are dazed for 1 round. You can only use one version of this mystery in a single casting.",
+            "level": "1",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Black Fire\nLevel/School: 2nd/Evocation [Cold]\nRange: Close (25 ft. + 5 ft./2 levels)\nArea: One 5-ft. square/level (S)\nDuration: 1 round/level (D)\nSaving Throw: Reflex negates; see text\nSpell Resistance: Yes\n\nYou create a shapeable shadowy curtain of black flame that covers the affected squares. The fi re deals 1d6 points of cold damage per two caster levels to any creature standing in an affected square at the beginning of each of your turns until the effect ends. In addition, the flame deals damage to any creature entering or passing through an affected square. Black fire burns only a few feet tall, so a creature can avoid the effect of the mystery by jumping or flying over the area.",
+            "name": "Carpet of Shadow\nPath of Dark Terrain · Apprentice · L1\nConjuration · Close (25 ft. + 5 ft./2 levels) · 1 minute/level (D) · None\nThe ground becomes rough and hazardous, the real floor superimposed with irregular terrain of the Plane of Shadow. You cloak the ground with an uneven and hard to traverse surface. The terrain becomes difficult, meaning that each 5-foot square within the area costs double to move into. For instance, each light undergrowth square (normally costing 2 squares of movement to move into) now costs 4 squares of movement to move into. If you cast this mystery a second time on the same area (or a portion of the same area) while the first casting is still active, the second casting does not worsen the terrain further (although it would extend the duration of the effect on that area).",
+            "level": "1",
             "extra": "",
             "used": 0
           },
           {
-            "name": "Congress of Shadows\nLevel/School: 2nd/Divination [Mind-Affecting]\nRange: 1 mile/level\nTarget: One living creature whose exact location is known to\nyou, or one living creature you know well whose approximate\nlocation (within 100 ft.) is known to you\nDuration: Instantaneous\nSaving Throw: Will negates (harmless)\nSpell Resistance: Yes (harmless)\n\nYou speak, and your words appear in the mind of a distant creature. The message can consist of up to five words, plus one additional word per caster level. It cannot deliver command words for magic items, or in any other respect function as anything but normal speech. If the subject is where you believe it to be, the message is delivered. The subject recognizes the identity of the sender of the message if it knows you. The creature can then reply, using the same number of words that you used. The message cannot cross planar boundaries.",
+            "name": "Black Fire\nPath of Dark Terrain · Apprentice · L2\nEvocation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Reflex negates; see text\nYou open a conduit to the Plane of Shadow, drawing its elements into the world and igniting a black fire on the ground. You create a shapeable shadowy curtain of black flame that covers the affected squares. The fire deals 1d6 points of cold damage per two caster levels to any creature standing in an affected square at the beginning of each of your turns until the effect ends. In addition, the flame deals damage to any creature entering or passing through an affected square. Black fire burns only a few feet tall, so a creature can avoid the effect of the mystery by jumping or flying over the area.",
+            "level": "1",
+            "extra": "",
+            "used": 0
+          },
+          {
+            "name": "Congress of Shadows\nPath of Ebon Whispers · Apprentice · L2\nDivination · 1 mile/level · Instantaneous · Will negates (harmless)\nYou look toward your shadow and speak a few words knowing that some distance away, a subject hears them and might reply. You speak, and your words appear in the mind of a distant creature. The message can consist of up to five words, plus one additional word per caster level. It cannot deliver command words for magic items, or in any other respect function as anything but normal speech. If the subject is where you believe it to be, the message is delivered. The subject recognizes the identity of the sender of the message if it knows you. The creature can then reply, using the same number of words that you used. The message cannot cross planar boundaries.",
+            "level": "1",
             "extra": "",
             "used": 0
           }
@@ -301,6 +452,7 @@
         "mysteries": [
           {
             "name": "",
+            "level": "4",
             "extra": "",
             "used": 0
           }
@@ -311,50 +463,124 @@
         "mysteries": [
           {
             "name": "",
+            "level": "7",
             "extra": "",
             "used": 0
           }
         ]
       }
+    },
+    {
+      "type": "sla",
+      "name": "Spell-Like Abilities",
+      "notes": "",
+      "followClass": "",
+      "followLevel": "",
+      "followOpen": false,
+      "slas": [
+        {
+          "spell": "dancing lights",
+          "freq": "1",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "14",
+          "dcAuto": true,
+          "source": "Race",
+          "fromSource": "Race: Drow",
+          "used": 0
+        },
+        {
+          "spell": "darkness",
+          "freq": "1",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "16",
+          "dcAuto": true,
+          "source": "Race",
+          "fromSource": "Race: Drow",
+          "used": 0
+        },
+        {
+          "spell": "faerie fire",
+          "freq": "1",
+          "casterLevel": "",
+          "ability": "CHA",
+          "dc": "15",
+          "dcAuto": true,
+          "source": "Race",
+          "fromSource": "Race: Drow",
+          "used": 0
+        }
+      ]
     }
   ],
   "feats": [
-    "SF(Enchantment) +Greater\n+2 total DC for Enchantment spells",
-    "Extend Spell\n+1\nDouble duration of spell",
-    "Shadow Weave Magic\n+1 DC, +1 vs SR for Illusion, Necromancy, and Enchantment spells\nYour spells tap the shadow weave instead of the weave. You can activate shadow weave items without taking damage.\n-1 CL for Evocation and Transmutation spells without darkness descriptor\nYou cannot cast spells with the light descriptor, even using spell completion or spell trigger items.\nAny magic item you create is a shadow weave item",
-    "Extend Mystery\n1/day, extent casting time of mystery to a full action to double its duration",
-    "Persuasive\n+2 Bluff and Intimidate",
-    "Spell Penetration\n+2 vs SR",
-    "",
-    "",
-    null,
-    null
+    "Spell Focus (Enchantment)",
+    "Greater Spell Focus (Enchantment)",
+    "Extend Spell",
+    "Shadow Weave Magic",
+    "Extend Mystery",
+    "Persuasive",
+    "Spell Penetration"
   ],
   "specialAbilities": [
     "Doom: 98 (WHF)",
     "3/3 Fate Points",
-    "Darkvision (150 ft)",
-    "Immune: Sleep",
-    "Light Blindness (Ex):\nAbrupt exposure to bright light blinds you for 1 round. On subsequent rounds, you are dazzled (-1 to attack rolls, spot checks, and search checks) for as long as you remain in the affected area.",
-    "Fundamentals of Shadow",
-    "Apprentice Mysteries",
-    "Shadowcaster Bonus Feats\nYou gain bonus feats equal to half the total number of paths you know mysteries from, rounded down. Fundamentals do not count. The list of feats you can choose includes any metamagic feat, Favored Mystery, Greater Path Focus, Nocturnal Caster, Path Focus, Shadow Vision, and any metashadow feat.",
-    "Metamagic Specialist ACF (Ex):\nYou do not gain a familiar. Instead, you can apply metamagic feats to your spells without increasing casting time 3+Int times per day. This allows you to quicken spells using the relevant feat",
-    "Umbral Sight (Su):\nIncrease range of darkvision by 30 ft"
+    "Umbral Sight (Su):\nIncrease range of darkvision by 30 ft",
+    {
+      "text": "[Shadowcaster 1] apprentice mysteries",
+      "fromClass": "Shadowcaster"
+    },
+    {
+      "text": "[Shadowcaster 1] Fundamentals of shadow",
+      "fromClass": "Shadowcaster"
+    },
+    {
+      "text": "[Shadowcaster 2] Bonus feat",
+      "fromClass": "Shadowcaster"
+    },
+    {
+      "text": "[Shadowcaster 2] see text",
+      "fromClass": "Shadowcaster"
+    },
+    {
+      "text": "[Shadowcaster 3] Umbral sight (darkvision 30 ft.)",
+      "fromClass": "Shadowcaster"
+    },
+    {
+      "text": "[Shadowcaster 4] Bonus fundamental",
+      "fromClass": "Shadowcaster"
+    },
+    "Darkvision",
+    "Sleep Immunity and Will Save Bonus",
+    "Spell Resistance",
+    "Weapon Proficiency",
+    "Keen Senses",
+    "Light Blindness"
   ],
   "languages": "Common, Elven, Undercommon, Draconic, Terran, Abyssal",
   "companions": [
     {
       "name": "Companion",
       "compName": "",
-      "compType": "Animal Companion",
+      "compType": "familiar",
+      "compSize": "Medium",
       "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
       "comp-str-score": "",
+      "comp-str-boost": "",
       "comp-dex-score": "",
+      "comp-dex-boost": "",
       "comp-con-score": "",
+      "comp-con-boost": "",
       "comp-int-score": "",
+      "comp-int-boost": "",
       "comp-wis-score": "",
+      "comp-wis-boost": "",
       "comp-cha-score": "",
+      "comp-cha-boost": "",
       "compHpMax": "",
       "compHpCur": "",
       "compSpeed": "",
@@ -375,7 +601,12 @@
       "compGrappleMisc": "",
       "compPersonality": "",
       "compNotes": "",
-      "compSpecial": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
       "compAttacks": [
         {
           "weapon": "",
@@ -411,352 +642,649 @@
   "rage-rounds": "",
   "rage-active": false,
   "notes": "--- Planned Progression ---\nPlanned Progression:\nSorcerer 4/ Shadowcaster 4 ->\nNoctumancer 2/ Chaos Monk 2 ->\nShadow Adept 1/ Shadowcaster 5 ->\nNoctumancer 4/ Paladin of Slaughter 2 (Gaze of Truth ACF) ->\nNoctumancer 5/ Dragon Disciple 1 ->\nInsidious Corruptor 1/ Noctumancer 6 ->\nInsidious Corruptor 2/ Shadowcaster 6 ->\nInsidious Corruptor 3/ Noctumancer 7 ->\nInsidious Corruptor 4/ Shadowcaster 7 ->\nInsidious Corruptor 5/ Noctumancer 8 ->\nInsidious Corruptor 6/ Shadowcaster 8 ->\nInsidious Corruptor 7/ Noctumancer 9 ->\nInsidious Corruptor 8/ Shadowcaster 9 ->\nInsidious Corruptor 9/ Noctumancer 10 ->\nInsidious Corruptor 10/ Shadowcaster 10\n\nNeed: \nShadow Adept - Know (arc) 8, SC 8, Shadow Weave Magic +1 Metamagic, 3rd-level spells\nInsidious Corruptor - Drow, Evil Alignment, Bluff 9, Diplo 4, Sense Motive 4, Persuasive, Dominate Person\nNoctumancer - Know (arc) 6, Spellcraft 6, 2nd-level mysteries, 2nd-level spells\nDragon Disciple - Nondragon, Know (arc) 8, Draconic language, spontaneous arcane caster\n\nFeats:\n1st - SF(Enchantment), Extend Spell, Shadow Weave Magic\n2nd (bonus) - Extend Mystery\n3rd - Spell Penetration\n5th - Ascetic Mage\n6th - Shadow Reflection\n7th - Nocturnal Caster (Enchantment)?\n9th - \n\nFeats (to get):\nPath Focus + Greater, Extend Mystery, Enlarge Mystery, Line of Shadow, Spell Penetration + Greater, Favored Mystery (Flicker, Warp Spell, Greater Shadows Fade, Consume Spell, Tomb of Night, and/or Shadow Time)\n\nFlaws:\nVulnerable (-1 AC)\nMurky-Eyed (Disadvantage on concealment)\n\nMysteries (to get, in order): Fundamental - Anything but widened eyes from ToM Apprentice - Voice of Shadow, Carpet of Shadow, Black Fire, Congress of Shadows, Flicker, Clinging Darkness Initiate - Warp Spell, Shadow Vision, Echo Spell, Curtain of Shadows, Unveil, Flood of Shadow Master - Ephemeral Image, Truth Revealed, Far Sight, Umbral Body, Shadow Time, Reflections of Things to Come, Shadow Time (x2) Alternatively: Master - Prison of Night, Truth Revealed, Far Sight, Tomb of Night, Reflections of Things to Come, Consume Essence, Reflections of Things to Come, Consume Essence",
+  "customizations": [
+    {
+      "kind": "ACF",
+      "name": "Metamagic Specialist",
+      "class": "Sorcerer",
+      "level": null,
+      "race": "",
+      "replaces": "If you select this class feature, you do not gain a familiar.",
+      "replacesFeatures": "if you select this|you do not gain familiar.",
+      "saveProgressions": null,
+      "classSkillChanges": null,
+      "babProgression": "",
+      "hitDie": null,
+      "skillPointsPerLevel": null,
+      "grants": "You can apply metamagic feats that you know to sorcerer spells without increasing the casting time. This benefit even lets you quicken your sorcerer spells with the Quicken Spell feat. You can use this class feature a number of times per day equal to 3 + your Int modifier (minimum 1). This is an extraordinary ability.",
+      "source": "Player's Handbook II",
+      "notes": ""
+    }
+  ],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [
+    {
+      "kind": "immunity",
+      "type": "sleep",
+      "amount": null,
+      "from": "race:Drow"
+    }
+  ],
+  "_dr_entries": [],
+  "_regeneration": [],
+  "fast-healing": "",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [
+      {
+        "sense": "darkvision",
+        "range_ft": 150
+      }
+    ],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [
+    "history:prereq-unmet:4:Shadow Weave Magic:ability:WIS 13",
+    "history:feat-off-schedule:4",
+    "history:prereq-unmet:1:Shadow Weave Magic:ability:WIS 13",
+    "history:feat-off-schedule:2"
+  ],
+  "auditMuted": [],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Sorcerer",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Spell Focus (Enchantment)",
+        "Greater Spell Focus (Enchantment)",
+        "Shadow Weave Magic"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Shadowcaster"
+    },
+    {
+      "level": 2,
+      "class_taken": "Sorcerer",
+      "hp_rolled": 4,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Extend Mystery"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Shadowcaster"
+    },
+    {
+      "level": 3,
+      "class_taken": "Sorcerer",
+      "hp_rolled": 2,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Extend Spell"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Shadowcaster"
+    },
+    {
+      "level": 4,
+      "class_taken": "Sorcerer",
+      "hp_rolled": 4,
+      "ability_boost": "CHA",
+      "skills_purchased": {},
+      "feats_taken": [
+        "Persuasive",
+        "Spell Penetration"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": "",
+      "class_taken_b": "Shadowcaster"
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_homebrew": null,
   "skills": [
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 0
+      "index": 0,
+      "name": "Appraise"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 1
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "7",
-      "misc": "2",
-      "index": 2
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 3
+      "index": 4,
+      "name": "Climb"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 4
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
     },
     {
       "type": "header",
       "baseName": "Craft",
-      "index": 5
+      "index": 7
     },
     {
       "type": "subtype",
       "classSkill": true,
+      "pinned": false,
       "ranks": "4",
       "misc": "0",
-      "index": 5,
+      "index": 7,
+      "baseName": "Craft",
       "subtypeName": "Tailoring"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 6
+      "index": 8,
+      "name": "Decipher Script"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "2",
-      "misc": "2",
-      "index": 7
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 8
+      "index": 10,
+      "name": "Disable Device"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 9
+      "index": 11,
+      "name": "Disguise"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 10
+      "index": 12,
+      "name": "Escape Artist"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 11
+      "index": 13,
+      "name": "Forgery"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 12
+      "index": 14,
+      "name": "Gather Information"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 13
+      "index": 15,
+      "name": "Handle Animal"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 14
+      "index": 16,
+      "name": "Heal"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 15
-    },
-    {
-      "type": "skill",
-      "classSkill": true,
-      "ranks": "0",
-      "misc": "2",
-      "index": 16
+      "index": 17,
+      "name": "Hide"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 17
+      "index": 18,
+      "name": "Iaijutsu Focus"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
       "ranks": "7",
       "misc": "0",
-      "index": 18
+      "index": 21,
+      "name": "Knowledge (Arcana)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 19
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 20
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 21
+      "index": 24,
+      "name": "Knowledge (Geography)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 22
+      "index": 25,
+      "name": "Knowledge (History)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 23
+      "index": 26,
+      "name": "Knowledge (Local)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 24
+      "index": 27,
+      "name": "Knowledge (Nature)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 25
+      "index": 28,
+      "name": "Knowledge (Nobility)"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "2",
       "misc": "0",
-      "index": 26
+      "index": 29,
+      "name": "Knowledge (The Planes)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 27
+      "index": 30,
+      "name": "Knowledge (Psionics)"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
-      "misc": "2",
-      "index": 28
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 29
+      "index": 35,
+      "name": "Move Silently"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 30
+      "index": 36,
+      "name": "Open Lock"
     },
     {
       "type": "header",
       "baseName": "Perform",
-      "index": 31
+      "index": 37
     },
     {
       "type": "subtype",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 31,
+      "index": 37,
+      "baseName": "Perform",
       "subtypeName": ""
     },
     {
       "type": "header",
       "baseName": "Profession",
-      "index": 32
+      "index": 38
     },
     {
       "type": "subtype",
       "classSkill": true,
+      "pinned": false,
       "ranks": "1",
       "misc": "0",
-      "index": 32,
+      "index": 38,
+      "baseName": "Profession",
       "subtypeName": "Tailor"
     },
     {
       "type": "subtype",
       "classSkill": true,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 32,
+      "index": 38,
+      "baseName": "Profession",
       "subtypeName": ""
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 33
+      "index": 39,
+      "name": "Psicraft"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
-      "misc": "2",
-      "index": 34
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
       "ranks": "2",
       "misc": "0",
-      "index": 35
+      "index": 42,
+      "name": "Sense Motive"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "1",
       "misc": "0",
-      "index": 36
+      "index": 43,
+      "name": "Sleight of Hand"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 37
+      "index": 44,
+      "name": "Speak Language"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "7",
       "misc": "0",
-      "index": 38
+      "index": 45,
+      "name": "Spellcraft"
     },
     {
       "type": "skill",
       "classSkill": true,
+      "pinned": false,
       "ranks": "2",
-      "misc": "2",
-      "index": 39
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 40
+      "index": 47,
+      "name": "Survival"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 41
+      "index": 48,
+      "name": "Swim"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 42
+      "index": 49,
+      "name": "Truespeak"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 43
+      "index": 50,
+      "name": "Tumble"
     },
     {
       "type": "skill",
       "classSkill": false,
+      "pinned": false,
       "ranks": "0",
       "misc": "0",
-      "index": 44
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
     }
   ],
   "customSkills": [
     {
       "classSkill": false,
+      "pinned": false,
       "name": "Custom Skill 1",
       "ability": "NONE",
       "ranks": "0",
@@ -764,6 +1292,7 @@
     },
     {
       "classSkill": false,
+      "pinned": false,
       "name": "Custom Skill 2",
       "ability": "NONE",
       "ranks": "0",
@@ -771,6 +1300,7 @@
     },
     {
       "classSkill": false,
+      "pinned": false,
       "name": "Custom Skill 3",
       "ability": "NONE",
       "ranks": "0",
