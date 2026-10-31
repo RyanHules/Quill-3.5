@@ -187,6 +187,14 @@
           '(or run <code>python -m http.server</code> from this folder ' +
           'and open <code>http://localhost:8000/</code>). ' +
           'Manual-entry fields still work without the DB.';
+      } else if (err && err.message === 'HTTP 404') {
+        // data/ is gitignored, so a clone or a GitHub zip arrives without it.
+        // "See the console" is no help to someone who was just handed the sheet.
+        banner.innerHTML =
+          '<b>Pickers disabled:</b> this copy of the sheet has no database ' +
+          '(<code>data/dnd35.db</code>). It is not part of the download: get ' +
+          'the file from whoever gave you the sheet, put it in the ' +
+          '<code>data</code> folder, and reload. Manual-entry fields still work.';
       } else {
         banner.innerHTML =
           '<b>Pickers disabled:</b> failed to load <code>data/dnd35.db</code>. ' +

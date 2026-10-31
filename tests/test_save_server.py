@@ -12,6 +12,9 @@ importantly the concurrency guard, which is the actual thing that regressed.
 """
 import importlib.util
 import json
+import socket
+import subprocess
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -134,11 +137,45 @@ def test_concurrency_no_loss():
     check("concurrency: 20 tabs x 10 adds -> all 200 survive", len(ids) == 200)
 
 
+def test_database_problem():
+    d = Path(tempfile.mkdtemp())
+    check("db check: no data folder is reported", "missing" in (ss.database_problem(d) or ""))
+    (d / "data").mkdir()
+    db = d / "data" / "dnd35.db"
+    db.write_bytes(b"<html>404 Not Found</html>")
+    check("db check: a non-SQLite file is reported", "not a SQLite" in (ss.database_problem(d) or ""))
+    db.write_bytes(b"")
+    check("db check: an empty file is reported", "not a SQLite" in (ss.database_problem(d) or ""))
+    db.write_bytes(b"SQLite format 3\x00" + b"\x00" * 84)
+    check("db check: a real header passes", ss.database_problem(d) is None)
+
+
+def test_refused_port_is_a_plain_message():
+    # serve.bat walks to the next port on this exit code, so it is a contract.
+    # The batch half is tests/test_serve_bat.py; this half runs on any platform.
+    s = socket.socket()
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    try:
+        r = subprocess.run([sys.executable, str(_ROOT / "save_server.py"), str(port)],
+                           capture_output=True, text=True, timeout=60)
+    finally:
+        s.close()
+    check("refused port: exits with the documented code", r.returncode == ss.EXIT_PORT_UNAVAILABLE)
+    check("refused port: says which port", f"port {port}" in r.stderr)
+    check("refused port: no traceback", "Traceback" not in r.stderr)
+    check("refused port: never claims to be listening", "Listening" not in r.stdout)
+
+
 if __name__ == "__main__":
     for fn in [test_add_no_clobber, test_add_idempotent_on_id, test_resolve,
                test_resolve_auto_stamps, test_remove, test_returns_authoritative_state,
                test_malformed_ops_raise, test_tolerates_missing_and_malformed_file,
-               test_concurrency_no_loss]:
+               test_concurrency_no_loss, test_database_problem,
+               test_refused_port_is_a_plain_message]:
         fn()
     total = _passed + _failed
     print(f"\n{_passed} passed, {_failed} failed ({total} total)")

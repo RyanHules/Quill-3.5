@@ -112,6 +112,20 @@ python tests/test_live_bus.py
 
 Both are zero-dependency (no pytest) and exit 1 on any failure.
 
+`test_serve_bat.py` — every way the launcher can fail must stop and say so,
+rather than closing the window. Runs the real `serve.bat` in throwaway folders
+under PATHs shaped like someone else's machine: no Python, the Microsoft Store
+stub, a too-old Python, the `py` launcher only, a `.bat` shim, refused ports, a
+bat extracted alone from a zip, folder names with `&`. Windows only (it skips
+elsewhere). No real browser opens; a stub logs the URL. It holds whichever of ports
+3000-3005 are free for a few seconds at a time, and never touches a server already
+listening.
+
+```bash
+python tests/test_serve_bat.py
+python tests/test_serve_bat.py --bat PATH   # negative control: an older bat must go red
+```
+
 ## When to run which
 
 | Event | Run |
@@ -121,6 +135,7 @@ Both are zero-dependency (no pytest) and exit 1 on any failure.
 | About to add a new picker | Both layers |
 | Rebuilt the DB upstream | Both layers |
 | Touched `save_server.py` or the live bus | `python tests/test_live_bus.py` + `python tests/test_save_server.py` |
+| Touched `serve.bat` or `save_server.py`'s startup | `python tests/test_serve_bat.py` |
 
 ## Why two layers?
 

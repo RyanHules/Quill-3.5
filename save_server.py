@@ -82,7 +82,7 @@ File writes are atomic (write-to-tmp, rename) so a Ctrl+C mid-write
 can't leave a half-written file.
 
 Run with:
-    python save_server.py [PORT]
+    python save_server.py [PORT] [--open-browser]
 
 Default port: 3000.
 """
@@ -95,6 +95,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import webbrowser
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1827,16 +1828,53 @@ class CharacterSheetServer(http.server.ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+# serve.bat reads this exit code as "could not open this port, try the next one".
+EXIT_PORT_UNAVAILABLE = 3
+
+
+def database_problem(root=_PROJECT_ROOT):
+    """Why the pickers will be empty, or None if the DB looks usable.
+
+    data/ is gitignored, so a clone or a GitHub zip arrives without the DB, and
+    the sheet still loads in manual-entry mode. Nothing has failed as far as the
+    server can tell, so this is the only place the console can say so.
+    """
+    db = Path(root) / "data" / "dnd35.db"
+    try:
+        with open(db, "rb") as f:
+            header = f.read(16)
+    except OSError:
+        return f"{db} is missing"
+    if header != b"SQLite format 3\x00":
+        return f"{db} is not a SQLite database"
+    return None
+
+
 def main():
+    open_browser = "--open-browser" in sys.argv[1:]
+    args = [a for a in sys.argv[1:] if a != "--open-browser"]
     port = 3000
-    if len(sys.argv) > 1:
+    if args:
         try:
-            port = int(sys.argv[1])
+            port = int(args[0])
         except ValueError:
-            print(f"bad port: {sys.argv[1]}", file=sys.stderr)
+            print(f"bad port: {args[0]}", file=sys.stderr)
             sys.exit(2)
 
+    # SimpleHTTPRequestHandler serves files from the CWD, so cd to
+    # our own directory before binding. Caller (serve.bat) does this
+    # too, but belt-and-suspenders for when the user runs the script
+    # directly from elsewhere.
+    os.chdir(Path(__file__).parent)
+
     bind = "127.0.0.1"
+    try:
+        server = CharacterSheetServer((bind, port), CharacterSheetHandler)
+    except OSError as e:
+        print(f"Could not open port {port}: {e}", file=sys.stderr, flush=True)
+        sys.exit(EXIT_PORT_UNAVAILABLE)
+
+    # After the bind, so "Listening" is only ever printed when it is true.
     print(
         f"D&D 3.5 Character Sheet server\n"
         f"  Serving:    {Path(__file__).parent}\n"
@@ -1847,14 +1885,26 @@ def main():
         f"Ctrl+C to stop.\n",
         flush=True,
     )
+    problem = database_problem()
+    if problem:
+        print(
+            f"WARNING: {problem}.\n"
+            f"The sheet will open, but the race, class, feat and spell pickers\n"
+            f"will be empty. The database is not part of the download: get\n"
+            f"dnd35.db from whoever gave you the sheet and put it in the data\n"
+            f"folder.\n",
+            flush=True,
+        )
 
-    # SimpleHTTPRequestHandler serves files from the CWD, so cd to
-    # our own directory before binding. Caller (serve.bat) does this
-    # too, but belt-and-suspenders for when the user runs the script
-    # directly from elsewhere.
-    os.chdir(Path(__file__).parent)
+    if open_browser:
+        # The socket is already listening, so the browser's request waits in the
+        # backlog until serve_forever picks it up. localhost, not 127.0.0.1: it
+        # is a different origin, and it is the one this has always opened.
+        try:
+            webbrowser.open(f"http://localhost:{port}/")
+        except webbrowser.Error as e:
+            print(f"Could not open a browser ({e}). Use the address above.", flush=True)
 
-    server = CharacterSheetServer((bind, port), CharacterSheetHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

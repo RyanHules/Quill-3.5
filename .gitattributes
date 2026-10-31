@@ -1,3 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# GitHub's "Download ZIP" hands out LF under text=auto, and cmd.exe's label
+# lookup has a reputation for misbehaving in LF-only batch files. That is known
+# lore, not measured here: an LF copy of serve.bat passed every behavioural case
+# in tests/test_serve_bat.py on 2026-10-31. Pinned because it costs nothing.
+*.bat text eol=crlf
 graphify-out/graph.json merge=graphify
