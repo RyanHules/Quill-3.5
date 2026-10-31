@@ -456,8 +456,92 @@
     );
   }
 
+  // A save only holds the fields that existed when it was written, and the
+  // loaders skip a key the save lacks. So a field missing from this save kept
+  // the PREVIOUS character's value, and the next Save wrote it in: load Kell
+  // (fly 50) then an older save, and that character could fly. Each field a save
+  // owns therefore goes back to the page's own default first.
+  //
+  // This resets the FIELDS, not the data, and that is deliberate. Filling the
+  // absent keys into `data` looks equivalent and destroys saves: many loaders
+  // read a missing key as "old save, migrate" (ability-ac-bonuses, history,
+  // legacy skills). The keys come from collectData so a new field is covered
+  // without touching this list, and the HTML defaults need no snapshot, so they
+  // can't capture anything typed before the first load (see resetToDefault for
+  // the one kind of input that breaks that).
+  function resetSavedFields() {
+    let keys = [];
+    try {
+      keys = Object.keys(collectData());
+    } catch (e) {
+      console.warn("[app] could not list saved fields before load:", e);
+    }
+    keys.forEach((key) => {
+      // Temp adjustments are saved under a different key than their field.
+      const el = document.getElementById(key.replace(/-temp-adj$/, "-temp"));
+      if (el && el.matches("input, select, textarea")) resetToDefault(el);
+    });
+    // Not saved, but they apply a class to whoever is loaded next.
+    ["class-lookup", "class-lookup-level"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) resetToDefault(el);
+    });
+  }
+
+  function resetToDefault(el) {
+    if (el.type === "checkbox" || el.type === "radio") {
+      el.checked = el.defaultChecked;
+    } else if (el.tagName === "SELECT") {
+      const opt = [...el.options].find((o) => o.defaultSelected) || el.options[0];
+      el.value = opt ? opt.value : "";
+    } else if (el.type === "hidden") {
+      // On a hidden input, assigning .value also rewrites the value attribute, so
+      // its defaultValue is just the last value it held. The *-template backing
+      // fields kept the previous character's template adjustments this way. Every
+      // hidden field a save owns starts blank.
+      el.value = "";
+    } else {
+      el.value = el.defaultValue;
+    }
+  }
+
+  // Which class, race, deity or item filled a field. These sit on fields the
+  // page keeps for its whole life, and each marker means "I may overwrite this",
+  // so one left behind lets the previous character's choices rewrite this one's
+  // values: its natural armor on a race pick, its alignment on a deity pick, its
+  // rage rounds on a class removal. Save then persisted the leaked markers too.
+  // data-from-* is matched by pattern so a new marker of that name is covered.
+  function clearFieldOwnership() {
+    $$("input, select, textarea").forEach((el) => {
+      [...el.attributes].forEach(({ name }) => {
+        if (name.startsWith("data-from-") && !name.endsWith("-wired")) el.removeAttribute(name);
+      });
+      delete el.dataset.raceOwned;
+      delete el.dataset.mcComputed;
+      // A worn item locks its body slot. The item rows get rebuilt, so nothing
+      // would ever unlock it.
+      if (el.dataset.ownedBy) {
+        delete el.dataset.ownedBy;
+        el.readOnly = false;
+      }
+    });
+  }
+
+  // Race, deity, template and class details for whatever was last picked. Nothing
+  // re-renders them on load, and the race panel's "+ Add" chips act on the sheet.
+  function clearInfoPanels() {
+    $$(".race-info").forEach((panel) => {
+      panel.innerHTML = "";
+      panel.style.display = "none";
+    });
+  }
+
   function loadData(data) {
     if (!data) return;
+    resetSavedFields();
+    clearFieldOwnership();
+    clearInfoPanels();
+    if (typeof RaceUnify !== "undefined" && RaceUnify.reset) RaceUnify.reset();
     Character.loadData(data, getAbilityMod);
     Equipment.loadData(data);
     Spells.loadData(data);
@@ -476,6 +560,7 @@
     if (typeof BookFilter !== "undefined") BookFilter.loadData(data);
     if (typeof HomebrewFilter !== "undefined") HomebrewFilter.loadData(data);
     if (data.skills) Skills.loadData(data.skills, getAbilityMod);
+    else Skills.build(getAbilityMod);
     Skills.loadCustomSkills(data.customSkills || [], getAbilityMod);
     // CharacterHistory runs LAST so it can reconstruct from current
     // totals if the saved data has no history field (migration path).
@@ -664,6 +749,7 @@
         'Cannot save: enter a character name first.', true);
       return;
     }
+    const savingFrom = currentQualifiedName;
     try {
       await SaveBackend.save(target, data);
     } catch (e) {
@@ -671,7 +757,9 @@
       showNotification(`Save failed: ${e.message}`, true);
       return;
     }
-    currentQualifiedName = target;
+    // A load can finish while the save is in flight. Pointing the sheet back at
+    // the old file would make the next Save overwrite it with this character.
+    if (currentQualifiedName === savingFrom) currentQualifiedName = target;
     await updateCharacterSelect();
     const where = SaveBackend.mode === 'server'
       ? ` (to ${target})` : '';
@@ -813,6 +901,11 @@
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
+        // An imported character has no file of its own yet. Keeping the pointer
+        // meant the next Save overwrote whichever character was loaded before.
+        currentQualifiedName = null;
+        const select = $("#character-select");
+        if (select) select.value = "";
         loadData(data);
         showNotification("Character imported!");
       } catch {
@@ -827,6 +920,8 @@
     // Reset the loaded-character pointer so the next Save creates a
     // new file rather than overwriting the previous one.
     currentQualifiedName = null;
+    clearFieldOwnership();
+    clearInfoPanels();
     $$("input, select, textarea").forEach((el) => {
       if (el.type === "checkbox") el.checked = (el.id === "armor-worn" || el.id === "shield-worn");
       else if (el.tagName === "SELECT") el.selectedIndex = el.id === "char-size" ? 4 : 0;
@@ -846,8 +941,9 @@
     // "+ Add" button, and pre-seeded blank rows are rows the player has to
     // notice are blank, delete, or scroll past (report rms8uiy6j-hvqk).
     Feats.loadData({});
-    $("#gear-body").innerHTML = "";
-    $("#magic-items-container").innerHTML = "";
+    // Empties gear and magic items, and also clears the slot soulmelds and totem
+    // the input-reset loop above only half-clears (their essentia pips stayed).
+    Equipment.loadData({});
     // Character.loadData triggers class-picker's persistence hook,
     // which clears `pickedClasses` and re-renders the chip list.
     // Without this, classes from the previous character stay
@@ -867,6 +963,19 @@
     // so the previous character's bloodline + its ability bumps don't
     // bleed into the fresh sheet.
     if (typeof Bloodline !== "undefined") Bloodline.loadData({});
+    // These keep their state in JS or in rows the reset loop only half-clears
+    // (DR rows kept the amount and lost the bypass, so DR 10/cold iron became
+    // DR 10/-). loadData runs each of them, so New has to as well; the test
+    // "save: New Character resets every module loadData does" holds the two in
+    // step. The book and homebrew filters stay out on purpose: they are campaign
+    // scope, and a new sheet in the same session is usually the same campaign.
+    if (typeof Conditions !== "undefined") Conditions.loadData({});
+    if (typeof DefenseRiders !== "undefined") DefenseRiders.loadData({});
+    if (typeof CombatOptions !== "undefined") CombatOptions.loadData({});
+    if (typeof SoulmeldEffects !== "undefined") SoulmeldEffects.loadData({});
+    if (typeof StaffUse !== "undefined") StaffUse.loadData({});
+    if (typeof Senses !== "undefined") Senses.loadData({});
+    if (typeof Audit !== "undefined") Audit.loadData({});
     // Clear the unified Race field's collision resolutions (Centaur/Gnoll
     // standard-vs-monster choices) so they don't carry into a new sheet.
     if (typeof RaceUnify !== "undefined" && RaceUnify.reset) RaceUnify.reset();

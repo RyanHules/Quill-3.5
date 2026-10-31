@@ -54,8 +54,16 @@ const Skills = (function () {
       }
     });
 
-    tbodyL.addEventListener("input", () => recalc(getAbilityMod));
-    tbodyR.addEventListener("input", () => recalc(getAbilityMod));
+    wireRecalc(tbodyL, getAbilityMod);
+    wireRecalc(tbodyR, getAbilityMod);
+  }
+
+  // These tbodies live as long as the page and only their rows are rebuilt, so
+  // an unguarded listener added one more recalc per keystroke on every load.
+  function wireRecalc(tbody, getAbilityMod) {
+    if (tbody.dataset.recalcWired) return;
+    tbody.dataset.recalcWired = "1";
+    tbody.addEventListener("input", () => recalc(getAbilityMod));
   }
 
   function addSkillRow(tbody, skill, index, getAbilityMod, opts = {}) {
@@ -1068,8 +1076,8 @@ const Skills = (function () {
       }
     });
 
-    tbodyL.addEventListener("input", () => recalc(getAbilityMod));
-    tbodyR.addEventListener("input", () => recalc(getAbilityMod));
+    wireRecalc(tbodyL, getAbilityMod);
+    wireRecalc(tbodyR, getAbilityMod);
     recalc(getAbilityMod);
   }
 

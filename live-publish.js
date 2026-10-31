@@ -1076,17 +1076,20 @@
     try {
       qualified = window.AppState && window.AppState.currentQualifiedName;
     } catch (e) { /* AppState not ready */ }
+
+    // Swapped character: let go of the old one BEFORE claiming the new, so a
+    // consumer never sees this tab holding two at once. This comes before the
+    // skip below, or New Character kept claiming the old one until it went stale.
+    if (claimed && claimed !== qualified) {
+      release(claimed);
+      claimed = null;
+      lastFingerprint = null;      // different character: never suppress as "no change"
+    }
+
     // An unsaved / brand-new character has no stable address, so there is
     // nothing a consumer could ask for. Skipping is correct; publishing it
     // under a guessed key would be worse than silence.
     if (!qualified) { stats.skipped++; return; }
-
-    // Swapped character: let go of the old one BEFORE claiming the new, so a
-    // consumer never sees this tab holding two at once.
-    if (claimed && claimed !== qualified) {
-      release(claimed);
-      lastFingerprint = null;      // different character: never suppress as "no change"
-    }
     claimed = qualified;
 
     var snap, fingerprint, body;

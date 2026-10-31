@@ -1408,8 +1408,8 @@
   regression('GE5: gestalt monster class on Side B (synthesis + extensions + round-trip)', async () => {
     // Phase 3: a Savage-Species monster class on a gestalt side. Its BAB/save
     // progression feeds the synthesis (it fills Side A's empty L6 here), and
-    // its size/NA/ability extensions apply character-global. Fighter 6 // Ogre
-    // (Monster Class) 6 → size Large, NA 5, +8 Str template.
+    // its size/NA/ability extensions apply character-global. Fighter 6 // Ogre 6
+    // → size Large, NA 5, +8 Str template.
     await newCharacter();
     ClassPicker.setGestalt(true);
     ClassPicker.setActiveSide('A'); await applyClass('Fighter', 6);
@@ -6279,6 +6279,117 @@
     await newCharacter();
   });
 
+  // ---- Character swap: nothing from the previous character survives -----
+
+  // The book and homebrew filters deliberately outlive New Character: they are
+  // campaign scope, and a new sheet in the same session is usually the same
+  // campaign. Everything else the New button leaves behind is a leak.
+  const SWAP_NEW_KEEPS = /_book_filter|_homebrew|_hide_30_mode|book-filter-badge|hbf-count/;
+
+  regression('SS24: a loaded or new character inherits nothing from the previous one', async () => {
+    await newCharacter();
+    set('char-name', 'Swap Poison');
+    set('speed-fly', '90');
+    set('speed-swim', '30');
+    set('turn-resistance', '4');
+    await applyClass('Barbarian', 5);
+    await wait(300);
+    const poison = appCollect();
+    // A hidden input: its defaultValue follows .value, unlike every other kind.
+    poison['str-template'] = '-2';
+    poison.magicItems = [{ name: 'Probe Ring', slot: 'ring1', worn: true, weight: '', special: '' }];
+    poison._hide_30_mode = 'counterpart';
+    poison._senses = { manual: [{ sense: 'darkvision', range_ft: 60 }], light: { source: '', used: 0 } };
+    poison._dr_entries = [{ amount: 15, bypass: null, stacks_with: 'none', from: null }];
+    poison.auditDismissed = ['probe:dismissed'];
+    poison.auditMuted = ['probe:muted'];
+    poison.activeConditions = ['shaken'];
+    await newCharacter();
+    const report = await runSwapAudit({ blobs: { poison: JSON.stringify(poison) }, targets: [] });
+    const leaks = Object.keys(report.findings).filter(k =>
+      !report.findings[k].examples.every(e => e.T === 'new' && SWAP_NEW_KEEPS.test(k)));
+    expect(report.unsettled.length, 0, 'SS24: every swap settled');
+    expect(report.done, 2, 'SS24: the audit really ran both targets');
+    expect(leaks.length ? leaks.slice(0, 8).join(' | ') : 'none', 'none',
+      'SS24: state survived the swap');
+  });
+
+  regression('SS25: a race picked for one character cannot wipe the next one', async () => {
+    await newCharacter();
+    document.querySelector('[data-tab="tab-character"]').click();
+    await wait(150);
+    // A race pick marks the fields it wrote as race-owned. That comes from the
+    // pick, so no save can recreate it and SS24 can't reach it.
+    set('char-race', 'Bugbear');
+    await wait(400);
+    expectValue('#ac-natural', '3', 'SS25: setup, the pick landed');
+    appLoad({ 'char-name': 'Next', 'char-race': 'Human', 'ac-natural': '2' });
+    await wait(300);
+    // Dwarves have no natural armor, so a stale marker is the only way this moves.
+    set('char-race', 'Dwarf');
+    await wait(400);
+    expectValue('#ac-natural', '2', 'SS25: the next character\'s natural armor is its own, not race-owned');
+    await newCharacter();
+  });
+
+  regression('SS26: a deity picked for one character cannot rewrite the next alignment', async () => {
+    await newCharacter();
+    set('char-deity', 'Pelor');
+    await wait(300);
+    if (!$('#char-alignment').value) fail('SS26: setup, picking Pelor should fill the alignment');
+    appLoad({ 'char-name': 'Next', 'char-alignment': 'Chaotic Evil', 'char-deity': '' });
+    await wait(200);
+    set('char-deity', 'Pelor');
+    await wait(300);
+    expectValue('#char-alignment', 'Chaotic Evil', 'SS26: a loaded alignment is the player\'s, not the deity\'s');
+    await newCharacter();
+  });
+
+  regression('SS27: importing a character cannot overwrite the one loaded before it', async () => {
+    await newCharacter();
+    AppState.currentQualifiedName = 'active/__swap_probe_never_saved__';
+    const input = $('#file-import');
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify({ 'char-name': 'Imported Probe' })], 'probe.json',
+      { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(400);
+    expectValue('#char-name', 'Imported Probe', 'SS27: setup, the import landed');
+    expect(AppState.currentQualifiedName, null, 'SS27: Save must not target the previous file');
+    input.value = '';
+    await newCharacter();
+  });
+
+  regression('SS28: class markers survive a load, but only for this character\'s classes', async () => {
+    await newCharacter();
+    await applyClass('Barbarian', 1);
+    await wait(300);
+    const own = appCollect();
+    const names = Object.values(own._fromClassMarkers || {});
+    if (names.indexOf('Barbarian') === -1) fail('SS28: setup, Barbarian should stamp markers');
+    // What the old leak left in eight real saves.
+    own._fromClassMarkers['turn-per-day'] = 'Ur-Priest';
+    appLoad(own);
+    await wait(300);
+    const after = appCollect();
+    expect(after._fromClassMarkers['turn-per-day'], undefined, 'SS28: a marker for a class this character lacks is dropped');
+    expect(Object.values(after._fromClassMarkers).indexOf('Barbarian') !== -1, true, 'SS28: its own markers stay');
+    await newCharacter();
+  });
+
+  regression('SS29: turn resistance round-trips', async () => {
+    await newCharacter();
+    set('turn-resistance', '4');
+    const blob = appCollect();
+    expect(blob['turn-resistance'], '4', 'SS29: collectData includes it');
+    set('turn-resistance', '');
+    appLoad(blob);
+    await wait(200);
+    expectValue('#turn-resistance', '4', 'SS29: loadData restores it');
+    await newCharacter();
+  });
+
   // Exhaustive variant — round-trips EVERY library save. Slow; run on
   // demand from the console, not part of the default suite.
   async function runSaveRoundTrip() {
@@ -6300,6 +6411,223 @@
     console.log(`[playfeel] runSaveRoundTrip: ${failures.length} not-fixed-point of ${pool.length}`);
     if (failures.length) console.log(failures.join('\n'));
     return { total: pool.length, failures };
+  }
+
+  // ---- Character swap audit --------------------------------------------
+  //
+  // The property: after load(A); load(B), the sheet must match a fresh page
+  // after load(B). Any difference is state that survived from A, whichever
+  // module holds it, so this needs no list of modules and can't go stale when
+  // a new one is added. Every leak fixed before this existed (Gestalt side B,
+  // class customizations, the Build Timeline, class markers) was found one at a
+  // time, by someone noticing the symptom.
+  //
+  // "Fresh" is literal: each baseline is a same-origin iframe with its own JS
+  // realm, so nothing can survive by accident. Each baseline runs twice, and
+  // paths that differ between the two are masked as noise rather than reported.
+  // Read-only: it never calls Save, so it can't touch a character file.
+  //
+  //   await PlayFeel.runSwapAudit()                     // active saves, all pairs
+  //   await PlayFeel.runSwapAudit({ poisons: 'library', targets: [], chain: true })
+  //
+  // Two synthetic targets always run. `minimal` is a save holding only a name,
+  // the most sensitive case: nothing in it can mask a leak, and it is what any
+  // save looks like to a field newer than it. `new` is the New Character button.
+
+  const SWAP_SKIP = '#playfeel-panel, [id^="playfeel"], #notification, #db-load-banner';
+
+  function swapFlatten(v, path, out) {
+    if (Array.isArray(v)) {
+      if (!v.length) out[path] = '[]';
+      v.forEach((x, i) => swapFlatten(x, `${path}[${i}]`, out));
+    } else if (v && typeof v === 'object') {
+      const keys = Object.keys(v);
+      if (!keys.length) out[path] = '{}';
+      keys.forEach(k => swapFlatten(v[k], `${path}.${k}`, out));
+    } else {
+      out[path] = String(v);
+    }
+  }
+
+  function swapSnapshot(win) {
+    const doc = win.document;
+    const out = {};
+    swapFlatten(JSON.parse(JSON.stringify(win.App.collectData())), 'save', out);
+    doc.querySelectorAll('[id]').forEach(el => {
+      if (el.closest(SWAP_SKIP)) return;
+      if (el.matches('input, select, textarea')) {
+        out[`dom#${el.id}`] = (el.type === 'checkbox' || el.type === 'radio')
+          ? String(el.checked) : el.value;
+        if (el.readOnly || el.disabled) out[`locked#${el.id}`] = '1';
+      } else if (!el.children.length && el.style.display !== 'none' && !el.hidden) {
+        // Hidden elements keep their old text (the iterative BAB cells do), and
+        // nobody can read it, so it isn't a leak.
+        const t = el.textContent.trim();
+        if (t && t.length < 200) out[`text#${el.id}`] = t;
+      }
+      if (el.style && el.style.display) out[`display#${el.id}`] = el.style.display;
+    });
+    // A multiset, not per-element: most rows have no stable path, and a marker
+    // on one of them is exactly the kind of thing worth catching.
+    const attrs = {};
+    doc.querySelectorAll('body *').forEach(el => {
+      if (el.closest(SWAP_SKIP)) return;
+      for (const a of el.attributes) {
+        if (!a.name.startsWith('data-') || /wired/i.test(a.name)) continue;
+        // Result chips, tag options and "show more" links are rendered lists, not
+        // character state, and data-sig only saves a repaint in damage-calc.js.
+        if (a.name === 'data-expand' || a.name === 'data-sig') continue;
+        if (a.name === 'data-name' && (el.tagName === 'BUTTON' || el.classList.contains('tag-filter-opt'))) continue;
+        const k = `attr[${a.name}=${a.value.slice(0, 60)}]`;
+        attrs[k] = (attrs[k] || 0) + 1;
+      }
+    });
+    Object.keys(attrs).forEach(k => { out[k] = String(attrs[k]); });
+    doc.querySelectorAll('[id$="-container"], [id$="-list"], [id$="-body"]').forEach(el => {
+      if (!el.closest(SWAP_SKIP)) out[`rows#${el.id}`] = String(el.children.length);
+    });
+    // Info panels (race, deity, template, class) have children, so the leaf-text
+    // check above can't see them, and a stale one offers the wrong "+ Add" chips.
+    doc.querySelectorAll('.race-info[id]').forEach(el => {
+      const t = el.style.display === 'none' ? '' : el.textContent.replace(/\s+/g, ' ').trim();
+      if (t) out[`panel#${el.id}`] = `${t.length}:${t.slice(0, 80)}`;
+    });
+    return out;
+  }
+
+  function swapDiff(fresh, got, mask) {
+    const diffs = [];
+    new Set([...Object.keys(fresh), ...Object.keys(got)]).forEach(path => {
+      if (mask && mask.has(path)) return;
+      if (fresh[path] !== got[path]) {
+        diffs.push({ path, fresh: fresh[path], got: got[path] });
+      }
+    });
+    return diffs;
+  }
+
+  // Not setTimeout. Once a tab has been hidden for five minutes, Chromium gives
+  // chained timers one wake-up a minute (intensive throttling), which took a run
+  // from a few seconds a pair to several minutes. Message tasks aren't throttled,
+  // and they also keep the sheet's own timers at nesting level 1, where they get
+  // the ordinary one-second alignment instead of the one-minute one.
+  function swapWait(ms) {
+    return new Promise((resolve) => {
+      const end = performance.now() + ms;
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => {
+        if (performance.now() < end) return ch.port2.postMessage(0);
+        ch.port1.close();
+        resolve();
+      };
+      ch.port2.postMessage(0);
+    });
+  }
+
+  async function swapRealm() {
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;left:-20000px;top:0;width:1400px;height:900px;border:0';
+    frame.src = location.pathname + '?playfeel=1&swaprealm=1';
+    const loaded = new Promise(r => frame.addEventListener('load', r, { once: true }));
+    document.body.appendChild(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    for (let i = 0; i < 400 && !(win.App && win.App.loadData && win.DB); i++) await swapWait(50);
+    await win.DB.ready;
+    await swapSettle(win);
+    return { win, close: () => frame.remove() };
+  }
+
+  // loadData queues timers and DB-backed re-renders, so a fixed sleep either
+  // wastes time or reads a half-finished sheet. Wait for the whole snapshot to
+  // stop moving, for longer than a hidden tab's one-second timer alignment.
+  async function swapSettle(win) {
+    const QUIET_MS = 1500;
+    let prev = JSON.stringify(swapSnapshot(win));
+    let quietSince = performance.now();
+    const giveUp = quietSince + 15000;
+    while (performance.now() < giveUp) {
+      await swapWait(250);
+      const cur = JSON.stringify(swapSnapshot(win));
+      if (cur !== prev) { prev = cur; quietSince = performance.now(); }
+      else if (performance.now() - quietSince >= QUIET_MS) return true;
+    }
+    return false;
+  }
+
+  async function swapApply(win, target) {
+    if (target.key === 'new') win.document.getElementById('btn-new').click();
+    else win.App.loadData(JSON.parse(target.json));
+    return swapSettle(win);
+  }
+
+  async function runSwapAudit(opts = {}) {
+    const all = await SaveBackend.list();
+    const named = (spec, fallback) => {
+      if (spec === 'library') return all.filter(e => (e.folder || '').split('/')[0] === 'library').map(e => e.qualified);
+      if (spec === 'active') return all.filter(e => (e.folder || '').split('/')[0] === 'active').map(e => e.qualified);
+      return spec || fallback;
+    };
+    const active = named('active');
+    // opts.blobs: {name: json} poisons built by the caller, needing no save file.
+    const blobs = Object.assign({}, opts.blobs);
+    const poisonNames = opts.blobs ? Object.keys(opts.blobs) : named(opts.poisons, active);
+    const targetNames = named(opts.targets, active);
+    for (const q of new Set([...poisonNames, ...targetNames])) {
+      if (!blobs[q]) blobs[q] = JSON.stringify(await SaveBackend.load(q));
+    }
+    const asTarget = q => ({ key: q, json: blobs[q] });
+    const targets = targetNames.map(asTarget);
+    if (opts.minimal !== false) targets.push({ key: 'minimal', json: JSON.stringify({ 'char-name': 'Swap Probe' }) });
+    if (opts.newButton !== false) targets.push({ key: 'new' });
+    const report = { state: 'baselines', done: 0, total: poisonNames.length * targets.length, findings: {}, unsettled: [], noise: {} };
+    window.__swapAudit = report;
+    const t0 = Date.now();
+
+    const baseline = {};
+    const masks = {};
+    for (const t of targets) {
+      const runs = [];
+      for (let i = 0; i < 2; i++) {
+        const realm = await swapRealm();
+        await swapApply(realm.win, t);
+        runs.push(swapSnapshot(realm.win));
+        realm.close();
+      }
+      baseline[t.key] = runs[0];
+      masks[t.key] = new Set(swapDiff(runs[0], runs[1]).map(d => d.path));
+      report.noise[t.key] = masks[t.key].size;
+    }
+
+    report.state = 'swapping';
+    const record = (A, T, diffs) => {
+      diffs.forEach(d => {
+        const group = d.path.replace(/\[\d+\]/g, '[*]');
+        const f = report.findings[group] || (report.findings[group] = { pairs: 0, examples: [] });
+        f.pairs++;
+        if (f.examples.length < 3) {
+          f.examples.push({ A, T, path: d.path, fresh: String(d.fresh).slice(0, 100), got: String(d.got).slice(0, 100) });
+        }
+      });
+    };
+    let realm = opts.chain ? await swapRealm() : null;
+    let sinceFresh = 0;
+    for (const A of poisonNames) {
+      if (!opts.chain) realm = await swapRealm();
+      else if (++sinceFresh > 40) { realm.close(); realm = await swapRealm(); sinceFresh = 0; }
+      for (const t of targets) {
+        const settledA = await swapApply(realm.win, asTarget(A));
+        const settledT = await swapApply(realm.win, t);
+        if (!settledA || !settledT) report.unsettled.push(`${A} -> ${t.key}`);
+        record(A, t.key, swapDiff(baseline[t.key], swapSnapshot(realm.win), masks[t.key]));
+        report.done++;
+      }
+      if (!opts.chain) realm.close();
+    }
+    if (opts.chain) realm.close();
+    report.seconds = Math.round((Date.now() - t0) / 1000);
+    report.state = 'done';
+    return report;
   }
 
   // ---- Per-class application sweep -------------------------------------
@@ -6683,7 +7011,7 @@
   // Expose for Node-side preview MCP orchestration. Also keeps the
   // results around for inspection after a run.
   window.PlayFeel = {
-    runAll, runSpec, runClassSweep, runSaveRoundTrip,
+    runAll, runSpec, runClassSweep, runSaveRoundTrip, runSwapAudit,
     scenarios, regressions,
     getResults: () => lastResults,
   };

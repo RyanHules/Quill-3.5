@@ -1820,6 +1820,7 @@ const SoulmeldEffects = (function () {
     const saved = (data && data._soulmeld_effects);
     store = (saved && typeof saved === 'object') ? JSON.parse(JSON.stringify(saved)) : {};
     lastRiderSig = null;      // a different character: re-push, do not trust the cache
+    lastFeatSig = null;       // same: Feats.loadData has already wiped the granted rows
     // Blocks are rebuilt from the store, so drop any that equipment.js has
     // already re-rendered with stale contents.
     document.querySelectorAll('.sme-block').forEach(b => b.remove());

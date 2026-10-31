@@ -136,6 +136,7 @@ python tests/test_serve_bat.py --bat PATH   # negative control: an older bat mus
 | Rebuilt the DB upstream | Both layers |
 | Touched `save_server.py` or the live bus | `python tests/test_live_bus.py` + `python tests/test_save_server.py` |
 | Touched `serve.bat` or `save_server.py`'s startup | `python tests/test_serve_bat.py` |
+| Touched a module's `loadData`, or added per-character state | `await PlayFeel.runSwapAudit()` on `?playfeel=1` (the property: `load(A); load(B)` matches a fresh page after `load(B)`; about 15 minutes for all active saves, and read-only) |
 
 ## Why two layers?
 

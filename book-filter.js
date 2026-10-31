@@ -258,11 +258,17 @@
     if (data) {
       // New 3-state field takes priority over the legacy boolean.
       // Migration: old `_hide_30: true` → 'all' (the strict pre-
-      // 2026-05-20 behavior); `false` / absent → leave at 'off'.
+      // 2026-05-20 behavior); `false` / absent → 'off'. collectData omits
+      // the key when it's off, so absence has to set it: leaving it alone
+      // gave this character the previous one's mode, and the mode changes
+      // numbers (a 3.0 race drops out of the index, and its racial bonuses
+      // with it).
       if ('_hide_30_mode' in data) {
         setHide30Mode(data._hide_30_mode);
       } else if ('_hide_30' in data) {
         setHide30Mode(data._hide_30 ? 'all' : 'off');
+      } else {
+        setHide30Mode('off');
       }
     }
     if (!data || !('_book_filter' in data)) {

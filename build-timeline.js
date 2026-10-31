@@ -52,6 +52,8 @@ const BuildTimeline = (function () {
     // in on save/load, but a fresh character starts empty.
     if (!history || !history.length) {
       section.style.display = 'none';
+      rowsEl.innerHTML = '';
+      refreshGlobalBadge();
       return;
     }
     section.style.display = '';

@@ -317,10 +317,10 @@
   // as a publish, so what the writer gets back is byte-for-byte what a reader
   // would get. Telling live-publish.js about it keeps its change-watcher from
   // immediately re-publishing identical content.
-  function ack(q, results) {
+  function ack(q, results, noSnapshot) {
     var snap = null;
     try {
-      if (window.LivePublish && window.LivePublish.snapshot) {
+      if (!noSnapshot && window.LivePublish && window.LivePublish.snapshot) {
         snap = window.LivePublish.snapshot();
         if (window.LivePublish.notePublished) window.LivePublish.notePublished(snap);
         snap.published_at = new Date().toISOString();
@@ -341,6 +341,16 @@
   }
 
   function handleBatch(q, commands) {
+    // The tab can swap characters while a poll is in flight, and watchForSwap only
+    // looks every couple of seconds. These commands are for the previous character,
+    // so applying them would write to this one. Refuse them out loud, with no
+    // snapshot: ack's would be this character's, posted under the old name.
+    if (qualified() !== q) {
+      return ack(q, commands.map(function (cmd) {
+        return { id: cmd.id, applied: [], echo: {},
+                 rejected: [{ field: '*', reason: 'character changed before this command arrived' }] };
+      }), true);
+    }
     var results = [];
     commands.forEach(function (cmd) {
       stats.commands++;

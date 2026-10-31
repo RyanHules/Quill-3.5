@@ -2304,7 +2304,13 @@
       // removal can still clean these fields. See collectData above
       // for the matching emit logic.
       if (data && data._fromClassMarkers && typeof data._fromClassMarkers === 'object') {
+        // Saves can name a class this character never had: markers used to
+        // survive a character swap, and the next Save wrote them in. Dropping
+        // those here means each such save heals the next time it is saved.
+        const ownClasses = new Set(
+          pickedClasses.concat(pickedClassesB).map(c => c.className));
         for (const [id, className] of Object.entries(data._fromClassMarkers)) {
+          if (!ownClasses.has(className)) continue;
           const el = document.getElementById(id);
           if (!el) continue;
           el.dataset.fromClass = className;

@@ -5640,6 +5640,73 @@ test('save: class-picker persists data-from-class markers', () => {
   assert(/el\.dataset\.fromClass\s*=\s*className/.test(hook),
     'class-picker.js: loadData hook does not restore _fromClassMarkers ' +
     'onto the matching elements after class-state rehydration.');
+  // 2026-10-31: markers used to leak between characters in one tab, and 8 of the
+  // 9 saves carrying markers named a class they did not have.
+  assert(/ownClasses\.has\(className\)/.test(hook),
+    'class-picker.js: loadData must skip a marker naming a class this ' +
+    'character does not have, so leaked markers heal on the next save.');
+});
+
+test('save: a load starts from the page defaults, not the previous character', () => {
+  // Regression guard for the 2026-10-31 fix. Loaders skip a key the save lacks, so
+  // every field an older save didn't mention kept the previous character's value,
+  // and the next Save wrote it in. Runtime half: playfeel SS24.
+  const src = readSource('app.js');
+  const body = src.slice(src.indexOf('function loadData(data)'));
+  const reset = body.indexOf('resetSavedFields()');
+  const marks = body.indexOf('clearFieldOwnership()');
+  const load = body.indexOf('Character.loadData(data');
+  assert(reset !== -1 && marks !== -1 && load !== -1 && reset < load && marks < load,
+    'app.js loadData must call resetSavedFields() and clearFieldOwnership() BEFORE ' +
+    'Character.loadData. Without them the previous character leaks into this one.');
+  assert(!/data\s*=\s*Object\.assign\(\s*\{\}\s*,\s*[a-zA-Z_]*[Bb]lank/.test(body),
+    'Do not fill absent keys into `data`: many loaders read a missing key as ' +
+    '"old save, migrate". Reset the fields, not the data.');
+});
+
+test('save: New Character resets every module loadData does', () => {
+  // Regression guard for the 2026-10-31 fix. New keeps its own list of module
+  // resets beside loadData's, and the two had drifted: audit dismissals, senses,
+  // DR rows, staff charges and soulmeld edits all carried into a "new" character.
+  const src = readSource('app.js');
+  const between = (from, to) => { const i = src.indexOf(from); return src.slice(i, src.indexOf(to, i)); };
+  const modulesIn = text => new Set([...text.matchAll(/\b([A-Z][A-Za-z]+)\.loadData\(/g)].map(m => m[1]));
+  const onLoad = modulesIn(between('function loadData(data)', 'function collectHitDiceFromDB'));
+  const onNew = modulesIn(between('function newCharacter()', 'function showNotification'));
+  // Filters are campaign scope on purpose. CharacterHistory has clear(); Skills has build().
+  const exempt = new Set(['BookFilter', 'HomebrewFilter', 'CharacterHistory', 'Skills']);
+  const missing = [...onLoad].filter(m => !onNew.has(m) && !exempt.has(m));
+  assertEq(missing.join(', '), '', 'newCharacter() is missing these modules that loadData() resets');
+  assert(onLoad.size >= 10, `only found ${onLoad.size} modules in loadData: is this guard still reading the right function?`);
+});
+
+test('save: importing a character clears the loaded-character pointer', () => {
+  // Regression guard for the 2026-10-31 fix. Save writes to the pointer, so an
+  // import that kept it overwrote the previously loaded character's file.
+  const src = readSource('app.js');
+  const i = src.indexOf('function importCharacter');
+  const body = src.slice(i, src.indexOf('reader.readAsText', i));
+  assert(body.indexOf('currentQualifiedName = null') !== -1 &&
+         body.indexOf('currentQualifiedName = null') < body.indexOf('loadData(data)'),
+    'importCharacter must clear currentQualifiedName before loading, or Save overwrites the previous file.');
+});
+
+test('save: absent _hide_30_mode means off', () => {
+  // Regression guard for the 2026-10-31 fix. collectData omits the key when off,
+  // so a load that leaves it alone hands this character the previous one's mode.
+  const src = readSource('book-filter.js');
+  const body = src.slice(src.indexOf('function loadData(data)'));
+  assert(/else\s*\{\s*setHide30Mode\('off'\);?\s*\}/.test(body),
+    "book-filter.js loadData must setHide30Mode('off') when neither key is present.");
+});
+
+test('save: turn resistance is in both of Character\'s field lists', () => {
+  // Regression guard for the 2026-10-31 fix. It was in neither: lost on every
+  // reload, and left behind for the next character.
+  const src = readSource('character.js');
+  assert(/data\["turn-resistance"\]\s*=/.test(src), 'character.js collectData must save turn-resistance.');
+  assert(/"turn-resistance",/.test(src.slice(src.indexOf('function loadData(data, getAbilityMod)'))),
+    'character.js loadData must restore turn-resistance.');
 });
 
 test('save: class-picker resolves _multiclass by name (not brittle id)', () => {

@@ -1287,6 +1287,7 @@ const Character = (function () {
     data["bab-1"] = $("#bab-1").value;
     data["grapple-misc"] = $("#grapple-misc").value;
     data["spell-resistance"] = $("#spell-resistance").value;
+    data["turn-resistance"] = $("#turn-resistance").value;
 
     // Attacks
     data.attacks = [];
@@ -1334,7 +1335,7 @@ const Character = (function () {
       "hp-total", "hp-current", "hp-temp", "hp-nonlethal",
       "ac-natural", "ac-misc", "ac-miss-chance", "ac-defense-notes",
       "save-conditional", "init-misc", "bab-1", "grapple-misc",
-      "spell-resistance", "languages",
+      "spell-resistance", "turn-resistance", "languages",
     ].forEach((id) => {
       const el = $(`#${id}`);
       if (el && data[id] !== undefined) el.value = data[id];
