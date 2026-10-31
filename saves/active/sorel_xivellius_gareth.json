@@ -55,7 +55,7 @@
   "cha-temp-adj": "",
   "cha-nonability": false,
   "hp-total": "16",
-  "hp-current": "",
+  "hp-current": "16",
   "hp-temp": "",
   "hp-nonlethal": "",
   "ac-natural": "0",
@@ -111,6 +111,18 @@
       "fromClass": ""
     }
   ],
+  "_fromClassMarkers": {
+    "char-size": "Mind Flayer (Monster Class)",
+    "char-race": "Mind Flayer (Monster Class)",
+    "sm-max-soulmelds": "Totemist",
+    "sm-max-essentia": "Totemist",
+    "sm-max-binds": "Totemist",
+    "rage-per-day": "Barbarian",
+    "rage-duration": "Barbarian",
+    "rage-str-con": "Barbarian",
+    "rage-will": "Barbarian",
+    "rage-ac": "Barbarian"
+  },
   "_multiclass": [
     {
       "className": "Sorcerer",
@@ -381,12 +393,6 @@
         "uses": "3",
         "mysteries": [
           {
-            "name": "",
-            "level": "0",
-            "extra": "",
-            "used": 0
-          },
-          {
             "name": "Shadow Hood\nFundamental · Fundamental · LFundamental\nEvocation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Will negates\nSwirling shadows manifest around your foe's head. Swirling tendrils and bursts of mystic shadow distract the subject. It takes a -1 penalty on attack rolls and Dexterity-based checks.",
             "level": "0",
             "extra": "",
@@ -415,12 +421,6 @@
       "app": {
         "uses": "1",
         "mysteries": [
-          {
-            "name": "",
-            "level": "1",
-            "extra": "",
-            "used": 0
-          },
           {
             "name": "Voice of Shadow\nPath of Ebon Whispers · Apprentice · L1\nEnchantment · Close (25 ft. + 5 ft./2 levels) · 1 round · Will negates\nBy speaking via a conduit through the Plane of Shadow, you deliver a commanding message. This mystery functions like the spell command. A second function is a necromancy effect. Undead and constructs that fail their saving throws against this effect are dazed for 1 round. You can only use one version of this mystery in a single casting.",
             "level": "1",
@@ -526,7 +526,6 @@
   "specialAbilities": [
     "Doom: 98 (WHF)",
     "3/3 Fate Points",
-    "Umbral Sight (Su):\nIncrease range of darkvision by 30 ft",
     {
       "text": "[Shadowcaster 1] apprentice mysteries",
       "fromClass": "Shadowcaster"
@@ -537,10 +536,6 @@
     },
     {
       "text": "[Shadowcaster 2] Bonus feat",
-      "fromClass": "Shadowcaster"
-    },
-    {
-      "text": "[Shadowcaster 2] see text",
       "fromClass": "Shadowcaster"
     },
     {
@@ -641,7 +636,7 @@
   "rage-used": "",
   "rage-rounds": "",
   "rage-active": false,
-  "notes": "--- Planned Progression ---\nPlanned Progression:\nSorcerer 4/ Shadowcaster 4 ->\nNoctumancer 2/ Chaos Monk 2 ->\nShadow Adept 1/ Shadowcaster 5 ->\nNoctumancer 4/ Paladin of Slaughter 2 (Gaze of Truth ACF) ->\nNoctumancer 5/ Dragon Disciple 1 ->\nInsidious Corruptor 1/ Noctumancer 6 ->\nInsidious Corruptor 2/ Shadowcaster 6 ->\nInsidious Corruptor 3/ Noctumancer 7 ->\nInsidious Corruptor 4/ Shadowcaster 7 ->\nInsidious Corruptor 5/ Noctumancer 8 ->\nInsidious Corruptor 6/ Shadowcaster 8 ->\nInsidious Corruptor 7/ Noctumancer 9 ->\nInsidious Corruptor 8/ Shadowcaster 9 ->\nInsidious Corruptor 9/ Noctumancer 10 ->\nInsidious Corruptor 10/ Shadowcaster 10\n\nNeed: \nShadow Adept - Know (arc) 8, SC 8, Shadow Weave Magic +1 Metamagic, 3rd-level spells\nInsidious Corruptor - Drow, Evil Alignment, Bluff 9, Diplo 4, Sense Motive 4, Persuasive, Dominate Person\nNoctumancer - Know (arc) 6, Spellcraft 6, 2nd-level mysteries, 2nd-level spells\nDragon Disciple - Nondragon, Know (arc) 8, Draconic language, spontaneous arcane caster\n\nFeats:\n1st - SF(Enchantment), Extend Spell, Shadow Weave Magic\n2nd (bonus) - Extend Mystery\n3rd - Spell Penetration\n5th - Ascetic Mage\n6th - Shadow Reflection\n7th - Nocturnal Caster (Enchantment)?\n9th - \n\nFeats (to get):\nPath Focus + Greater, Extend Mystery, Enlarge Mystery, Line of Shadow, Spell Penetration + Greater, Favored Mystery (Flicker, Warp Spell, Greater Shadows Fade, Consume Spell, Tomb of Night, and/or Shadow Time)\n\nFlaws:\nVulnerable (-1 AC)\nMurky-Eyed (Disadvantage on concealment)\n\nMysteries (to get, in order): Fundamental - Anything but widened eyes from ToM Apprentice - Voice of Shadow, Carpet of Shadow, Black Fire, Congress of Shadows, Flicker, Clinging Darkness Initiate - Warp Spell, Shadow Vision, Echo Spell, Curtain of Shadows, Unveil, Flood of Shadow Master - Ephemeral Image, Truth Revealed, Far Sight, Umbral Body, Shadow Time, Reflections of Things to Come, Shadow Time (x2) Alternatively: Master - Prison of Night, Truth Revealed, Far Sight, Tomb of Night, Reflections of Things to Come, Consume Essence, Reflections of Things to Come, Consume Essence",
+  "notes": "--- Planned Progression ---\nPlanned Progression:\nSorcerer 4/ Shadowcaster 4 ->\nNoctumancer 2/ Chaos Monk 2 ->\nShadow Adept 1/ Shadowcaster 5 ->\nNoctumancer 4/ Paladin of Slaughter 2 (Gaze of Truth ACF) ->\nNoctumancer 5/ Dragon Disciple 1 ->\nInsidious Corruptor 1/ Noctumancer 6 ->\nInsidious Corruptor 2/ Shadowcaster 6 ->\nInsidious Corruptor 3/ Noctumancer 7 ->\nInsidious Corruptor 4/ Shadowcaster 7 ->\nInsidious Corruptor 5/ Noctumancer 8 ->\nInsidious Corruptor 6/ Shadowcaster 8 ->\nInsidious Corruptor 7/ Noctumancer 9 ->\nInsidious Corruptor 8/ Shadowcaster 9 ->\nInsidious Corruptor 9/ Noctumancer 10 ->\nInsidious Corruptor 10/ Shadowcaster 10\n\nNeed: \nShadow Adept - Know (arc) 8, SC 8, Shadow Weave Magic +1 Metamagic, 3rd-level spells\nInsidious Corruptor - Drow, Evil Alignment, Bluff 9, Diplo 4, Sense Motive 4, Persuasive, Dominate Person\nNoctumancer - Know (arc) 6, Spellcraft 6, 2nd-level mysteries, 2nd-level spells\nDragon Disciple - Nondragon, Know (arc) 8, Draconic language, spontaneous arcane caster\n\nFeats:\n1st - SF(Enchantment), Extend Spell, Shadow Weave Magic\n2nd (bonus) - Extend Mystery\n3rd - Spell Penetration\n5th - Ascetic Mage\n6th - Shadow Reflection\n7th - Nocturnal Caster (Enchantment)?\n9th - \n\nFeats (to get):\nPath Focus + Greater, Extend Mystery, Enlarge Mystery, Line of Shadow, Spell Penetration + Greater, Favored Mystery (Flicker, Warp Spell, Greater Shadows Fade, Consume Spell, Tomb of Night, and/or Shadow Time)\n\nMysteries (to get, in order): Fundamental - Anything but widened eyes from ToM Apprentice - Voice of Shadow, Carpet of Shadow, Black Fire, Congress of Shadows, Flicker, Clinging Darkness Initiate - Warp Spell, Shadow Vision, Echo Spell, Curtain of Shadows, Unveil, Flood of Shadow Master - Ephemeral Image, Truth Revealed, Far Sight, Umbral Body, Shadow Time, Reflections of Things to Come, Shadow Time (x2) Alternatively: Master - Prison of Night, Truth Revealed, Far Sight, Tomb of Night, Reflections of Things to Come, Consume Essence, Reflections of Things to Come, Consume Essence",
   "customizations": [
     {
       "kind": "ACF",
@@ -764,6 +759,7 @@
   ],
   "history_reconstructed": false,
   "_book_filter": null,
+  "_hide_30_mode": "counterpart",
   "_homebrew": null,
   "skills": [
     {
