@@ -670,8 +670,8 @@ const FeatPrereqs = (function () {
   //     account for unrelated mid-build ability shifts (item swaps,
   //     re-rolls) since history doesn't track those — but the
   //     boost case is the common one.
-  //   - bab + casterLevels: derived from the cumulative classes via
-  //     the same bab_progression lookups class-picker uses.
+  //   - bab: the cumulative classes through class-picker's own totals.
+  //   - casterLevels: derived from the cumulative classes.
   //   - alignment: not tracked per-level; uses current.
   //
   // `opts` shape:
@@ -687,14 +687,15 @@ const FeatPrereqs = (function () {
   const _classMetaCache = new Map();
   function getClassMetadata(className) {
     if (_classMetaCache.has(className)) return _classMetaCache.get(className);
-    let meta = { bab: null, flavor: null };
+    let meta = { id: null, bab: null, flavor: null };
     if (window.DB && DB.isLoaded()) {
       const r = DB.queryOne(
-        "SELECT json_extract(data, '$.bab_progression')           AS bab, " +
+        "SELECT id, json_extract(data, '$.bab_progression')       AS bab, " +
         "       json_extract(data, '$.spellcasting.class_type')   AS flavor " +
         "FROM entry WHERE type IN ('class','prc') " +
         "AND name = ? COLLATE NOCASE LIMIT 1", [className]);
       if (r) {
+        meta.id = r.id || null;
         meta.bab = r.bab || null;
         // class_type can be 'arcane' / 'divine' / 'psionic' OR an
         // array (Sha'ir is ['arcane','divine']). Normalize to a flat
@@ -715,8 +716,22 @@ const FeatPrereqs = (function () {
     return meta;
   }
 
-  // Local copy of class-picker's babAt formula. Mirrors the canonical
-  // SRD progressions: full (1×), three-quarters (×0.75), half (×0.5).
+  // A replayed class as class-picker's math wants it. The row on the sheet comes
+  // first: history stores only a name, and Lillend is two different tables, while a
+  // racial Hit Dice row has no DB class to look up at all. A class no longer on the
+  // sheet falls back to the DB by name.
+  function replayEntry(name, level) {
+    const k = String(name).toLowerCase();
+    const live = ClassPicker.getState().concat(ClassPicker.getStateB())
+      .find(e => String(e.className).toLowerCase() === k);
+    if (live) return Object.assign({}, live, { level });
+    const meta = getClassMetadata(name);
+    return { className: name, classId: meta.id, level, prog: { bab: meta.bab } };
+  }
+
+  // The label formula, for when class-picker is not loaded (the Node tests).
+  // Mirrors the canonical SRD progressions: full (1×), three-quarters (×0.75),
+  // half (×0.5).
   function babAtLevel(prog, lvl) {
     if (lvl <= 0) return 0;
     const p = String(prog || '').toLowerCase();
@@ -819,25 +834,32 @@ const FeatPrereqs = (function () {
         }
       }
     }
-    // BAB is gestalt-synthesized as max(Side A total, Side B total) — NOT the
-    // sum of both sides — so sum each side independently and take the better.
-    // Non-gestalt (clB empty) reduces to Side A's sum, unchanged.
-    const babForSide = (m) => {
-      let b = 0;
-      for (const [name, lvl] of m) b += babAtLevel(getClassMetadata(name).bab, lvl);
-      return b;
-    };
-    const babA = babForSide(clA);
-    const bab = clB.size ? Math.max(babA, babForSide(clB)) : babA;
+    // BAB comes from the same math as the sheet's own field: pooled levels, monster
+    // classes by Hit Dice, gestalt per level. This used to be a private per-class
+    // sum, so the replay disagreed with the sheet (Rogue 3 / Cleric 5 is +6 on the
+    // sheet and was +5 here), and the audit reported a prerequisite as unmet at the
+    // time on a character whose number was right.
+    let bab = 0;
+    let characterLevel = level;
+    if (typeof ClassPicker !== 'undefined' && ClassPicker.aggregateTotals) {
+      const side = (m) => [...m].map(([name, lvl]) => replayEntry(name, lvl));
+      bab = clB.size
+        ? ClassPicker.gestaltTotals(side(clA), side(clB)).bab
+        : ClassPicker.aggregateTotals(side(clA)).bab;
+      // A level with no Hit Die is not a character level, same as the live snapshot.
+      characterLevel = Math.max(0, level - ClassPicker.levelsWithoutHitDice(side(clA), side(clB)));
+    } else {
+      const sum = (m) => [...m].reduce(
+        (b, [name, lvl]) => b + babAtLevel(getClassMetadata(name).bab, lvl), 0);
+      bab = clB.size ? Math.max(sum(clA), sum(clB)) : sum(clA);
+    }
 
     return {
       abilities, classes, featNames, featSpecs, skillRanks, bab,
       alignment: (opts.currentAlignment ||
         (document.getElementById('char-alignment')?.value || '').toLowerCase()),
       casterLevels,
-      // At level N the character level IS N — that's what this snapshot
-      // is pinned to, so no reconstruction from the history is needed.
-      characterLevel: level,
+      characterLevel,
     };
   }
 

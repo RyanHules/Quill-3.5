@@ -943,11 +943,15 @@ const Character = (function () {
     // for the max-ranks cap (K1, Ryan's independent-track model) — #char-level
     // holds class levels only, so fold the bloodline levels in here. recalcAll
     // re-fires on the bloodline-changed event, so this stays current.
+    // A monster class's levels with no Hit Die do not raise the cap (Savage Species
+    // p.5: character level is Hit Dice plus class levels; report rmtk6jub4-ftbz).
     const level = int($("#char-level").value) || 1;
     const bloodlineLevels = (typeof Bloodline !== "undefined" &&
                              Bloodline.getTotalBloodlineLevels)
       ? Bloodline.getTotalBloodlineLevels() : 0;
-    const effLevel = level + bloodlineLevels;
+    const noHitDie = (window.ClassPicker && ClassPicker.levelsWithoutHitDice)
+      ? ClassPicker.levelsWithoutHitDice() : 0;
+    const effLevel = Math.max(0, level - noHitDie) + bloodlineLevels;
     $("#max-class-ranks").textContent = effLevel + 3;
     $("#max-crossclass-ranks").textContent = (effLevel + 3) / 2;
 

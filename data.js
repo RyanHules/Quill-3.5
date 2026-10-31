@@ -234,8 +234,10 @@ const DND35 = {
   // "Construct, Outsider (Lawful)" — caller falls back to no recomputation).
   parseCreatureType(raw) {
     if (!raw) return null;
-    const primary = String(raw).split(/[,(]/)[0].trim();
-    return this.creatureTypes[primary] ? primary : null;
+    const primary = String(raw).split(/[,(]/)[0].trim().toLowerCase();
+    // Case-insensitive: some races store "outsider", and missing here silently
+    // dropped their racial Hit Dice (Frost Folk, Domovoi: BAB 0 and no racial row).
+    return Object.keys(this.creatureTypes).find(t => t.toLowerCase() === primary) || null;
   },
 
   // BAB at the given total HD for the type's progression. Floor as
@@ -275,6 +277,159 @@ const DND35 = {
     const bab = info.bab >= 1 ? 'good' : info.bab >= 0.75 ? 'average' : 'poor';
     const sv = (w) => info.goodSaves.includes(w) ? 'good' : 'poor';
     return { bab, fort: sv('Fort'), ref: sv('Ref'), will: sv('Will') };
+  },
+
+  // The BAB and base save formulas, counted in levels or in Hit Dice.
+  progressionFormulas: {
+    bab: {
+      good: n => n,
+      average: n => Math.floor(n * 3 / 4),
+      poor: n => Math.floor(n / 2),
+    },
+    save: { good: n => 2 + Math.floor(n / 2), poor: n => Math.floor(n / 3) },
+  },
+
+  // A number as a table prints it. "+6/+1" is +6; the iteratives follow from it.
+  printedCell(v) {
+    const m = String(v == null ? '' : v).replace(/[–−]/g, '-').match(/-?\d+/);
+    return m ? parseInt(m[0], 10) : null;
+  },
+
+  // What an ordinary class's table row prints beyond its progressions, per stat. Zero
+  // on nearly every row. A few classes really print a cell off the formula (Illithid
+  // Savant's Fort +4 at 10th), and the printed number wins (Ryan, 2026-10-31).
+  printedOffset(row, level, prog) {
+    const out = { bab: 0, fort: 0, ref: 0, will: 0 };
+    const { bab, save } = this.progressionFormulas;
+    for (const stat of Object.keys(out)) {
+      const value = this.printedCell(row && row[stat]);
+      const f = (stat === 'bab' ? bab : save)[(prog && prog[stat]) || ''];
+      if (value != null && f) out[stat] = value - f(Number(level));
+    }
+    return out;
+  },
+
+  // A MONSTER CLASS prints a Hit Dice column because its levels are not Hit
+  // Dice: Mind Flayer 15 is 8d8 (Savage Species Table A-35). That column is the
+  // marker. A natural armor or ability row is not: Dragon Shaman and the racial
+  // classes have those, and no Hit Dice of their own to count.
+  //
+  // Every printed BAB and base save on these tables is the ordinary formula
+  // counted in Hit Dice (67 of 67 classes at final level, 3,063 of 3,068 cells at
+  // any level, checked against the books). So the TABLE says which progression
+  // each one is, and the progression labels do not: Mind Flayer's say poor for
+  // all four, where its table is average / poor / poor / good. The five cells
+  // off the formula really are printed that way (Minotaur 2-3 Fort, Ghoul/Ghast
+  // 6-7 BAB, Mohrg 11 BAB), so a row carries `offset`, the printed number minus
+  // the formula, which keeps the book's number exact.
+  //
+  // Returns null for any other class, else:
+  //   prog       { bab, fort, ref, will } as 'good' / 'average' / 'poor'
+  //   fractional true when the class never reaches a whole Hit Die (Grig)
+  //   at(level)  { hd, gained, printed: {bab, ...}, offset: {bab, ...} }
+  //              `gained` is true when that level grants a Hit Die.
+  // `hints` only settles BAB at 1-2 HD, where average and poor print the same
+  // number: creature type first, then the label. Type never decides anything the
+  // table can, because it is wrong for some tables: `creatureTypes` lists Fort
+  // as the Elemental good save, and the air and fire elementals print Ref.
+  //
+  // A RACIAL CLASS (Complete Psionic, Drow of the Underdark, Monster Manual IV) prints
+  // no numbers at all. Its BAB and saves come from the standard class levels it grants,
+  // and it adds its own only at the levels that grant a racial Hit Die (Ryan,
+  // 2026-10-31), which its Special column names: "Racial Hit Die (2d8)". Those use the
+  // race's creature type, passed as `hints.creatureType`. Most never grant one, so they
+  // add nothing. `hints.name` is what marks them: there is no other signal in the rows.
+  monsterClassPool(classTable, hints) {
+    const table = (Array.isArray(classTable) ? classTable : [])
+      .filter(r => r && typeof r === 'object');
+    if (!table.length) return null;
+    const racial = /\bracial class\b/i.test((hints && hints.name) || '');
+    if (!racial && !table.some(r => r.hit_dice != null)) return null;
+    const hdOf = (r) => {
+      if (r.hit_dice != null) return this.parseHitDieCount(r.hit_dice);
+      const m = String(r.special || '').match(/racial hit die \((\d+)d\d+\)/i);
+      return m ? parseInt(m[1], 10) : null;
+    };
+    const { bab: BAB, save: SAVE } = this.progressionFormulas;
+    const FORMULAS = { bab: BAB, fort: SAVE, ref: SAVE, will: SAVE };
+    const STATS = Object.keys(FORMULAS);
+    const cell = (v) => this.printedCell(v);
+
+    const last = table[table.length - 1];
+    const lastHD = table.reduce((n, r) => Math.max(n, hdOf(r) || 0), 0);
+    const typeProg = hints && hints.creatureType
+      ? this.creatureTypeToProg(hints.creatureType) : null;
+    const prog = {};
+    for (const stat of STATS) {
+      const printed = cell(last[stat]);
+      if (racial) {
+        prog[stat] = lastHD && typeProg ? typeProg[stat] : null;
+        continue;
+      }
+      const fits = Object.keys(FORMULAS[stat])
+        .filter(c => FORMULAS[stat][c](lastHD) === printed);
+      prog[stat] = fits.length > 1
+        ? [typeProg && typeProg.bab, hints && hints.babLabel]
+            .find(c => fits.includes(c)) || fits[fits.length - 1]
+        : (fits[0] || null);
+    }
+
+    const rows = new Map();
+    let prevHD = 0;
+    for (const r of table) {
+      const hd = hdOf(r) || prevHD;
+      const printed = {}, offset = {};
+      for (const stat of STATS) {
+        const formula = prog[stat] && hd > 0 ? FORMULAS[stat][prog[stat]](hd) : 0;
+        const value = cell(r[stat]);
+        printed[stat] = value == null ? formula : value;
+        offset[stat] = value == null ? 0 : value - formula;
+      }
+      rows.set(Number(r.level), { hd, gained: hd > prevHD, printed, offset });
+      prevHD = hd;
+    }
+    const NONE = {
+      hd: 0, gained: false,
+      printed: { bab: 0, fort: 0, ref: 0, will: 0 },
+      offset: { bab: 0, fort: 0, ref: 0, will: 0 },
+    };
+    const finalLevel = Math.max(...rows.keys());
+    return {
+      prog,
+      racial,
+      fractional: /^\s*1\s*\/\s*\d+/.test(String(last.hit_dice)),
+      // A level past the table keeps the final numbers and grants nothing new.
+      at(level) {
+        const l = Number(level);
+        if (rows.has(l)) return rows.get(l);
+        if (l > finalLevel) return Object.assign({}, rows.get(finalLevel), { gained: false });
+        return NONE;
+      },
+    };
+  },
+
+  // What a printed line says about spell resistance: { base, per }, where per is
+  // 'level' (N + class level), 'hd' (N + Hit Dice) or null (a flat N). Null when the
+  // line names the ability without a number ("+2 Str, spell resistance"), which is what
+  // sends a caller on to the class feature's text.
+  //
+  // The wording is the book's, in all its variety: "equal to 7 + class level", "equal to
+  // its class level +8", "is equal to 5 + class level", "11 + its HD from class levels",
+  // "SR 13", "spell resistance 17". test_pickers runs this over every monster class,
+  // because the last time the wording moved this returned nothing on all 22, silently.
+  parseSpellResistance(text) {
+    const s = String(text == null ? '' : text).replace(/\s+/g, ' ');
+    const phrase = /(?:[Ss]pell [Rr]esistance|\bSR\b) ?(?:is )?(?:equal to )?/g;
+    while (phrase.exec(s)) {
+      const rest = s.slice(phrase.lastIndex);
+      let m;
+      if ((m = rest.match(/^(\d+) ?\+ ?(?:its )?class level/i))) return { base: +m[1], per: 'level' };
+      if ((m = rest.match(/^(?:its )?class level ?\+ ?(\d+)/i))) return { base: +m[1], per: 'level' };
+      if ((m = rest.match(/^(\d+) ?\+ ?(?:its )?(?:HD|Hit Dice)\b/i))) return { base: +m[1], per: 'hd' };
+      if ((m = rest.match(/^(?:its )?(?:HD|Hit Dice)\b[^+.]*\+ ?(\d+)/i))) return { base: +m[1], per: 'hd' };
+      if ((m = rest.match(/^(\d+)\b(?! ?\+)/))) return { base: +m[1], per: null };
+    }
+    return null;
   },
 
   // Skill points per the MM advancement rules:

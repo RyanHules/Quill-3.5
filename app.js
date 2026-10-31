@@ -615,6 +615,7 @@
         options: {
           pathfinderFeats: false,
           hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
+          grantsHitDie: ClassPicker.grantsHitDie,
           classesB: pickedClassesB,
           bonusFeats: tlFeats.bonus,
         },
@@ -1145,6 +1146,7 @@
       {
         pathfinderFeats: false,
         hitDieByClass: collectHitDiceFromDB(pickedClasses.concat(pickedClassesB)),
+        grantsHitDie: ClassPicker.grantsHitDie,
         classesB: pickedClassesB,
         bonusFeats: tlFeats.bonus,
       },

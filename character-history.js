@@ -91,7 +91,8 @@ const CharacterHistory = (function () {
   // Inputs:
   //   classes  : [{ className, level }]  from ClassPicker.getState()
   //   feats    : [string]                feat names in order
-  //   options  : { pathfinderFeats?: bool, hitDieByClass?: {Class: N} }
+  //   options  : { pathfinderFeats?: bool, hitDieByClass?: {Class: N},
+  //                grantsHitDie?: (className, classLevel) => bool }
 
   function reconstructFromTotals(classes, feats, options) {
     options = options || {};
@@ -101,6 +102,7 @@ const CharacterHistory = (function () {
     // `class_taken_b`; absent → single-class history, fully back-compatible.
     const classesB = Array.isArray(options.classesB) ? options.classesB : [];
     const hitDieByClass = options.hitDieByClass || {};
+    const grantsHitDie = options.grantsHitDie || (() => true);
     const pathfinder = !!options.pathfinderFeats;
 
     // 1. Distribute classes across levels in PICKER ORDER.
@@ -160,8 +162,13 @@ const CharacterHistory = (function () {
       const clsB = classByLevelB[lvl - 1];
       // Gestalt HP defaults to the LARGER Hit Die of the two sides at this
       // level (UA p.73: take the better HD). Non-gestalt uses Side A's die.
-      const dieA = hitDieByClass[cls] || 8;
-      const dieB = clsB ? (hitDieByClass[clsB] || 8) : 0;
+      // A monster class level with no Hit Die rolls none: Mind Flayer 15 is 8d8.
+      const classLevel = (arr, name) =>
+        arr.slice(0, lvl).filter((c) => c === name).length;
+      const dieA = cls && !grantsHitDie(cls, classLevel(classByLevel, cls))
+        ? 0 : (hitDieByClass[cls] || 8);
+      const dieB = !clsB || !grantsHitDie(clsB, classLevel(classByLevelB, clsB))
+        ? 0 : (hitDieByClass[clsB] || 8);
       const die = Math.max(dieA, dieB);
       const entry = {
         level: lvl,
@@ -173,7 +180,7 @@ const CharacterHistory = (function () {
         // At L1 the player typically maxes the die — represent that
         // by using the full die value. The wizard UI will let the
         // user roll / override either way.
-        hp_rolled: lvl === 1 ? die : Math.ceil((die + 1) / 2),
+        hp_rolled: die === 0 ? 0 : lvl === 1 ? die : Math.ceil((die + 1) / 2),
         ability_boost: null,
         skills_purchased: {},
         feats_taken: featsByLevel.get(lvl) || [],

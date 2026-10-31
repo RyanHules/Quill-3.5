@@ -3282,7 +3282,8 @@ test('class-picker: base-class spell advancement is an explicit allowlist (else 
 test('class-picker: every class/prc has non-null bab/fort/ref/will progressions', (db) => {
   const rows = execAll(db,
     "SELECT name, type, source FROM entry " +
-    "WHERE type IN ('class','prc') AND (" +
+    // A racial class has none: its BAB and saves come from the Hit Dice and levels it grants.
+    "WHERE type IN ('class','prc') AND name NOT LIKE '%Racial Class%' AND (" +
     "json_extract(data, '$.bab_progression')  IS NULL OR " +
     "json_extract(data, '$.fort_progression') IS NULL OR " +
     "json_extract(data, '$.ref_progression')  IS NULL OR " +
@@ -3944,7 +3945,8 @@ test('metamagic: level_adjustment values are integer 0-9 or "variable"', (db) =>
 });
 
 test('class-picker: progression values are in canonical set', (db) => {
-  const VALID_BAB = new Set(['good', 'average', 'poor']);
+  // 'none' is Survivor: its table prints BAB +0 at every level (savage_species L9447-9454).
+  const VALID_BAB = new Set(['good', 'average', 'poor', 'none']);
   const VALID_SAVE = new Set(['good', 'poor']);
   const rows = execAll(db,
     "SELECT name, " +
@@ -7112,6 +7114,286 @@ test('monster-class: Ogre L3 aggregates the right ability bumps', (db) => {
   }
   assert(acc.STR === 2, `Ogre L3 STR aggregate expected +2, got ${acc.STR}`);
   assert(acc.CON === 2, `Ogre L3 CON aggregate expected +2, got ${acc.CON}`);
+});
+
+test('monster-class: every Hit Dice table reads as the ordinary formulas counted in Hit Dice', (db) => {
+  // The sheet pools a monster class by its Hit Dice, on a progression read from its
+  // printed table. A wrong row, a wrong Hit Die count or a table that stopped fitting
+  // would still PRINT right on its own (the offset makes up any gap) and only surface
+  // once the class is multiclassed, so pin it here, where a rebuild gets caught.
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  // Every cell off the formula, each read from its book. Nothing else may join them.
+  const OFF_FORMULA = new Map([
+    ['Minotaur 2 fort', 1],     // savage_species L2740: Fort +1 at 2d8
+    ['Minotaur 3 fort', 1],     // savage_species L2742
+    ['Ghoul/Ghast 6 bab', 1],   // libris_mortis L3814: BAB +2 at 3d12
+    ['Ghoul/Ghast 7 bab', 1],   // libris_mortis L3815
+    ['Mohrg 11 bab', -1],       // libris_mortis L3911: BAB +3 at 8d12
+  ]);
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.creature_type') AS creatureType, "
+    + "json_extract(data, '$.bab_progression') AS babLabel, "
+    + "json_extract(data, '$.class_table') AS ct FROM entry "
+    + "WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NOT NULL");
+  let classes = 0, cells = 0;
+  const seen = new Set();
+  for (const r of rows) {
+    const table = JSON.parse(r.ct);
+    const pool = DND35.monsterClassPool(table, r);
+    // A racial class prints no numbers to pin: see the next test.
+    if (!pool || /\bracial class\b/i.test(r.name)) continue;
+    classes++;
+    for (const stat of ['bab', 'fort', 'ref', 'will']) {
+      assert(pool.prog[stat], `${r.name} (${r.source}): no progression fits its printed ${stat}`);
+    }
+    let prevHD = 0;
+    for (const row of table) {
+      const L = Number(row.level);
+      const at = pool.at(L);
+      assert(at.hd - prevHD <= 1 && at.hd >= prevHD,
+        `${r.name} ${L}: Hit Dice go ${prevHD} -> ${at.hd}; the gestalt walk tallies one per level`);
+      assert(at.gained === (at.hd > prevHD), `${r.name} ${L}: gained disagrees with the Hit Dice column`);
+      prevHD = at.hd;
+      for (const stat of ['bab', 'fort', 'ref', 'will']) {
+        cells++;
+        const key = `${r.name} ${L} ${stat}`;
+        if (at.offset[stat] !== 0) seen.add(key);
+        const expected = OFF_FORMULA.has(key) ? OFF_FORMULA.get(key) : 0;
+        assert(at.offset[stat] === expected,
+          `${key}: printed ${at.printed[stat]} is ${at.offset[stat]} off the formula, expected ${expected}`);
+      }
+    }
+  }
+  assertGE(classes, 67, 'expected the monster classes');
+  assertGE(cells, 3068, 'expected their cells');
+  // Both ways, or a stale name in the list would pass silently.
+  assert(seen.size === OFF_FORMULA.size,
+    `off-formula cells seen: ${[...seen].join(', ')}; listed: ${[...OFF_FORMULA.keys()].join(', ')}`);
+});
+
+test('monster-class: DND35.monsterClassPool reads a table', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const row = (level, hit_dice, bab, fort, ref, will) => ({ level, hit_dice, bab, fort, ref, will });
+  assert(DND35.monsterClassPool([{ level: 1, bab: '+1', fort: '+2', natural_armor: 1 }]) === null,
+    'natural armor without a Hit Dice column is not a monster class');
+  assert(DND35.monsterClassPool(null) === null, 'no table, no pool');
+
+  // Mind Flayer's first and last rows, savage_species L19955 and L19973.
+  const mf = DND35.monsterClassPool([
+    row(1, '1d8', '+0', '+0', '+0', '+2'), row(2, '1d8', '+0', '+0', '+0', '+2'),
+    row(3, '2d8', '+1', '+0', '+0', '+3'), row(4, '2d8', '+1', '+0', '+0', '+3'),
+    row(5, '8d8', '+6/+1', '+2', '+2', '+6'),
+  ], { creatureType: 'Aberration', babLabel: 'poor' });
+  assert(JSON.stringify(mf.prog) === '{"bab":"average","fort":"poor","ref":"poor","will":"good"}',
+    `the table beats the label: ${JSON.stringify(mf.prog)}`);
+  assert(mf.at(5).printed.bab === 6, '"+6/+1" reads as +6');
+  assert(mf.at(1).gained === true && mf.at(2).gained === false, 'gained follows the Hit Dice column');
+  assert(mf.fractional === false, 'whole dice are not fractional');
+  const past = mf.at(9);
+  assert(past.hd === 8 && past.printed.will === 6 && past.gained === false,
+    'past the table the final numbers hold and nothing new is gained');
+  assert(mf.at(0).hd === 0 && mf.at(0).printed.bab === 0, 'below 1st level there is nothing');
+
+  // Grig, savage_species L18968.
+  const grig = DND35.monsterClassPool([row(1, '1/2 d6', '+0', '+0', '+2', '+2')],
+    { creatureType: 'Fey', babLabel: 'poor' });
+  assert(grig.fractional === true && grig.at(1).hd === 1 && grig.at(1).offset.ref === 0,
+    'a fractional Hit Die counts as one and fits the formula');
+
+  // BAB +1 at 2 HD fits average and poor. Type settles it, then the label.
+  const tie = (hints) => DND35.monsterClassPool([row(1, '2d8', '+1', '+0', '+3', '+0')], hints).prog.bab;
+  assert(tie({ creatureType: 'Elemental (Fire)', babLabel: 'poor' }) === 'average', 'type before label');
+  assert(tie({ babLabel: 'average' }) === 'average', 'label when there is no type');
+  assert(tie({ babLabel: 'good' }) === 'poor', 'a label that does not fit is ignored');
+  assert(tie(null) === 'poor', 'no hints at all');
+});
+
+test('monster-class: the DB label and the sheet read the same progression from a table', (db) => {
+  // Two implementations of one rule, _class_metadata._reconcile_labels_with_table and
+  // DND35.monsterClassPool, so compare them. The lookup card prints one; totals use the other.
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.creature_type') AS creatureType, "
+    + "json_extract(data, '$.bab_progression') AS babLabel, "
+    + "json_extract(data, '$.fort_progression') AS fort, json_extract(data, '$.ref_progression') AS ref, "
+    + "json_extract(data, '$.will_progression') AS will, json_extract(data, '$.class_table') AS ct "
+    + "FROM entry WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NOT NULL");
+  let n = 0;
+  for (const r of rows) {
+    if (/\bracial class\b/i.test(r.name)) continue;
+    const pool = DND35.monsterClassPool(JSON.parse(r.ct), r);
+    if (!pool) continue;
+    n++;
+    const want = `${r.babLabel}/${r.fort}/${r.ref}/${r.will}`;
+    const got = `${pool.prog.bab}/${pool.prog.fort}/${pool.prog.ref}/${pool.prog.will}`;
+    assert(got === want, `${r.name} (${r.source}): the sheet reads ${got}, the DB says ${want}`);
+  }
+  assertGE(n, 67, 'expected the monster classes');
+});
+
+test('printed cells: a class prints off its label only where the book really does', (db) => {
+  // Each cell below was read on the page on 2026-10-31. A new one means a rebuild changed a
+  // table, and the sheet would now show that number, so it has to be looked at.
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const OFF = {
+    'Disciple of Baalzebul 9 bab': 1, 'Disciple of Baalzebul 10 bab': 1,   // book_of_vile_darkness L6325-6326
+    'Disciple of Mammon 1 bab': 1, 'Disciple of Mammon 2 bab': 1, 'Disciple of Mammon 3 bab': 1,
+    'Disciple of Mammon 5 bab': 1, 'Disciple of Mammon 6 bab': 1, 'Disciple of Mammon 7 bab': 1,
+    'Disciple of Mammon 9 bab': 1, 'Disciple of Mammon 10 bab': 1,         // L6474-6483
+    'Holy Liberator 9 will': -1,                                           // complete_divine L4707
+    'Anarchic Initiate 9 will': 1,                                         // complete_psionic L2080
+    'Warshaper 2 ref': 1, 'Warshaper 2 will': 1,                           // complete_warrior L9695
+    'Dragonstalker 10 fort': 1,                                            // draconomicon L13033
+    'Dreadmaster 2 fort': -1, 'Dreadmaster 2 will': -1,                    // faiths_pantheons L26951
+    'Divine Agent 8 fort': 1, 'Divine Agent 8 ref': 1,                     // manual_of_the_planes L2538
+    'Illithid Savant 10 fort': 1,                                          // savage_species L8292
+    'Master of Flies 10 fort': 1,                                          // L8477
+    'Siren 10 fort': 1,                                                    // L9037
+    'Sybil 10 fort': 1,                                                    // L9648
+    'Legendary Captain 9 fort': 1, 'Legendary Captain 9 will': 1,          // stormwrack L5802
+    'Stormcaster 2 will': 1, 'Stormcaster 5 will': 1, 'Stormcaster 8 will': 1, // L7576-7582
+    'Swordsage 13 bab': 1, 'Swordsage 17 bab': 1,                          // tome_of_battle L1559, L1563
+    'Swift Scion 2 fort': 1,                                               // unearthed_arcana L18874
+  };
+  const rows = execAll(db,
+    "SELECT name, json_extract(data, '$.bab_progression') AS bab, json_extract(data, '$.fort_progression') AS fort, "
+    + "json_extract(data, '$.ref_progression') AS ref, json_extract(data, '$.will_progression') AS will, "
+    + "json_extract(data, '$.class_table') AS ct FROM entry "
+    + "WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NOT NULL");
+  const seen = new Set(), wrong = [];
+  for (const r of rows) {
+    const table = JSON.parse(r.ct);
+    if (!Array.isArray(table) || table.some(x => x && x.hit_dice != null)) continue;
+    for (const row of table) {
+      if (!row || !(Number(row.level) >= 1)) continue;
+      const off = DND35.printedOffset(row, row.level, r);
+      for (const stat of ['bab', 'fort', 'ref', 'will']) {
+        if (!off[stat]) continue;
+        const key = `${r.name} ${row.level} ${stat}`;
+        seen.add(key);
+        if (OFF[key] !== off[stat]) wrong.push(`${key}: ${off[stat]}`);
+      }
+    }
+  }
+  assert(!wrong.length, `off the label and not on the list: ${wrong.slice(0, 12).join('; ')}`);
+  const stale = Object.keys(OFF).filter(k => !seen.has(k));
+  assert(!stale.length, `listed but no longer off: ${stale.join('; ')}`);
+});
+
+test('racial class: BAB and saves come only from the racial Hit Dice its table names', (db) => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.class_table') AS ct FROM entry "
+    + "WHERE type = 'class' AND name LIKE '%Racial Class%'");
+  assertGE(rows.length, 8, 'expected the racial classes');
+  // Which grant a Hit Die, and the race's type: complete_psionic L18379-18381 and
+  // monster_manual_iv L18028, then the race entries. A rebuild that drops the "Racial Hit
+  // Die" wording would make these quietly add nothing, so pin the count.
+  const GRANTS = {
+    'Thri-Kreen Racial Class': ['Monstrous Humanoid', 2],
+    'Varag Racial Class': ['Humanoid', 3],
+  };
+  for (const r of rows) {
+    const want = GRANTS[r.name];
+    const pool = DND35.monsterClassPool(JSON.parse(r.ct),
+      { name: r.name, creatureType: want && want[0] });
+    assert(pool, `${r.name}: not read as a racial class`);
+    assert(pool.at(99).hd === (want ? want[1] : 0),
+      `${r.name}: final Hit Dice ${pool.at(99).hd}, expected ${want ? want[1] : 0}`);
+    if (!want) {
+      assert(pool.prog.bab === null && pool.at(1).printed.fort === 0,
+        `${r.name}: grants no Hit Die, so it adds nothing`);
+    }
+  }
+  assert(DND35.monsterClassPool([{ level: 1, special: 'Feat' }], { name: 'Fighter' }) === null,
+    'an ordinary class with no numbers is not a racial class');
+});
+
+test('printed cells: DND35.printedOffset is what a row prints beyond its labels', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const prog = { bab: 'poor', fort: 'poor', ref: 'poor', will: 'good' };
+  const off = (row, level) => JSON.stringify(DND35.printedOffset(row, level, prog));
+  const ZERO = '{"bab":0,"fort":0,"ref":0,"will":0}';
+  // Illithid Savant 10th, savage_species table at L8280: Fort +4 where poor is +3.
+  assert(off({ bab: '+5', fort: '+4', ref: '+3', will: '+7' }, 10)
+    === '{"bab":0,"fort":1,"ref":0,"will":0}', 'one cell off');
+  assert(off({ bab: '+5', fort: '+3', ref: '+3', will: '+7' }, 10) === ZERO, 'on the formula');
+  assert(off({ bab: '+6/+1', fort: '+3', ref: '+3', will: '+7' }, 10)
+    === '{"bab":1,"fort":0,"ref":0,"will":0}', '"+6/+1" reads as +6');
+  assert(off({ level: 10 }, 10) === ZERO, 'an empty row says nothing');
+  assert(off(null, 10) === ZERO, 'no row says nothing');
+  assert(JSON.stringify(DND35.printedOffset({ bab: '+5' }, 10, {})) === ZERO, 'no label, no gap to measure');
+});
+
+test('monster-class: every spell resistance a monster class names can be read', (db) => {
+  // This broke silently once: a re-walk changed the wording from "SR equal to" to "spell
+  // resistance equal to", the parser matched nothing, and 22 classes lost the number with
+  // no error anywhere. A rebuild has to fail here rather than ship a blank field.
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const rows = execAll(db,
+    "SELECT name, source, json_extract(data, '$.class_table') AS ct, "
+    + "json_extract(data, '$.class_features') AS cf FROM entry "
+    + "WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NOT NULL");
+  const names = [];
+  for (const r of rows) {
+    const table = JSON.parse(r.ct);
+    if (!table.some(x => x && x.hit_dice != null)) continue;
+    const srRows = table.filter(x => /spell resistance|\bSR\b/i.test((x && x.special) || ''));
+    if (!srRows.length) continue;
+    names.push(r.name);
+    const feats = JSON.parse(r.cf || '[]');
+    const feat = (Array.isArray(feats) ? feats : [])
+      .find(f => /spell resistance/i.test((f && f.name) || ''));
+    for (const row of srRows) {
+      assert(DND35.parseSpellResistance(row.special)
+          || (feat && DND35.parseSpellResistance(feat.description)),
+        `${r.name} (${r.source}) ${row.level}: cannot read a value from "${row.special}"`
+        + ` or its feature text`);
+    }
+  }
+  assertGE(names.length, 22, `expected the SR-granting monster classes, got ${names.join(', ')}`);
+});
+
+test('monster-class: DND35.parseSpellResistance reads the printed shapes', () => {
+  const DND35 = new Function(readSource('data.js') + '\nreturn DND35;')();
+  const read = (t) => JSON.stringify(DND35.parseSpellResistance(t));
+  const LEVEL = (base) => JSON.stringify({ base, per: 'level' });
+  const HD = (base) => JSON.stringify({ base, per: 'hd' });
+  const FLAT = (base) => JSON.stringify({ base, per: null });
+  // Each is the book's wording: savage_species unless marked.
+  assert(read('has spell resistance equal to 7 + class level.') === LEVEL(7), 'L16625');
+  assert(read('gains spell resistance equal to its class level + 10.') === LEVEL(10), 'L18298');
+  assert(read('gains spell resistance equal to its class level +8.') === LEVEL(8), 'Ghaele');
+  assert(read('gains spell resistance is equal to 5 + class level.') === LEVEL(5), 'L19227');
+  assert(read('has spell resistance equal to 4 + its class level.') === LEVEL(4), 'L18729');
+  assert(read('has spell resistance equal to 9 + Hit Dice from class level.') === HD(9), 'L19526');
+  assert(read('has spell resistance equal to 11 + its HD from class levels.') === HD(11), 'L20639');
+  assert(read('+2 Cha, spell resistance 5 + Hit Dice') === HD(5), 'planar_handbook L2119');
+  assert(read('natural weapons, spell resistance 10 + class level, wings') === LEVEL(10), 'planar_handbook L1820');
+  assert(read('SR 13, +2 Dex') === FLAT(13), 'L17279');
+  assert(read('Dancing chains (4), spell resistance 17') === FLAT(17), 'planar_handbook L2127');
+  assert(read('Cha +2, spell-like abilities (charm person 3/day), SR 16') === FLAT(16), 'L20159');
+  // Names the ability and gives no number: the caller falls back to the feature text.
+  assert(read('+2 Str, spell resistance') === 'null', 'L18331');
+  assert(read('Spell resistance, evil eye 1/day, +2 Str') === 'null', 'L20656');
+  assert(read('Like spell resistance, a rakshasa may suppress this ability') === 'null', 'Rakshasa');
+  assert(read('') === 'null' && read(null) === 'null', 'nothing to read');
+});
+
+test('monster-class: a class with no table of its own points at one that has it', (db) => {
+  // Scrag prints no table: "Scrags use all information from the troll class"
+  // (savage_species L21180). fetchClassTable resolves that through variant_of, so any
+  // table-less class has to resolve, or its numbers quietly fall back to a label.
+  const empty = execAll(db,
+    "SELECT name, source, json_extract(data, '$.variant_of') AS parent FROM entry "
+    + "WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NULL");
+  for (const e of empty) {
+    assert(e.parent, `${e.name} (${e.source}) has no table and no variant_of`);
+    const p = execOne(db,
+      "SELECT json_extract(data, '$.class_table') AS ct FROM entry "
+      + "WHERE type IN ('class','prc') AND name = ? AND source = ?", [e.parent, e.source]);
+    assert(p && p.ct, `${e.name}: variant_of "${e.parent}" has no table in ${e.source}`);
+  }
 });
 
 test('monster-class: class-picker wiring is present + persists monsterExt', () => {

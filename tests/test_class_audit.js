@@ -255,16 +255,20 @@ const CHECKS = {
 
   'bab-progression-set': (ctx) => {
     // DB stores 'good' (full BAB, e.g. Fighter), 'average' (3/4 BAB,
-    // e.g. Cleric / Monk / Rogue), 'poor' (1/2 BAB, e.g. Wizard).
+    // e.g. Cleric / Monk / Rogue), 'poor' (1/2 BAB, e.g. Wizard), and 'none'
+    // where the table prints +0 throughout (Survivor). A racial class has no
+    // label: its BAB comes from the Hit Dice and class levels it grants.
     const p = ctx.data.bab_progression;
+    if (/\bracial class\b/i.test(ctx.data.name || '')) return null;
     if (!p) return 'bab_progression missing';
-    if (!['good', 'average', 'poor'].includes(p)) {
+    if (!['good', 'average', 'poor', 'none'].includes(p)) {
       return `bab_progression has unexpected value: ${JSON.stringify(p)}`;
     }
     return null;
   },
 
   'saves-progression-set': (ctx) => {
+    if (/\bracial class\b/i.test(ctx.data.name || '')) return null;
     const missing = [];
     for (const ab of ['fort', 'ref', 'will']) {
       const key = `${ab}_progression`;

@@ -1052,11 +1052,41 @@
   // character level is max(ΣA, ΣB), NOT their sum. Used by the initiator-level
   // "+1/2 of your other levels" math, which would over-count if it summed both
   // tracks. Non-gestalt is the simple sum (unchanged).
+  //
+  // A level that grants no Hit Die does not count (see levelsWithoutHitDice), which is
+  // what character level means: Savage Species p.5 has "Use character level for all game
+  // functions" except experience and starting wealth, which use the #char-level box.
   function totalCharacterLevel() {
     const sum = (arr) => arr.reduce((s, e) => s + (e.level || 0), 0);
-    return gestalt
+    const total = gestalt
       ? Math.max(sum(pickedClasses), sum(pickedClassesB))
       : sum(pickedClasses);
+    return total - levelsWithoutHitDice();
+  }
+
+  // How many character levels grant no Hit Die on any track: a monster class's dead
+  // levels (Mind Flayer 15 has 7) and a racial class's, unless the other gestalt side
+  // grants one at that level. Zero for every ordinary class. Monster classes "should only
+  // contribute BAB (and max skill level, for that matter) at the level they get RHD"
+  // (Ryan, report rmtk6jub4-ftbz). Subtracted rather than summed so a typed #char-level
+  // still counts everywhere it did.
+  function levelsWithoutHitDice(sideA = pickedClasses, sideB = gestalt ? pickedClassesB : []) {
+    const a = expandTrack(sideA), b = expandTrack(sideB);
+    const dead = (cat) => !cat || !('bab' in cat);
+    let n = 0;
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (dead(a[i]) && dead(b[i])) n++;
+    }
+    return n;
+  }
+
+  // Does this class's Nth level grant a Hit Die? Always, unless it is a monster class or
+  // a racial class whose table says otherwise. Unknown classes count as yes.
+  function grantsHitDie(className, classLevel) {
+    const k = String(className || '').toLowerCase();
+    const entry = classPool().find(e => String(e.className || '').toLowerCase() === k);
+    const pool = monsterPool(entry);
+    return !pool || !!pool.at(classLevel).gained;
   }
   // Public-API setters (referenced by name from window.ClassPicker so the
   // export object stays a flat brace-free literal).
@@ -1109,12 +1139,14 @@
   // applied variant replaces. What none of it touched was the NUMBERS: no
   // consumer ever asked an ACF about a progression. This is that half.
   //
-  // Resolved at READ time rather than written into `e.prog`, because prog is
-  // persisted and "the saved BAB/saves are authoritative" — baking an override
+  // Resolved at READ time rather than written into `e.prog`: baking an override
   // in would make it survive removing the variant, which is the sticky-field
   // failure this file has been bitten by before.
+  //
+  // A monster class's table replaces its label here, for the same reason.
   function progFor(entry) {
-    const base = entry.prog || {};
+    const pool = monsterPool(entry);
+    const base = pool ? pool.prog : (entry.prog || {});
     if (!entry.className) return base;
     let overrides = null;
     try {
@@ -1141,6 +1173,72 @@
     return Object.assign({}, base, overrides);
   }
 
+  // A monster class pools by its Hit Dice, the way multiclass levels pool (Ryan,
+  // 2026-10-31). See DND35.monsterClassPool for why the table can be read that way;
+  // this is null for every other class. Mind Flayer 15 therefore enters the pool as
+  // 8 average / poor / poor / good, which IS its printed +6/+2/+2/+6, and a Wizard 5
+  // beside it gets the good-save +2 once, same as racial Hit Dice (addRacialHD).
+  //
+  // A row that cannot be trusted to mean this class stays out: an unresolved save
+  // row keeps a saved classId, and those renumber on a DB rebuild.
+  //
+  // A fractional Hit Die does not survive a real class. Savage Species p.6: "the
+  // first Hit Die it gains in an actual character class replaces its racial Hit Die
+  // or portion thereof", and p.105: monsters under 1 HD "take on that character class
+  // entirely". So Grig 4 / Rogue 1 is a Rogue 1. A whole Hit Die stays in the pool:
+  // p.13 lets a creature keep it, and the printed pixies with class levels do.
+  // Another monster class is not an "actual character class", and a gestalt side
+  // only replaces its own track: the other side's classes are not stacked on it.
+  const monsterPoolCache = new Map();
+  function fractionalDieReplaced(pool, entries) {
+    return !!(pool && pool.fractional) &&
+      (entries || []).some(o => !o.racialHD && !monsterPool(o));
+  }
+  function monsterPool(entry) {
+    if (!entry || !entry.classId || entry.racialHD || entry._unhydrated) return null;
+    if (typeof DND35 === 'undefined' || !DND35.monsterClassPool) return null;
+    if (monsterPoolCache.has(entry.classId)) return monsterPoolCache.get(entry.classId);
+    const hints = DB.queryOne(
+      "SELECT name, json_extract(data, '$.creature_type') AS creatureType, "
+      + "json_extract(data, '$.bab_progression') AS babLabel "
+      + "FROM entry WHERE id = ?", [entry.classId]);
+    // A racial class names its creature, and the race says what kind of Hit Die it is.
+    if (hints && !hints.creatureType && /\sracial class$/i.test(hints.name || '')) {
+      const race = DB.queryOne(
+        "SELECT json_extract(data, '$.racial_hd_type') AS t FROM entry WHERE type = 'race' "
+        + "AND name = ? COLLATE NOCASE AND json_extract(data, '$.racial_hd_type') IS NOT NULL "
+        + "LIMIT 1", [hints.name.replace(/\s+racial class$/i, '')]);
+      if (race) hints.creatureType = race.t;
+    }
+    const pool = DND35.monsterClassPool(fetchClassTable(entry.classId), hints);
+    monsterPoolCache.set(entry.classId, pool);
+    return pool;
+  }
+
+  // What a class's printed row says beyond its labels, for a class that pools by level.
+  // An unresolved row has no table to read, and the label on the row being read is the
+  // class's own: an ACF that overrides a progression changes the pool, not the book.
+  function ordinaryOffset(entry) {
+    if (!entry || !entry.classId || entry.racialHD || entry._unhydrated || !entry.prog) return null;
+    const row = fetchClassTable(entry.classId)
+      .find(r => r && Number(r.level) === Number(entry.level));
+    return row ? DND35.printedOffset(row, entry.level, entry.prog) : null;
+  }
+
+  // What the printed tables say beyond the formulas: a handful of cells across the DB,
+  // listed in test_pickers. Without this they are one off the book, or in Survivor's
+  // case a whole progression off. The printed number wins (Ryan, 2026-10-31).
+  function printedOffsets(entries) {
+    const off = { bab: 0, fort: 0, ref: 0, will: 0 };
+    for (const e of (entries || [])) {
+      const pool = monsterPool(e);
+      const o = pool ? pool.at(e.level).offset : ordinaryOffset(e);
+      if (!o) continue;
+      off.bab += o.bab; off.fort += o.fort; off.ref += o.ref; off.will += o.will;
+    }
+    return off;
+  }
+
   function levelGroups(entries) {
     const g = {
       bab:  { good: 0, avg: 0, poor: 0 },
@@ -1149,7 +1247,10 @@
       will: { good: 0, poor: 0 },
     };
     for (const e of entries) {
-      const lvl = e.level;
+      const pool = monsterPool(e);
+      const lvl = !pool ? e.level
+        : fractionalDieReplaced(pool, entries) ? 0
+        : pool.at(e.level).hd;
       const p = progFor(e);
       const bc = babCategory(p.bab);   if (bc) g.bab[bc] += lvl;
       const fc = saveCategory(p.fort); if (fc) g.fort[fc] += lvl;
@@ -1212,7 +1313,9 @@
     for (const e of entries) lvl += e.level;
     const g = levelGroups(entries);
     const t = totalsFromGroups(g, useFractional);
-    return { bab: t.bab, fort: t.fort, ref: t.ref, will: t.will, lvl };
+    const o = printedOffsets(entries);
+    return { bab: t.bab + o.bab, fort: t.fort + o.fort,
+             ref: t.ref + o.ref, will: t.will + o.will, lvl };
   }
 
   // ── Gestalt synthesis (UA p.72-73) ───────────────────────────────────
@@ -1220,11 +1323,11 @@
   // progression CATEGORIES, walking classes as contiguous blocks in array
   // order (the same level distribution build-timeline's reconstructFromTotals
   // uses). A class with no progression in a category yields null for that
-  // level — Savage-Species monster classes have "dead" levels (no Hit Die /
-  // no save bump), and null contributes 0 by construction. `betterCat` ranks
-  // none BELOW poor so the per-level max falls through to the live side
-  // (max(present, null) = present), which is what lets a no-progression-
-  // every-level monster class slot in later without an engine change.
+  // level — a monster class level that grants no Hit Die is "dead" (Mind Flayer
+  // has 8 Hit Dice across 15 levels), and null contributes 0 by construction.
+  // `betterCat` ranks none BELOW poor so the per-level max falls through to the
+  // live side (max(present, null) = present): UA says to choose the better
+  // progression from the two classes, and a dead level has none to offer.
   function expandTrack(entries) {
     const out = [];
     for (const e of (entries || [])) {
@@ -1235,8 +1338,12 @@
         ref:  saveCategory(p.ref),
         will: saveCategory(p.will),
       };
+      const pool = monsterPool(e);
+      const replaced = fractionalDieReplaced(pool, entries);
       const n = e.level || 0;
-      for (let i = 0; i < n; i++) out.push(cat);
+      for (let i = 0; i < n; i++) {
+        out.push(replaced || (pool && !pool.at(i + 1).gained) ? {} : cat);
+      }
     }
     return out;
   }
@@ -1272,6 +1379,20 @@
       const will = betterCat(a.will, b.will, SAVE_RANK); if (will) g.will[will]++;
     }
     const t = totalsFromGroups(g, useFractional);
+    if (ea.length && eb.length) {
+      // A printed number above the formula is still that side's number, and UA
+      // says to take the better: Minotaur 2 // Wizard 2 keeps its printed Fort +1.
+      // A number BELOW the formula (Mohrg 11) gives way to the synthesis.
+      for (const side of [sideA, sideB]) {
+        const o = printedOffsets(side);
+        for (const k of ['bab', 'fort', 'ref', 'will']) {
+          if (o[k] > 0) t[k] = Math.max(t[k], aggregateTotals(side)[k]);
+        }
+      }
+    } else {
+      const o = printedOffsets((sideA || []).concat(sideB || []));
+      for (const k of ['bab', 'fort', 'ref', 'will']) t[k] += o[k];
+    }
     return { bab: t.bab, fort: t.fort, ref: t.ref, will: t.will,
              lvl: Math.max(ea.length, eb.length),
              lenA: ea.length, lenB: eb.length };
@@ -1281,10 +1402,16 @@
     const totals = gestalt
       ? gestaltTotals(pickedClasses, pickedClassesB)
       : aggregateTotals(pickedClasses);
-    setNumeric('bab-1',     totals.bab);
-    setNumeric('fort-base', totals.fort);
-    setNumeric('ref-base',  totals.ref);
-    setNumeric('will-base', totals.will);
+    // BAB and base saves are always what the classes compute, so this overwrites a
+    // typed number (Ryan, 2026-10-31: a real discrepancy belongs in a value of its own,
+    // not in these fields). The exception is a class the DB could not resolve: it adds
+    // nothing here, so writing would drop its levels and the next Save would keep the loss.
+    if (!classPool().some(e => e._unhydrated)) {
+      setNumeric('bab-1',     totals.bab);
+      setNumeric('fort-base', totals.fort);
+      setNumeric('ref-base',  totals.ref);
+      setNumeric('will-base', totals.will);
+    }
     // Rebuild #char-class textarea verbatim from entries, then append
     // the bloodline as another level segment, e.g.
     // "Scout 3 / Rogue 2 / Fireclaw Bloodline 1" — UA bloodline levels
@@ -1532,6 +1659,25 @@
           `both sides at the same level; stats use the higher (${t.lvl}).`;
         listB.appendChild(note);
       }
+    }
+
+    // A warning rather than a correction, same as the sides above: which of the two
+    // the player meant is theirs to say, and the numbers stay what they picked.
+    const twice = racialDoubleCount();
+    if (twice) {
+      const note = document.createElement('span');
+      note.id = 'mc-racial-double-count';
+      note.style.cssText =
+        'flex:1 1 100%; font-size:0.8em; color:#c9a85a; ' +
+        'padding:0.15rem 0.3rem;';
+      note.textContent =
+        `⚠ ${twice.race} is counted twice: the race adds ${twice.hd} racial Hit Dice ` +
+        `and the ${twice.className} class adds its own, and their ability adjustments ` +
+        `stack too. ` +
+        (twice.raceToUse
+          ? `Use the race "${twice.raceToUse}" with this class, or remove one.`
+          : 'Remove one.');
+      list.appendChild(note);
     }
 
     // Clear All clears BOTH sides; shown once total ≥ 2.
@@ -2091,19 +2237,51 @@
     removeClass(`${creatureRace} (racial HD)`);
   }
 
-  // Double-count guard for creature-race-picker: true when a Savage
-  // Species monster CLASS for the same creature is already applied
-  // (those carry monsterExt + their own class_table HD, so layering the
-  // creature-as-race racial HD on top would count the HD/abilities
-  // twice). Matched by class name == creature name (case-insensitive).
+  // A creature name without its qualifier: "Hound Archon (Celestial)" and "Hound
+  // Archon" are one creature, and so are the old "Ogre (Monster Class)" and "Ogre".
+  function creatureKey(name) {
+    return String(name || '').replace(/\s*\([^)]*\)/g, '')
+      .replace(/\s+racial class$/i, '').trim().toLowerCase();
+  }
+
+  // The creatures a monster class IS. A slash names two (Succubus/Incubus), and a
+  // variant is also its parent: Merrow uses "all information from the ogre class".
+  function monsterClassCreatures(entry) {
+    const out = new Set(creatureKey(entry.className).split('/').map(s => s.trim()));
+    const row = DB.queryOne(
+      "SELECT json_extract(data, '$.variant_of') AS variant_of FROM entry WHERE id = ?",
+      [entry.classId]);
+    if (row && row.variant_of) out.add(creatureKey(row.variant_of));
+    return out;
+  }
+
+  function monsterClassFor(creatureName) {
+    const k = creatureKey(creatureName);
+    if (!k) return null;
+    // Union of both sides: one character, however the two tracks divide it.
+    return classPool().find(e => monsterPool(e) && monsterClassCreatures(e).has(k)) || null;
+  }
+
+  // Double-count guard: true when the monster CLASS for this creature is applied. The
+  // class brings its own Hit Dice and ability ramp, so the creature's racial Hit Dice and
+  // ability adjustments on top of it count everything twice.
   function hasMonsterClassFor(creatureName) {
-    if (!creatureName) return false;
-    const k = String(creatureName).toLowerCase();
-    // Union — a monster class for this creature on EITHER side should
-    // suppress layering creature-as-race racial HD on top of it.
-    return classPool().some(e =>
-      !e.racialHD && e.monsterExt &&
-      e.className.toLowerCase() === k);
+    return !!monsterClassFor(creatureName);
+  }
+
+  // The race and the monster class on this character when they are the same creature,
+  // or null. Read from the current classes rather than at either pick, so the order they
+  // were applied in and a reload cannot matter. Different creatures are fine: a gnoll
+  // slain by a vampire rises as "a gnoll 1st-level vampire spawn" (Libris Mortis p.34).
+  function racialDoubleCount() {
+    const racial = classPool().find(e => e.racialHD);
+    const cls = racial && monsterClassFor(racial.creatureRace);
+    if (!cls) return null;
+    const asRace = DB.queryOne(
+      "SELECT name FROM entry WHERE type = 'race' AND name = ? COLLATE NOCASE LIMIT 1",
+      [`${cls.className.replace(/\s*\(monster class\)\s*$/i, '')} (Monster Class)`]);
+    return { race: racial.creatureRace, hd: racial.level, className: cls.className,
+             raceToUse: asRace ? asRace.name : null };
   }
 
   // ============================================================
@@ -2111,8 +2289,12 @@
   //
   // Monkey-patch Character.collectData / loadData. On save, append
   // `_multiclass` with the current state. On load, restore the array
-  // and re-render the chip list, but DO NOT recompute aggregates — the
-  // saved BAB/saves are authoritative (so manual edits survive).
+  // and re-render the chip list. Aggregates are not recomputed HERE, because the
+  // variants they read load after this, but they are recomputed before the load ends:
+  // App.loadData reaches Bloodline.loadData, whose bloodline-changed event runs
+  // applyAggregatesToSheet. So a saved BAB or base save does not survive a load, by
+  // ruling (see applyAggregatesToSheet). MC12 pins it, so moving that event flips no
+  // behaviour silently.
   //
   // Gestalt: Side A persists as `_multiclass` exactly as before; Side B
   // (when gestalt is on) persists as the parallel `_multiclassB`, plus a
@@ -2177,8 +2359,8 @@
     // Resolve by name+source FIRST (entry.id renumbers on DB rebuild).
     const cls = resolveMulticlassStub(stub);
     if (!cls) {
-      // Preserve the stub so save doesn't drop it. prog missing → recalc
-      // skipped per the "saved BAB/saves are authoritative" rule.
+      // Preserve the stub so save doesn't drop it. While one of these is on
+      // the sheet, applyAggregatesToSheet leaves the saved BAB and saves alone.
       return {
         className: stub.className,
         level: stub.level,
@@ -2527,7 +2709,8 @@
   function fetchClassTable(classId) {
     if (classTableCache.has(classId)) return classTableCache.get(classId);
     const row = DB.queryOne(
-      "SELECT json_extract(data, '$.class_table') AS class_table "
+      "SELECT json_extract(data, '$.class_table') AS class_table, "
+      + "json_extract(data, '$.variant_of') AS variant_of, source "
       + "FROM entry WHERE id = ?", [classId]);
     let arr = [];
     if (row && row.class_table) {
@@ -2535,6 +2718,15 @@
       catch (e) { console.warn('[class-picker] bad class_table JSON', e); }
     }
     if (!Array.isArray(arr)) arr = [];
+    // A variant that prints no table uses its parent's. Savage Species L21180:
+    // "Scrags use all information from the troll class". The entry stays as printed
+    // and the reference resolves here, on the way out.
+    if (!arr.length && row && row.variant_of) {
+      const parent = DB.queryOne(
+        "SELECT id FROM entry WHERE type IN ('class','prc') AND name = ? AND source = ?",
+        [row.variant_of, row.source]);
+      if (parent && parent.id !== classId) arr = fetchClassTable(parent.id);
+    }
     classTableCache.set(classId, arr);
     return arr;
   }
@@ -2623,38 +2815,47 @@
   // sums ability_changes across L1..applied-level, and takes the
   // most-recent non-null value of the cumulative fields.
 
-  // Savage Species SR grant. The value rule lives in the "Spell Resistance"
-  // class feature prose; the level it starts is the first class_table row whose
-  // `special` names SR. Two shapes across the 18 SR-granting SS classes:
-  //   "SR equal to 10 + class level" / "class level + 10" / "10 + HD from class"
-  //        → SR = N + class level, from firstLevel on (Mind Flayer L6→16 … L15→25)
-  //   "SR 13." (Azer, Nixie)  → flat SR = 13, from firstLevel on.
+  // Monster class SR. The table says when, and sometimes how much; otherwise the "Spell
+  // Resistance" class feature does. The shapes across the 22 monster classes that have it:
+  //   a row with its own number, "SR 13" (Azer) or "spell resistance 17" (Chain Devil 12)
+  //   a row with its own rule, "spell resistance 10 + class level" (Avoral Guardinal)
+  //   a bare row, with the rule in the feature: 10 + class level (Mind Flayer), or
+  //   11 + HD from class levels (Sea Hag). HD means Hit Dice, not levels: Sea Hag 8 is
+  //   3d8, so 14, the sea hag's own SR. "Level" is level in the monster class, not the
+  //   character's (Savage Species p.26).
+  // The latest row at or below `atLevel` governs, since Chain Devil changes rule at 12th.
+  // Flesh Golem's Magic Immunity "supersedes the golem's spell resistance ability".
   // Returns the SR value at `atLevel`, or null (class grants none / not reached).
   function getSpellResistanceValue(classId, table, atLevel) {
-    const row = DB.queryOne(
+    // A racial class's "class level" is the standard levels it grants, a column the DB
+    // lost: Drow 4th is class 2nd, so 11 + class level is 13, not 15 (Drow of the
+    // Underdark L23921-23922, L23934-23953). The race writes it as text instead.
+    const owner = monsterPool({ classId });
+    if (owner && owner.racial) return null;
+    const level = Number(atLevel);
+    const row = (table || [])
+      .filter(r => /spell resistance|\bSR\b/i.test((r && r.special) || ''))
+      .filter(r => Number(r.level) <= level)
+      .pop();
+    if (!row) return null;
+    const entry = DB.queryOne(
       "SELECT json_extract(data,'$.class_features') AS cf FROM entry WHERE id = ?",
       [classId]);
     let feats = [];
-    try { feats = row && row.cf ? JSON.parse(row.cf) : []; } catch (e) { return null; }
-    const srFeat = Array.isArray(feats)
-      && feats.find(f => /spell resistance/i.test((f && f.name) || ''));
-    if (!srFeat) return null;
-    const text = String(srFeat.description || srFeat.text || '');
-    let base, scales;
-    const m = text.match(/SR\s+equal\s+to\s+(\d+)\s*\+\s*(?:class level|HD from class)/i)
-           || text.match(/SR\s+equal\s+to\s+(?:class level|HD from class)\s*\+\s*(\d+)/i);
-    if (m) { base = parseInt(m[1], 10); scales = true; }
-    else {
-      const flat = text.match(/\bSR\s+(\d+)\b/i);   // flat "SR 13."
-      if (!flat) return null;
-      base = parseInt(flat[1], 10); scales = false;
-    }
-    // Level SR first applies: first table row whose `special` names SR —
-    // "spell resistance" (formula classes) or "SR 13"/"SR 16" (flat classes).
-    const firstRow = (table || []).find(r =>
-      /spell resistance|\bSR\b/i.test(r.special || ''));
-    if (!firstRow || Number(atLevel) < Number(firstRow.level)) return null;
-    return scales ? base + Number(atLevel) : base;
+    try { feats = entry && entry.cf ? JSON.parse(entry.cf) : []; } catch (e) { return null; }
+    if (!Array.isArray(feats)) feats = [];
+    const text = (f) => String((f && (f.description || f.text)) || '');
+    const superseding = feats.find(f => /supersedes[^.]*spell resistance/i.test(text(f)));
+    if (superseding && level >= Number(superseding.level_acquired)) return null;
+    const rule = DND35.parseSpellResistance(row.special)
+      || DND35.parseSpellResistance(
+        text(feats.find(f => /spell resistance/i.test((f && f.name) || ''))));
+    if (!rule) return null;
+    if (!rule.per) return rule.base;
+    // Past the table the numbers stop, as they do for BAB and saves.
+    const held = Math.min(level, Number(table[table.length - 1].level));
+    const pool = rule.per === 'hd' ? monsterPool({ classId }) : null;
+    return rule.base + (pool ? pool.at(held).hd : held);
   }
 
   function getMonsterClassExtensions(classId, atLevel) {
@@ -2673,7 +2874,11 @@
     let racialHD = 0;
     for (const r of table) {
       if (Number(r.level) > Number(atLevel)) continue;
-      for (const ch of (r.ability_changes || [])) {
+      // A list since DB build 2026-10-31. An older deployed DB holds a dict on 7 classes,
+      // and throwing here half-applies the class, with its BAB and saves never written.
+      const changes = Array.isArray(r.ability_changes) ? r.ability_changes
+        : Object.entries(r.ability_changes || {}).map(([ability, modifier]) => ({ ability, modifier }));
+      for (const ch of changes) {
         // DB schema uses "Str" / "Con" — uppercase 3-letter for the
         // sheet's `${ab}-template` IDs.
         const ab = String(ch.ability || '').toUpperCase().slice(0, 3);
@@ -4459,10 +4664,19 @@
     }
     const lvlRow = levelData(cls.class_id, level);
 
-    const bab = babAt(cls.bab_progression, level);
-    const fort = saveAt(cls.fort_progression, level);
-    const ref  = saveAt(cls.ref_progression, level);
-    const will = saveAt(cls.will_progression, level);
+    // A monster class's labels say nothing about its numbers; its table does. An
+    // ordinary class's labels do, apart from any cell its table prints off the formula.
+    const pool = monsterPool({ classId: cls.class_id });
+    const printed = pool ? pool.at(level).printed : null;
+    const off = (!pool && ordinaryOffset({
+      classId: cls.class_id, level,
+      prog: { bab: cls.bab_progression, fort: cls.fort_progression,
+              ref: cls.ref_progression, will: cls.will_progression },
+    })) || { bab: 0, fort: 0, ref: 0, will: 0 };
+    const bab  = printed ? printed.bab  : babAt(cls.bab_progression, level) + off.bab;
+    const fort = printed ? printed.fort : saveAt(cls.fort_progression, level) + off.fort;
+    const ref  = printed ? printed.ref  : saveAt(cls.ref_progression, level) + off.ref;
+    const will = printed ? printed.will : saveAt(cls.will_progression, level) + off.will;
 
     const bits = [];
     bits.push(`<b>${escapeHtml(cls.class)} ${level}</b>` +
@@ -7117,6 +7331,10 @@
     // double-dip canary). Pure functions over level/prog entry arrays.
     aggregateTotals,
     gestaltTotals,
+    spellResistanceAt: (classId, level) =>
+      getSpellResistanceValue(classId, fetchClassTable(classId), level),
+    levelsWithoutHitDice,
+    grantsHitDie,
     // Class-feature replacement matching (ACF / sub-level strikethrough).
     // Pure over (label, Map<token, meta>) — exposed for the test suite.
     findReplacement,

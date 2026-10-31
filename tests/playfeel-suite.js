@@ -6461,6 +6461,789 @@
     await newCharacter();
   });
 
+  // ---- Monster classes: printed BAB and saves, pooled by Hit Dice -----------
+  //
+  // A monster class's levels are not Hit Dice. Mind Flayer 15 is 8d8 (Savage
+  // Species L19973), and every one of these classes prints the ordinary formulas
+  // counted in Hit Dice, so the old label-times-levels math was wrong on all 67.
+  // Ryan's ruling (2026-10-31): pool by Hit Dice, the same way multiclass levels
+  // pool. Expected numbers are typed from the books, not read from the DB, so a
+  // bad row or a bad derivation cannot agree with itself. The one exception is the
+  // MC2 sweep, which reads the DB's rows to check the wiring on every class. A solo
+  // total equals its printed row by construction, so MC2 cannot see a wrong pool
+  // underneath: tests/test_pickers.js pins that, at deploy time.
+  const MC_SS = 'Savage Species';
+  const MC_PHB = "Player's Handbook (Premium Edition)";
+
+  // An entry shaped the way hydrateStub builds one, DB labels included.
+  function mcEntry(name, source, level) {
+    const r = DB.queryOne(
+      "SELECT id, json_extract(data, '$.bab_progression') AS bab, " +
+      "json_extract(data, '$.fort_progression') AS fort, " +
+      "json_extract(data, '$.ref_progression') AS ref, " +
+      "json_extract(data, '$.will_progression') AS will " +
+      "FROM entry WHERE type IN ('class','prc') AND name = ? AND source = ?",
+      [name, source]);
+    if (!r) fail(`MC: no class "${name}" in "${source}"`);
+    return { className: name, classId: r.id, source, level,
+             prog: { bab: r.bab, fort: r.fort, ref: r.ref, will: r.will } };
+  }
+  const mcKey = (t) => `${t.bab}/${t.fort}/${t.ref}/${t.will}`;
+
+  regression('MC1: a monster class shows the BAB and saves its table prints', async () => {
+    const PRINTED = [
+      // BAB/Fort/Ref/Will, with the row each is read from.
+      ['Mind Flayer',  MC_SS, 15, '6/2/2/6'],  // savage_species L19973: 8d8 +6/+1 +2 +2 +6
+      ['Mind Flayer',  MC_SS,  7, '3/1/1/4'],  // savage_species L19962: 4d8 +3 +1 +1 +4
+      ['Ogre',         MC_SS,  6, '3/4/1/1'],  // savage_species L20241: 4d8 +3 +4 +1 +1
+      ['Minotaur',     MC_SS,  8, '6/2/5/5'],  // savage_species L2750: 6d8 +6/+1 +2 +5 +5
+      ['Grig (Sprite)', MC_SS, 4, '0/0/2/2'],  // savage_species L18971: 1/2 d6 +0 +0 +2 +2
+      ['Magmin',       MC_SS,  6, '1/0/3/0'],  // savage_species L19668: 2d8 +1 +0 +3 +0
+      ['Janni', 'Planar Handbook', 11, '6/5/5/5'],    // planar_handbook L2327: 6d8 +6 +5 +5 +5
+      ['Mohrg', 'Libris Mortis',   20, '7/4/4/9'],    // libris_mortis L3920: 14d12 +7 +4 +4 +9
+      ['Ghoul/Ghast', 'Libris Mortis', 8, '2/1/1/4'], // libris_mortis L3816: 4d12 +2 +1 +1 +4
+      ['Centaur', 'Races of the Wild', 6, '4/1/4/4'], // races_of_the_wild L10314: 4d8 +4 +1 +4 +4
+      ['Gnoll',   'Races of the Wild', 3, '1/3/0/0'], // races_of_the_wild L10769: 2d8 +1 +3 +0 +0
+      // The rows that break the formula. The book prints them, so the book wins.
+      ['Minotaur', MC_SS, 3, '2/1/3/3'],              // savage_species L2742: Fort +1 at 2d8
+      ['Ghoul/Ghast', 'Libris Mortis', 6, '2/1/1/3'], // libris_mortis L3814: BAB +2 at 3d12
+      ['Mohrg', 'Libris Mortis', 11, '3/2/2/6'],      // libris_mortis L3911: BAB +3 at 8d12
+      // Scrag prints no table: "Scrags use all information from the troll class"
+      // (savage_species L21180), so its row is the Troll's.
+      ['Troll', MC_SS, 11, '4/5/2/2'],                // savage_species L21289: 6d8 +4 +5 +2 +2
+      ['Scrag', MC_SS, 11, '4/5/2/2'],
+      // Past the table: the picker takes any level, and the final numbers hold.
+      ['Ogre', MC_SS, 8, '3/4/1/1'],
+    ];
+    for (const [name, source, level, want] of PRINTED) {
+      const got = ClassPicker.aggregateTotals([mcEntry(name, source, level)]);
+      expect(mcKey(got), want, `MC1: ${name} ${level} (${source})`);
+    }
+  });
+
+  regression('MC2: every level of every monster class matches its printed row, in every mode', async () => {
+    await newCharacter();
+    const rows = DB.query(
+      "SELECT name, source, json_extract(data, '$.class_table') AS t FROM entry " +
+      "WHERE type IN ('class','prc') AND json_extract(data, '$.class_table') IS NOT NULL");
+    const cell = (v) => parseInt(String(v).replace(/^\+/, ''), 10);
+    const frac = expectExists('#mc-use-fractional', 'MC2: the fractional toggle');
+    const setFrac = (on) => {
+      if (frac.checked !== on) frac.click();
+    };
+    let classes = 0;
+    const misses = [], cases = [];
+    for (const r of rows) {
+      const table = JSON.parse(r.t);
+      if (!Array.isArray(table) || !table.some(x => x && x.hit_dice != null)) continue;
+      classes++;
+      const base = mcEntry(r.name, r.source, 1);
+      let prevHD = 0;
+      for (const row of table) {
+        const L = Number(row.level);
+        // The gestalt walk tallies one category per level, so a level granting
+        // two Hit Dice would undercount. None does today; a later book could.
+        const hd = DND35.parseHitDieCount(row.hit_dice);
+        if (hd - prevHD > 1 || hd < prevHD) {
+          misses.push(`${r.name} L${L}: HD ${prevHD} -> ${hd}`);
+        }
+        prevHD = hd;
+        cases.push({
+          label: `${r.name} ${L}`,
+          want: `${cell(row.bab)}/${cell(row.fort)}/${cell(row.ref)}/${cell(row.will)}`,
+          entry: Object.assign({}, base, { level: L }),
+        });
+      }
+    }
+    expectGE(classes, 67, 'MC2: the sweep found the monster classes');
+    expectGE(cases.length, 767, 'MC2: the sweep walked their levels');
+    try {
+      for (const on of [false, true]) {
+        setFrac(on);
+        const mode = on ? 'fractional' : 'pooled';
+        for (const { label, want, entry } of cases) {
+          const solo = mcKey(ClassPicker.aggregateTotals([entry]));
+          const alone = mcKey(ClassPicker.gestaltTotals([entry], []));
+          if (solo !== want) misses.push(`${label} ${mode}: ${solo}, printed ${want}`);
+          if (alone !== want) misses.push(`${label} gestalt ${mode}: ${alone}, printed ${want}`);
+        }
+      }
+    } finally {
+      setFrac(false);
+    }
+    expect(misses.slice(0, 8).join('; '), '', `MC2: ${misses.length} of ${cases.length * 4} checks`);
+  });
+
+  regression('MC3: a monster class pools with other classes by its Hit Dice', async () => {
+    await newCharacter();
+    const P = (...entries) => ClassPicker.aggregateTotals(entries);
+    const fighter2 = mcEntry('Fighter', MC_PHB, 2);
+    const monk4 = mcEntry('Monk', MC_PHB, 4);
+
+    // The same creature built the sheet's other way: racial Hit Dice as a class
+    // row. Both routes have to land on one number.
+    const ogre = P(mcEntry('Ogre', MC_SS, 6), fighter2);
+    expect(mcKey(ogre), '5/5/2/2', 'MC3: Ogre 6 / Fighter 2');
+    expect(mcKey(ogre), mcKey(P({ level: 4, prog: DND35.creatureTypeToProg('Giant') }, fighter2)),
+      'MC3: Ogre as a monster class = 4 racial HD of giant');
+    expect(ogre.lvl, 8, 'MC3: character level still counts class levels, not Hit Dice');
+
+    // +2 once per save: this is the case that separates pooling from adding the
+    // printed numbers, which would make Ref and Will +9.
+    const minotaur = P(mcEntry('Minotaur', MC_SS, 8), monk4);
+    expect(mcKey(minotaur), '9/6/7/7', 'MC3: Minotaur 8 / Monk 4 takes the flat +2 once');
+    expect(mcKey(minotaur),
+      mcKey(P({ level: 6, prog: DND35.creatureTypeToProg('Monstrous Humanoid') }, monk4)),
+      'MC3: Minotaur as a monster class = 6 racial HD of monstrous humanoid');
+
+    expect(mcKey(P(mcEntry('Mind Flayer', MC_SS, 15), mcEntry('Wizard', MC_PHB, 5))),
+      '8/4/4/8', 'MC3: Mind Flayer 15 / Wizard 5');
+    expect(mcKey(P(mcEntry('Janni', 'Planar Handbook', 11), mcEntry('Cleric', MC_PHB, 5))),
+      '9/7/6/7', 'MC3: Janni 11 / Cleric 5');
+
+    // Libris Mortis L3715-3724: one character can hold two monster classes.
+    const m = mcEntry('Minotaur', MC_SS, 8), g = mcEntry('Ghoul/Ghast', 'Libris Mortis', 8);
+    expect(mcKey(P(m, g)), '8/3/6/7', 'MC3: Minotaur 8 / Ghoul-Ghast 8 pool together');
+    expect(mcKey(P(g, m)), '8/3/6/7', 'MC3: in either order');
+
+    // Races of the Wild L9568-9570: a DM may waive "finish the monster class
+    // first", so a partial one has to compute too, formula-breaking row included.
+    expect(mcKey(P(mcEntry('Minotaur', MC_SS, 3), mcEntry('Fighter', MC_PHB, 1))),
+      '3/3/3/3', 'MC3: Minotaur 3 / Fighter 1 keeps its printed Fort +1');
+
+    // Alone these would print right however their pool is built, because the offset
+    // makes up any gap. Only a second class shows the pool underneath.
+    // At 2 HD, BAB +1 fits average and poor. Magmin is an elemental, so average though
+    // its label says poor: 4 average levels = +3, not +2.
+    const rogue = (level) => mcEntry('Rogue', MC_PHB, level);
+    expect(mcKey(P(mcEntry('Magmin', MC_SS, 6), rogue(2))), '3/1/4/1',
+      'MC3: Magmin 6 / Rogue 2 settles BAB by creature type');
+    // Gnoll prints no creature type, so its label settles the same tie.
+    expect(mcKey(P(mcEntry('Gnoll', 'Races of the Wild', 3), rogue(2))), '3/3/3/1',
+      'MC3: Gnoll 3 / Rogue 2 settles BAB by its label');
+
+    // A fractional Hit Die is replaced by the first real class (savage_species L477-480,
+    // L11131): Grig 4 / Rogue 1 is a Rogue 1, though still 5 levels.
+    const grig = () => mcEntry('Grig (Sprite)', MC_SS, 4);
+    const grigRogue = P(grig(), rogue(1));
+    expect(mcKey(grigRogue), '0/0/2/0', 'MC3: Grig 4 / Rogue 1 takes on the class entirely');
+    expect(grigRogue.lvl, 5, 'MC3: and keeps its levels');
+    expect(mcKey(P(grig(), mcEntry('Fighter', MC_PHB, 1))), '1/2/0/0', 'MC3: Grig 4 / Fighter 1');
+    // A monster class is not an "actual character class", so it replaces nothing.
+    expect(mcKey(P(grig(), mcEntry('Ghoul/Ghast', 'Libris Mortis', 8))), '2/1/3/4',
+      'MC3: Grig 4 / Ghoul-Ghast 8 keep their dice');
+    // A whole Hit Die stays: savage_species L1245 lets a creature keep it, and printed
+    // pixies with class levels do. Good Ref takes its +2 once.
+    expect(mcKey(P(mcEntry('Nixie (Sprite)', MC_SS, 4), rogue(1))), '0/0/3/2',
+      'MC3: Nixie 4 / Rogue 1 keeps its whole Hit Die');
+  });
+
+  regression('MC4: a class whose levels ARE its Hit Dice stays on the level formula', async () => {
+    // Dragon Shaman and Dragonfire Adept carry natural armor rows, so the
+    // monster-EXTENSION test catches them, but they print no Hit Dice column. Their
+    // printed numbers contain a flat +2, so treating them as monster classes would
+    // quietly hand their multiclass builds a second one.
+    //
+    // Compared beside a Fighter: alone, these classes print what their labels compute,
+    // so a solo check passes down either path and proves nothing.
+    await newCharacter();
+    const fighter = () => mcEntry('Fighter', MC_PHB, 5);
+    const sameAsLabels = (name, source, level) => {
+      const e = mcEntry(name, source, level), f = fighter();
+      expect(mcKey(ClassPicker.aggregateTotals([e, f])),
+        mcKey(ClassPicker.aggregateTotals([{ level, prog: e.prog }, { level: f.level, prog: f.prog }])),
+        `MC4: ${name} ${level} / Fighter 5 pools by its label`);
+    };
+    sameAsLabels('Dragon Shaman', "Player's Handbook II", 5);
+    sameAsLabels('Dragonfire Adept', 'Dragon Magic', 5);
+
+    // Fort 7, not the 8 that adding the printed +4 to a pooled Fighter 5 would give.
+    expect(mcKey(ClassPicker.aggregateTotals([
+      mcEntry('Dragon Shaman', "Player's Handbook II", 5), mcEntry('Fighter', MC_PHB, 5),
+    ])), '8/7/3/5', 'MC4: Dragon Shaman 5 / Fighter 5 pools by level');
+
+    // An unresolved save row keeps its saved classId, which can point anywhere after
+    // a DB rebuild. It must not pick up a monster class's numbers by accident.
+    const mf = mcEntry('Mind Flayer', MC_SS, 15);
+    expect(mcKey(ClassPicker.aggregateTotals([{
+      className: 'Gone', classId: mf.classId, level: 15, _unhydrated: true,
+      prog: { bab: null, fort: null, ref: null, will: null },
+    }])), '0/0/0/0', 'MC4: an unhydrated row stays out of the pool');
+
+    // The stored label is left alone: prog is read at load and stays the DB's value. The
+    // table decides a monster class's numbers, so a wrong label here changes nothing.
+    mf.prog = Object.assign({}, mf.prog, { bab: 'poor' });
+    expect(mcKey(ClassPicker.aggregateTotals([mf])), '6/2/2/6', 'MC4: the table outranks the label');
+    expect(mf.prog.bab, 'poor', 'MC4: and computing totals does not rewrite it');
+  });
+
+  regression('MC5: gestalt takes the better progression per level, and a level with no Hit Die yields', async () => {
+    await newCharacter();
+    const G = (a, b) => ClassPicker.gestaltTotals(a, b);
+    const mf = () => mcEntry('Mind Flayer', MC_SS, 15);
+    const wiz = (level = 15) => mcEntry('Wizard', MC_PHB, level);
+    const ogre = (level = 6) => mcEntry('Ogre', MC_SS, level);
+    const fighter = (level) => mcEntry('Fighter', MC_PHB, level);
+
+    // UA L8276-8284. Mind Flayer has a Hit Die on its 8 odd levels. On the other 7
+    // it has nothing, so the wizard's poor BAB fills them: 8 average + 7 poor = 9.
+    const both = G([mf()], [wiz()]);
+    expect(mcKey(both), '9/5/5/9', 'MC5: Mind Flayer 15 // Wizard 15');
+    expect(mcKey(G([wiz()], [mf()])), '9/5/5/9', 'MC5: side swap is identical');
+    expect(both.lvl, 15, 'MC5: gestalt level counts levels, not Hit Dice');
+    expect(both.lenA, 15, 'MC5: a side with dead levels still has all 15, or the sheet warns of uneven sides');
+    expect(mcKey(G([], [mf()])), '6/2/2/6', 'MC5: a monster class alone on Side B prints too');
+
+    // WHERE the dead levels sit decides this one. The fighter holds levels 1-2 and the
+    // wizard takes over at 3, so odd levels from 3 are average and even ones poor:
+    // 2 good + 7 average + 6 poor = 10. Packed to the front of the track it would be 9.
+    expect(mcKey(G([mf()], [fighter(2), wiz(13)])), '10/7/5/9',
+      'MC5: Mind Flayer 15 // Fighter 2 / Wizard 13 lines up level by level');
+
+    // Ogre gains Hit Dice at 1, 2, 3 and 5, and fills the rest from the wizard.
+    expect(mcKey(G([wiz(6)], [ogre()])), '4/4/2/5', 'MC5: Wizard 6 // Ogre 6');
+    // Second on its track, the same Hit Dice land on levels 3, 4, 5 and 7.
+    expect(mcKey(G([fighter(2), ogre()], [wiz(8)])), '6/5/2/6', 'MC5: Fighter 2 / Ogre 6 // Wizard 8');
+    // Uneven sides, and levels past the table: both of the last two levels are the wizard's.
+    const uneven = G([ogre()], [wiz(8)]);
+    expect(mcKey(uneven), '5/5/2/6', 'MC5: Ogre 6 // Wizard 8');
+    expect(`${uneven.lenA}/${uneven.lenB}/${uneven.lvl}`, '6/8/8', 'MC5: and the sides report as uneven');
+    expect(mcKey(G([ogre(8)], [wiz(8)])), '5/5/2/6', 'MC5: Ogre 8 // Wizard 8, past the table');
+
+    // A fractional die yields only to a class on its own track: Grig // Rogue is two
+    // classes at once, so the Grig still offers its one Hit Die. Stacked with a Rogue on
+    // one side, it is gone (savage_species L477-480), and the Wizard fills levels 1-4.
+    const grig = () => mcEntry('Grig (Sprite)', MC_SS, 4);
+    const rogue = (level) => mcEntry('Rogue', MC_PHB, level);
+    expect(mcKey(G([grig()], [rogue(4)])), '3/1/4/3', 'MC5: Grig 4 // Rogue 4');
+    expect(mcKey(G([grig(), rogue(1)], [wiz(5)])), '2/1/3/4', 'MC5: Grig 4 / Rogue 1 // Wizard 5');
+
+    // A printed number off the formula. Alone it stands: Mohrg 11 is +3. Against a real
+    // second side, UA's "better" decides: below the formula it gives way (11 poor levels
+    // = +5), and above it the printed number survives (Minotaur 2 Fort +1, L2740).
+    const mohrg = () => mcEntry('Mohrg', 'Libris Mortis', 11);
+    expect(mcKey(G([mohrg()], [])), '3/2/2/6', 'MC5: Mohrg 11 alone');
+    expect(mcKey(G([mohrg()], [wiz(11)])), '5/3/3/7', 'MC5: Mohrg 11 // Wizard 11');
+    expect(mcKey(G([mcEntry('Minotaur', MC_SS, 2)], [wiz(2)])), '2/1/3/3', 'MC5: Minotaur 2 // Wizard 2');
+
+    // Kell's build. The label math gave 11/9/7/10, which is what that save holds.
+    // Rebuilt from names so this test reads no save file.
+    const kell = G(
+      [mf(), mcEntry('Mindspy', 'Complete Warrior', 3)],
+      [mcEntry('Chaos Monk', 'Dragon Magazine #335', 1),
+       mcEntry('Psion', 'Expanded Psionics Handbook', 2),
+       mcEntry('Swashbuckler', 'Complete Warrior', 3),
+       mcEntry('Illithid Savant', MC_SS, 10),
+       mcEntry('Paladin', MC_PHB, 2)]);
+    // BAB: 6 good + 7 average + 5 poor levels. Fort: Illithid Savant prints +4 at 10th where
+    // poor is +3 (savage_species, its table at L8280), and that side alone comes to +10.
+    expect(mcKey(kell), '13/10/7/10', 'MC5: Kell');
+    expect(kell.lvl, 18, 'MC5: Kell is 18th level');
+  });
+
+  regression('MC6: through the real picker, in the preview, and across a save', async () => {
+    await newCharacter();
+    set('class-lookup', 'Mind Flayer');
+    await wait(300);
+    set('class-lookup-level', '15');
+    await wait(150);
+    const preview = $('#class-info').textContent;
+    expectIncludes(preview, 'BAB: +6', 'MC6: the preview shows the printed BAB');
+    expectIncludes(preview, 'Fort +2, Ref +2, Will +6', 'MC6: the preview shows the printed saves');
+
+    await applyClass('Mind Flayer', 15);
+    expectValue('#bab-1', '6', 'MC6: Mind Flayer 15 BAB');
+    expectValue('#fort-base', '2', 'MC6: Mind Flayer 15 Fort');
+    expectValue('#ref-base', '2', 'MC6: Mind Flayer 15 Ref');
+    expectValue('#will-base', '6', 'MC6: Mind Flayer 15 Will');
+    expectValue('#char-level', '15', 'MC6: 15 levels, though only 8 Hit Dice');
+
+    await applyClass('Wizard', 5);
+    expectValue('#bab-1', '8', 'MC6: pooled BAB');
+    expectValue('#fort-base', '4', 'MC6: pooled Fort');
+    expectValue('#ref-base', '4', 'MC6: pooled Ref');
+    expectValue('#will-base', '8', 'MC6: pooled Will takes the +2 once');
+    expectValue('#char-level', '20', 'MC6: 20 levels');
+
+    const blob = Character.collectData();
+    expect(blob._multiclass[0].prog, undefined, 'MC6: a save stores no progression for a DB class');
+    await newCharacter();
+    Character.loadData(blob);
+    await wait(150);
+    expectValue('#bab-1', '8', 'MC6: BAB survives the reload');
+    // Removing a class recomputes, which proves the reloaded row found its table.
+    ClassPicker.removeClass('Wizard');
+    await wait(200);
+    expectValue('#bab-1', '6', 'MC6: back to the printed BAB after a reload');
+    expectValue('#will-base', '6', 'MC6: back to the printed Will after a reload');
+    await newCharacter();
+  });
+
+  regression('MC7: replaying a feat prerequisite gets the same BAB the sheet shows', async () => {
+    // The audit replays history to ask "did you qualify when you took this feat?" It had
+    // a private formula, per-class sums and max-of-sides, so it disagreed with the sheet
+    // and could call a correct character's feat illegal.
+    await newCharacter();
+    const abilities = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
+    const row = (level, a, b) => Object.assign(
+      { level, class_taken: a, feats_taken: [], skills_purchased: {} },
+      b ? { class_taken_b: b } : {});
+    const track = (...runs) => {
+      const out = [];
+      for (const [name, n] of runs) for (let i = 0; i < n; i++) out.push(row(out.length + 1, name));
+      return out;
+    };
+    const babAt = (history, level) =>
+      FeatPrereqs.snapshotAtLevel(level, { history, currentAbilities: abilities }).bab;
+
+    const mfWiz = track(['Mind Flayer', 15], ['Wizard', 5]);
+    expect(babAt(mfWiz, 7), 3, 'MC7: Mind Flayer 7, savage_species L19962');
+    expect(babAt(mfWiz, 15), 6, 'MC7: Mind Flayer 15, savage_species L19973');
+    expect(babAt(mfWiz, 20), 8, 'MC7: Mind Flayer 15 / Wizard 5');
+    expect(babAt(track(['Mohrg', 11]), 11), 3, 'MC7: Mohrg 11 reads its printed +3, libris_mortis L3911');
+
+    // These two come out one lower as a per-class sum, which is the false "unmet".
+    expect(babAt(track(['Mind Flayer', 9], ['Rogue', 3]), 12), 6, 'MC7: Mind Flayer 9 / Rogue 3 pools');
+    expect(babAt(track(['Rogue', 3], ['Cleric', 5]), 8), 6, 'MC7: Rogue 3 / Cleric 5 pools, as on the sheet');
+
+    const gestalt = [];
+    for (let level = 1; level <= 15; level++) gestalt.push(row(level, 'Mind Flayer', 'Wizard'));
+    expect(babAt(gestalt, 15), 9, 'MC7: Mind Flayer 15 // Wizard 15 synthesizes per level');
+
+    // History stores only a name, and Lillend is two tables. The row on the sheet decides:
+    // BAB at 8th is +6 in savage_species L19679 and +5 in planar_handbook L2477.
+    const lillend = track(['Lillend', 8]);
+    for (const [source, version, want] of [[MC_SS, '3.0', 6], ['Planar Handbook', '3.5', 5]]) {
+      await newCharacter();
+      appLoad({ 'char-name': 'MC7', _multiclass: [{ className: 'Lillend', level: 8, source, version }] });
+      await wait(200);
+      expect(ClassPicker.getState()[0].source, source, `MC7: the ${source} row loaded`);
+      expect(babAt(lillend, 8), want, `MC7: a ${source} Lillend replays its own table`);
+    }
+
+    // A racial Hit Dice row has no DB class. It used to replay as BAB +0.
+    await newCharacter();
+    ClassPicker.addRacialHD({
+      creatureRace: 'Ogre', creatureType: 'Giant', count: 4,
+      prog: DND35.creatureTypeToProg('Giant'),
+    });
+    await wait(100);
+    expect(babAt(track(['Ogre (racial HD)', 4]), 4), 3, 'MC7: 4 racial Hit Dice of giant replay as +3');
+    await newCharacter();
+  });
+
+  regression('MC8: a monster class gets the spell resistance its book gives it', async () => {
+    // A verbatim re-walk changed "SR equal to" to "spell resistance equal to" and the
+    // parser returned nothing, on all 22, with no error anywhere. Four shapes are printed:
+    // N + class level, N + HD from class levels, a flat number in the table, and a table
+    // row carrying its own value. [level, SR], null meaning none yet.
+    const SS = MC_SS, PH = 'Planar Handbook';
+    const CASES = [
+      ['Annis Hag', SS, [[4, null], [5, 12], [12, 19]]],           // savage_species L16625, 7 + class level
+      ['Astral Deva (Celestial)', SS, [[7, null], [8, 18], [20, 30]]], // L16898, 10 + class level
+      ['Drider', SS, [[5, null], [6, 10], [10, 14]]],              // L17610, 4 + class level
+      ['Ghaele (Celestial)', SS, [[2, null], [3, 11], [20, 28]]],  // class level + 8, no space in the book
+      ['Green Hag', SS, [[6, null], [7, 11], [14, 18]]],           // L18729, 4 + its class level
+      ['Grig (Sprite)', SS, [[1, 14], [4, 17]]],                   // L18901, class level + 13
+      ['Hamatula (Devil)', SS, [[8, null], [9, 18], [14, 23]]],    // L18989, 9 + class level
+      ['Hound Archon (Celestial)', SS, [[7, null], [8, 13], [11, 16]]], // L19227, "is equal to 5 + class level"
+      ['Mind Flayer', SS, [[5, null], [6, 16], [15, 25]]],         // L19913, 10 + its class level
+      ['Ogre Mage', SS, [[7, null], [8, 14], [12, 18]]],           // L20291, 6 + class level
+      ['Trumpet Archon (Celestial)', SS, [[8, null], [9, 18], [20, 29]]], // L21327, 9 + its class level
+
+      // HD means HD, not level: these are the printed monster's own SR at full growth.
+      ['Kyton (Devil)', SS, [[9, null], [10, 15], [14, 17]]],      // L19526, 9 + Hit Dice; 6d8 L19587, 8d8 L19591
+      ['Sea Hag', SS, [[4, null], [5, 13], [8, 14]]],              // L20639, 11 + HD; 2d8 L20656, 3d8 L20660
+      ['Succubus/Incubus (Demon)', SS, [[8, null], [9, 11], [12, 12]]], // L20945, 6 + HD; 5d8 L20908, 6d8 L20912
+      ['Vrock (Demon)', SS, [[10, null], [11, 20], [16, 22]]],     // L21555, 14 + Hit Dice; 6d8 L21580, 8d8 L21588
+
+      // A flat number, printed only in the table.
+      ['Azer', SS, [[3, null], [4, 13], [6, 13]]],                 // L17279, SR 13
+      ['Nixie (Sprite)', SS, [[3, null], [4, 16]]],                // L20159, SR 16
+      ['Pixie (Sprite)', SS, [[4, null], [5, 16]]],                // L20444, SR 16
+
+      // A table row carrying its own value, which can change partway up.
+      ['Avoral Guardinal', PH, [[1, 11], [15, 25]]],               // planar_handbook L1820, 10 + class level
+      ['Hound Archon', PH, [[7, null], [8, 13], [9, 14], [11, 16]]], // L2220-2227, 13 then one a level
+      // 5 + Hit Dice from 6th, then flat from 12th. The jump from 11 to 17 is the book's.
+      ['Chain Devil', PH, [[5, null], [6, 9], [8, 10], [11, 11], [12, 17], [13, 17], [14, 18]]], // L2119, L2127, L2129
+
+      // Flesh Golem's Magic Immunity at 9th "supersedes the golem's spell resistance
+      // ability" (L18299-18303), so the number stops rather than climbing.
+      ['Flesh Golem', SS, [[1, null], [2, 12], [8, 18], [9, null], [15, null]]], // L18298, class level + 10
+
+      // Rakshasa only says "like spell resistance", of its Spell Immunity.
+      ['Rakshasa', SS, [[14, null]]],
+      // Past the table the final number holds.
+      ['Mind Flayer', SS, [[20, 25]]],
+    ];
+    for (const [name, source, levels] of CASES) {
+      const { classId } = mcEntry(name, source, 1);
+      for (const [level, want] of levels) {
+        expect(ClassPicker.spellResistanceAt(classId, level), want, `MC8: ${name} ${level} (${source})`);
+      }
+    }
+
+    // Through the picker: fill, follow the level, clear, and stay out of the way.
+    await newCharacter();
+    await applyClass('Mind Flayer', 15);
+    expectValue('#spell-resistance', '25', 'MC8: Mind Flayer 15 fills the field');
+    await applyClass('Wizard', 5);
+    await applyClass('Mind Flayer', 7);
+    expectValue('#spell-resistance', '17', 'MC8: "class level" means the monster class, savage_species L2515-2517, not 7 + 5');
+    ClassPicker.removeClass('Wizard');
+    await wait(150);
+    await applyClass('Mind Flayer', 5);
+    expectValue('#spell-resistance', '', 'MC8: below 6th it clears again');
+    await applyClass('Mind Flayer', 8);
+    ClassPicker.removeClass('Mind Flayer');
+    await wait(150);
+    expectValue('#spell-resistance', '', 'MC8: removing the class clears it');
+
+    // A number the player set is left alone, which is what Kell's 34 relies on.
+    await newCharacter();
+    set('spell-resistance', '34');
+    await applyClass('Mind Flayer', 15);
+    expectValue('#spell-resistance', '34', 'MC8: a typed SR survives applying the class');
+    ClassPicker.removeClass('Mind Flayer');
+    await wait(150);
+    expectValue('#spell-resistance', '34', 'MC8: and removing it');
+    await newCharacter();
+  });
+
+  regression('MC9: a race and its own monster class say they are counting the creature twice', async () => {
+    // Race Mind Flayer brings 8 racial Hit Dice, and the class brings its own 8, which is
+    // 12/5/5/10 where either alone is 6/2/2/6. Nothing said so. The note reads the current
+    // classes, so the order they were applied in and a reload cannot matter.
+    const note = () => $('#mc-racial-double-count');
+    const noteText = () => (note() ? note().textContent : '');
+
+    // Race first, then class.
+    await newCharacter();
+    set('char-race', 'Ogre');
+    await wait(300);
+    if (note()) fail('MC9: the race alone is not a double count');
+    await applyClass('Ogre', 6);
+    expectIncludes(noteText(), 'counted twice', 'MC9: race, then class');
+    expectIncludes(noteText(), 'Ogre (Monster Class)', 'MC9: and it names the race to use instead');
+
+    // It survives a save and load, and the numbers stay as they were: it warns, not decides.
+    expect(ClassPicker.getState().some(e => e.racialHD), true, 'MC9: the racial row is still there');
+    expect(['#bab-1', '#fort-base'].map(s => $(s).value).join('/'), '6/6', 'MC9: and both still count, 8 Giant Hit Dice');
+    const blob = appCollect();
+    await newCharacter();
+    appLoad(blob);
+    await wait(400);
+    expectIncludes(noteText(), 'counted twice', 'MC9: after a reload');
+
+    // Taking the suggestion clears it.
+    set('char-race', 'Ogre (Monster Class)');
+    await wait(400);
+    if (note()) fail(`MC9: the monster-class race has no racial Hit Dice, but: ${noteText()}`);
+
+    // Class first, then race.
+    await newCharacter();
+    await applyClass('Mind Flayer', 15);
+    if (note()) fail('MC9: the class alone is not a double count');
+    set('char-race', 'Mind Flayer');
+    await wait(400);
+    expectIncludes(noteText(), 'counted twice', 'MC9: class, then race');
+    ClassPicker.removeClass('Mind Flayer');
+    await wait(150);
+    if (note()) fail('MC9: removing the class clears it');
+
+    // Across gestalt sides: one character either way.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A');
+    set('char-race', 'Ogre');
+    await wait(300);
+    ClassPicker.setActiveSide('B');
+    await applyClass('Ogre', 6);
+    expectIncludes(noteText(), 'counted twice', 'MC9: racial Hit Dice on A, the class on B');
+
+    // The same creature under another spelling. The race side goes through the API, since
+    // these are about the name match and do not need a real race for each.
+    const racial = (creatureRace, type) => ClassPicker.addRacialHD({
+      creatureRace, creatureType: type, count: 6, prog: DND35.creatureTypeToProg(type),
+    });
+    const SAME = [
+      ['Hound Archon (Celestial)', 'Hound Archon', 'Outsider'],   // the qualifier
+      ['Succubus/Incubus (Demon)', 'Incubus', 'Outsider'],        // the slash
+      ['Merrow', 'Ogre', 'Giant'],                                // savage_species L20244
+      ['Scrag', 'Troll', 'Giant'],                                // savage_species L21180
+    ];
+    for (const [cls, race, type] of SAME) {
+      await newCharacter();
+      await applyClass(cls, 3);
+      racial(race, type);
+      await wait(100);
+      expectIncludes(noteText(), 'counted twice', `MC9: ${cls} and race ${race}`);
+      expect(ClassPicker.hasMonsterClassFor(race), true, `MC9: hasMonsterClassFor("${race}") with ${cls}`);
+    }
+
+    // Different creatures are not a double count. The first is the book's own example: a
+    // gnoll slain by a vampire rises as "a gnoll 1st-level vampire spawn" (libris_mortis
+    // L3679-3681), and keeps its racial Hit Dice.
+    const OTHER = [
+      ['Vampire Spawn', 'Gnoll', 'Humanoid'],
+      ['Mind Flayer', 'Ogre', 'Giant'],
+      ['Fighter', 'Ogre', 'Giant'],                               // not a monster class at all
+      ['Ogre Mage', 'Ogre', 'Giant'],                             // a name inside a name
+    ];
+    for (const [cls, race, type] of OTHER) {
+      await newCharacter();
+      await applyClass(cls, 3);
+      racial(race, type);
+      await wait(100);
+      if (note()) fail(`MC9: ${cls} and race ${race} are different creatures, but: ${noteText()}`);
+      expect(ClassPicker.hasMonsterClassFor(race), false, `MC9: hasMonsterClassFor("${race}") with ${cls}`);
+    }
+    await newCharacter();
+  });
+
+  regression('MC10: a racial class adds BAB and saves only at the levels that grant a racial Hit Die', async () => {
+    // Ryan's ruling, 2026-10-31. The tables print no numbers: "Racial Hit Die (2d8)" in the
+    // Special column is the only grant. Everything else comes from the standard class levels.
+    await newCharacter();
+    const P = (...e) => ClassPicker.aggregateTotals(e);
+    const CP = 'Complete Psionic', MM4 = 'Monster Manual IV';
+    const kreen = (level) => mcEntry('Thri-Kreen Racial Class', CP, level);
+    const varag = (level) => mcEntry('Varag Racial Class', MM4, level);
+
+    // Thri-kreen: monstrous humanoid, 1d8 at 1st and 2d8 at 2nd (complete_psionic L18379,
+    // L18381), and no more after that.
+    expect(mcKey(P(kreen(1))), '1/0/2/2', 'MC10: Thri-Kreen 1, one Hit Die');
+    expect(mcKey(P(kreen(2))), '2/0/3/3', 'MC10: Thri-Kreen 2, two Hit Dice');
+    expect(mcKey(P(kreen(20))), '2/0/3/3', 'MC10: Thri-Kreen 20 still has two');
+    // Varag: humanoid, Hit Dice at 1st, 2nd and 4th (monster_manual_iv L18028), which match
+    // the varag's own base Atk +2 and base saves +1/+3/+1 at 3 HD.
+    expect(mcKey(P(varag(1))), '0/0/2/0', 'MC10: Varag 1');
+    expect(mcKey(P(varag(3))), '1/0/3/0', 'MC10: Varag 3 has the 2 Hit Dice of level 2');
+    expect(mcKey(P(varag(4))), '2/1/3/1', 'MC10: Varag 4');
+
+    // The rest never grant a racial Hit Die, so they add nothing of their own.
+    const NONE = [
+      ['Drow Racial Class', 'Drow of the Underdark', 20],
+      ['Duergar Racial Class', CP, 20],
+      ['Githyanki Racial Class', CP, 20],
+      ['Githzerai Racial Class', CP, 20],
+      ['Half-Giant Racial Class', CP, 20],
+      ['Variant: Draconic Racial Class', 'Races of the Dragon', 4],
+    ];
+    for (const [name, source, level] of NONE) {
+      expect(mcKey(P(mcEntry(name, source, level))), '0/0/0/0', `MC10: ${name} ${level}`);
+    }
+    // Its "class level" is the standard levels it grants, a column the DB lost, so a
+    // number here would be wrong: Drow 4th is class 2nd (drow_of_the_underdark L23937).
+    expect(ClassPicker.spellResistanceAt(mcEntry('Drow Racial Class', 'Drow of the Underdark', 4).classId, 4),
+      null, 'MC10: a racial class leaves spell resistance to the race');
+    expect(mcKey(P(mcEntry('Drow Racial Class', 'Drow of the Underdark', 6), mcEntry('Wizard', MC_PHB, 4))),
+      '2/1/1/4', 'MC10: Drow 6 / Wizard 4 is the wizard levels');
+
+    // Pooled with a class, by Hit Dice like the rest.
+    expect(mcKey(P(kreen(5), mcEntry('Fighter', MC_PHB, 2))), '4/3/3/3', 'MC10: Thri-Kreen 5 / Fighter 2');
+    // Gestalt: levels 1 and 2 bring a Hit Die, and the wizard fills 3rd.
+    expect(mcKey(ClassPicker.gestaltTotals([kreen(3)], [mcEntry('Wizard', MC_PHB, 3)])),
+      '2/1/3/3', 'MC10: Thri-Kreen 3 // Wizard 3');
+
+    // The race brings the same Hit Dice, so this is the double count MC9 warns about.
+    await applyClass('Thri-Kreen Racial Class', 3);
+    ClassPicker.addRacialHD({
+      creatureRace: 'Thri-Kreen', creatureType: 'Monstrous Humanoid', count: 2,
+      prog: DND35.creatureTypeToProg('Monstrous Humanoid'),
+    });
+    await wait(100);
+    const note = $('#mc-racial-double-count');
+    expectIncludes(note ? note.textContent : '', 'counted twice', 'MC10: race Thri-Kreen and its racial class');
+    await newCharacter();
+  });
+
+  regression('MC11: a level with no Hit Die adds no hit points, max ranks or character level', async () => {
+    // Report rmtk6jub4-ftbz: "they should only contribute BAB (and max skill level, for that
+    // matter) at the level they get RHD". Savage Species L434-439 and L455-460: character
+    // level is Hit Dice plus class levels, for everything but experience and starting wealth.
+    await newCharacter();
+    await applyClass('Mind Flayer', 15);
+    expectValue('#char-level', '15', 'MC11: experience still counts all 15 levels');
+    expect(ClassPicker.totalCharacterLevel(), 8, 'MC11: Mind Flayer 15 is character level 8');
+    expect(ClassPicker.levelsWithoutHitDice(), 7, 'MC11: 7 of its levels grant no Hit Die');
+    await wait(150);
+    expectText('#max-class-ranks', '11', 'MC11: max class ranks are 8 Hit Dice + 3');
+    expectText('#max-crossclass-ranks', '5.5', 'MC11: and half that cross-class');
+    expect(FeatPrereqs.snapshot().characterLevel, 8, 'MC11: a "Character level N" prereq sees 8');
+
+    // The Build Timeline: a d8 on the 8 odd levels of savage_species L19955-19973, none between.
+    const rolled = CharacterHistory.get().map(e => e.hp_rolled);
+    expect(rolled.length, 15, 'MC11: the timeline still has a row per level');
+    expect(rolled.join(','), '8,0,5,0,5,0,5,0,5,0,5,0,5,0,5', 'MC11: hit points only where a Hit Die lands');
+
+    await applyClass('Wizard', 5);
+    await wait(150);
+    expect(ClassPicker.totalCharacterLevel(), 13, 'MC11: 8 Hit Dice + 5 wizard levels');
+    expectText('#max-class-ranks', '16', 'MC11: max ranks count the wizard levels');
+
+    const heal = async (hp) => {
+      set('hp-total', '100');
+      set('hp-current', String(hp));
+      Character.restEightHours();
+      await wait(100);
+      return $('#hp-current').value;
+    };
+    expect(await heal(10), '23', 'MC11: resting heals by character level, 13, not 20');
+
+    // Other shapes.
+    await newCharacter();
+    await applyClass('Drow Racial Class', 6);
+    await applyClass('Wizard', 4);
+    await wait(150);
+    expect(ClassPicker.totalCharacterLevel(), 4, 'MC11: a racial class with no Hit Dice adds none');
+    expectText('#max-class-ranks', '7', 'MC11: Drow 6 / Wizard 4 caps at 4 + 3');
+
+    await newCharacter();
+    await applyClass('Thri-Kreen Racial Class', 5);
+    await applyClass('Fighter', 2);
+    await wait(150);
+    expect(ClassPicker.totalCharacterLevel(), 4, 'MC11: 2 racial Hit Dice + 2 fighter levels');
+
+    // In gestalt the other side's Hit Die counts at that level.
+    await newCharacter();
+    ClassPicker.setGestalt(true);
+    ClassPicker.setActiveSide('A'); await applyClass('Mind Flayer', 15);
+    ClassPicker.setActiveSide('B'); await applyClass('Wizard', 15);
+    await wait(150);
+    expect(ClassPicker.totalCharacterLevel(), 15, 'MC11: the wizard side fills every dead level');
+    expectText('#max-class-ranks', '18', 'MC11: so a gestalt loses nothing');
+    expect(CharacterHistory.get().every(e => e.hp_rolled > 0), true, 'MC11: and rolls at every level');
+
+    // Controls: an ordinary class is exactly what it was, a typed level still counts, and
+    // replaying a history reaches the same character level.
+    await newCharacter();
+    await applyClass('Fighter', 5);
+    await wait(150);
+    expect(ClassPicker.levelsWithoutHitDice(), 0, 'MC11: an ordinary class has no dead levels');
+    expectText('#max-class-ranks', '8', 'MC11: Fighter 5');
+    set('char-level', '6');
+    await wait(150);
+    expectText('#max-class-ranks', '9', 'MC11: a typed level still raises it');
+    await newCharacter();
+    const history = [];
+    for (let level = 1; level <= 15; level++) history.push({ level, class_taken: 'Mind Flayer', feats_taken: [], skills_purchased: {} });
+    const abilities = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
+    expect(FeatPrereqs.snapshotAtLevel(15, { history, currentAbilities: abilities }).characterLevel, 8,
+      'MC11: replaying Mind Flayer 15 reaches character level 8');
+    expect(FeatPrereqs.snapshotAtLevel(7, { history, currentAbilities: abilities }).characterLevel, 4,
+      'MC11: and 4 at its 7th level');
+  });
+
+  regression('MC13: every monster class applies through the picker, and lower-case racial types count', async () => {
+    // ability_changes held a dict on these 7, and the picker's for..of threw before BAB and
+    // saves were written: no chip, 0/0/0/0. mcEntry skips the picker, so MC1-MC7 could not see it.
+    const APPLIED = [
+      ['Vampire Spawn', 3], ['Mummy', 2], ['Mohrg', 11], ['Wight', 3],
+      ['Ghoul/Ghast', 8], ['Gnoll', 3], ['Centaur', 6],
+    ];
+    const WANT = {
+      'Mohrg': '3/2/2/6',        // libris_mortis L3911
+      'Ghoul/Ghast': '2/1/1/4',  // libris_mortis L3816
+      'Gnoll': '1/3/0/0',        // races_of_the_wild L10769
+      'Centaur': '4/1/4/4',      // races_of_the_wild L10314
+    };
+    const sheet = () => ['#bab-1', '#fort-base', '#ref-base', '#will-base'].map(s => $(s).value).join('/');
+    for (const [name, level] of APPLIED) {
+      await newCharacter();
+      await applyClass(name, level);
+      expect($$('#mc-classes-list .mc-class-chip').length, 1, `MC13: ${name} ${level} shows its chip`);
+      if (WANT[name]) expect(sheet(), WANT[name], `MC13: ${name} ${level} on the sheet`);
+    }
+
+    // Book: Frost Folk has 4 monstrous humanoid Hit Dice, frostburn L15086-15089. Its race row
+    // stores the type in lower case, which used to drop the racial Hit Dice without a word.
+    expect(DND35.parseCreatureType('monstrous humanoid'), 'Monstrous Humanoid', 'MC13: type case');
+    expect(DND35.parseCreatureType('Elemental (Fire)'), 'Elemental', 'MC13: subtype still stripped');
+    expect(DND35.parseCreatureType('Nonsense'), null, 'MC13: an unknown type is still null');
+    await newCharacter();
+    set('char-race', 'Frost Folk');
+    await wait(500);
+    expect(ClassPicker.getState().some(e => e.racialHD), true, 'MC13: Frost Folk gets its racial row');
+    expectValue('#bab-1', '4', 'MC13: Frost Folk BAB');
+    await newCharacter();
+  });
+
+  regression('PC1: a class shows what its table prints, off-formula cells included', async () => {
+    // Ryan, 2026-10-31: one-off printed cells win. Typed from the books.
+    await newCharacter();
+    const P = (...e) => ClassPicker.aggregateTotals(e);
+    const PRINTED = [
+      ['Illithid Savant', MC_SS, 10, '5/4/3/7'],                   // savage_species L8292: Fort +4
+      ['Disciple of Mammon', 'Book of Vile Darkness', 5, '4/1/4/4'], // book_of_vile_darkness L6478: BAB +4
+      ['Holy Liberator', 'Complete Divine', 9, '9/6/3/2'],         // complete_divine L4707: Will +2
+      ['Swift Scion', 'Unearthed Arcana', 2, '1/1/3/0'],           // unearthed_arcana L18874: Fort +1
+      ['Swordsage', 'Tome of Battle: The Book of Nine Swords', 13, '10/4/8/8'], // tome_of_battle L1559
+      // Survivor's own progression: +0 BAB throughout, savage_species L9447-9454.
+      ['Survivor', MC_SS, 5, '0/4/4/4'],
+      // Labels that were wrong and are now what the table prints.
+      ['Warmage', 'Complete Arcane', 20, '10/6/6/12'],             // complete_arcane table at L1004
+      ['Highland Stalker', 'Complete Adventurer', 10, '10/7/3/3'], // complete_adventurer L5246
+      ['Despot', 'Dragon Magazine #312', 2, '2/0/0/3'],            // Dragon 312 p.23
+    ];
+    for (const [name, source, level, want] of PRINTED) {
+      expect(mcKey(P(mcEntry(name, source, level))), want, `PC1: ${name} ${level}`);
+    }
+    // Beside another class. The cell carries over, and Survivor adds no BAB at all.
+    expect(mcKey(P(mcEntry('Survivor', MC_SS, 5), mcEntry('Fighter', MC_PHB, 5))), '5/7/5/5',
+      'PC1: Survivor 5 / Fighter 5');
+    expect(mcKey(P(mcEntry('Survivor', MC_SS, 3), mcEntry('Wizard', MC_PHB, 1))), '0/3/3/4',
+      'PC1: Survivor 3 / Wizard 1 has no BAB to round up');
+    // Fort: 10 poor levels +3, 2 good levels +3, and the printed +1.
+    expect(mcKey(P(mcEntry('Illithid Savant', MC_SS, 10), mcEntry('Fighter', MC_PHB, 2))), '7/7/4/7',
+      'PC1: Illithid Savant 10 / Fighter 2 keeps its extra Fort');
+
+    // Past the table there is no printed row, and a level that fits changes nothing.
+    expect(mcKey(P(mcEntry('Fighter', MC_PHB, 25))), '25/14/8/8', 'PC1: Fighter 25 past its table');
+    expect(mcKey(P(mcEntry('Illithid Savant', MC_SS, 9))), '4/3/3/6', 'PC1: Illithid Savant 9 is on the formula');
+    // In the preview too.
+    set('class-lookup', 'Illithid Savant');
+    await wait(300);
+    set('class-lookup-level', '10');
+    await wait(150);
+    expectIncludes($('#class-info').textContent, 'Fort +4', 'PC1: the preview shows the printed cell');
+    set('class-lookup', '');
+    await newCharacter();
+  });
+
+  regression('MC12: BAB and base saves are always what the classes compute', async () => {
+    // Ryan's ruling, 2026-10-31: overwrite. A real discrepancy belongs in a value of its
+    // own. The load gets here by way of an event in another module, which is the kind of
+    // thing that moves, so this pins the outcome.
+    await newCharacter();
+    await applyClass('Fighter', 5);
+    const blob = appCollect();
+    blob['bab-1'] = '99';
+    blob['fort-base'] = '88';
+    await newCharacter();
+    appLoad(blob);
+    await wait(500);
+    expectValue('#bab-1', '5', 'MC12: a typed BAB does not survive a load');
+    expectValue('#fort-base', '4', 'MC12: nor a typed base save');
+
+    // Except where the sheet cannot compute it. A class the DB cannot resolve adds nothing,
+    // so recomputing would drop its levels, and the next Save would keep the loss.
+    const lost = appCollect();
+    lost['bab-1'] = '12';
+    lost['fort-base'] = '9';
+    lost._multiclass = lost._multiclass.concat([
+      { className: 'Class From A Book We Lost', level: 7, source: 'Nowhere', version: '3.5' },
+    ]);
+    await newCharacter();
+    appLoad(lost);
+    await wait(500);
+    expect(ClassPicker.getState().some(e => e._unhydrated), true, 'MC12: the row stayed unresolved');
+    expectValue('#bab-1', '12', 'MC12: the saved BAB stands while a class is unresolved');
+    expectValue('#fort-base', '9', 'MC12: and the saved base save');
+    await newCharacter();
+  });
+
   regression('SS29: turn resistance round-trips', async () => {
     await newCharacter();
     set('turn-resistance', '4');
