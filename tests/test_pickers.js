@@ -5664,6 +5664,22 @@ test('save: a load starts from the page defaults, not the previous character', (
     '"old save, migrate". Reset the fields, not the data.');
 });
 
+test('save: an old monster class name is migrated, but never on the race field', () => {
+  // Regression guard for the 2026-10-31 fix. "Ogre (Monster Class)" became the class
+  // "Ogre" and the old name went to a race entry, so saves lost their link to the
+  // class. Runtime half: playfeel SS30.
+  const src = readSource('app.js');
+  const i = src.indexOf('function renameMonsterClasses');
+  assert(i !== -1, 'app.js must migrate old monster class names on load.');
+  const body = src.slice(i, src.indexOf('function loadData(data)', i));
+  assert(!/char-race/.test(body.replace(/\/\/.*$/gm, '')),
+    'renameMonsterClasses must not rewrite #char-race: there the old name is correct, ' +
+    'because it IS the race entry.');
+  const load = src.slice(src.indexOf('function loadData(data)'));
+  assert(load.indexOf('renameMonsterClasses(data)') < load.indexOf('Character.loadData(data'),
+    'The migration must run before the loaders read the save.');
+});
+
 test('save: New Character resets every module loadData does', () => {
   // Regression guard for the 2026-10-31 fix. New keeps its own list of module
   // resets beside loadData's, and the two had drifted: audit dismissals, senses,

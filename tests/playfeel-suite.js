@@ -429,10 +429,16 @@
 
     expect(classChips().length, 3, 'three chips');
     expectValue('#char-level', '12', 'char level 12');
-    // Both Contemplative + Hierophant advance Cleric → CL 12
-    expectValue('#caster-0 .sc-caster-level', '12', 'CL 12 from chained PrCs');
-    // L6 unlocked
-    expectText('#caster-0 .sc-remain[data-lvl="6"]', '3', 'L6: base 1 + WIS bonus 1 + domain 1');
+    // The two PrCs do different things. Contemplative advances Cleric, so this is
+    // a 10th-level cleric's casting. Hierophant does NOT advance spells, and only
+    // stacks for caster level (DMG: "even though they do not advance spell
+    // progression ... still stack ... to determine caster level").
+    expectValue('#caster-0 .sc-caster-level', '12', 'CL 12: Cleric 10 + Hierophant 2');
+    // So the slots stay a 10th-level cleric's (PHB: 5th is 2+1, and 6th comes at
+    // 11th). Wis 18's bonus spells stop at 4th. This test used to expect 6th-level
+    // slots, back when Hierophant was wrongly recorded as advancing.
+    expectText('#caster-0 .sc-remain[data-lvl="5"]', '3', 'L5: base 2 + domain 1');
+    expectText('#caster-0 .sc-remain[data-lvl="6"]', '--', 'no 6th-level slots from Hierophant');
   });
 
   // ---- Regression mini-suite -------------------------------------------
@@ -1413,7 +1419,7 @@
     await newCharacter();
     ClassPicker.setGestalt(true);
     ClassPicker.setActiveSide('A'); await applyClass('Fighter', 6);
-    ClassPicker.setActiveSide('B'); await applyClass('Ogre (Monster Class)', 6);
+    ClassPicker.setActiveSide('B'); await applyClass('Ogre', 6);
     await wait(300);
     const v = (id) => (document.getElementById(id) || {}).value;
     expect(v('char-size'), 'Large', 'GE5: Ogre monster class sets size Large');
@@ -1430,7 +1436,7 @@
     expect(v('char-size'), 'Large', 'GE5: size Large restored after reload');
     expect(v('str-template'), '8', 'GE5: +8 Str restored after reload');
     // Removing the Side-B monster class reverses every extension.
-    ClassPicker.removeClass('Ogre (Monster Class)', 'B'); await wait(150);
+    ClassPicker.removeClass('Ogre', 'B'); await wait(150);
     expect(v('str-template'), '0', 'GE5: removing Side-B Ogre reverses the +8 Str');
     expect(v('char-size'), '', 'GE5: removing Side-B Ogre clears the Large size');
   });
@@ -5462,30 +5468,45 @@
     expectIncludes(bad.rejected[0].reason, 'caster-999', 'LB5: refusal names the missing panel');
   });
 
-  regression('LB6: the sheet publishes pool CAPACITIES and never depletion (ownership split)', async () => {
+  regression('LB6: pools publish capacity AND current, and the sheet owns both (schema 8)', async () => {
     if (!window.LivePublish) fail('LB6: live-publish.js not loaded');
-    // The split's whole point is one owner per number: the sheet hands over the
-    // ceiling, the consumer tracks what it has spent. Publishing `used`/`spent`
-    // would invite two writers for one quantity — so this asserts the ABSENCE of
-    // those keys anywhere under pools, which no static guard can see.
+    if (!window.LiveCommands) fail('LB6: live-commands.js not loaded');
+    // One owner per number. This test used to assert the sheet published no
+    // depletion at all, when the consumer owned it. Schema 8 (2026-09-01) moved
+    // the owner to the sheet: consumers could already WRITE depletion into these
+    // inputs but had no way to read it back, so they kept a second copy, which
+    // is the very collision the old rule existed to prevent. See the SCHEMA 8
+    // note in live-publish.js. The test was left behind and sat red for weeks.
     //
     // Builds its OWN caster panel rather than reusing LB5's: a test that only
     // passes when its neighbour ran first is the order-dependent fragility this
     // suite has been bitten by before, and it fails in a way that blames the
     // wrong code.
     const panel = await addSpellcastingPanelWithSlots(1, 4, 'LB6');
+    const r = LiveCommands.applyCommand({
+      id: 'pf-lb6', fields: { [`pools.spell_slots.${panel.id}.1.used`]: 1 },
+    });
+    expect(r.applied.length, 1, `LB6: the slot write applied (${JSON.stringify(r.rejected)})`);
+    await wait(200);
     const snap = LivePublish.snapshot();
     if (!snap || !snap.pools) fail('LB6: snapshot carries no pools');
     const mine = (snap.pools.spell_slots || []).find(s => s.id === panel.id);
     if (!mine) fail(`LB6: this test's caster panel (${panel.id}) was not published`);
     const lvl = (mine.levels || []).find(l => l.level === 1);
     if (!lvl) fail('LB6: expected the level-1 row to be published');
-    expect(lvl.capacity, 4, 'LB6: capacity IS published (the sheet owns the ceiling)');
-    const asText = JSON.stringify(snap.pools);
-    expect(asText.includes('"used"'), false,
-      'LB6: `used` must never be published — the consumer owns depletion');
-    expect(asText.includes('"spent"'), false,
-      'LB6: `spent` must never be published — the consumer owns depletion');
+    expect(lvl.capacity, 4, 'LB6: capacity is published');
+    expect(lvl.used, 1, 'LB6: a written depletion can be read back');
+    expect(lvl.remaining, 3, 'LB6: remaining agrees with capacity minus used');
+
+    // A pool the sheet has no input for must say so. A 0 here would read as
+    // authority: "none used" rather than "the sheet does not track this".
+    set('turn-per-day', '3');
+    await wait(100);
+    const turn = LivePublish.snapshot().pools.uses_per_day.turn_undead;
+    if (!turn) fail('LB6: turning was not published');
+    expect(turn.max, 3, 'LB6: turning capacity is published');
+    expect(turn.used, null, 'LB6: untracked depletion is null, not an invented 0');
+    expect(turn.remaining, null, 'LB6: ...and so is what follows from it');
 
     // Leave the sheet clean. LB1/LB4/LB5 leave conditions, HP and caster panels
     // behind, and these run last — a test that quietly hands its residue to
@@ -6375,6 +6396,68 @@
     const after = appCollect();
     expect(after._fromClassMarkers['turn-per-day'], undefined, 'SS28: a marker for a class this character lacks is dropped');
     expect(Object.values(after._fromClassMarkers).indexOf('Barbarian') !== -1, true, 'SS28: its own markers stay');
+    await newCharacter();
+  });
+
+  regression('SS30: a save naming a monster class the old way keeps its link to the class', async () => {
+    // The Savage Species walk renamed "Mind Flayer (Monster Class)" to "Mind Flayer"
+    // and gave the old name to a race entry. Kell's save lost its link: no
+    // progressions, so no correct level-ups.
+    await newCharacter();
+    const old = 'Mind Flayer (Monster Class)';
+    appLoad({
+      'char-name': 'Old Save',
+      'char-race': old,
+      'char-class': `${old} 3`,
+      _multiclass: [{ className: old, level: 3, version: '3.0', source: 'Savage Species' }],
+      history: [{ level: 1, class_taken: old }],
+      _fromClassMarkers: { 'char-size': old },
+      specialAbilities: [{ text: `[${old} 1] Probe`, fromClass: old }, 'Notes about a (Monster Class) stay put'],
+    });
+    await wait(300);
+    const st = ClassPicker.getState()[0];
+    expect(st.className, 'Mind Flayer', 'SS30: the class resolves under its new name');
+    expect(!!st._unhydrated, false, 'SS30: and it is linked to the DB');
+    if (!st.prog || !st.prog.bab) fail('SS30: progressions came back from the DB');
+    expectValue('#char-race', old, 'SS30: the RACE keeps the old name, which is correct there');
+    const saved = appCollect();
+    expect(saved._multiclass[0].className, 'Mind Flayer', 'SS30: Save writes the new name');
+    expect(saved._fromClassMarkers['char-size'], 'Mind Flayer', 'SS30: its marker follows, and is not dropped as foreign');
+    expect(saved.history[0].class_taken, 'Mind Flayer', 'SS30: the timeline follows');
+    const rows = saved.specialAbilities;
+    const typed = rows.find(r => (r.text || r) === 'Notes about a (Monster Class) stay put');
+    if (!typed) fail('SS30: a row the player typed must not be rewritten');
+    await newCharacter();
+  });
+
+  regression('ADV8: Hierophant levels stack for caster level on one class, and only once', async () => {
+    await newCharacter();
+    await applyClass('Cleric', 8);
+    await applyClass('Wizard', 3);
+    await applyClass('Hierophant', 2);
+    await wait(200);
+    const cl = (name) => {
+      const p = $$('#spells-content [data-caster-type="spellcasting"]').find(x =>
+        (x.querySelector('.caster-notes')?.value || '').trim().toLowerCase().startsWith(name.toLowerCase()));
+      return p ? p.querySelector('.sc-caster-level').value : null;
+    };
+    expect(cl('Cleric'), '10', 'ADV8: the highest casting class gets the levels');
+    expect(cl('Wizard'), '3', 'ADV8: only that one: the book says "base class", singular');
+    // Every refresh runs this. Reading the field back would add the levels again.
+    ClassPicker.applyCrossClassCasterLevels();
+    ClassPicker.applyCrossClassCasterLevels();
+    window.recalcAll();
+    await wait(150);
+    expect(cl('Cleric'), '10', 'ADV8: refreshing does not add the levels twice');
+    // A load runs its own path.
+    const blob = appCollect();
+    await newCharacter();
+    appLoad(blob);
+    await wait(400);
+    expect(cl('Cleric'), '10', 'ADV8: it survives a save and load');
+    ClassPicker.removeClass('Hierophant');
+    await wait(300);
+    expect(cl('Cleric'), '8', 'ADV8: removing Hierophant takes the levels back off');
     await newCharacter();
   });
 

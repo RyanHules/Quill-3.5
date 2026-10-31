@@ -536,8 +536,41 @@
     });
   }
 
+  // The Savage Species walk (2026-09-08) renamed the monster classes: the class
+  // "Ogre (Monster Class)" is now "Ogre", and the old name went to a RACE entry
+  // holding the class's starting traits. A save still naming the class the old
+  // way lost its link to the DB: no progressions, so no correct level-ups.
+  //
+  // Only the fields that identify the CLASS are rewritten, and #char-race on
+  // purpose is not: there the old name is correct, and it is that race entry. The
+  // next Save writes the new names, so each save heals itself.
+  function renameMonsterClasses(data) {
+    const fix = (s) => (typeof s === "string" ? s.split(" (Monster Class)").join("") : s);
+    const fixRows = (rows, keys) => {
+      if (!Array.isArray(rows)) return;
+      rows.forEach((row) => {
+        if (row && typeof row === "object") keys.forEach((k) => { if (k in row) row[k] = fix(row[k]); });
+      });
+    };
+    fixRows(data._multiclass, ["className"]);
+    fixRows(data._multiclassB, ["className"]);
+    fixRows(data.history, ["class_taken", "class_taken_b"]);
+    // Row text carries the class as a "[Mind Flayer 15]" tag the level-up sync
+    // matches on, so it has to move with fromClass.
+    if (Array.isArray(data.specialAbilities)) {
+      fixRows(data.specialAbilities.filter((r) => r && r.fromClass), ["fromClass", "text"]);
+    }
+    const markers = data._fromClassMarkers;
+    if (markers && typeof markers === "object") {
+      Object.keys(markers).forEach((id) => { markers[id] = fix(markers[id]); });
+    }
+    if (Array.isArray(data.auditDismissed)) data.auditDismissed = data.auditDismissed.map(fix);
+    if ("char-class" in data) data["char-class"] = fix(data["char-class"]);
+  }
+
   function loadData(data) {
     if (!data) return;
+    renameMonsterClasses(data);
     resetSavedFields();
     clearFieldOwnership();
     clearInfoPanels();

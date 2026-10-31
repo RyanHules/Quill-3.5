@@ -3360,7 +3360,9 @@
   //
   //   half_of_all_other  self + floor(sum of qualifying others / 2)
   //   full_of_one_other  self + the highest qualifying other
-  //   full_of_base       self + the highest qualifying other (base casting)
+  //   full_of_base       this class's levels are added to the highest casting
+  //                      class's CL, because it has no spells or panel of its
+  //                      own. See applyCrossClassCasterLevels.
   //
   // `full_of_one_other` is "chosen" in the book; taking the HIGHEST is Ryan's
   // policy (2026-08-29) — there is no legitimate reason to pick a lower one.
@@ -3724,10 +3726,18 @@
     // Chord propagation below writes over SETTLED values rather than racing
     // whichever order classPool happens to be in.
     const scTotals = [];
+    const settled = new Map();     // entry -> the caster level just written for it
+    let stackLevels = 0;
     for (const e of classPool()) {
       if (!e.classId || !e.className) continue;
       const rule = getCasterLevelRule(e.className);
       if (!rule) continue;
+      // full_of_base (Hierophant) has no spells and so no panel of its own. Its
+      // levels go onto the base class, in the pass below.
+      if (rule.mode === 'full_of_base') {
+        stackLevels += e.level || 0;
+        continue;
+      }
       // Restore the ruling BEFORE computing with it — otherwise the first
       // post-load pass computes under RAW and writes that over the saved RAI
       // value, which is the bug this whole block exists to stop.
@@ -3737,6 +3747,7 @@
         e, rule, !!(rule.counts_alt && e.clCountsAlt));
       if (!calc || calc.total == null) continue;
       writeCasterLevel(e.className, calc.total);
+      settled.set(e, calc.total);
       if (/sublime chord/i.test(e.className)) scTotals.push(calc.total);
     }
     for (const total of scTotals) {
@@ -3745,7 +3756,28 @@
         if (/sublime chord/i.test(e.className)) continue;     // already written
         if (!classTypeMatches(e.className, 'arcane')) continue; // divine untouched
         writeCasterLevel(e.className, total);
+        settled.set(e, total);
       }
+    }
+    if (stackLevels) {
+      // "Levels in the hierophant prestige class, even though they do not advance
+      // spell progression in the character's base class, still stack with the
+      // character's base spellcasting levels to determine caster level" (DMG). So
+      // this writes the caster level and never a slot count: Cleric 5 /
+      // Contemplative 5 / Hierophant 2 casts at 12 with a 10th-level cleric's
+      // slots. The book says "base class" in the singular, so one class gets it,
+      // the highest, which is Ryan's policy for the same choice in
+      // full_of_one_other (2026-08-29). Computed from the settled values, never
+      // read from the field, or every refresh would add the levels again.
+      let best = null;
+      let bestCL = 0;
+      for (const e of classPool()) {
+        if (!e.classId || !e.className) continue;
+        if (!getSpellcastingDataAtLevel(e.classId, e.level)) continue;
+        const cl = settled.has(e) ? settled.get(e) : effectiveSpellLevel(e);
+        if (cl > bestCL) { best = e; bestCL = cl; }
+      }
+      if (best) writeCasterLevel(best.className, bestCL + stackLevels);
     }
   }
 

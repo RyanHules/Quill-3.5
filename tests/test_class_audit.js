@@ -111,7 +111,7 @@ const KNOWN_NOTES = {
   // Flesh Golem is a construct — Savage Species explicitly states "no
   // class skills". The empty class_skills is correct per source; the
   // data already documents this via skill_points_per_level text.
-  'Flesh Golem (Monster Class)': 'Construct — Savage Species explicitly has no class skills (documented in skill_points_per_level)',
+  'Flesh Golem': 'Construct — Savage Species explicitly has no class skills (documented in skill_points_per_level)',
 };
 
 // Classes/PrCs whose spellcasting block is incomplete (missing one

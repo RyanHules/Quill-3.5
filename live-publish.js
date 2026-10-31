@@ -18,9 +18,8 @@
 // worst, since it rolls PC social skills against NPCs), defensive RIDERS
 // (damage_reduction / spell_resistance / free-text notes), and daily-pool
 // CAPACITIES. Capacities only, never current values: per the field-ownership
-// split the consumer tracks depletion and the sheet hands it the ceiling, so
-// `.sc-used` / `.sc-remain` / `.psi-pp-spent` are deliberately not published.
-// One owner per number.
+// split the consumer tracked depletion and the sheet handed it the ceiling.
+// (REVERSED BY SCHEMA 8, below: the sheet owns depletion now and publishes it.)
 //
 // SCOPE — this file is the OUTBOUND half: publish only. The inbound half
 // (a consumer writing volatile session state back into the sheet) lives in
