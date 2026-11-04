@@ -611,22 +611,25 @@
   // nothing — 24 mysteries were silently unresolvable and I reported that as
   // "zero mysteries resolve" as though it were a fact about the corpus
   // rather than about my pattern (Ryan called it, 2026-08-23).
-  const XREF_LEAD = '(?:' + XREF_NOUN + '\\s+)?';
+  // The kind noun is a lead ONLY after "the" (2026-11-04). Taken bare, it turned
+  // "functions like spell resistance" into a reference to RESISTANCE (Spell
+  // Resistance, Mass). The pipeline's ported copy has the same rule.
+  const XREF_LEAD = '(?:the\\s+(?:' + XREF_NOUN + '\\s+)?)?';
   const XREF_VERB = '(?:functions?|works?|operates?|acts?)\\s+(?:just\\s+)?like';
   const XREF_RES = [
     new RegExp('(?:^|[.!?]\\s+)As\\s+(?:the\\s+)?' + XREF_NAME + XREF_CITE +
                '\\s*,?\\s*except\\b', 'i'),
     new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
-               '(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
+               XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
     // Subject-less: "Works like dominate monster, except…" (the Faiths and
     // Pantheons divine abilities are written this way throughout).
     new RegExp('(?:^|[.!?;—]\\s*)(?:' + XREF_VERB + '|is\\s+identical\\s+to)' +
-               '\\s+(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
+               '\\s+' + XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i'),
     // …and the ones that say "functions like X" with no except-clause at all.
     new RegExp('\\bThis\\s+' + XREF_NOUN + '\\s+' + XREF_VERB + '\\s+' +
-               '(?:the\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
+               XREF_LEAD + XREF_NAME + XREF_CITE +
                '\\s*' + XREF_NOUN + '?\\s*[.,]', 'i'),
   ];
 
@@ -673,8 +676,8 @@
   // accident is not a rule, and the reader still deserves the pointers.
   const XREF_MULTI = new RegExp(
     '\\b(?:functions?|works?)\\s+(?:just\\s+)?like\\s+(?:either\\s+)?' +
-    '(?:the\\s+)?' + XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s+or\\s+' +
-    '(?:the\\s+)?' + XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s*[.,]', 'i');
+    XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s+or\\s+' +
+    XREF_LEAD + '([a-z][a-z0-9\'’\\- ]{2,50}?)\\s*[.,]', 'i');
 
   // → [entry, …] when the prose names several alternatives, else null.
   function resolveAlternativeBases(d, type) {
@@ -909,10 +912,13 @@
   // worked out and covered with tests. The rule had to be hand-ported to fix it.
   // Whichever side computes, the other must be told — so only one side computes.
   //
-  // The sheet still computes for types the pipeline does not touch (`mystery`)
-  // and for spells it skipped, and the two can never collide: the computed path
-  // fills only fields the entry does NOT carry, and a shipped field is carried
-  // by definition. So this merges rather than replaces.
+  // 2026-11-04: the pipeline now resolves powers and mysteries as well (and
+  // chains, citations, the except-clause guard), so the sheet no longer COMPUTES
+  // inheritance for any type - it only reads what shipped. The computed path
+  // was also the wrong one in both directions: it never honoured an exception
+  // (Bigby's Clenched Fist shown as "Saving Throw: None" when the fist stuns on
+  // a failed Fortitude save), and the pipeline's old guard refused 80 values it
+  // should have taken. resolveBaseChain stays: it is what shows the base entry.
   function shippedInheritance(d) {
     const blob = (d && d.data) || {};
     const map = (d && d.inherited_fields) || blob.inherited_fields;
@@ -953,23 +959,6 @@
         fields[f] = { value: v, from, source: bookOfParent[from] || null };
       }
     }
-    for (const f of wanted) {
-      if (!xrefEmpty(d[f]) || !xrefEmpty(d.data && d.data[f])) continue;
-      for (const hop of chain) {
-        const v = hop.detail[f];
-        if (xrefEmpty(v)) continue;
-        if (XREF_SHAPE_FIELDS.includes(f) &&
-            changesShape(d.name, hop.detail.name)) {
-          // Say nothing rather than say something wrong — the base entry is
-          // rendered in full just below, where the reader can see what the
-          // single-target version hits and apply the mass rule themselves.
-          skipped.push(f);
-          break;
-        }
-        fields[f] = { value: v, from: hop.detail.name, source: hop.detail.source };
-        break;
-      }
-    }
     return (Object.keys(fields).length || skipped.length)
       ? { fields, chain, skipped } : null;
   }
@@ -1003,8 +992,8 @@
       : '';
     if ((inh.skipped || []).length) {
       note += `<div class="lookup-meta-inherit-note">` +
-        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant ` +
-        `changes what it affects</div>`;
+        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant's ` +
+        `own text changes it</div>`;
     }
     return `<div class="lookup-detail-meta lookup-inherited-strip">` +
       bits.join(' &nbsp;·&nbsp; ') + note + `</div>`;
@@ -1196,12 +1185,13 @@
         `inherited from ${escapeHtml(froms.join(' → '))}</div>`;
     }
     if (inh && inh.skipped && inh.skipped.length) {
-      // A mass/chain variant does not hit what its base hits, so the shape
-      // fields are NOT inherited — and that silence is stated rather than
-      // left to look like the book printed nothing.
+      // A field the pipeline refused: a mass/chain variant that does not hit
+      // what its base hits, or (2026-11-04) a variant whose own text contradicts
+      // the base's value - a printed component line, a save it adds. The
+      // silence is stated rather than left to look like the book printed nothing.
       note += `<div class="lookup-meta-inherit-note">` +
-        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant ` +
-        `changes what it affects; see the base entry below</div>`;
+        `${escapeHtml(inh.skipped.join(', '))} not inherited — this variant's ` +
+        `own text changes it; see the base entry below</div>`;
     }
     return `<div class="lookup-detail-meta">${items.join('')}${note}</div>`;
   }

@@ -3380,6 +3380,13 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // a former class's familiar/companion, and now carries metadata instead.
     'Primeval/Primeval Form (Su)',
     'Yuan-Ti Cultist/Second Circle',
+    // 2026-11-04 (Lords of Madness / Masters of the Wild walks), each read:
+    //   Cavefighting: "so FAMILIAR with the terrain features" - the adjective.
+    //   Appraise Mount: compares two mounts; grants none.
+    // Tamer of Beasts/Animal Mastery and Windrider/Chosen Mount are real grants
+    // and carry metadata instead.
+    'Darkrunner/Cavefighting (Ex)',
+    'Windrider/Appraise Mount (Ex)',
     // 2026-07-09 Races of the Wild walk: Arcane Hierophant's "Channel Animal"
     // lets you channel touch spells THROUGH your existing animal companion —
     // it names the keyword but grants no companion (the advanced druid levels
@@ -9875,7 +9882,12 @@ test('xref: a type only inherits fields that TYPE actually uses', (db) => {
       + "json_extract(data,'$.range') AS range, "
       + "json_extract(data,'$.duration') AS duration, "
       + "json_extract(data,'$.saving_throw') AS saving_throw, "
-      + "json_extract(data,'$.spell_resistance') AS spell_resistance "
+      + "json_extract(data,'$.spell_resistance') AS spell_resistance, "
+      // Since 2026-11-04 the PIPELINE resolves mysteries and ships the values
+      // with their provenance; without these columns the fixture looks like a
+      // mystery that prints its own stat block.
+      + "json_extract(data,'$.inherited_fields') AS inherited_fields, "
+      + "json_extract(data,'$.inheritance_skipped') AS inheritance_skipped "
       + "FROM entry WHERE name = ? AND type='mystery' LIMIT 1", [name]);
     assert(r, `fixture missing: ${name}`);
     return r;
