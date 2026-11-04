@@ -922,6 +922,38 @@
     return null;
   }
 
+  // The natural armor the CURRENT race grants, read from the DB by the name in
+  // #char-race, not from #ac-natural. That field is shared: it also holds
+  // monster-class NA, template NA and whatever the player typed (an amulet's
+  // enhancement bonus). A use-higher rule ("a lich has +5 natural armor or the
+  // base creature's, whichever is better") must compare against the CREATURE's
+  // natural armor only (Ryan, 2026-11-04, on Kell: 3 from the mind flayer plus 4
+  // that stack). Ownership markers do not survive a save/load, so the value is
+  // re-derived from the entry, by the same rule onRaceChosen applies at 4a.
+  // 0 when #char-race names no race (a monster class sets it to e.g. "Mind
+  // Flayer (Monster Class)", whose NA is the class's own appliedNA).
+  function racialNaturalArmor() {
+    const el = document.getElementById('char-race');
+    if (!el) return 0;
+    const key = String(el.value || '').trim().toLowerCase()
+      .replace(/\s*\(3\.0\)\s*$/, '')
+      .replace(/\s*\(3\.5\)\s*$/, '');
+    const raceId = raceIndex.get(key);
+    if (raceId === undefined) return 0;
+    const row = DB.queryOne('SELECT data FROM entry WHERE id = ?', [raceId]);
+    if (!row) return 0;
+    let parsed = {};
+    try { parsed = JSON.parse(row.data || '{}'); } catch (e) { return 0; }
+    const baseParsed = resolveVariantBase(parsed);
+    const structured = (typeof parsed.natural_armor === 'number')
+      ? parsed.natural_armor
+      : (baseParsed && typeof baseParsed.data.natural_armor === 'number'
+          ? baseParsed.data.natural_armor : null);
+    const na = (structured != null) ? structured
+      : naturalArmorFromBonuses(mergeBonuses(parsed.bonuses, baseParsed && baseParsed.data.bonuses));
+    return (typeof na === 'number' && na > 0) ? na : 0;
+  }
+
   // Ownership helpers for SHARED fields (#ac-natural is also touched by
   // equipment, monster-class extensions, and manual entry). Write only when
   // the field is empty or already race-owned; mark ownership so resetWrites
@@ -1423,7 +1455,7 @@
   window.RacePicker = {
     resetWrites, applyByName: onRaceChosen, variantBaseName, getActiveSkillBonuses,
     getActiveSaveBonuses, getActiveACBonuses, getActiveSpeedBonuses,
-    getActiveSenses, formatSenses,
+    getActiveSenses, formatSenses, racialNaturalArmor,
   };
 
   // Wait for DB to load, then init.

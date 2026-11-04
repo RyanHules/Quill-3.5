@@ -210,7 +210,26 @@
       // the one-line preview strip via RichText.
       tables: Array.isArray(parsed.tables) && parsed.tables.length
         ? parsed.tables : null,
+      // How this template relates to the one it is built from (the DB declares
+      // it; _template_relations_data.py, 2026-11-04):
+      //   'inherits'  applied INSTEAD of `parent`. The DB has already filled the
+      //               parent's unprinted rules in and marked them (Alhoon <- Lich)
+      //   'requires'  applied ON TOP of `parent`; its values ADD to the parent's
+      //               (Nimble Skeleton on Skeleton). Applying it alone adds the
+      //               parent first (Ryan: "add the base for me").
+      parent: (typeof parsed.parent === 'string' && parsed.parent) || null,
+      parent_relation: parsed.parent_relation || null,
+      parent_alternatives: Array.isArray(parsed.parent_alternatives)
+        ? parsed.parent_alternatives : [],
+      // Provenance of what the DB filled from the parent: whole fields, and
+      // individual items of a merged list. The sheet shows it; it never computes it.
+      inherited_from: parsed.inherited_from || null,
+      inherited_fields: (parsed.inherited_fields && typeof parsed.inherited_fields === 'object')
+        ? parsed.inherited_fields : {},
+      inherited_items: (parsed.inherited_items && typeof parsed.inherited_items === 'object')
+        ? parsed.inherited_items : {},
     };
+    const fromOf = (field) => tpl.inherited_fields[field] || null;
 
     // ability_changes: dict like {Str: "+4", Cha: "+2"} → list of
     // {ability, modifier:int} rows for the existing apply loop.
@@ -228,7 +247,7 @@
         if (s === '—' || s === '–' || s === '-') { nonAbilities.push(ab); continue; }
         const n = parseInt(s.replace(/^\+/, ''), 10);
         if (!Number.isFinite(n) || n === 0) continue;
-        mods.push({ ability: ab, modifier: n });
+        mods.push({ ability: ab, modifier: n, from: fromOf('ability_changes') });
       }
     }
     // ⚠ Ability changes it does NOT express structurally.
@@ -251,9 +270,11 @@
 
     // Traits: union of special_qualities_added + special_attacks_added.
     // Each item may be a string ("Name: description") or {name, description}.
+    // `from` names the parent an item came from (`inherited_items` holds its
+    // index), or null for an item this template prints itself.
     const traits = [];
     const seen = new Set();
-    const push = (raw) => {
+    const push = (raw, from) => {
       if (typeof raw === 'string') {
         const idx = raw.indexOf(': ');
         const name = idx > 0 ? raw.slice(0, idx) : raw;
@@ -261,21 +282,21 @@
         const key = name.toLowerCase();
         if (seen.has(key)) return;
         seen.add(key);
-        traits.push({ name, description });
+        traits.push({ name, description, from });
       } else if (raw && typeof raw === 'object') {
         const name = raw.name || '';
         if (!name) return;
         const key = name.toLowerCase();
         if (seen.has(key)) return;
         seen.add(key);
-        traits.push({ name, description: raw.description || '' });
+        traits.push({ name, description: raw.description || '', from });
       }
     };
-    if (Array.isArray(parsed.special_qualities_added)) {
-      parsed.special_qualities_added.forEach(push);
-    }
-    if (Array.isArray(parsed.special_attacks_added)) {
-      parsed.special_attacks_added.forEach(push);
+    for (const field of ['special_qualities_added', 'special_attacks_added']) {
+      if (!Array.isArray(parsed[field])) continue;
+      const mine = new Set(Array.isArray(tpl.inherited_items[field]) ? tpl.inherited_items[field] : []);
+      parsed[field].forEach((raw, i) =>
+        push(raw, mine.has(i) ? tpl.inherited_from : null));
     }
 
     // Movement: best-effort parse of `speed_change` string for fly/swim
@@ -299,7 +320,71 @@
         }
       }
     }
-    return { tpl, mods, nonAbilities, abilityProse, traits, movement, resistance };
+    return { tpl, mods, nonAbilities, abilityProse, traits, movement, resistance,
+             abilityFrom: fromOf('ability_changes'),
+             naFrom: fromOf('natural_armor_set') || fromOf('natural_armor_change'),
+             laFrom: fromOf('level_adjustment') };
+  }
+
+  // " (from Lich)" — the provenance suffix for a value the DB filled from a
+  // parent template. '' for a printed value, so callers can append it blindly.
+  function fromNote(from) {
+    return from ? ` (from ${from})` : '';
+  }
+
+  // The CREATURE's natural armor before the next template: race + monster
+  // classes + templates already applied. Everything else in #ac-natural (an
+  // amulet's enhancement bonus, a hand entry) is excluded, because it STACKS
+  // with natural armor rather than competing with it. Ryan (2026-11-04), on
+  // Kell's field of 7 = 3 mind flayer + 4 that stack: a use-higher template
+  // ("+5 natural armor or the base creature's, whichever is better") compares
+  // against the 3, so the alhoon's +5 adds +2. Comparing against the whole
+  // field, as this used to, added nothing.
+  function creatureNaturalArmor() {
+    // ONE implementation, in class-picker.js: it also knows the classes that
+    // recorded nothing (an older save's Dragonfire Adept, whose Scales are in
+    // the field unrecorded). The sum below is only the fallback for a page
+    // without the class picker.
+    if (window.ClassPicker && typeof ClassPicker.creatureNaturalArmor === 'function') {
+      try { return ClassPicker.creatureNaturalArmor() || 0; } catch (e) { /* fall through */ }
+    }
+    let n = 0;
+    try {
+      if (window.RacePicker && typeof RacePicker.racialNaturalArmor === 'function') {
+        n += RacePicker.racialNaturalArmor() || 0;
+      }
+    } catch (e) { /* no race: 0 */ }
+    try {
+      if (window.ClassPicker && typeof ClassPicker.getState === 'function') {
+        for (const c of ClassPicker.getState()) {
+          const ext = c && c.monsterExt;
+          if (!ext) continue;
+          n += (ext.appliedNA != null ? ext.appliedNA : ext.naturalArmor) || 0;
+        }
+      }
+    } catch (e) { /* no classes: 0 */ }
+    for (const t of appliedTemplates) n += t.naturalArmorAdded || 0;
+    return n;
+  }
+
+  // The DB row for a template NAME, honouring the book filter (null if hidden).
+  function relationOf(name) {
+    const idx = lookupTemplate(name);
+    if (!idx) return null;
+    const d = templateDetail(idx.template_id);
+    return d ? d.tpl : null;
+  }
+
+  // Is a 'requires' template's base present? The parent template applied, or
+  // an alternative base (LM's vampire variants: "applied either to the vampire
+  // template or to the vampire spawn creature entry") named in #char-race.
+  function baseSatisfied(tpl) {
+    if (!tpl.parent) return true;
+    const want = tpl.parent.toLowerCase();
+    if (appliedTemplates.some(t => t.name.toLowerCase() === want)) return true;
+    const race = String(document.getElementById('char-race')?.value || '').trim().toLowerCase();
+    return (tpl.parent_alternatives || []).some(a =>
+      a && a.name && race.startsWith(String(a.name).toLowerCase()));
   }
 
   // Human display for a template record's natural-armor effect: an additive
@@ -356,7 +441,18 @@
     //
     // Greedy to the first period so parenthetical subtypes survive
     // ("undead (augmented vermin)", "outsider (evil, native)").
-    const explicit = s.match(/^Type changes to\s+([^.]+)/i);
+    //
+    // 2026-11-04: the same sentence also comes as "The creature's type changes
+    // to undead (augmented aberration)" - the walk's verbatim wording - and that
+    // form fell through to the `unchanged` fallback on its trailing "Size is
+    // unchanged". Eight templates applied with no type change: Alhoon (Kell's
+    // re-apply turned him back into an aberration), Ghostly Dragon,
+    // Half-Farspawn, Husk Vermin, Pseudonatural Creature, Sepulchral Thief,
+    // Tainted Minion, Unholy Scion - the last three on the 2026-09-01 list
+    // above, re-broken when a re-walk restored the book's wording. The subject
+    // must be the CREATURE: "If the base creature is an animal, its type
+    // changes to..." is conditional, starts with "If", and stays null.
+    const explicit = s.match(/^(?:the (?:base )?creature['’]s\s+)?type changes to\s+([^.]+)/i);
     if (explicit) return titleCaseHead(explicit[1].trim());
     // LEGACY FALLBACK for the ~57 un-canonized templates whose type_change
     // is free-text "no change" prose ("Same as base creature (unchanged)",
@@ -442,14 +538,26 @@
     bits.push(`<b>${escapeHtml(tpl.name)}</b>` +
       ` <span style="opacity:.7">(${escapeHtml(tpl.version || '?')}, ${escapeHtml(tpl.source || '?')})</span>`);
 
+    const t0 = detail.tpl;
+    if (t0.parent && t0.parent_relation === 'requires') {
+      bits.push(`<b>Stacks on:</b> ${escapeHtml(t0.parent)}` +
+        ((t0.parent_alternatives || []).length
+          ? ` <span style="opacity:.7">(or ${escapeHtml(t0.parent_alternatives.map(a => a.name).join(', '))})</span>`
+          : '') +
+        ` <span style="opacity:.7">— its values add to the base's; the base is applied first if missing</span>`);
+    } else if (t0.parent && t0.parent_relation === 'inherits') {
+      bits.push(`<b>Built on:</b> ${escapeHtml(t0.parent)} ` +
+        `<span style="opacity:.7">— applied instead of it; values marked "from ${escapeHtml(t0.parent)}" ` +
+        `are its rules, not printed on this template's page</span>`);
+    }
     if (detail.mods.length) {
       const fmt = detail.mods.map(m =>
         `${m.modifier > 0 ? '+' : ''}${m.modifier} ${m.ability}`
       ).join(', ');
-      bits.push(`<b>Ability:</b> ${fmt}`);
+      bits.push(`<b>Ability:</b> ${fmt}${escapeHtml(fromNote(detail.abilityFrom))}`);
     }
     if (detail.nonAbilities && detail.nonAbilities.length) {
-      bits.push(`<b>No score:</b> ${detail.nonAbilities.join(', ')} ` +
+      bits.push(`<b>No score:</b> ${detail.nonAbilities.join(', ')}${escapeHtml(fromNote(detail.abilityFrom))} ` +
         `<span style="opacity:.7">(nonability — modifier +0, and nothing raises it)</span>`);
     }
     // A template whose ability changes are PROSE. Applying it will not move
@@ -464,12 +572,16 @@
     if (tpl.new_creature_type) {
       bits.push(`<b>Type → ${escapeHtml(tpl.new_creature_type)}</b>`);
     }
-    const naText = naDisplay(tpl);
+    const naText = naDisplay(t0);
     if (naText) {
-      bits.push(`<b>Natural Armor:</b> ${naText}`);
+      bits.push(`<b>Natural Armor:</b> ${naText}${escapeHtml(fromNote(detail.naFrom))}`);
     }
-    if (tpl.level_adjustment) {
-      bits.push(`<b>LA:</b> +${tpl.level_adjustment}`);
+    // The detail record, not the index row: an inherited LA (Alhoon's, from the
+    // lich) is in the entry's data either way, but the detail is what carries
+    // its provenance.
+    if (t0.level_adjustment) {
+      bits.push(`<b>LA:</b> +${escapeHtml(String(t0.level_adjustment).replace(/^\+/, ''))}` +
+        escapeHtml(fromNote(detail.laFrom)));
     }
     if (detail.movement.length) {
       const moves = detail.movement.map(m =>
@@ -483,9 +595,10 @@
     }
     if (detail.traits.length) {
       const t = detail.traits.slice(0, 6).map(x => {
-        const desc = (x.description || '').replace(/"/g, '&quot;');
+        const desc = escapeHtml((x.from ? `From ${x.from}. ` : '') + (x.description || ''));
         return `<span title="${desc}" style="border-bottom:1px dotted">` +
-               escapeHtml(x.name) + '</span>';
+               escapeHtml(x.name) + '</span>' +
+               (x.from ? `<span style="opacity:.7"> (from ${escapeHtml(x.from)})</span>` : '');
       }).join(', ');
       const more = detail.traits.length > 6
         ? ` <span style="opacity:.7">+${detail.traits.length - 6} more</span>`
@@ -526,6 +639,40 @@
     // query only selects a subset of columns; templateDetail() builds
     // the full record including the structured natural_armor_change / _set.
     const full = detail.tpl;
+
+    // --- Template relations (DB-declared, 2026-11-04) ----------------------
+    // An 'inherits' template already CONTAINS its parent: Alhoon is the lich
+    // template applied to a mind flayer. Stacking both counts the lich twice.
+    if (full.parent && full.parent_relation === 'inherits'
+        && appliedTemplates.some(t => t.name.toLowerCase() === full.parent.toLowerCase())) {
+      flashPanel(infoPanel, `${full.name} already includes the ${full.parent} ` +
+        `template. Remove ${full.parent} first.`, '#a66');
+      return;
+    }
+    for (const t of appliedTemplates) {
+      const r = relationOf(t.name);
+      if (r && r.parent_relation === 'inherits' && r.parent
+          && r.parent.toLowerCase() === full.name.toLowerCase()) {
+        flashPanel(infoPanel, `${t.name} already includes the ${full.name} template.`, '#a66');
+        return;
+      }
+    }
+    // A 'requires' template stacks on its base; without it the deltas sit on
+    // nothing. Ryan: "add the base for me" - apply the base first, then this.
+    let addedBase = null;
+    if (full.parent && full.parent_relation === 'requires' && !baseSatisfied(full)) {
+      if (!lookupTemplate(full.parent)) {
+        flashPanel(infoPanel, `${full.name} stacks on the ${full.parent} template, ` +
+          `which the book filter hides. Enable its book to apply it.`, '#a66');
+        return;
+      }
+      applyTemplate(full.parent, infoPanel);
+      if (!appliedTemplates.some(t => t.name.toLowerCase() === full.parent.toLowerCase())) {
+        flashPanel(infoPanel, `Could not apply ${full.parent}, which ${full.name} needs.`, '#a66');
+        return;
+      }
+      addedBase = full.parent;
+    }
 
     // Capture the pre-template base creature type the first time a template
     // lands, so removing the whole stack restores it (see baseCreatureType).
@@ -574,8 +721,10 @@
     }
 
     // 2. Natural armor → #ac-natural. A `change` is an additive delta; a
-    //    `set` is a use-higher overlap → the actual amount applied is
-    //    max(0, setVal − current) so the field becomes max(current, setVal).
+    //    `set` is a use-higher overlap against the CREATURE's natural armor
+    //    (race + monster classes + earlier templates), never the whole field:
+    //    an enhancement bonus in the field stacks and must not be compared
+    //    (Ryan, 2026-11-04). The amount applied is max(0, setVal − creatureNA).
     //    Either way the applied delta is stored so removal reverses exactly
     //    (max is otherwise irreversible without the recorded delta).
     {
@@ -586,7 +735,7 @@
         if (typeof full.natural_armor_change === 'number') {
           delta = full.natural_armor_change;
         } else if (typeof full.natural_armor_set === 'number') {
-          delta = Math.max(0, full.natural_armor_set - cur);
+          delta = Math.max(0, full.natural_armor_set - creatureNaturalArmor());
         }
         if (delta !== 0) {
           na.value = cur + delta;
@@ -597,7 +746,7 @@
     }
 
     // 4. Populate Special Abilities with this template's traits.
-    populateTemplateTraits(tpl.name, detail.traits);
+    populateTemplateTraits(full.name, detail.traits);
 
     appliedTemplates.push(reversal);
     // 3 (deferred to here). Recompute creature type from the full stack now
@@ -612,13 +761,25 @@
     const summary = [];
     if (Object.keys(reversal.abilityMods).length) {
       summary.push(Object.entries(reversal.abilityMods)
-        .map(([a, n]) => `${n > 0 ? '+' : ''}${n} ${a}`).join(', '));
+        .map(([a, n]) => `${n > 0 ? '+' : ''}${n} ${a}`).join(', ') + fromNote(detail.abilityFrom));
     }
-    const naSummary = naDisplay(tpl);
-    if (naSummary) summary.push(`${naSummary} NA`);
-    if (tpl.level_adjustment) summary.push(`LA +${tpl.level_adjustment}`);
+    if (reversal.nonAbilities.length) {
+      summary.push(`no ${reversal.nonAbilities.join('/')} score${fromNote(detail.abilityFrom)}`);
+    }
+    // naDisplay reads the structured NA fields, which only the detail record
+    // carries (the index row never selected them, so this summary used to be
+    // silent about natural armor).
+    const naSummary = naDisplay(full);
+    if (naSummary) {
+      summary.push(`${naSummary} NA${fromNote(detail.naFrom)} ` +
+        `(${reversal.naturalArmorAdded >= 0 ? '+' : ''}${reversal.naturalArmorAdded} applied)`);
+    }
+    if (full.level_adjustment) {
+      summary.push(`LA +${String(full.level_adjustment).replace(/^\+/, '')}${fromNote(detail.laFrom)}`);
+    }
     flashPanel(infoPanel,
-      `Applied ${tpl.name}${summary.length ? ': ' + summary.join('; ') : ''}.`,
+      `${addedBase ? `Applied ${addedBase} first (${full.name} stacks on it). ` : ''}` +
+      `Applied ${full.name}${summary.length ? ': ' + summary.join('; ') : ''}.`,
       '#7a9');
   }
 
@@ -626,7 +787,21 @@
     const idx = appliedTemplates.findIndex(t =>
       t.name.toLowerCase() === name.toLowerCase());
     if (idx < 0) return;
-    const reversal = appliedTemplates.splice(idx, 1)[0];
+    // A 'requires' template cannot stand without its base, so removing the base
+    // removes what stacks on it too (the mirror of applying the base for you).
+    // Dependents go first, so each reverses exactly what it added.
+    for (const t of appliedTemplates.slice()) {
+      if (t.name.toLowerCase() === name.toLowerCase()) continue;
+      const r = relationOf(t.name);
+      if (r && r.parent_relation === 'requires' && r.parent
+          && r.parent.toLowerCase() === name.toLowerCase()) {
+        removeTemplate(t.name);
+      }
+    }
+    const idx2 = appliedTemplates.findIndex(t =>
+      t.name.toLowerCase() === name.toLowerCase());
+    if (idx2 < 0) return;
+    const reversal = appliedTemplates.splice(idx2, 1)[0];
 
     // 1a. Untick only the nonabilities THIS template set.
     for (const ab of (reversal.nonAbilities || [])) {
@@ -698,9 +873,12 @@
     for (const t of traits) {
       if (!t.name && !t.description) continue;
       if (skipNames.has(t.name) && !t.description) continue;
+      // An item the DB filled from the parent template says so, so the row can
+      // be told from one printed on this template's own page.
+      const tag = t.from ? `[${templateName}, from ${t.from}]` : `[${templateName}]`;
       const text = t.description
-        ? `[${templateName}] ${t.name}: ${t.description}`
-        : `[${templateName}] ${t.name}`;
+        ? `${tag} ${t.name}: ${t.description}`
+        : `${tag} ${t.name}`;
       Feats.addSpecialAbility(text);
       const rows = container.querySelectorAll('.feat-row');
       const lastTa = rows[rows.length - 1]?.querySelector(

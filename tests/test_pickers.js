@@ -1815,6 +1815,25 @@ test('template-picker: cleanCreatureType returns null for no-change templates', 
   // A real type change still passes through.
   assert(cleanCreatureType('Undead (augmented dragon).'),
     'a real type change must NOT be nulled out');
+  // 2026-11-04: "The creature's type changes to X ... Size is unchanged." is an
+  // UNCONDITIONAL change in the book's own words. It used to fall to the
+  // `unchanged` fallback, so Alhoon re-applied onto Kell made him an aberration
+  // again. Read from the DB, not a list: every template phrased this way.
+  const rows = execAll(db,
+    "SELECT name, json_extract(data,'$.type_change') AS tc FROM entry WHERE type='template'");
+  const stated = rows.filter(r => typeof r.tc === 'string'
+    && /^the (?:base )?creature['’]s\s+type changes to/i.test(r.tc));
+  assertGE(stated.length, 8, 'templates stating "The creature\'s type changes to"');
+  for (const r of stated) {
+    assert(cleanCreatureType(r.tc), `${r.name}: its stated type change must survive (${r.tc.slice(0, 60)})`);
+  }
+  assertEq(cleanCreatureType(stated.find(r => r.name === 'Alhoon').tc),
+    'undead (augmented aberration)', 'Alhoon keeps its subtype (helpers are stubbed here)');
+  // A CONDITIONAL change ("If the base creature is an animal, its type changes
+  // to magical beast...") still keeps the base type: null.
+  assertEq(cleanCreatureType('If the base creature is an animal, its type changes to magical '
+    + 'beast (augmented animal). Other base creature types are unchanged.'), null,
+    'a conditional type change must stay null');
 });
 
 test('template/race: Wild strips racial skills + carries structured bonuses; Silverbrow Disguise is unconditional', (db) => {
@@ -1852,15 +1871,18 @@ test('template/race: Wild strips racial skills + carries structured bonuses; Sil
 test('template-picker: reads structured NA fields (change additive, set overlap-max), no prose derive', (db) => {
   // The picker must consume the DB's structured template-NA fields, NOT
   // re-derive from prose. natural_armor_change is an additive delta;
-  // natural_armor_set is use-higher overlap → applied as max(0, set−cur) so
-  // #ac-natural becomes max(cur, set) and the delta reverses on removal.
+  // natural_armor_set is use-higher overlap → applied as max(0, set − the
+  // CREATURE's natural armor), and the delta reverses on removal.
+  // 2026-11-04 (Ryan, on Kell: field 7 = 3 mind flayer + 4 that stack): the
+  // comparison is against the creature's NA, never the whole #ac-natural field,
+  // which also holds enhancement bonuses. It used to be max(0, set − cur).
   const src = readSource('template-picker.js');
   assert(/natural_armor_change:\s*\n?\s*\(typeof parsed\.natural_armor_change/.test(src),
     'template-picker record must carry structured natural_armor_change.');
   assert(/natural_armor_set:\s*\n?\s*\(typeof parsed\.natural_armor_set/.test(src),
     'template-picker record must carry structured natural_armor_set.');
-  assert(/Math\.max\(0,\s*full\.natural_armor_set\s*-\s*cur\)/.test(src),
-    'apply must add max(0, set − cur) so #ac-natural becomes max(cur, set).');
+  assert(/Math\.max\(0,\s*full\.natural_armor_set\s*-\s*creatureNaturalArmor\(\)\)/.test(src),
+    'apply must add max(0, set − creature NA), not compare against the whole field.');
   assert(!/function deriveNaturalArmor\s*\(/.test(src),
     'template-picker must no longer derive NA from prose.');
   // Live DB: additive Half-Dragon carries change, overlap Lich carries set.
@@ -1872,6 +1894,174 @@ test('template-picker: reads structured NA fields (change additive, set overlap-
     "SELECT json_extract(data,'$.natural_armor_set') AS v FROM entry " +
     "WHERE type='template' AND name='Lich' AND source='Monster Manual'");
   assertEq(lich && lich.v, 5, 'Lich must carry natural_armor_set=5 (overlap)');
+});
+
+// Dragonfire Adept's Scales OVERLAP natural armor: use the higher of the
+// creature's NA and the class's (Ryan, 2026-06-12: "effective NA = max(base NA,
+// overlap value) + enhancements"). The comparison is against the CREATURE's NA,
+// never the whole #ac-natural field, which also holds stacking enhancement
+// bonuses (Ryan, 2026-11-04, the same ruling as the template picker's).
+// Runs the REAL applyMonsterClassExtensions body against stubbed inputs.
+test('class-picker: DFA overlap NA compares against the creature, not the field', () => {
+  const cpSrc = readSource('class-picker.js');
+  const body = extractFunctionBody(cpSrc, 'applyMonsterClassExtensions');
+  assert(body, 'applyMonsterClassExtensions not found');
+  // The real inference helper, not a stub of it (it is half the behaviour).
+  const inferBody = extractFunctionBody(cpSrc, 'unrecordedOverlapNA');
+  const run = ({ field, others, ext, prevExt, prevLevel, naAtLevel }) => {
+    const els = {};
+    const el = (id) => (els[id] = els[id] || { value: '', dataset: {}, dispatchEvent() {} });
+    el('ac-natural').value = String(field);
+    const doc = { getElementById: el };
+    const getExt = (classId, level) => ({ abilityMods: {}, size: null, spellResistance: null,
+      naStacking: 'overlap', naturalArmor: naAtLevel(level) });
+    const fn = new Function('document', 'Event', 'getMonsterClassExtensions',
+      'creatureNaturalArmor', 'makeClassFieldSetter',
+      (inferBody ? `function unrecordedOverlapNA(classId, level, others) {${inferBody}}\n` : '')
+      + `return function applyMonsterClassExtensions(entry, prevExt, prevLevel) {${body}};`)(
+      doc, function () {}, getExt, () => others, () => () => {});
+    const entry = { classId: 4944, className: 'Dragonfire Adept', level: ext };
+    fn(entry, prevExt, prevLevel);
+    return { field: Number(els['ac-natural'].value), applied: entry.monsterExt.appliedNA };
+  };
+  const scales = (lvl) => (lvl >= 8 ? 3 : lvl >= 2 ? 2 : 0);   // DFA table: Scales +2 at L2, +3 at L8
+  // 1. A kobold (racial NA 1) wearing an amulet +2 (field 3) takes DFA 2.
+  //    max(1, 2) + 2 = 4. Comparing against the field (3) added nothing.
+  let r = run({ field: 3, others: 1, ext: 2, prevExt: null, prevLevel: null, naAtLevel: scales });
+  assertEq(r.field, 4, 'kobold + amulet + DFA 2: max(1,2) + 2');
+  assertEq(r.applied, 1, 'DFA contributes the +1 over the kobold');
+  // 2. Kess (saves/active/kess.json): Desert Kobold, DFA 3 with NO recorded
+  //    monsterExt, field 2 = max(1, 2). Levelling to DFA 4 must leave her at 2,
+  //    and record the +1 it already wrote, not count it a second time.
+  r = run({ field: 2, others: 1, ext: 4, prevExt: undefined, prevLevel: 3, naAtLevel: scales });
+  assertEq(r.field, 2, 'Kess DFA 3 -> 4: Scales +2 already in the field');
+  assertEq(r.applied, 1, 'and the unrecorded contribution is inferred, then recorded');
+  // 3. Recorded and levelling into Scales +3: +1 more, exactly.
+  r = run({ field: 2, others: 1, ext: 8, prevExt: { appliedNA: 1, naturalArmor: 2 }, prevLevel: 7,
+            naAtLevel: scales });
+  assertEq(r.field, 3, 'DFA 7 -> 8 on a kobold: max(1,3) = 3');
+  // The rule has ONE home. The template picker delegates to it.
+  assert(/creatureNaturalArmor/.test(readSource('class-picker.js'))
+         && /ClassPicker\.creatureNaturalArmor/.test(readSource('template-picker.js')),
+    'class-picker owns creatureNaturalArmor and template-picker uses it');
+});
+
+test('class-picker: no "(Monster Class)" race carries natural armor (else it would count twice)', (db) => {
+  // creatureNaturalArmor adds the race's NA AND each monster class's appliedNA.
+  // A save keeps the old "Mind Flayer (Monster Class)" name in #char-race, and
+  // that is now a RACE entry holding the class's starting traits. If such an
+  // entry ever gained natural_armor, Kell's would be counted twice.
+  const rows = execAll(db, "SELECT name FROM entry WHERE type='race' AND name LIKE '%(Monster Class)%' "
+    + "AND (json_extract(data,'$.natural_armor') IS NOT NULL "
+    + "OR lower(json_extract(data,'$.bonuses')) LIKE '%natural%')");
+  assertEq(rows.length, 0, 'monster-class races with NA: ' + rows.map(r => r.name).join(', '));
+});
+
+// Run template-picker.js in a sandbox with a fake DOM, against the real DB, and
+// drive the picker the way a player does. A source regex or a query proves what
+// the code SAYS; only applying a template proves what it DOES to a sheet.
+function loadTemplatePickerSandbox(db, opts) {
+  const els = new Map();
+  const mk = (id) => ({
+    id, value: '', checked: false, dataset: {}, style: {}, innerHTML: '',
+    textContent: '', title: '',
+    appendChild() {}, addEventListener() {}, dispatchEvent() {},
+    closest() { return null; }, querySelector() { return null; },
+    querySelectorAll() { return []; }, setAttribute() {}, remove() {},
+    insertBefore() {},
+  });
+  const el = (id) => { if (!els.has(id)) els.set(id, mk(id)); return els.get(id); };
+  const doc = {
+    getElementById: (id) => el(id),
+    createElement: () => mk(null),
+    querySelectorAll: () => [],
+    addEventListener() {},
+  };
+  const dbStub = {
+    isLoaded: () => true,
+    query: (sql, params) => execAll(db, sql, params),
+    queryOne: (sql, params) => execOne(db, sql, params),
+    ready: Promise.resolve(true),
+  };
+  const added = [];
+  const win = {
+    DB: dbStub,
+    ClassPicker: { getState: () => opts.classes || [] },
+    RacePicker: { racialNaturalArmor: () => opts.racialNA || 0 },
+  };
+  const feats = { addSpecialAbility: (t) => added.push(t) };
+  const src = fs.readFileSync(path.join(ROOT, 'template-picker.js'), 'utf8');
+  const fn = new Function('window', 'document', 'DB', 'Feats', 'setTimeout',
+    'ClassPicker', 'RacePicker',
+    src + '\n;return window.TemplatePicker;');
+  const api = fn(win, doc, dbStub, feats, () => 0, win.ClassPicker, win.RacePicker);
+  return { api, el, added, ready: dbStub.ready.then(() => null) };
+}
+
+test('template-picker: re-applying Alhoon gives Kell the lich, with provenance', async (db) => {
+  // Kell (saves/active/kell.json): Mind Flayer monster class (appliedNA 3),
+  // #ac-natural 7 because 4 more STACK (Ryan, 2026-11-04). The DB fills
+  // Alhoon from the lich (inherits); applying it must give the lich's
+  // Int/Wis/Cha +2, no Con (undead), and natural armor 3 -> 5 (+2 applied,
+  // field 7 -> 9) - with each inherited value saying where it came from.
+  const S = loadTemplatePickerSandbox(db, { classes: [{ monsterExt: { appliedNA: 3 } }] });
+  await S.ready; await new Promise(r => setImmediate(r));
+  S.el('char-race').value = 'Mind Flayer (Monster Class)';
+  S.el('ac-natural').value = '7';
+  const panel = S.el('template-info');
+  S.api.apply('Alhoon', panel);
+  const t = S.api.getApplied().find(x => x.name === 'Alhoon');
+  assert(t, 'Alhoon must apply');
+  // Order-independent: key order follows the DB blob, which is not a contract.
+  const mods = Object.entries(t.abilityMods).sort().map(([k, v]) => `${k}${v}`).join(',');
+  assertEq(mods, 'Cha2,Int2,Wis2', 'Alhoon must apply the lich ability changes');
+  assertEq(S.el('int-template').value, 2, 'Int template column +2');
+  assertEq(S.el('con-nonability').checked, true, 'an alhoon is undead: no Con score');
+  assertEq(t.naturalArmorAdded, 2, 'NA 3 -> 5 is +2 against the CREATURE, not the field');
+  assertEq(S.el('ac-natural').value, 9, 'field 7 -> 9 (the stacking 4 stay)');
+  const lichTraits = S.added.filter(x => x.startsWith('[Alhoon, from Lich] '));
+  assert(lichTraits.some(x => x.includes('Turn Resistance')),
+    'the lich special qualities must arrive marked "from Lich": ' + S.added.slice(0, 3).join(' | '));
+  assert(!S.added.some(x => x.startsWith('[Alhoon] ')),
+    'Alhoon prints no special qualities of its own; none may look printed');
+});
+
+test('template-picker: a stack variant brings its base; the base takes it away', async (db) => {
+  const S = loadTemplatePickerSandbox(db, {});
+  await S.ready; await new Promise(r => setImmediate(r));
+  S.el('char-race').value = 'Human';
+  S.api.apply('Nimble Skeleton', S.el('template-info'));
+  const names = S.api.getApplied().map(x => x.name);
+  assertEq(names.join(','), 'Skeleton,Nimble Skeleton',
+    'applying a requires-variant alone must apply its base first');
+  // Dex: the skeleton's +2 and the variant's ADDITIONAL +4 - a delta, not a fill.
+  assertEq(S.el('dex-template').value, 6, 'Skeleton +2 Dex plus Nimble Skeleton +4');
+  S.api.remove('Skeleton');
+  assertEq(S.api.getApplied().length, 0, 'removing the base removes what stacks on it');
+  assertEq(S.el('dex-template').value, '', 'and reverses both exactly');
+  // A vampire variant is satisfied by the Vampire Spawn creature instead
+  // (LM: "applied either to the vampire template or to the vampire spawn").
+  const V = loadTemplatePickerSandbox(db, {});
+  await V.ready; await new Promise(r => setImmediate(r));
+  V.el('char-race').value = 'Vampire Spawn (Monster Class)';
+  V.api.apply('Moonbane Vampire', V.el('template-info'));
+  assertEq(V.api.getApplied().map(x => x.name).join(','), 'Moonbane Vampire',
+    'a vampire spawn needs no vampire template under a vampire variant');
+});
+
+test('template-picker: an inherits-template refuses to stack on its own parent', async (db) => {
+  const S = loadTemplatePickerSandbox(db, {});
+  await S.ready; await new Promise(r => setImmediate(r));
+  S.api.apply('Lich', S.el('template-info'));
+  S.api.apply('Alhoon', S.el('template-info'));
+  assertEq(S.api.getApplied().map(x => x.name).join(','), 'Lich',
+    'Alhoon already includes the lich template; both would count it twice');
+  const T = loadTemplatePickerSandbox(db, {});
+  await T.ready; await new Promise(r => setImmediate(r));
+  T.api.apply('Alhoon', T.el('template-info'));
+  T.api.apply('Lich', T.el('template-info'));
+  assertEq(T.api.getApplied().map(x => x.name).join(','), 'Alhoon',
+    'and the other way round');
 });
 
 test('class-picker: spells_per_day normalized to 10 absolute-level columns (offset always 0)', (db) => {
@@ -7449,8 +7639,13 @@ test('monster-class: overlap NA stacking (DFA) uses max, not add (2026-06-16)', 
     'class-picker.js: fetchNaStacking helper missing.');
   assert(/naStacking\s*===\s*'overlap'/.test(src),
     'class-picker.js: applyMonsterClassExtensions does not branch on overlap.');
-  assert(/Math\.max\(0,\s*ext\.naturalArmor\s*-\s*preClassNA\)/.test(src),
-    'class-picker.js: overlap NA is not computed as max(0, value - preClassNA).');
+  // 2026-11-04: "everything else" is the CREATURE's NA (creatureNaturalArmor,
+  // excluding this class), no longer the field minus this class - the field also
+  // holds enhancements (Ryan). Behaviour is pinned by "DFA overlap NA compares
+  // against the creature, not the field"; this keeps the source shape.
+  assert(/Math\.max\(0,\s*ext\.naturalArmor\s*-\s*others\)/.test(src)
+         && /creatureNaturalArmor\(\{\s*exclude:\s*entry\s*\}\)/.test(src),
+    'class-picker.js: overlap NA is not computed as max(0, value - creature NA excluding this class).');
   assert(/appliedNA/.test(src),
     'class-picker.js: net applied NA not tracked (removal would be wrong).');
 });

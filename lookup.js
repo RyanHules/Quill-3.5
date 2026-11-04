@@ -933,6 +933,18 @@
              skipped: Array.isArray(skip) ? skip : [] };
   }
 
+  // The entry the PIPELINE filled one of these fields from, or null. Read
+  // straight off `inherited_fields`, for any type: the value itself is already
+  // written into the entry, so this is the only thing that tells it from print.
+  function shippedFrom(d, keys) {
+    const map = shippedInheritance(d).map;
+    if (!map) return null;
+    for (const k of (Array.isArray(keys) ? keys : [keys])) {
+      if (map[k]) return map[k];
+    }
+    return null;
+  }
+
   function inheritedStatBlock(d, type) {
     const shipped = shippedInheritance(d);
     const chain = resolveBaseChain(d, type);
@@ -1125,6 +1137,7 @@
     // value is italicised and names where it came from, because a player
     // adjudicating an edge case needs to know which book to open.
     const inh = inheritedStatBlock(d, type);
+    const markedFrom = new Set();
     const inheritedFor = (keys) => {
       if (!inh) return null;
       for (const k of (Array.isArray(keys) ? keys : [keys])) {
@@ -1171,6 +1184,21 @@
         );
         continue;
       }
+      // PRESENT but filled by the pipeline (it writes the inherited value into
+      // the entry): still marked. Without this the italic path above only ever
+      // fired for an EMPTY field, so every value the pipeline filled rendered
+      // exactly like print.
+      const from = shippedFrom(d, key);
+      if (from) {
+        markedFrom.add(from);
+        items.push(
+          `<span class="lookup-meta-item lookup-meta-inherited" ` +
+          `title="Inherited from ${escapeHtml(from)}">` +
+          `<b>${escapeHtml(label)}:</b> ${escapeHtml(formatValue(v))}` +
+          `</span>`
+        );
+        continue;
+      }
       items.push(
         `<span class="lookup-meta-item">` +
         `<b>${escapeHtml(label)}:</b> ${escapeHtml(formatValue(v))}` +
@@ -1179,8 +1207,9 @@
     }
     if (!items.length) return '';
     let note = '';
-    if (inh && items.some(s => s.includes('lookup-meta-inherited'))) {
-      const froms = [...new Set(Object.values(inh.fields).map(f => f.from))];
+    if (items.some(s => s.includes('lookup-meta-inherited'))) {
+      const froms = [...new Set([
+        ...(inh ? Object.values(inh.fields).map(f => f.from) : []), ...markedFrom])];
       note = `<div class="lookup-meta-inherit-note">italic values are ` +
         `inherited from ${escapeHtml(froms.join(' → '))}</div>`;
     }
@@ -2788,12 +2817,49 @@
       }
       return escapeHtml(String(v));
     };
+    // Values the pipeline filled from a parent template (Alhoon <- Lich) are
+    // written into the entry, so the row has to SAY so: whole fields via
+    // `inherited_fields`, single items of a merged list via `inherited_items`
+    // (Lichfiend prints its DR and takes the lich's other qualities).
+    const fromTag = (from) =>
+      ` <i class="lookup-meta-inherited" title="Not printed on this template's page">` +
+      `(from ${escapeHtml(from)})</i>`;
+    let inhItems = d.inherited_items || (d.data && d.data.inherited_items) || null;
+    if (typeof inhItems === 'string') { try { inhItems = JSON.parse(inhItems); } catch (e) { inhItems = null; } }
+    const inhFrom = d.inherited_from || (d.data && d.data.inherited_from) || null;
     const row = (label, keys, fmt) => {
       const list = Array.isArray(keys) ? keys : [keys];
       list.forEach(k => shown.add(k));
-      const rendered = (fmt || fmtVal)(pickField(d, list));
+      const val = pickField(d, list);
+      const itemKey = list.find(k => inhItems && Array.isArray(inhItems[k]) && d[k] === val);
+      let rendered;
+      if (itemKey && Array.isArray(val)) {
+        const mark = new Set(inhItems[itemKey]);
+        rendered = val.map((it, i) => {
+          const s = fmtVal(it);
+          return s ? s + (mark.has(i) && inhFrom ? fromTag(inhFrom) : '') : '';
+        }).filter(Boolean).join('<br>');
+      } else {
+        rendered = (fmt || fmtVal)(val);
+        const from = shippedFrom(d, list);
+        if (rendered && from) rendered += fromTag(from);
+      }
       if (rendered) lines.push(`<b>${escapeHtml(label)}:</b> ${rendered}`);
     };
+    // The relation itself, from the DB's declaration.
+    const parentName = d.parent || (d.data && d.data.parent);
+    const relation = d.parent_relation || (d.data && d.data.parent_relation);
+    if (parentName && relation === 'inherits') {
+      lines.push(`<b>Built on:</b> ${escapeHtml(parentName)} — applied instead of it; ` +
+        `it takes every ${escapeHtml(parentName)} rule this page does not restate (marked "from ${escapeHtml(parentName)}")`);
+    } else if (parentName && relation === 'requires') {
+      let alts = d.parent_alternatives || (d.data && d.data.parent_alternatives) || [];
+      if (typeof alts === 'string') { try { alts = JSON.parse(alts); } catch (e) { alts = []; } }
+      const or = (Array.isArray(alts) && alts.length)
+        ? ` or ${alts.map(a => escapeHtml(a.name)).join(', ')}` : '';
+      lines.push(`<b>Stacks on:</b> ${escapeHtml(parentName)}${or} — apply that first; ` +
+        `the values below add to it`);
+    }
     // Ability changes keep "—" (canonical stat-block notation for "no
     // ability score" — undead have no Con, mindless no Int). The generic
     // fmtVal drops "—" as empty, which would hide exactly that fact.
@@ -2853,6 +2919,10 @@
       'cr_adjustment', 'level_adjustment', 'la_adjustment',
       'type_change', 'new_creature_type', 'source_creature_type',
       'type', 'page', 'parent', 'template_category', 'template_type',
+      // The relation + its provenance render above as the "Built on" /
+      // "Stacks on" line and the "(from X)" marks, not as raw maps.
+      'parent_relation', 'parent_alternatives',
+      'inherited_from', 'inherited_fields', 'inherited_items',
       // Denormalized index columns fetchDetail() merges onto the data object
       // (not part of the template's own JSON) — skip so they never show as
       // noise or duplicate the real *_change fields.

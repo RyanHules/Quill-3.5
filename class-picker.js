@@ -2894,13 +2894,73 @@
              naStacking: fetchNaStacking(classId) };
   }
 
+  // ---- The CREATURE's natural armor: one rule, for every use-higher reader ----
+  //
+  // #ac-natural is ONE shared field holding the race's NA, each monster class's,
+  // each template's AND whatever stacks on top (an amulet's enhancement bonus, a
+  // hand entry). A use-higher rule - Dragonfire Adept's Scales, a lich's "+5 or
+  // the base creature's, whichever is better" - compares against the creature's
+  // natural armor only (Ryan, 2026-11-04, on Kell: field 7 = 3 mind flayer + 4
+  // that stack). So it is summed from its SOURCES, never read off the field:
+  // race (re-derived from the DB, since ownership markers do not survive a load),
+  // the recorded contribution of every class, every applied template.
+  // template-picker.js calls this too (ClassPicker.creatureNaturalArmor); it is
+  // the only implementation.
+  //
+  // `exclude` leaves one class entry out: the overlap path compares a class
+  // against everything EXCEPT itself.
+  function creatureNaturalArmor(opts) {
+    const exclude = opts && opts.exclude;
+    let n = 0;
+    try {
+      if (window.RacePicker && typeof RacePicker.racialNaturalArmor === 'function') {
+        n += RacePicker.racialNaturalArmor() || 0;
+      }
+    } catch (e) { /* no race: 0 */ }
+    try {
+      if (window.TemplatePicker && typeof TemplatePicker.getApplied === 'function') {
+        for (const t of TemplatePicker.getApplied()) n += t.naturalArmorAdded || 0;
+      }
+    } catch (e) { /* no templates: 0 */ }
+    const entries = pickedClasses.concat(gestalt ? pickedClassesB : [])
+      .filter(e => e && e !== exclude);
+    const unrecorded = [];
+    for (const e of entries) {
+      if (e.monsterExt) {
+        n += (e.monsterExt.appliedNA != null ? e.monsterExt.appliedNA
+                                             : e.monsterExt.naturalArmor) || 0;
+      } else if (e.classId) {
+        unrecorded.push(e);
+      }
+    }
+    for (const e of unrecorded) n += unrecordedOverlapNA(e.classId, e.level, n);
+    return n;
+  }
+
+  // A save can hold an OVERLAP class whose contribution was never recorded. Kess
+  // (saves/active/kess.json) has Dragonfire Adept 3 with no monsterExt, and her
+  // field's 2 is max(kobold 1, Scales 2) - the Scales are in it. Treat such an
+  // entry as having written what the overlap rule would have written: max(0,
+  // its value - the creature's other NA). Comparing against the whole field
+  // happened to get her right, and was wrong for every enhancement bonus; a
+  // creature-only rule that ignored this case would add her Scales a second
+  // time. An ADDITIVE class with no record still counts 0, as before: whether it
+  // was ever written cannot be told.
+  function unrecordedOverlapNA(classId, level, others) {
+    const ext = getMonsterClassExtensions(classId, level);
+    if (!ext || ext.naStacking !== 'overlap' || !ext.naturalArmor) return 0;
+    return Math.max(0, ext.naturalArmor - others);
+  }
+
   // Apply (or re-apply) monster-class extensions to the sheet. Diffs
   // against `prevExt` (the previously-applied extensions for this
   // SAME class, captured BEFORE the entry was replaced) and applies
   // only the delta — so re-applying Ogre 2 → Ogre 3 only adds the
   // L3 changes, not the full L1..L3 stack again. Stores the new
   // extensions on entry.monsterExt for removeClass to subtract.
-  function applyMonsterClassExtensions(entry, prevExt) {
+  // `prevLevel` is the replaced entry's level, used only when that entry
+  // recorded nothing (see unrecordedOverlapNA).
+  function applyMonsterClassExtensions(entry, prevExt, prevLevel) {
     const ext = getMonsterClassExtensions(entry.classId, entry.level);
     if (!ext) return;
     entry.monsterExt = ext;
@@ -2923,23 +2983,29 @@
     //   * "overlap" stacking: the class's NA does NOT stack with the creature's
     //     existing NA — you use the higher (DFA "Scales"). Per Ryan's rule
     //     (2026-06-12): effective NA = max(base NA, overlap value) + enhancements.
-    //     So this class's NET contribution = max(0, value − preClassNA), where
-    //     preClassNA is the NA already present from everything else (race /
-    //     template / other classes) = current field minus what THIS class
-    //     previously contributed. Without this, a kobold (NA 1) taking DFA got
+    //     So this class's NET contribution = max(0, value − the creature's NA
+    //     from everything else). Without this, a kobold (NA 1) taking DFA got
     //     1 + 2 = 3 instead of max(1, 2) = 2.
+    //     "Everything else" is the CREATURE's NA (creatureNaturalArmor), never
+    //     the field minus this class: the field also holds the enhancements, so
+    //     a kobold wearing +2 that took DFA 2 got 3 instead of max(1,2) + 2 = 4
+    //     (Ryan, 2026-11-04).
     // `ext.appliedNA` records the net amount actually written so re-level and
     // removal subtract exactly that (and old saves without it fall back to the
     // raw value they applied additively — migration-safe).
     const na = document.getElementById('ac-natural');
-    const prevApplied = (prevExt && prevExt.appliedNA != null)
-      ? prevExt.appliedNA
-      : ((prevExt && prevExt.naturalArmor) || 0);
+    const others = (ext.naStacking === 'overlap')
+      ? creatureNaturalArmor({ exclude: entry }) : 0;
+    let prevApplied;
+    if (prevExt && prevExt.appliedNA != null) prevApplied = prevExt.appliedNA;
+    else if (prevExt) prevApplied = prevExt.naturalArmor || 0;
+    else if (prevLevel != null && entry.classId) {
+      // Re-applying an entry that recorded nothing: what did it already write?
+      prevApplied = unrecordedOverlapNA(entry.classId, prevLevel, others);
+    } else prevApplied = 0;
     let appliedNA = ext.naturalArmor;
     if (ext.naStacking === 'overlap' && na) {
-      const curVal = parseInt(na.value, 10) || 0;
-      const preClassNA = curVal - prevApplied;        // NA from all other sources
-      appliedNA = Math.max(0, ext.naturalArmor - preClassNA);
+      appliedNA = Math.max(0, ext.naturalArmor - others);
     }
     ext.appliedNA = appliedNA;
     const deltaNA = appliedNA - prevApplied;
@@ -4958,6 +5024,9 @@
     // L3 changes, not the full L1..L3 stack again).
     const prevMonsterExt = (existingIdx >= 0)
       ? arr[existingIdx].monsterExt : null;
+    // Its level too: an entry that recorded no extensions (an older save) is
+    // re-applied by inferring what it wrote at that level.
+    const prevLevel = (existingIdx >= 0) ? arr[existingIdx].level : null;
     // The starting racial package is applied ONCE, not per level — carrying
     // the previous record forward is what stops a re-apply (Ogre 2 → Ogre 3)
     // from adding the racial ability adjustments a second time.
@@ -5034,7 +5103,7 @@
     // in #ac-natural, size in #char-size. Diffed against the entry's
     // previous extensions so re-apply at a higher level only adds
     // the new levels. No-op for non-monster classes.
-    applyMonsterClassExtensions(entry, prevMonsterExt);
+    applyMonsterClassExtensions(entry, prevMonsterExt, prevLevel);
     // And the STARTING racial package (creature type, racial ability
     // adjustments, movement modes, languages) — level-independent, so it
     // carries the previously-applied record forward instead of re-diffing.
@@ -7316,6 +7385,10 @@
     getTouchACFeatures,
     getFollowableClasses, fillPanelFromClass,
     getStateB: () => pickedClassesB.slice(),
+    // The creature's natural armor, from its sources (race + classes +
+    // templates), never off #ac-natural. The one implementation; the template
+    // picker's use-higher rule calls it too.
+    creatureNaturalArmor,
     isGestalt: () => gestalt,
     setGestalt: apiSetGestalt,
     setActiveSide: apiSetActiveSide,
