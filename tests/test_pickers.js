@@ -174,9 +174,14 @@ test('feat-picker: excludes ACFs + Monstrous Variant sets (2026-06-16)', (db) =>
     'feat-picker is missing the Monstrous Variant exclusion.');
   // The excluded rows still EXIST (in their proper homes)...
   assertGE(execOne(db, "SELECT COUNT(*) AS n FROM entry WHERE type='acf'").n, 1);
+  // ...and the Dungeonscape profiles' proper home is now `rule`: the 2026-11-08
+  // walk files all ten ("Basilisk (Alternative Monster Feats)" ... "Umber Hulk")
+  // as rules, where the legacy layer had them as feat-typed 'Monstrous Variant'
+  // sets. The NOT LIKE exclusion above STAYS: an older hand-copied blob (the DM's)
+  // can still carry the feat-typed rows.
   assertGE(execOne(db,
-    "SELECT COUNT(*) AS n FROM entry WHERE type='feat' "
-    + "AND types_csv LIKE '%Monstrous Variant%'").n, 1);
+    "SELECT COUNT(*) AS n FROM entry WHERE type='rule' AND source='Dungeonscape' "
+    + "AND name LIKE '% (Alternative Monster Feats)'").n, 10);
   // ...but the mirrored picker query returns none of them.
   const picked = execAll(db,
     "SELECT type, types_csv FROM entry "
