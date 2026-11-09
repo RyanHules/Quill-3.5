@@ -3641,6 +3641,10 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     'Exalted Arcanist/Spells per Day/Spells Known',
     'Fist of Raziel/Spells per Day',
     'Troubadour of Stars/Spells per Day/Spells Known',
+    // 2026-11-09 Magic of Faerun v3 walk: the war wizard's spellcasting text says
+    // "increased familiar powers" in the same negative clause (the pre-walk layer
+    // paraphrased it out). Its name is the errata's "Spells per Day/Spells Known".
+    'War Wizard of Cormyr/Spells per Day/Spells Known',
     // 2026-05-22 Dscape Dungeon Lord re-extraction (corpus-first
     // audit fix): "Dungeon Dependency" describes the PrC's
     // requirement to remain in a specific dungeon — "you can be
