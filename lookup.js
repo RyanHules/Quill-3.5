@@ -716,11 +716,21 @@
     if (!entries.length && DB.isLoaded()) buildIndex();
     if (!entriesByName.size) return null;
     let m = null;
+    // The entry's OWN NAME as the subject: "Control Creatures works like a
+    // dominate monster spell, except..." (Faiths and Pantheons p.216, as
+    // printed; the pre-walk data paraphrased it to the subject-less "Works like
+    // dominate monster, except", which the third pattern above was written for).
+    // Built per entry so no other capitalised subject can match; same capture
+    // groups as XREF_RES, plus an optional article before the referenced name.
+    const ownSubject = d.name ? [new RegExp(
+      '(?:^|[.!?;—]\\s*)' + String(d.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+      '\\s+' + XREF_VERB + '\\s+(?:an?\\s+)?' + XREF_LEAD + XREF_NAME + XREF_CITE +
+      '\\s*' + XREF_NOUN + '?\\s*,?\\s*(?:except|but)\\b', 'i')] : [];
     for (const f of XREF_PROSE_FIELDS) {
       const v = d[f];
       if (typeof v !== 'string' || v.length < 20) continue;
       const text = v.replace(/\s+/g, ' ').slice(0, 700);
-      for (const re of XREF_RES) {
+      for (const re of XREF_RES.concat(ownSubject)) {
         m = re.exec(text);
         if (m) break;
       }

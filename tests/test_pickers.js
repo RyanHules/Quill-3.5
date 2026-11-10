@@ -3645,6 +3645,11 @@ test('companion: every relevant class feature has metadata or explicit exclusion
     // "increased familiar powers" in the same negative clause (the pre-walk layer
     // paraphrased it out). Its name is the errata's "Spells per Day/Spells Known".
     'War Wizard of Cormyr/Spells per Day/Spells Known',
+    // 2026-11-10 Faiths and Pantheons v3 walk: Horned Harbinger's bonus-feat list names
+    // "Leadership (undead cohorts only)" (a feat, not a grant); Techsmith's Gondsman is a
+    // construct companion no companion kind models yet (DB TODO).
+    'Horned Harbinger/Bonus Feat',
+    'Techsmith/Gondsman (Ex)',
     // 2026-05-22 Dscape Dungeon Lord re-extraction (corpus-first
     // audit fix): "Dungeon Dependency" describes the PrC's
     // requirement to remain in a specific dungeon — "you can be
@@ -7451,6 +7456,7 @@ test('printed cells: a class prints off its label only where the book really doe
     'Warshaper 2 ref': 1, 'Warshaper 2 will': 1,                           // complete_warrior L9695
     'Dragonstalker 10 fort': 1,                                            // draconomicon L13033
     'Dreadmaster 2 fort': -1, 'Dreadmaster 2 will': -1,                    // faiths_pantheons L26951
+    'Stormlord 4 fort': -1, 'Stormlord 4 will': -1,                        // faiths_pantheons L28589
     'Divine Agent 8 fort': 1, 'Divine Agent 8 ref': 1,                     // manual_of_the_planes L2538
     'Illithid Savant 10 fort': 1,                                          // savage_species L8292
     'Master of Flies 10 fort': 1,                                          // L8477
