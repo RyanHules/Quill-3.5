@@ -1,0 +1,817 @@
+{
+  "char-name": "Sparrow",
+  "char-player": "Essie",
+  "char-class": "Rogue 1",
+  "char-race": "Halfling",
+  "char-type": "Humanoid (halfling)",
+  "char-alignment": "",
+  "char-deity": "",
+  "char-level": "1",
+  "char-size": "Small",
+  "char-age": "",
+  "char-gender": "",
+  "char-height": "",
+  "char-weight": "",
+  "char-eyes": "",
+  "char-hair": "",
+  "char-skin": "",
+  "char-campaign": "",
+  "char-xp": "0",
+  "damage-reduction": "",
+  "speed-land": "20",
+  "speed-fly": "",
+  "speed-fly-maneuver": "",
+  "speed-swim": "",
+  "speed-burrow": "",
+  "speed-climb": "",
+  "str-score": "11",
+  "str-race": "-2",
+  "str-template": "",
+  "str-temp-adj": "",
+  "str-nonability": false,
+  "dex-score": "17",
+  "dex-race": "2",
+  "dex-template": "",
+  "dex-temp-adj": "",
+  "dex-nonability": false,
+  "con-score": "10",
+  "con-race": "",
+  "con-template": "",
+  "con-temp-adj": "",
+  "con-nonability": false,
+  "int-score": "16",
+  "int-race": "",
+  "int-template": "",
+  "int-temp-adj": "",
+  "int-nonability": false,
+  "wis-score": "14",
+  "wis-race": "",
+  "wis-template": "",
+  "wis-temp-adj": "",
+  "wis-nonability": false,
+  "cha-score": "13",
+  "cha-race": "",
+  "cha-template": "",
+  "cha-temp-adj": "",
+  "cha-nonability": false,
+  "hp-total": "6",
+  "hp-current": "6",
+  "hp-temp": "",
+  "hp-nonlethal": "",
+  "ac-natural": "0",
+  "ac-misc": "0",
+  "ac-miss-chance": "",
+  "ac-defense-notes": "",
+  "ability-ac-bonuses": [],
+  "ignore-encumbrance": false,
+  "fly-encumbered-ok": false,
+  "fort-base": "0",
+  "fort-magic": "0",
+  "fort-misc": "0",
+  "fort-temp": "0",
+  "ref-base": "2",
+  "ref-magic": "0",
+  "ref-misc": "0",
+  "ref-temp": "0",
+  "will-base": "0",
+  "will-magic": "0",
+  "will-misc": "0",
+  "will-temp": "0",
+  "save-conditional": "",
+  "init-misc": "0",
+  "bab-1": "0",
+  "grapple-misc": "0",
+  "spell-resistance": "",
+  "turn-resistance": "",
+  "attacks": [
+    {
+      "name": "",
+      "bonus": "",
+      "damage": "",
+      "crit": "",
+      "range": "",
+      "type": "",
+      "notes": "",
+      "calcAbility": "STR",
+      "calcMisc": "",
+      "calcAuto": false,
+      "damageCalc": {
+        "dice": "",
+        "style": "one-hand",
+        "enh": "",
+        "misc": "",
+        "auto": false,
+        "riders": [],
+        "abilityTerms": [
+          {
+            "ability": "STR",
+            "mult": "auto"
+          }
+        ]
+      },
+      "fromClass": ""
+    }
+  ],
+  "_multiclass": [
+    {
+      "className": "Rogue",
+      "level": 1,
+      "classId": 18654,
+      "version": "3.5",
+      "source": "Player's Handbook (Premium Edition)"
+    }
+  ],
+  "armor-name": "Leather",
+  "armor-type": "Armor",
+  "armor-ac-bonus": "2",
+  "armor-max-dex": "6",
+  "armor-check-pen": "0",
+  "armor-spell-fail": "10",
+  "armor-speed": "",
+  "armor-weight": "15",
+  "armor-special": "",
+  "shield-name": "",
+  "shield-ac-bonus": "0",
+  "shield-weight": "",
+  "shield-check-pen": "0",
+  "shield-spell-fail": "",
+  "shield-special": "",
+  "armor-worn": true,
+  "shield-worn": true,
+  "armor-touch-ac": false,
+  "shield-touch-ac": false,
+  "magicItems": [],
+  "slotSoulmelds": {},
+  "slot-head": "",
+  "slot-eyes": "",
+  "slot-neck": "",
+  "slot-shoulders": "",
+  "slot-ring1": "",
+  "slot-ring2": "",
+  "slot-hands": "",
+  "slot-arms": "",
+  "slot-body": "",
+  "slot-torso": "",
+  "slot-waist": "",
+  "slot-feet": "",
+  "sm-max-soulmelds": "0",
+  "sm-max-essentia": "0",
+  "sm-max-binds": "0",
+  "sm-base-capacity": "1",
+  "gear": [],
+  "possessions-notes": "",
+  "money-cp": "0",
+  "money-sp": "0",
+  "money-gp": "0",
+  "money-pp": "0",
+  "casters": [],
+  "feats": [
+    "Dodge"
+  ],
+  "specialAbilities": [
+    {
+      "text": "[Rogue 1] Sneak attack +1d6",
+      "fromClass": "Rogue"
+    },
+    {
+      "text": "[Rogue 1] trapfinding",
+      "fromClass": "Rogue"
+    },
+    "Small",
+    "Surefooted",
+    "Lucky",
+    "Fearless",
+    "Thrown Weapon Skill",
+    "Keen Ears"
+  ],
+  "languages": "Common, Halfling",
+  "companions": [
+    {
+      "name": "Companion",
+      "compName": "",
+      "compType": "animal",
+      "compSize": "Medium",
+      "isFamiliar": false,
+      "compMode": "manual",
+      "compBaseCreature": "",
+      "compTemplate": "",
+      "comp-str-score": "",
+      "comp-str-boost": "",
+      "comp-dex-score": "",
+      "comp-dex-boost": "",
+      "comp-con-score": "",
+      "comp-con-boost": "",
+      "comp-int-score": "",
+      "comp-int-boost": "",
+      "comp-wis-score": "",
+      "comp-wis-boost": "",
+      "comp-cha-score": "",
+      "comp-cha-boost": "",
+      "compHpMax": "",
+      "compHpCur": "",
+      "compSpeed": "",
+      "compInitMisc": "",
+      "compAcArmor": "",
+      "compAcShield": "",
+      "compAcNatural": "",
+      "compAcSize": "",
+      "compAcMisc": "",
+      "compSaveFortBase": "",
+      "compSaveFortMisc": "",
+      "compSaveRefBase": "",
+      "compSaveRefMisc": "",
+      "compSaveWillBase": "",
+      "compSaveWillMisc": "",
+      "compBab": "",
+      "compGrappleSize": "",
+      "compGrappleMisc": "",
+      "compPersonality": "",
+      "compNotes": "",
+      "compSpecials": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compAttacks": [
+        {
+          "weapon": "",
+          "bonus": "",
+          "damage": "",
+          "crit": ""
+        }
+      ],
+      "compSkills": [],
+      "compFeats": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ],
+      "compTricks": [
+        {
+          "name": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "turn-per-day": "",
+  "turn-check": "",
+  "turn-damage": "",
+  "rage-per-day": "",
+  "rage-duration": "",
+  "rage-str-con": "",
+  "rage-will": "",
+  "rage-ac": "",
+  "rage-used": "",
+  "rage-rounds": "",
+  "rage-active": false,
+  "notes": "",
+  "customizations": [],
+  "_bloodlines": null,
+  "activeConditions": [],
+  "_defense_riders": [],
+  "_dr_entries": [],
+  "_regeneration": [],
+  "fast-healing": "",
+  "co-power-attack": "",
+  "co-combat-expertise": "",
+  "co-heedless-charge": false,
+  "_soulmeld_effects": {},
+  "_senses": {
+    "manual": [],
+    "light": {
+      "source": "",
+      "used": 0
+    }
+  },
+  "auditDismissed": [],
+  "auditMuted": [],
+  "history": [
+    {
+      "level": 1,
+      "class_taken": "Rogue",
+      "hp_rolled": 6,
+      "ability_boost": null,
+      "skills_purchased": {},
+      "feats_taken": [
+        "Dodge"
+      ],
+      "spells_learned": [],
+      "spells_unlearned": [],
+      "choices": {},
+      "notes": ""
+    }
+  ],
+  "history_reconstructed": false,
+  "_book_filter": null,
+  "_homebrew": null,
+  "skills": [
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 0,
+      "name": "Appraise"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 1,
+      "name": "Autohypnosis"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 2,
+      "name": "Balance"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 3,
+      "name": "Bluff"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 4,
+      "name": "Climb"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 5,
+      "name": "Concentration"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 6,
+      "name": "Control Shape"
+    },
+    {
+      "type": "header",
+      "baseName": "Craft",
+      "index": 7
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 7,
+      "baseName": "Craft",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 8,
+      "name": "Decipher Script"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 9,
+      "name": "Diplomacy"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 10,
+      "name": "Disable Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 11,
+      "name": "Disguise"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 12,
+      "name": "Escape Artist"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 13,
+      "name": "Forgery"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 14,
+      "name": "Gather Information"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 15,
+      "name": "Handle Animal"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 16,
+      "name": "Heal"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 17,
+      "name": "Hide"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 18,
+      "name": "Iaijutsu Focus"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 19,
+      "name": "Intimidate"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 20,
+      "name": "Jump"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 21,
+      "name": "Knowledge (Arcana)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 22,
+      "name": "Knowledge (Arch. & Eng.)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 23,
+      "name": "Knowledge (Dungeoneering)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 24,
+      "name": "Knowledge (Geography)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 25,
+      "name": "Knowledge (History)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 26,
+      "name": "Knowledge (Local)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 27,
+      "name": "Knowledge (Nature)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 28,
+      "name": "Knowledge (Nobility)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 29,
+      "name": "Knowledge (The Planes)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 30,
+      "name": "Knowledge (Psionics)"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 31,
+      "name": "Knowledge (Religion)"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 32,
+      "name": "Listen"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 33,
+      "name": "Lucid Dreaming"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 34,
+      "name": "Martial Lore"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 35,
+      "name": "Move Silently"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 36,
+      "name": "Open Lock"
+    },
+    {
+      "type": "header",
+      "baseName": "Perform",
+      "index": 37
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 37,
+      "baseName": "Perform",
+      "subtypeName": ""
+    },
+    {
+      "type": "header",
+      "baseName": "Profession",
+      "index": 38
+    },
+    {
+      "type": "subtype",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 38,
+      "baseName": "Profession",
+      "subtypeName": ""
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 39,
+      "name": "Psicraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 40,
+      "name": "Ride"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 41,
+      "name": "Search"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 42,
+      "name": "Sense Motive"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 43,
+      "name": "Sleight of Hand"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 44,
+      "name": "Speak Language"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 45,
+      "name": "Spellcraft"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 46,
+      "name": "Spot"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 47,
+      "name": "Survival"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 48,
+      "name": "Swim"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 49,
+      "name": "Truespeak"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "4",
+      "misc": "0",
+      "index": 50,
+      "name": "Tumble"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 51,
+      "name": "Use Magic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": false,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 52,
+      "name": "Use Psionic Device"
+    },
+    {
+      "type": "skill",
+      "classSkill": true,
+      "pinned": false,
+      "ranks": "0",
+      "misc": "0",
+      "index": 53,
+      "name": "Use Rope"
+    }
+  ],
+  "customSkills": []
+}

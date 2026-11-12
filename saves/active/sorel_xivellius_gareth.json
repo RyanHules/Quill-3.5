@@ -10,7 +10,7 @@
   "char-size": "Medium",
   "char-age": "",
   "char-gender": "Male",
-  "char-height": "",
+  "char-height": "5'2\"",
   "char-weight": "",
   "char-eyes": "Purple",
   "char-hair": "White",
@@ -82,6 +82,7 @@
   "bab-1": "2",
   "grapple-misc": "0",
   "spell-resistance": "15",
+  "turn-resistance": "",
   "attacks": [
     {
       "name": "Tailor's Scissors x2",
@@ -111,23 +112,11 @@
       "fromClass": ""
     }
   ],
-  "_fromClassMarkers": {
-    "char-size": "Mind Flayer (Monster Class)",
-    "char-race": "Mind Flayer (Monster Class)",
-    "sm-max-soulmelds": "Totemist",
-    "sm-max-essentia": "Totemist",
-    "sm-max-binds": "Totemist",
-    "rage-per-day": "Barbarian",
-    "rage-duration": "Barbarian",
-    "rage-str-con": "Barbarian",
-    "rage-will": "Barbarian",
-    "rage-ac": "Barbarian"
-  },
   "_multiclass": [
     {
       "className": "Sorcerer",
       "level": 4,
-      "classId": 18109,
+      "classId": 18655,
       "version": "3.5",
       "source": "Player's Handbook (Premium Edition)"
     }
@@ -137,7 +126,7 @@
     {
       "className": "Shadowcaster",
       "level": 4,
-      "classId": 23517,
+      "classId": 24063,
       "version": "3.5",
       "source": "Tome of Magic"
     }
@@ -213,7 +202,7 @@
   ],
   "possessions-notes": "",
   "money-cp": "389",
-  "money-sp": "39",
+  "money-sp": "61",
   "money-gp": "",
   "money-pp": "11",
   "casters": [
@@ -270,11 +259,11 @@
           "locked": true
         },
         {
-          "name": "Read Magic",
+          "name": "Ghost Sound",
           "locked": true
         },
         {
-          "name": "Ghost Sound",
+          "name": "Detect Magic",
           "locked": true
         }
       ],
@@ -283,7 +272,7 @@
       "perDay-1": "6",
       "bonus-1": "1",
       "extra-1": "",
-      "used-1": "0",
+      "used-1": "3",
       "knownList-1": [
         {
           "name": "Color Spray",
@@ -305,7 +294,7 @@
       "perDay-2": "3",
       "bonus-2": "1",
       "extra-2": "",
-      "used-2": "0",
+      "used-2": "1",
       "knownList-2": [
         {
           "name": "Tasha's Hideous Laughter",
@@ -408,13 +397,13 @@
             "name": "Sight Obscured\nFundamental · Fundamental · LFundamental\nIllusion · Touch · 1 round/level (D) · Will negates (harmless)\nYou cloak the subject and her movements in subtly shifting shadow. This mystery grants a +5 circumstance bonus on Hide checks, Sleight of Hand checks, and any other checks that involve concealing the subject's actions or gestures.",
             "level": "0",
             "extra": "",
-            "used": 0
+            "used": 2
           },
           {
             "name": "Umbral Hand\nFundamental · Fundamental · LFundamental\nTransmutation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Will negates (object)\nYou point your finger at a distant object, and the shadows seem to grasp and tug at it. This mystery functions like the spell mage hand, except you can manipulate heavier objects and magic items. Magic items are allowed a saving throw to negate the effect. You need not concentrate on the effect, but you must direct it with your thoughts once each round (a free action), or the effect ends.",
             "level": "0",
             "extra": "",
-            "used": 0
+            "used": 1
           }
         ]
       },
@@ -425,7 +414,7 @@
             "name": "Voice of Shadow\nPath of Ebon Whispers · Apprentice · L1\nEnchantment · Close (25 ft. + 5 ft./2 levels) · 1 round · Will negates\nBy speaking via a conduit through the Plane of Shadow, you deliver a commanding message. This mystery functions like the spell command. A second function is a necromancy effect. Undead and constructs that fail their saving throws against this effect are dazed for 1 round. You can only use one version of this mystery in a single casting.",
             "level": "1",
             "extra": "",
-            "used": 0
+            "used": 1
           },
           {
             "name": "Carpet of Shadow\nPath of Dark Terrain · Apprentice · L1\nConjuration · Close (25 ft. + 5 ft./2 levels) · 1 minute/level (D) · None\nThe ground becomes rough and hazardous, the real floor superimposed with irregular terrain of the Plane of Shadow. You cloak the ground with an uneven and hard to traverse surface. The terrain becomes difficult, meaning that each 5-foot square within the area costs double to move into. For instance, each light undergrowth square (normally costing 2 squares of movement to move into) now costs 4 squares of movement to move into. If you cast this mystery a second time on the same area (or a portion of the same area) while the first casting is still active, the second casting does not worsen the terrain further (although it would extend the duration of the effect on that area).",
@@ -435,13 +424,13 @@
           },
           {
             "name": "Black Fire\nPath of Dark Terrain · Apprentice · L2\nEvocation · Close (25 ft. + 5 ft./2 levels) · 1 round/level (D) · Reflex negates; see text\nYou open a conduit to the Plane of Shadow, drawing its elements into the world and igniting a black fire on the ground. You create a shapeable shadowy curtain of black flame that covers the affected squares. The fire deals 1d6 points of cold damage per two caster levels to any creature standing in an affected square at the beginning of each of your turns until the effect ends. In addition, the flame deals damage to any creature entering or passing through an affected square. Black fire burns only a few feet tall, so a creature can avoid the effect of the mystery by jumping or flying over the area.",
-            "level": "1",
+            "level": "2",
             "extra": "",
             "used": 0
           },
           {
             "name": "Congress of Shadows\nPath of Ebon Whispers · Apprentice · L2\nDivination · 1 mile/level · Instantaneous · Will negates (harmless)\nYou look toward your shadow and speak a few words knowing that some distance away, a subject hears them and might reply. You speak, and your words appear in the mind of a distant creature. The message can consist of up to five words, plus one additional word per caster level. It cannot deliver command words for magic items, or in any other respect function as anything but normal speech. If the subject is where you believe it to be, the message is delivered. The subject recognizes the identity of the sender of the message if it knows you. The creature can then reply, using the same number of words that you used. The message cannot cross planar boundaries.",
-            "level": "1",
+            "level": "2",
             "extra": "",
             "used": 0
           }
