@@ -340,8 +340,12 @@
     if (!stub) { hideInfo(); return; }
     // Pull full record only on demand — keeps the per-keystroke
     // lookup cheap.
+    // `id` is selected because renderInfo needs it twice: ErrataBadge.attach
+    // read `row.deity_id || row.id`, both undefined until 2026-11-12, so the
+    // errata badge could never attach here; and the see-also rows exclude the
+    // deity itself when resolving its own-name stat-block link.
     const row = DB.queryOne(
-      "SELECT name, source, version, data FROM entry WHERE id = ?",
+      "SELECT id, name, source, version, data FROM entry WHERE id = ?",
       [stub.id]);
     if (!row) { hideInfo(); return; }
     let d = {};
@@ -420,7 +424,16 @@
       html += `<div class="deity-info-desc" style="margin-top:0.4rem;line-height:1.4">`
         + escapeHtml(d.description) + '</div>';
     }
+    // The same Statistics / See also rows the lookup modal shows (a god's own
+    // name opens its stat-block npc; Ryan, 2026-11-10), via the shared renderer.
+    if (window.Lookup && typeof Lookup.renderDeityExtra === 'function') {
+      html += Lookup.renderDeityExtra(
+        Object.assign({}, d, { id: row.id, name: d.name || row.name, source: row.source }));
+    }
     infoPanel.innerHTML = html;
+    if (window.Lookup && typeof Lookup.wireSeeAlsoPills === 'function') {
+      Lookup.wireSeeAlsoPills(infoPanel);
+    }
     if (window.ErrataBadge) ErrataBadge.attach(infoPanel, row.deity_id || row.id);
     if (window.VersionBadge) VersionBadge.attach(infoPanel, row.version || d.version);
     // Note: display state is owned by the ⓘ toggle button, NOT by

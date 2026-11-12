@@ -10392,6 +10392,56 @@ test('save: StaffUse round-trips by name + source and is wired into app.js', () 
   assert(html.includes("'staff-use.js'") && html.includes('id="staff-use"'), 'index.html loads the module and hosts the panel');
 });
 
+// A deity's own-name see_also is its game-statistics npc (Faiths and Pantheons,
+// Ryan 2026-11-10: "npc, with a reference in the deity entry pointing at it").
+// Before 2026-11-12 deity had no type-specific renderer, so ~240 deity see_also
+// links across seven books never showed, and resolving the own-name link by name
+// alone returned the deity being read. Checked over EVERY such deity, not a sample.
+test('lookup: a deity\'s own-name see_also opens its stat-block npc, never itself', (db) => {
+  const L = loadLookupReqRenderer(db);
+  assert(typeof L.renderDeityExtra === 'function', 'Lookup.renderDeityExtra is not exposed');
+  const rows = execAll(db,
+    "SELECT id, name, source, data FROM entry WHERE type = 'deity' " +
+    "AND json_extract(data, '$.see_also') IS NOT NULL");
+  let own = 0;
+  const bad = [];
+  for (const r of rows) {
+    const d = Object.assign(JSON.parse(r.data), { id: r.id, name: r.name, source: r.source });
+    const links = (d.see_also || []).filter(n => typeof n === 'string');
+    if (!links.some(n => n.trim().toLowerCase() === r.name.toLowerCase())) continue;
+    own++;
+    const html = L.renderDeityExtra(d);
+    const m = html.match(/<b>Statistics:<\/b>\s*<button[^>]*data-see-also-id="(\d+)"/);
+    if (!m) { bad.push(`${r.name} (${r.source}): no Statistics pill`); continue; }
+    const t = execOne(db, 'SELECT id, type, source FROM entry WHERE id = ?', [Number(m[1])]);
+    if (!t || t.type !== 'npc' || t.source !== r.source || t.id === r.id) {
+      bad.push(`${r.name} (${r.source}): Statistics opens ${t ? t.type + ' / ' + t.source : 'nothing'}`);
+    }
+  }
+  assertGE(own, 30, 'deities whose see_also names themselves (F&P prints 30 stat blocks)');
+  assert(!bad.length, bad.slice(0, 5).join('; '));
+});
+
+test('lookup: a deity\'s link to ANOTHER god opens that god\'s deity entry', (db) => {
+  const L = loadLookupReqRenderer(db);
+  const rows = execAll(db,
+    "SELECT id, name, source, data FROM entry WHERE type = 'deity' " +
+    "AND source = 'Faiths and Pantheons' AND json_extract(data, '$.see_also') IS NOT NULL");
+  let checked = 0;
+  for (const r of rows) {
+    for (const n of JSON.parse(r.data).see_also || []) {
+      if (typeof n !== 'string' || n.trim().toLowerCase() === r.name.toLowerCase()) continue;
+      const kinds = execAll(db, 'SELECT DISTINCT type FROM entry WHERE LOWER(name) = LOWER(?)', [n])
+        .map(x => x.type);
+      if (!(kinds.includes('deity') && kinds.includes('npc'))) continue;
+      const hit = L.resolveSeeAlsoEntry(n, { id: r.id, source: r.source, preferTypes: ['deity', 'npc'] });
+      assert(hit && hit.type === 'deity', `${r.name} -> ${n} resolved to ${hit ? hit.type : 'nothing'}`);
+      checked++;
+    }
+  }
+  assertGE(checked, 10, 'F&P god-to-god links that could resolve to either deity or npc');
+});
+
 (async function main() {
   let db;
   try {

@@ -347,7 +347,7 @@
           if (caret) caret.textContent = '▸';
         } else {
           container.insertAdjacentHTML(
-            'beforeend', renderNestedExpansion(name)
+            'beforeend', renderPillExpansion(seeAlsoPill, name)
           );
           seeAlsoPill.setAttribute('aria-expanded', 'true');
           const caret = seeAlsoPill.querySelector('.lookup-see-also-caret');
@@ -1525,6 +1525,7 @@
     if (type === 'flaw')        return renderFlawExtra(d);
     if (type === 'vestige')     return renderVestigeExtra(d);
     if (type === 'domain')      return renderDomainExtra(d);
+    if (type === 'deity')       return renderDeityExtra(d);
     if (type === 'power'        && d.augment)
       return `<div class="lookup-detail-extra"><b>Augment:</b> ${escapeHtml(d.augment)}</div>`;
     if (type === 'class' || type === 'prc') return renderClassExtra(d);
@@ -3229,23 +3230,39 @@
     'condition', 'rule', 'feat', 'skill', 'skill_use',
     'spell', 'class', 'prc', 'maneuver', 'power', 'item',
   ];
-  function resolveSeeAlsoEntry(name) {
+  // `ctx` (optional) is the entry the link is printed ON: {id, source,
+  // preferTypes}. Without it the behaviour is unchanged for every existing
+  // caller. With it, three things a bare name cannot express:
+  //   * the entry itself is never the answer. Faiths and Pantheons' 30 gods
+  //     carry `see_also: [<own name>]` pointing at their stat-block npc
+  //     (Ryan, 2026-11-10: "npc, with a reference in the deity entry pointing
+  //     at it"), and by name alone that resolved to the deity being read;
+  //   * `preferTypes` rank ahead of SEE_ALSO_TYPE_PRIORITY (which has neither
+  //     deity nor npc in it, so the two tied);
+  //   * among equals, the same book wins: FRCS and F&P both print Tyr.
+  function resolveSeeAlsoEntry(name, ctx) {
     if (!name || !DB.isLoaded()) return null;
-    const rows = DB.query(
+    let rows = DB.query(
       "SELECT id, type, name, source FROM entry " +
       "WHERE LOWER(name) = LOWER(?)",
       [name]
     );
+    if (ctx && ctx.id != null && rows) rows = rows.filter(r => r.id !== ctx.id);
     if (!rows || !rows.length) return null;
+    const prefer = (ctx && Array.isArray(ctx.preferTypes)) ? ctx.preferTypes : [];
+    const rankOf = r => {
+      const p = prefer.indexOf(r.type);
+      if (p !== -1) return p;
+      const i = SEE_ALSO_TYPE_PRIORITY.indexOf(r.type);
+      return prefer.length + (i === -1 ? 99 : i);
+    };
     // Sort by type priority, then by source-recency proxy (3.5
     // before 3.0 — we don't have version here so prefer rows that
     // look like the primary book entry).
     const ranked = rows.slice().sort((a, b) => {
-      const aIdx = SEE_ALSO_TYPE_PRIORITY.indexOf(a.type);
-      const bIdx = SEE_ALSO_TYPE_PRIORITY.indexOf(b.type);
-      const aRank = aIdx === -1 ? 99 : aIdx;
-      const bRank = bIdx === -1 ? 99 : bIdx;
-      return aRank - bRank;
+      const d = rankOf(a) - rankOf(b);
+      if (d || !(ctx && ctx.source)) return d;
+      return (a.source === ctx.source ? 0 : 1) - (b.source === ctx.source ? 0 : 1);
     });
     return ranked[0];
   }
@@ -3300,6 +3317,8 @@
       extras = renderItemExtra(data, { nested: true });
     } else if (type === 'class' || type === 'prc') {
       extras = renderClassExtra(data);
+    } else if (type === 'deity') {
+      extras = renderDeityExtra(data, { nested: true });
     } else {
       extras = renderTypeSpecific(data, type);
     }
@@ -4669,12 +4688,63 @@
   // Render a single see-also pill (clickable button). Used by
   // renderRuleExtra and renderFeatExtra and exposed below for per-
   // picker info panels that want the same UX.
-  function renderSeeAlsoPill(name) {
+  // `id` (optional): the entry this pill was resolved to at render time, for a
+  // link a bare name cannot address (a deity's own-name link to its stat
+  // block). The click handlers open it by id; without it they resolve by name.
+  function renderSeeAlsoPill(name, id) {
+    const idAttr = id != null ? `data-see-also-id="${escapeHtml(String(id))}" ` : '';
     return `<button type="button" class="lookup-see-also-pill" ` +
-      `data-see-also-name="${escapeHtml(String(name))}" ` +
+      `data-see-also-name="${escapeHtml(String(name))}" ` + idAttr +
       `aria-expanded="false">` +
       `<span class="lookup-see-also-caret">▸</span> ` +
       `${escapeHtml(String(name))}</button>`;
+  }
+
+  // Open a see-also pill's target: by its resolved id when it carries one.
+  function renderPillExpansion(pill, name) {
+    const raw = pill.getAttribute('data-see-also-id');
+    if (raw != null && raw !== '') {
+      const id = /^\d+$/.test(raw) ? Number(raw) : raw;
+      return renderNestedExpansionById(id, name);
+    }
+    return renderNestedExpansion(name);
+  }
+
+  // A deity's `see_also` (about 240 links across seven books; none was shown
+  // before 2026-11-12, because deity had no type-specific renderer). A link
+  // naming the god ITSELF is its game-statistics npc, so it goes in its own
+  // "Statistics" row, resolved past the deity to an npc, same book first. Any
+  // other god's name opens that god's deity entry; everything else (pantheon
+  // tables, items, PrCs) keeps the ordinary type priority.
+  function renderDeityExtra(d, opts) {
+    if (opts && opts.nested) return '';
+    // De-duplicated case-insensitively: two F&P gods list their mount twice
+    // (Torm, Uthgar), a consolidation leftover filed in the DB project's TODO.
+    const seen = new Set();
+    const names = (Array.isArray(d.see_also) ? d.see_also : []).filter(n => {
+      if (typeof n !== 'string' || !n.trim()) return false;
+      const k = n.trim().toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (!names.length) return '';
+    const self = String(d.name || '').trim().toLowerCase();
+    const stats = [], others = [];
+    for (const n of names) {
+      const own = n.trim().toLowerCase() === self;
+      const hit = resolveSeeAlsoEntry(n, {
+        id: d.id, source: d.source,
+        preferTypes: own ? ['npc'] : ['deity', 'npc'],
+      });
+      if (own && hit && hit.type === 'npc') stats.push(renderSeeAlsoPill(n, hit.id));
+      else others.push(renderSeeAlsoPill(n, hit ? hit.id : null));
+    }
+    const row = (label, pills) => pills.length
+      ? `<div class="lookup-rule-see-also"><b>${escapeHtml(label)}:</b> ${pills.join(' ')}` +
+        `<div class="lookup-see-also-expansions"></div></div>`
+      : '';
+    return row('Statistics', stats) + row('See also', others);
   }
 
   // Render a complete see-also row: label + space-separated pills +
@@ -4748,7 +4818,7 @@
         if (caret) caret.textContent = '▸';
       } else {
         expansions.insertAdjacentHTML(
-          'beforeend', renderNestedExpansion(name)
+          'beforeend', renderPillExpansion(pill, name)
         );
         pill.setAttribute('aria-expanded', 'true');
         const caret = pill.querySelector('.lookup-see-also-caret');
@@ -4785,6 +4855,10 @@
     findFeatsRequiring,
     wireSeeAlsoPills,
     renderNestedExpansion,
+    // A deity's see_also rows (Statistics + See also), for the deity picker's
+    // info panel and for tests; resolveSeeAlsoEntry with its optional context.
+    renderDeityExtra,
+    resolveSeeAlsoEntry,
     // The "As X, except…" base-entry reference, exposed so a picker's info
     // panel can offer the same inline base text the lookup does — the whole
     // point of the feature is that nothing in a picker is a page-turn away.
